@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { LoanProvider } from '@/lib/types';
@@ -16,7 +17,7 @@ export function ProviderSelection({ providers, onSelect }: ProviderSelectionProp
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Choose a Loan Provider</h1>
         <p className="text-lg text-muted-foreground mt-2">Select a provider to see their available loan products.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {providers.map((provider) => (
           <Card
             key={provider.id}
