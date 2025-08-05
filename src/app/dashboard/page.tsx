@@ -120,7 +120,7 @@ export default function DashboardPage() {
       <main className="flex-1">
         <div className="container py-8 md:py-12">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">
+                <h1 className="text-3xl font-bold tracking-tight text-primary">
                     {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
                 </h1>
             </div>
