@@ -96,10 +96,6 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     <div className="max-w-2xl mx-auto">
       <Card className="shadow-lg">
         <CardHeader className="text-center">
-            <div className="flex justify-center items-center gap-2 text-green-600">
-                <CheckCircle className="h-6 w-6" />
-                <CardTitle className="text-2xl sr-only">Congratulations! You're Eligible</CardTitle>
-            </div>
           <CardDescription>{product.name} Offer</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -115,17 +111,15 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
           <div className="space-y-4">
             <Label htmlFor="loanAmount" className="text-lg font-medium">Enter Your Desired Loan Amount</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="loanAmount"
-                type="number"
-                value={loanAmount}
-                onChange={(e) => setLoanAmount(Number(e.target.value))}
-                className="w-48 text-xl font-bold"
-                min={suggestedLoanAmountMin}
-                max={suggestedLoanAmountMax}
-              />
-            </div>
+            <Input
+              id="loanAmount"
+              type="number"
+              value={loanAmount}
+              onChange={(e) => setLoanAmount(Number(e.target.value))}
+              className="w-full text-xl font-bold"
+              min={suggestedLoanAmountMin}
+              max={suggestedLoanAmountMax}
+            />
           </div>
 
           {calculatedTerms && (
