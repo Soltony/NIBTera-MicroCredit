@@ -12,10 +12,11 @@ export default function WelcomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [eligibilityResult, setEligibilityResult] = useState<CheckLoanEligibilityOutput | null>(null);
 
-  const handleCreditScoreSubmit = async (data: { annualIncome: number; creditScore: number }) => {
+  const handleCheckEligibility = async () => {
     setIsLoading(true);
     try {
-      const result = await checkEligibility(data);
+      // Using mock data since the form fields are removed
+      const result = await checkEligibility({ annualIncome: 50000, creditScore: 650 });
       setEligibilityResult(result);
       if (result.isEligible) {
         // Pass the results to the dashboard page via query params
@@ -47,7 +48,7 @@ export default function WelcomePage() {
       </header>
       <main className="flex-1 flex items-center">
         <div className="container py-8 md:py-12">
-            <CreditScoreForm onSubmit={handleCreditScoreSubmit} isLoading={isLoading} result={eligibilityResult} />
+            <CreditScoreForm onCheck={handleCheckEligibility} isLoading={isLoading} result={eligibilityResult} />
         </div>
       </main>
     </div>
