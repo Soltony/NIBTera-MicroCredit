@@ -5,12 +5,11 @@ import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 
 const formatCurrency = (amount: number) => {
@@ -102,6 +101,11 @@ export default function DashboardPage() {
     handleApply(product.id);
   }
 
+  const historyIcons: Record<string, React.ElementType> = {
+    'Paid': CreditCard,
+    'Unpaid': Wallet,
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -135,37 +139,31 @@ export default function DashboardPage() {
             <div className="grid gap-8 grid-cols-1">
                 <div>
                      <Card>
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>Loan History</CardTitle>
                         </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Loan</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead>Due Date</TableHead>
-                                        <TableHead className="text-right">Status</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mockLoanHistory.map((loan, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>
-                                                <div className="font-medium">{loan.productName}</div>
-                                                <div className="text-sm text-muted-foreground">{loan.providerName}</div>
-                                            </TableCell>
-                                            <TableCell>{formatCurrency(loan.loanAmount)}</TableCell>
-                                            <TableCell>{format(loan.dueDate, 'PPP')}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                                    {loan.repaymentStatus}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                        <CardContent className="space-y-4">
+                            {mockLoanHistory.map((loan, index) => {
+                                const Icon = historyIcons[loan.repaymentStatus] || Wallet;
+                                return (
+                                <div key={index} className="flex items-center gap-4 p-4 rounded-lg border">
+                                    <div className={`p-3 rounded-full ${loan.repaymentStatus === 'Paid' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                        <Icon className={`h-6 w-6 ${loan.repaymentStatus === 'Paid' ? 'text-green-600' : 'text-red-600'}`} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-medium">{loan.productName}</div>
+                                        <div className="text-sm text-muted-foreground">{loan.providerName}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="font-medium">{formatCurrency(loan.loanAmount)}</div>
+                                        <div className="text-sm text-muted-foreground">
+                                        <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                            {loan.repaymentStatus}
+                                        </Badge>
+                                        </div>
+                                    </div>
+                                </div>
+                            )})}
                         </CardContent>
                     </Card>
                 </div>
