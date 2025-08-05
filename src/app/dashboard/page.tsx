@@ -151,8 +151,7 @@ export default function DashboardPage() {
                     <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="item-1" className="border-none">
                             <AccordionTrigger className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md px-4 py-2 no-underline hover:no-underline">
-                                <span className="flex-1 text-left">Recent Transactions</span>
-                                <ChevronRight className="h-4 w-4 transition-transform duration-200" />
+                                <span className="flex-1 text-left">Loan History</span>
                             </AccordionTrigger>
                             <AccordionContent>
                                 <Card className="mt-2">
