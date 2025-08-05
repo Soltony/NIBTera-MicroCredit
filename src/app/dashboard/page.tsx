@@ -6,12 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { DollarSign, PiggyBank, Building2, Landmark, Briefcase, Home, PersonStanding, ChevronRight } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
+import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -125,69 +125,49 @@ export default function DashboardPage() {
                 </h1>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Maximum Loan Limit</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(maxLoanLimit)}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Available to Borrow</CardTitle>
-                        <PiggyBank className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(availableToBorrow)}</div>
-                    </CardContent>
-                </Card>
+            <div className="mb-8">
+                <LoanSummaryCard
+                    maxLoanLimit={maxLoanLimit}
+                    availableToBorrow={availableToBorrow}
+                />
             </div>
-
+            
             <div className="grid gap-8 grid-cols-1">
                 <div>
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="item-1" className="border-none">
-                            <AccordionTrigger className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md px-4 py-2 no-underline hover:no-underline">
-                                <span className="flex-1 text-left">Loan History</span>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                                <Card className="mt-2">
-                                    <CardContent className="p-0">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Loan</TableHead>
-                                                    <TableHead>Amount</TableHead>
-                                                    <TableHead>Due Date</TableHead>
-                                                    <TableHead className="text-right">Status</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {mockLoanHistory.map((loan, index) => (
-                                                    <TableRow key={index}>
-                                                        <TableCell>
-                                                            <div className="font-medium">{loan.productName}</div>
-                                                            <div className="text-sm text-muted-foreground">{loan.providerName}</div>
-                                                        </TableCell>
-                                                        <TableCell>{formatCurrency(loan.loanAmount)}</TableCell>
-                                                        <TableCell>{format(loan.dueDate, 'PPP')}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                                                {loan.repaymentStatus}
-                                                            </Badge>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </CardContent>
-                                </Card>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Loan History</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Loan</TableHead>
+                                        <TableHead>Amount</TableHead>
+                                        <TableHead>Due Date</TableHead>
+                                        <TableHead className="text-right">Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {mockLoanHistory.map((loan, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>
+                                                <div className="font-medium">{loan.productName}</div>
+                                                <div className="text-sm text-muted-foreground">{loan.providerName}</div>
+                                            </TableCell>
+                                            <TableCell>{formatCurrency(loan.loanAmount)}</TableCell>
+                                            <TableCell>{format(loan.dueDate, 'PPP')}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                                    {loan.repaymentStatus}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
                 </div>
                 <div>
                 {selectedProvider && (
