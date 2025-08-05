@@ -94,7 +94,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-2 text-green-600">
                 <CheckCircle className="h-6 w-6" />
-                <CardTitle className="text-2xl">Congratulations! You're Eligible</CardTitle>
+                <CardTitle className="text-2xl"></CardTitle>
             </div>
           <CardDescription>{product.name} Offer</CardDescription>
         </CardHeader>
