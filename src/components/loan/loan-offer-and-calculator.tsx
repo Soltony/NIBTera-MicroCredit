@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 
@@ -80,6 +79,11 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
   const handleAccept = () => {
     if (calculatedTerms) {
+      if (loanAmount > suggestedLoanAmountMax || loanAmount < suggestedLoanAmountMin) {
+        // Simple alert for now. Could be a toast notification.
+        alert(`Please enter an amount between ${formatCurrency(suggestedLoanAmountMin)} and ${formatCurrency(suggestedLoanAmountMax)}.`);
+        return;
+      }
       onAccept({
         loanAmount,
         repaymentStatus: 'Unpaid',
@@ -94,7 +98,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-2 text-green-600">
                 <CheckCircle className="h-6 w-6" />
-                <CardTitle className="text-2xl"></CardTitle>
+                <CardTitle className="text-2xl">Congratulations! You're Eligible</CardTitle>
             </div>
           <CardDescription>{product.name} Offer</CardDescription>
         </CardHeader>
@@ -110,21 +114,16 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           </Alert>
 
           <div className="space-y-4">
-            <Label htmlFor="loanAmount" className="text-lg font-medium">Select Your Loan Amount</Label>
+            <Label htmlFor="loanAmount" className="text-lg font-medium">Enter Your Desired Loan Amount</Label>
             <div className="flex items-center gap-4">
               <Input
                 id="loanAmount"
                 type="number"
                 value={loanAmount}
+                onChange={(e) => setLoanAmount(Number(e.target.value))}
                 className="w-48 text-xl font-bold"
-                readOnly
-              />
-               <Slider
-                value={[loanAmount]}
-                onValueChange={(value) => setLoanAmount(value[0])}
                 min={suggestedLoanAmountMin}
                 max={suggestedLoanAmountMax}
-                step={(suggestedLoanAmountMax - suggestedLoanAmountMin) / 100}
               />
             </div>
           </div>
