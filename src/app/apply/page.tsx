@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import type { LoanProvider, LoanProduct, LoanDetails, CheckLoanEligibilityOutput } from '@/lib/types';
-import { checkLoanEligibility as checkEligibility } from '@/ai/flows/loan-eligibility-check';
+import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
 
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 import { Logo } from '@/components/icons';
@@ -11,7 +10,6 @@ import { ProviderSelection } from '@/components/loan/provider-selection';
 import { ProductSelection } from '@/components/loan/product-selection';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
-import { CreditScoreForm } from '@/components/loan/credit-score-form';
 import { Button } from '@/components/ui/button';
 
 const mockProviders: LoanProvider[] = [
@@ -44,7 +42,7 @@ const mockProviders: LoanProvider[] = [
   },
 ];
 
-type Step = 'credit-score' | 'provider' | 'product' | 'calculator' | 'details';
+type Step = 'provider' | 'product' | 'calculator' | 'details';
 
 export default function ApplyPage() {
   const router = useRouter();
@@ -52,16 +50,25 @@ export default function ApplyPage() {
   const searchParams = useSearchParams();
   
   // State restoration from URL
-  const initialStep = (searchParams.get('step') as Step) || 'credit-score';
+  const initialStep = (searchParams.get('step') as Step) || 'provider';
   const initialProviderId = searchParams.get('provider');
   const initialProductId = searchParams.get('product');
 
   const [step, setStep] = useState<Step>(initialStep);
   const [selectedProvider, setSelectedProvider] = useState<LoanProvider | null>(() => mockProviders.find(p => p.id === initialProviderId) || null);
   const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(() => selectedProvider?.products.find(p => p.id === initialProductId) || null);
-  const [eligibilityResult, setEligibilityResult] = useState<CheckLoanEligibilityOutput | null>(null);
   const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+
+  const minLoan = parseFloat(searchParams.get('min') || '0');
+  const maxLoan = parseFloat(searchParams.get('max') || '50000');
+
+  // This is a mock eligibility result based on the query params
+  const eligibilityResult = {
+    isEligible: true,
+    suggestedLoanAmountMin: minLoan,
+    suggestedLoanAmountMax: maxLoan,
+    reason: 'You are eligible for a loan.'
+  }
 
   const updateUrl = (newStep: Step, params: Record<string, string> = {}) => {
     const newParams = new URLSearchParams(searchParams);
@@ -70,27 +77,12 @@ export default function ApplyPage() {
       if (value) newParams.set(key, value);
       else newParams.delete(key);
     });
+    // Don't remove min/max from url
+    if (!newParams.has('min')) newParams.set('min', minLoan.toString());
+    if (!newParams.has('max')) newParams.set('max', maxLoan.toString());
+
     router.push(`${pathname}?${newParams.toString()}`);
   }
-
-  const handleCreditScoreSubmit = async (data: { annualIncome: number; creditScore: number }) => {
-    setIsLoading(true);
-    setStep('provider');
-    try {
-      const result = await checkEligibility(data);
-      setEligibilityResult(result);
-      if (result.isEligible) {
-        updateUrl('provider');
-      } else {
-        // Stay on credit-score page to show message
-      }
-    } catch (error) {
-      console.error('Eligibility Check Failed:', error);
-      setEligibilityResult({ isEligible: false, reason: 'An error occurred while checking eligibility.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
   
   const handleProviderSelect = (provider: LoanProvider) => {
     setSelectedProvider(provider);
@@ -129,9 +121,7 @@ export default function ApplyPage() {
       setStep('provider');
       updateUrl('provider');
     } else if (step === 'provider') {
-      setEligibilityResult(null);
-      setStep('credit-score');
-      updateUrl('credit-score');
+      router.push(`/dashboard?min=${minLoan}&max=${maxLoan}`);
     }
   };
 
@@ -141,8 +131,6 @@ export default function ApplyPage() {
   
   const renderStep = () => {
     switch (step) {
-      case 'credit-score':
-        return <CreditScoreForm onSubmit={handleCreditScoreSubmit} isLoading={isLoading} result={eligibilityResult} />;
       case 'provider':
         return <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />;
       case 'product':
@@ -152,7 +140,7 @@ export default function ApplyPage() {
       case 'details':
         return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} />;
       default:
-        return <CreditScoreForm onSubmit={handleCreditScoreSubmit} isLoading={isLoading} result={eligibilityResult} />;
+        return <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />;
     }
   };
 
@@ -167,7 +155,7 @@ export default function ApplyPage() {
             </a>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
-            {step !== 'credit-score' && <Button variant="ghost" onClick={handleBack}>Back</Button>}
+             <Button variant="ghost" onClick={handleBack}>Back</Button>
           </div>
         </div>
       </header>
