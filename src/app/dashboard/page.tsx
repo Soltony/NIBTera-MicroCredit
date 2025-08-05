@@ -54,7 +54,7 @@ export default function DashboardPage() {
   const handleApply = () => {
     const query = new URLSearchParams({
         min: minLoanLimit.toString(),
-        max: maxLoanLimit.toString()
+        max: availableLoanAmount.toString()
     }).toString();
     router.push(`/apply?${query}`);
   }

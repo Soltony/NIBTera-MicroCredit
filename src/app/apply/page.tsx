@@ -105,7 +105,11 @@ export default function ApplyPage() {
       };
       setLoanDetails(finalDetails);
       setStep('details');
-      updateUrl('details');
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('step', 'details');
+      // When navigating to details view, we only need to pass the loan details
+      // as the other params are not needed anymore.
+      router.push(`${pathname}?${newParams.toString()}`);
     }
   };
 
@@ -121,7 +125,7 @@ export default function ApplyPage() {
       setStep('provider');
       updateUrl('provider');
     } else if (step === 'provider') {
-      router.push(`/dashboard?min=${minLoan}&max=${maxLoan}`);
+      router.back();
     }
   };
 
