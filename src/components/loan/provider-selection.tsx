@@ -26,12 +26,12 @@ export function ProviderSelection({ providers, onSelect }: ProviderSelectionProp
           >
             <CardHeader className="flex flex-row items-center justify-between p-4">
               <div className="flex items-center gap-4">
-                <provider.icon className="h-8 w-8 text-primary" />
+                <provider.icon className="h-8 w-8 text-primary-foreground" />
                 <div>
-                  <CardTitle className="text-lg font-semibold">{provider.name}</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-primary-foreground">{provider.name}</CardTitle>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-primary transition-colors" />
+              <ChevronRight className="h-5 w-5 text-primary-foreground transition-colors" />
             </CardHeader>
           </Card>
         ))}
