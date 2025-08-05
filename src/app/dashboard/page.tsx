@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,12 +70,22 @@ const mockLoanHistory: LoanDetails[] = [
     }
 ];
 
+const MAX_LOAN_LIMIT = 50000;
+
 
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
   const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
+
+  const { totalBorrowed, availableToBorrow } = useMemo(() => {
+    const totalBorrowed = mockLoanHistory
+      .filter(loan => loan.repaymentStatus === 'Unpaid')
+      .reduce((acc, loan) => acc + loan.loanAmount, 0);
+    const availableToBorrow = MAX_LOAN_LIMIT - totalBorrowed;
+    return { totalBorrowed, availableToBorrow };
+  }, []);
 
   const handleApply = (productId: string) => {
     if(providerId) {
@@ -109,6 +120,27 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">
                     {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
                 </h1>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Maximum Loan Limit</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(MAX_LOAN_LIMIT)}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Available to Borrow</CardTitle>
+                        <PiggyBank className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(availableToBorrow)}</div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="grid gap-8 lg:grid-cols-2">
