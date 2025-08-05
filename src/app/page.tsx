@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
-import type { CheckLoanEligibilityOutput } from '@/ai/flows/loan-eligibility-check';
+import type { LoanProvider, LoanProduct, LoanDetails, CheckLoanEligibilityOutput } from '@/lib/types';
 import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
 
 import { Building2, Landmark, Briefcase, Home as HomeIcon, PersonStanding } from 'lucide-react';

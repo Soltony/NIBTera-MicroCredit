@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { LoanProduct, LoanDetails } from '@/lib/types';
-import type { CheckLoanEligibilityOutput } from '@/ai/flows/loan-eligibility-check';
+import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput } from '@/lib/types';
 import { addDays, format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
