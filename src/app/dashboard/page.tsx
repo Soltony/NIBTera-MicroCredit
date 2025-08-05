@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -148,28 +149,31 @@ export default function DashboardPage() {
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent>
-                                <div className="space-y-4 p-4">
-                                    {mockLoanHistory.map((loan, index) => {
-                                        const Icon = historyIcons[loan.repaymentStatus] || Wallet;
-                                        return (
-                                        <div key={index} className="flex items-center gap-4 p-4 rounded-lg border">
-                                            <div className={`p-3 rounded-full ${loan.repaymentStatus === 'Paid' ? 'bg-green-100' : 'bg-red-100'}`}>
-                                                <Icon className={`h-6 w-6 ${loan.repaymentStatus === 'Paid' ? 'text-green-600' : 'text-red-600'}`} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="font-medium">{loan.productName}</div>
-                                                <div className="text-sm text-muted-foreground">{loan.providerName}</div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="font-medium">{formatCurrency(loan.loanAmount)}</div>
-                                                <div className="text-sm text-muted-foreground">
-                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                                    {loan.repaymentStatus}
-                                                </Badge>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )})}
+                                <div className="p-4 border rounded-b-lg">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead>Provider</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead className="text-center">Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {mockLoanHistory.map((loan, index) => (
+                                        <TableRow key={index}>
+                                          <TableCell className="font-medium">{loan.productName}</TableCell>
+                                          <TableCell>{loan.providerName}</TableCell>
+                                          <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
+                                          <TableCell className="text-center">
+                                            <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                              {loan.repaymentStatus}
+                                            </Badge>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
                                 </div>
                             </AccordionContent>
                         </AccordionItem>
