@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -99,16 +100,6 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           <CardDescription>{product.name} Offer</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>Loan Offer</AlertTitle>
-            <AlertDescription>
-              Based on our assessment, you can apply for a loan between{' '}
-              <strong className="text-primary">{formatCurrency(suggestedLoanAmountMin)}</strong> and{' '}
-              <strong className="text-primary">{formatCurrency(suggestedLoanAmountMax)}</strong>.
-            </AlertDescription>
-          </Alert>
-
           <div className="space-y-4">
             <Label htmlFor="loanAmount" className="text-lg font-medium">Enter Your Desired Loan Amount</Label>
             <Input
