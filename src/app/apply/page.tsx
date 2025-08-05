@@ -6,7 +6,6 @@ import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
 
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 import { Logo } from '@/components/icons';
-import { ProviderSelection } from '@/components/loan/provider-selection';
 import { ProductSelection } from '@/components/loan/product-selection';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
@@ -42,27 +41,28 @@ const mockProviders: LoanProvider[] = [
   },
 ];
 
-type Step = 'provider' | 'product' | 'calculator' | 'details';
+type Step = 'product' | 'calculator' | 'details';
 
 export default function ApplyPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   
+  const providerId = searchParams.get('providerId');
+  const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
+
   // State restoration from URL
-  const initialStep = (searchParams.get('step') as Step) || 'provider';
-  const initialProviderId = searchParams.get('provider');
+  const initialStep = (searchParams.get('step') as Step) || 'product';
   const initialProductId = searchParams.get('product');
 
   const [step, setStep] = useState<Step>(initialStep);
-  const [selectedProvider, setSelectedProvider] = useState<LoanProvider | null>(() => mockProviders.find(p => p.id === initialProviderId) || null);
   const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(() => selectedProvider?.products.find(p => p.id === initialProductId) || null);
   const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
 
-  const minLoan = parseFloat(searchParams.get('min') || '0');
-  const maxLoan = parseFloat(searchParams.get('max') || '50000');
+  const minLoan = 500;
+  const maxLoan = 50000;
 
-  // This is a mock eligibility result based on the query params
+  // This is a mock eligibility result
   const eligibilityResult = {
     isEligible: true,
     suggestedLoanAmountMin: minLoan,
@@ -77,23 +77,13 @@ export default function ApplyPage() {
       if (value) newParams.set(key, value);
       else newParams.delete(key);
     });
-    // Don't remove min/max from url
-    if (!newParams.has('min')) newParams.set('min', minLoan.toString());
-    if (!newParams.has('max')) newParams.set('max', maxLoan.toString());
-
     router.push(`${pathname}?${newParams.toString()}`);
   }
   
-  const handleProviderSelect = (provider: LoanProvider) => {
-    setSelectedProvider(provider);
-    setStep('product');
-    updateUrl('product', { provider: provider.id });
-  };
-
   const handleProductSelect = async (product: LoanProduct) => {
     setSelectedProduct(product);
     setStep('calculator');
-    updateUrl('calculator', { provider: selectedProvider!.id, product: product.id });
+    updateUrl('calculator', { product: product.id });
   };
 
   const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName'>) => {
@@ -107,8 +97,6 @@ export default function ApplyPage() {
       setStep('details');
       const newParams = new URLSearchParams(searchParams);
       newParams.set('step', 'details');
-      // When navigating to details view, we only need to pass the loan details
-      // as the other params are not needed anymore.
       router.push(`${pathname}?${newParams.toString()}`);
     }
   };
@@ -116,16 +104,12 @@ export default function ApplyPage() {
   const handleBack = () => {
     if (step === 'details') {
       setStep('calculator');
-      updateUrl('calculator', { provider: selectedProvider!.id, product: selectedProduct!.id });
+      updateUrl('calculator', { product: selectedProduct!.id });
     } else if (step === 'calculator') {
       setStep('product');
-      updateUrl('product', { provider: selectedProvider!.id });
+      updateUrl('product');
     } else if (step === 'product') {
-      setSelectedProvider(null);
-      setStep('provider');
-      updateUrl('provider');
-    } else if (step === 'provider') {
-      router.back();
+      router.push(`/dashboard?providerId=${providerId}`);
     }
   };
 
@@ -134,17 +118,18 @@ export default function ApplyPage() {
   };
   
   const renderStep = () => {
+    if (!selectedProvider) {
+        return <div className="text-center">Provider not found. Please <a href="/" className="text-primary underline">start over</a>.</div>
+    }
     switch (step) {
-      case 'provider':
-        return <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />;
       case 'product':
-        return selectedProvider && <ProductSelection provider={selectedProvider} onSelect={handleProductSelect} />;
+        return <ProductSelection provider={selectedProvider} onSelect={handleProductSelect} />;
       case 'calculator':
         return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} />;
       case 'details':
         return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} />;
       default:
-        return <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />;
+        return <ProductSelection provider={selectedProvider} onSelect={handleProductSelect} />;
     }
   };
 

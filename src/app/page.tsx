@@ -2,36 +2,47 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CreditScoreForm } from '@/components/loan/credit-score-form';
-import type { CheckLoanEligibilityOutput } from '@/lib/types';
-import { checkLoanEligibility as checkEligibility } from '@/ai/flows/loan-eligibility-check';
+import type { LoanProvider } from '@/lib/types';
+import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 import { Logo } from '@/components/icons';
+import { ProviderSelection } from '@/components/loan/provider-selection';
+
+const mockProviders: LoanProvider[] = [
+  {
+    id: 'provider-1',
+    name: 'Capital Bank',
+    icon: Building2,
+    products: [
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home },
+    ],
+  },
+  {
+    id: 'provider-2',
+    name: 'Providus Financial',
+    icon: Landmark,
+    products: [
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding },
+    ],
+  },
+  {
+    id: 'provider-3',
+    name: 'FairMoney Group',
+    icon: Building2,
+    products: [
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },
+    ],
+  },
+];
 
 export default function WelcomePage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [eligibilityResult, setEligibilityResult] = useState<CheckLoanEligibilityOutput | null>(null);
-
-  const handleCheckEligibility = async () => {
-    setIsLoading(true);
-    try {
-      // Using mock data since the form fields are removed
-      const result = await checkEligibility({ annualIncome: 50000, creditScore: 650 });
-      setEligibilityResult(result);
-      if (result.isEligible) {
-        // Pass the results to the dashboard page via query params
-        const query = new URLSearchParams({
-            min: result.suggestedLoanAmountMin?.toString() || '0',
-            max: result.suggestedLoanAmountMax?.toString() || '0'
-        }).toString();
-        router.push(`/dashboard?${query}`);
-      }
-    } catch (error) {
-      console.error('Eligibility Check Failed:', error);
-      setEligibilityResult({ isEligible: false, reason: 'An error occurred while checking eligibility.' });
-    } finally {
-      setIsLoading(false);
-    }
+  
+  const handleProviderSelect = (provider: LoanProvider) => {
+    // Navigate to the dashboard with the selected provider
+    router.push(`/dashboard?providerId=${provider.id}`);
   };
 
   return (
@@ -48,7 +59,7 @@ export default function WelcomePage() {
       </header>
       <main className="flex-1 flex items-center">
         <div className="container py-8 md:py-12">
-            <CreditScoreForm onCheck={handleCheckEligibility} isLoading={isLoading} result={eligibilityResult} />
+            <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />
         </div>
       </main>
     </div>
