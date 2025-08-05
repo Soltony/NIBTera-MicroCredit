@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -41,8 +42,7 @@ export default function WelcomePage() {
   const router = useRouter();
   
   const handleProviderSelect = (provider: LoanProvider) => {
-    // Navigate to the dashboard with the selected provider
-    router.push(`/dashboard?providerId=${provider.id}`);
+    router.push(`/check-eligibility?providerId=${provider.id}`);
   };
 
   return (

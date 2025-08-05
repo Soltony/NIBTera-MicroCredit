@@ -70,22 +70,24 @@ const mockLoanHistory: LoanDetails[] = [
     }
 ];
 
-const MAX_LOAN_LIMIT = 50000;
-
-
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
   const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
 
+  const maxLoanLimit = useMemo(() => {
+    const max = searchParams.get('max');
+    return max ? parseFloat(max) : 50000;
+  }, [searchParams]);
+
   const { totalBorrowed, availableToBorrow } = useMemo(() => {
     const totalBorrowed = mockLoanHistory
       .filter(loan => loan.repaymentStatus === 'Unpaid')
       .reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const availableToBorrow = MAX_LOAN_LIMIT - totalBorrowed;
+    const availableToBorrow = maxLoanLimit - totalBorrowed;
     return { totalBorrowed, availableToBorrow };
-  }, []);
+  }, [maxLoanLimit]);
 
   const handleApply = (productId: string) => {
     if(providerId) {
@@ -129,7 +131,7 @@ export default function DashboardPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(MAX_LOAN_LIMIT)}</div>
+                        <div className="text-2xl font-bold">{formatCurrency(maxLoanLimit)}</div>
                     </CardContent>
                 </Card>
                 <Card>
