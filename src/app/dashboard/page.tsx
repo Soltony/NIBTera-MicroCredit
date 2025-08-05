@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronRight } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 
 const formatCurrency = (amount: number) => {
@@ -139,10 +139,11 @@ export default function DashboardPage() {
             <div className="grid gap-8 grid-cols-1">
                 <div>
                      <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Loan History</CardTitle>
+                        <CardHeader className="flex flex-row items-center justify-between bg-yellow-400 text-yellow-900 p-4 rounded-t-lg">
+                            <CardTitle className="text-lg font-semibold">Loan History</CardTitle>
+                            <ChevronRight className="h-6 w-6" />
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="space-y-4 p-4">
                             {mockLoanHistory.map((loan, index) => {
                                 const Icon = historyIcons[loan.repaymentStatus] || Wallet;
                                 return (
