@@ -18,8 +18,8 @@ const mockProviders: LoanProvider[] = [
     name: 'Capital Bank',
     icon: Building2,
     products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home },
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000 },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000 },
     ],
   },
   {
@@ -67,16 +67,8 @@ export default function ApplyPage() {
             reason: 'No product selected'
         }
     }
-    let minLoan = 500;
-    let maxLoan = 50000;
-
-    if (selectedProduct.name === 'Personal Loan') {
-        minLoan = 400;
-        maxLoan = 2000;
-    } else if (selectedProduct.name === 'Home Improvement Loan') {
-        minLoan = 10000;
-        maxLoan = 50000;
-    }
+    let minLoan = selectedProduct.minLoan ?? 500;
+    let maxLoan = selectedProduct.maxLoan ?? 50000;
 
     return {
         isEligible: true,

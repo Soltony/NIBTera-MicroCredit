@@ -22,8 +22,8 @@ const mockProviders: LoanProvider[] = [
     name: 'Capital Bank',
     icon: Building2,
     products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home },
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000 },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000 },
     ],
   },
   {
@@ -202,7 +202,14 @@ export default function DashboardPage() {
                                             </div>
                                             <div>
                                                 <CardTitle className="text-lg">{product.name}</CardTitle>
-                                                <CardDescription>{product.description}</CardDescription>
+                                                <CardDescription>
+                                                    {product.description}
+                                                    {product.minLoan && product.maxLoan && (
+                                                        <span className="block text-sm text-muted-foreground mt-1">
+                                                            {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
+                                                        </span>
+                                                    )}
+                                                </CardDescription>
                                             </div>
                                         </div>
                                     </CardHeader>

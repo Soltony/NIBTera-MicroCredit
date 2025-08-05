@@ -12,6 +12,8 @@ export interface LoanProduct {
   name: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
+  minLoan?: number;
+  maxLoan?: number;
 }
 
 export interface LoanDetails {
