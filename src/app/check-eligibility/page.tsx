@@ -1,12 +1,11 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { CheckLoanEligibilityOutput } from '@/lib/types';
 import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
@@ -15,35 +14,45 @@ export default function CheckEligibilityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<CheckLoanEligibilityOutput | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCheckEligibility = async () => {
-    setIsLoading(true);
-    setResult(null);
-    try {
-      // In a real app, you'd collect user input here.
-      // For this mock, we use hardcoded values.
-      const eligibilityResult = await checkLoanEligibility({
-        creditScore: 700,
-        annualIncome: 60000,
-      });
-      setResult(eligibilityResult);
-      if (eligibilityResult.isEligible && providerId) {
-        const params = new URLSearchParams();
-        params.set('providerId', providerId);
-        params.set('min', String(eligibilityResult.suggestedLoanAmountMin || 0));
-        params.set('max', String(eligibilityResult.suggestedLoanAmountMax || 0));
-
-        setTimeout(() => router.push(`/dashboard?${params.toString()}`), 2000);
+  useEffect(() => {
+    const performCheck = async () => {
+      if (!providerId) {
+        router.push('/');
+        return;
       }
-    } catch (error) {
-      console.error('Eligibility check failed:', error);
-      setResult({ isEligible: false, reason: 'An unexpected error occurred.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setIsLoading(true);
+      setError(null);
+      try {
+        // In a real app, you'd collect user input here.
+        // For this mock, we use hardcoded values.
+        const eligibilityResult = await checkLoanEligibility({
+          creditScore: 700,
+          annualIncome: 60000,
+        });
+        
+        if (eligibilityResult.isEligible) {
+          const params = new URLSearchParams();
+          params.set('providerId', providerId);
+          params.set('min', String(eligibilityResult.suggestedLoanAmountMin || 0));
+          params.set('max', String(eligibilityResult.suggestedLoanAmountMax || 0));
+          router.push(`/dashboard?${params.toString()}`);
+        } else {
+          setError(eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
+        }
+      } catch (error) {
+        console.error('Eligibility check failed:', error);
+        setError('An unexpected error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    performCheck();
+  }, [providerId, router]);
+
 
   const handleBack = () => {
     router.push('/');
@@ -65,39 +74,26 @@ export default function CheckEligibilityPage() {
         </div>
       </header>
        <main className="flex-1 flex items-center justify-center">
-        <div className="max-w-2xl mx-auto">
-            <Card className="shadow-lg">
-                <CardHeader>
-                <CardTitle>Check Your Loan Eligibility</CardTitle>
-                <CardDescription>Click the button below to see what you may qualify for.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                {result && !result.isEligible && (
-                    <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Not Eligible for Loan</AlertTitle>
-                        <AlertDescription>
-                        {result.reason || "We're sorry, but you are not eligible for a loan at this time."}
-                        </AlertDescription>
-                    </Alert>
-                )}
-                 {result && result.isEligible && (
-                    <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Congratulations! You're eligible.</AlertTitle>
-                        <AlertDescription>
-                            Redirecting you to the dashboard...
-                        </AlertDescription>
-                    </Alert>
-                )}
-                </CardContent>
-                <CardFooter>
-                <Button onClick={handleCheckEligibility} className="w-full" disabled={isLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Check Eligibility
-                </Button>
-                </CardFooter>
-            </Card>
+        <div className="max-w-md mx-auto text-center">
+            {isLoading && (
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
+                    <p className="text-muted-foreground">Please wait a moment.</p>
+                </div>
+            )}
+            {error && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Eligibility Check Failed</AlertTitle>
+                    <AlertDescription>
+                        {error}
+                        <Button variant="link" onClick={handleBack} className="p-0 h-auto mt-2 block">
+                            Return to Home
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
         </div>
       </main>
     </div>
