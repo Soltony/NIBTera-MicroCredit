@@ -23,8 +23,8 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow }: LoanSummary
       </div>
       
       <div>
-        <p className="text-xs opacity-80 mb-1">Available to Borrow</p>
-        <p className="text-4xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
+        <p className="text-sm opacity-80 mb-1">Available to Borrow</p>
+        <p className="text-3xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
       </div>
     </div>
   );
