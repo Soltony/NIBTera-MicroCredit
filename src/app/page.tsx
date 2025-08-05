@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
+import { DollarSign, PiggyBank } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -41,6 +42,12 @@ const mockLoanHistory: LoanDetails[] = [
 export default function DashboardPage() {
   const router = useRouter();
 
+  const maxLoanLimit = 50000;
+  const totalUnpaidLoans = mockLoanHistory
+    .filter(loan => loan.repaymentStatus === 'Unpaid')
+    .reduce((sum, loan) => sum + loan.loanAmount, 0);
+  const availableLoanAmount = maxLoanLimit - totalUnpaidLoans;
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -60,6 +67,29 @@ export default function DashboardPage() {
                 <Button size="lg" onClick={() => router.push('/apply')}>Apply for New Loan</Button>
             </div>
             
+            <div className="grid gap-6 md:grid-cols-2 mb-8">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Maximum Loan Limit</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(maxLoanLimit)}</div>
+                        <p className="text-xs text-muted-foreground">The maximum amount you can borrow.</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Available to Borrow</CardTitle>
+                        <PiggyBank className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(availableLoanAmount)}</div>
+                        <p className="text-xs text-muted-foreground">Based on your current outstanding loans.</p>
+                    </CardContent>
+                </Card>
+            </div>
+
             <Card>
                 <CardHeader>
                     <CardTitle>Loan History</CardTitle>
