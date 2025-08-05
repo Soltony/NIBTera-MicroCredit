@@ -1,115 +1,45 @@
 'use client';
 
 import { useState } from 'react';
-import type { LoanProvider, LoanProduct, LoanDetails, CheckLoanEligibilityOutput } from '@/lib/types';
-import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
-
-import { Building2, Landmark, Briefcase, Home as HomeIcon, PersonStanding } from 'lucide-react';
-import { Logo } from '@/components/icons';
-import { ProviderSelection } from '@/components/loan/provider-selection';
-import { ProductSelection } from '@/components/loan/product-selection';
-import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
-import { LoanDetailsView } from '@/components/loan/loan-details-view';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import type { LoanDetails } from '@/lib/types';
+import { Logo } from '@/components/icons';
+import { format } from 'date-fns';
 
-const mockProviders: LoanProvider[] = [
-  {
-    id: 'provider-1',
-    name: 'Capital Bank',
-    icon: Building2,
-    products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: HomeIcon },
-    ],
-  },
-  {
-    id: 'provider-2',
-    name: 'Providus Financial',
-    icon: Landmark,
-    products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding },
-    ],
-  },
-  {
-    id: 'provider-3',
-    name: 'FairMoney Group',
-    icon: Building2,
-    products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: HomeIcon },
-    ],
-  },
-];
-
-const mockUserData = {
-  creditScore: 720,
-  annualIncome: 65000,
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-type Step = 'provider' | 'product' | 'calculator' | 'details';
-
-export default function HomePage() {
-  const [step, setStep] = useState<Step>('provider');
-  const [selectedProvider, setSelectedProvider] = useState<LoanProvider | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(null);
-  const [eligibilityResult, setEligibilityResult] = useState<CheckLoanEligibilityOutput | null>(null);
-  const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleProviderSelect = (provider: LoanProvider) => {
-    setSelectedProvider(provider);
-    setStep('product');
-  };
-
-  const handleProductSelect = async (product: LoanProduct) => {
-    setSelectedProduct(product);
-    setStep('calculator');
-    setIsLoading(true);
-    try {
-      const result = await checkLoanEligibility(mockUserData);
-      setEligibilityResult(result);
-    } catch (error) {
-      console.error('Eligibility Check Failed:', error);
-      setEligibilityResult({ isEligible: false, reason: 'An error occurred while checking eligibility.' });
-    } finally {
-      setIsLoading(false);
+const mockLoanHistory: LoanDetails[] = [
+    {
+        providerName: 'Capital Bank',
+        productName: 'Personal Loan',
+        loanAmount: 5000,
+        serviceFee: 75,
+        interestRate: 5.0,
+        dueDate: new Date('2024-08-15'),
+        penaltyAmount: 500,
+        repaymentStatus: 'Paid',
+    },
+    {
+        providerName: 'Providus Financial',
+        productName: 'Startup Business Loan',
+        loanAmount: 25000,
+        serviceFee: 375,
+        interestRate: 6.2,
+        dueDate: new Date('2025-01-20'),
+        penaltyAmount: 2500,
+        repaymentStatus: 'Unpaid',
     }
-  };
+];
 
-  const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName'>) => {
-    if (selectedProvider && selectedProduct) {
-      setLoanDetails({
-        ...details,
-        providerName: selectedProvider.name,
-        productName: selectedProduct.name,
-      });
-      setStep('details');
-    }
-  };
 
-  const handleBack = () => {
-    if (step === 'details') {
-      setStep('calculator');
-    } else if (step === 'calculator') {
-      setEligibilityResult(null);
-      setStep('product');
-    } else if (step === 'product') {
-      setSelectedProvider(null);
-      setStep('provider');
-    }
-  };
-
-  const handleReset = () => {
-    setStep('provider');
-    setSelectedProvider(null);
-    setSelectedProduct(null);
-    setEligibilityResult(null);
-    setLoanDetails(null);
-    setIsLoading(false);
-  };
-  
-  const canGoBack = step !== 'provider';
+export default function DashboardPage() {
+  const router = useRouter();
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -121,31 +51,50 @@ export default function HomePage() {
               <span className="font-bold">LoanFlow Mini</span>
             </a>
           </div>
-          <div className="flex flex-1 items-center justify-end space-x-4">
-            {canGoBack && <Button variant="ghost" onClick={handleBack}>Back</Button>}
-          </div>
         </div>
       </header>
       <main className="flex-1">
         <div className="container py-8 md:py-12">
-          {step === 'provider' && <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />}
-          
-          {step === 'product' && selectedProvider && (
-            <ProductSelection provider={selectedProvider} onSelect={handleProductSelect} />
-          )}
-
-          {step === 'calculator' && selectedProduct && (
-            <LoanOfferAndCalculator
-              product={selectedProduct}
-              isLoading={isLoading}
-              eligibilityResult={eligibilityResult}
-              onAccept={handleLoanAccept}
-            />
-          )}
-
-          {step === 'details' && loanDetails && (
-            <LoanDetailsView details={loanDetails} onReset={handleReset} />
-          )}
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-3xl font-bold tracking-tight">Loan Dashboard</h1>
+                <Button size="lg" onClick={() => router.push('/apply')}>Apply for New Loan</Button>
+            </div>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Loan History</CardTitle>
+                    <CardDescription>View your past and current loans.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Loan</TableHead>
+                                <TableHead>Amount</TableHead>
+                                <TableHead>Due Date</TableHead>
+                                <TableHead className="text-right">Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {mockLoanHistory.map((loan, index) => (
+                                <TableRow key={index}>
+                                    <TableCell>
+                                        <div className="font-medium">{loan.productName}</div>
+                                        <div className="text-sm text-muted-foreground">{loan.providerName}</div>
+                                    </TableCell>
+                                    <TableCell>{formatCurrency(loan.loanAmount)}</TableCell>
+                                    <TableCell>{format(loan.dueDate, 'PPP')}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                            {loan.repaymentStatus}
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
         </div>
       </main>
     </div>
