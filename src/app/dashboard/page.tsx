@@ -11,6 +11,7 @@ import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronRight } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -138,35 +139,41 @@ export default function DashboardPage() {
             
             <div className="grid gap-8 grid-cols-1">
                 <div>
-                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between bg-yellow-400 text-yellow-900 p-4 rounded-t-lg">
-                            <CardTitle className="text-lg font-semibold">Loan History</CardTitle>
-                            <ChevronRight className="h-6 w-6" />
-                        </CardHeader>
-                        <CardContent className="space-y-4 p-4">
-                            {mockLoanHistory.map((loan, index) => {
-                                const Icon = historyIcons[loan.repaymentStatus] || Wallet;
-                                return (
-                                <div key={index} className="flex items-center gap-4 p-4 rounded-lg border">
-                                    <div className={`p-3 rounded-full ${loan.repaymentStatus === 'Paid' ? 'bg-green-100' : 'bg-red-100'}`}>
-                                        <Icon className={`h-6 w-6 ${loan.repaymentStatus === 'Paid' ? 'text-green-600' : 'text-red-600'}`} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="font-medium">{loan.productName}</div>
-                                        <div className="text-sm text-muted-foreground">{loan.providerName}</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="font-medium">{formatCurrency(loan.loanAmount)}</div>
-                                        <div className="text-sm text-muted-foreground">
-                                        <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                            {loan.repaymentStatus}
-                                        </Badge>
-                                        </div>
-                                    </div>
+                     <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="loan-history">
+                            <AccordionTrigger className="bg-yellow-400 text-yellow-900 p-4 rounded-lg text-lg font-semibold hover:no-underline">
+                                <div className="flex items-center justify-between w-full">
+                                    <span>Loan History</span>
+                                    <ChevronRight className="h-6 w-6 transition-transform duration-200" />
                                 </div>
-                            )})}
-                        </CardContent>
-                    </Card>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <div className="space-y-4 p-4">
+                                    {mockLoanHistory.map((loan, index) => {
+                                        const Icon = historyIcons[loan.repaymentStatus] || Wallet;
+                                        return (
+                                        <div key={index} className="flex items-center gap-4 p-4 rounded-lg border">
+                                            <div className={`p-3 rounded-full ${loan.repaymentStatus === 'Paid' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                <Icon className={`h-6 w-6 ${loan.repaymentStatus === 'Paid' ? 'text-green-600' : 'text-red-600'}`} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="font-medium">{loan.productName}</div>
+                                                <div className="text-sm text-muted-foreground">{loan.providerName}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-medium">{formatCurrency(loan.loanAmount)}</div>
+                                                <div className="text-sm text-muted-foreground">
+                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                                    {loan.repaymentStatus}
+                                                </Badge>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )})}
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                     </Accordion>
                 </div>
                 <div>
                 {selectedProvider && (
