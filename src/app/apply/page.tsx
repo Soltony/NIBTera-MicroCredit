@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -41,7 +42,7 @@ const mockProviders: LoanProvider[] = [
   },
 ];
 
-type Step = 'product' | 'calculator' | 'details';
+type Step = 'calculator' | 'details';
 
 export default function ApplyPage() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function ApplyPage() {
   const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
 
   // State restoration from URL
-  const initialStep = (searchParams.get('step') as Step) || 'product';
+  const initialStep: Step = 'calculator';
   const initialProductId = searchParams.get('product');
 
   const [step, setStep] = useState<Step>(initialStep);
@@ -80,12 +81,6 @@ export default function ApplyPage() {
     router.push(`${pathname}?${newParams.toString()}`);
   }
   
-  const handleProductSelect = async (product: LoanProduct) => {
-    setSelectedProduct(product);
-    setStep('calculator');
-    updateUrl('calculator', { product: product.id });
-  };
-
   const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName'>) => {
     if (selectedProvider && selectedProduct) {
       const finalDetails = {
@@ -106,9 +101,6 @@ export default function ApplyPage() {
       setStep('calculator');
       updateUrl('calculator', { product: selectedProduct!.id });
     } else if (step === 'calculator') {
-      setStep('product');
-      updateUrl('product');
-    } else if (step === 'product') {
       router.push(`/dashboard?providerId=${providerId}`);
     }
   };
@@ -122,14 +114,12 @@ export default function ApplyPage() {
         return <div className="text-center">Provider not found. Please <a href="/" className="text-primary underline">start over</a>.</div>
     }
     switch (step) {
-      case 'product':
-        return <ProductSelection provider={selectedProvider} onSelect={handleProductSelect} />;
       case 'calculator':
         return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} />;
       case 'details':
         return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} />;
       default:
-        return <ProductSelection provider={selectedProvider} onSelect={handleProductSelect} />;
+        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} />;
     }
   };
 

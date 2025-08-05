@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -5,14 +6,45 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { DollarSign, PiggyBank } from 'lucide-react';
+import { DollarSign, PiggyBank, Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
+
+const mockProviders: LoanProvider[] = [
+  {
+    id: 'provider-1',
+    name: 'Capital Bank',
+    icon: Building2,
+    products: [
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home },
+    ],
+  },
+  {
+    id: 'provider-2',
+    name: 'Providus Financial',
+    icon: Landmark,
+    products: [
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding },
+    ],
+  },
+  {
+    id: 'provider-3',
+    name: 'FairMoney Group',
+    icon: Building2,
+    products: [
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },
+    ],
+  },
+];
+
 
 const mockLoanHistory: LoanDetails[] = [
     {
@@ -42,15 +74,18 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
+  const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
 
-
-  const handleApply = () => {
+  const handleApply = (productId: string) => {
     if(providerId) {
-        router.push(`/apply?providerId=${providerId}`);
+        router.push(`/apply?providerId=${providerId}&product=${productId}`);
     } else {
-        // Fallback if no provider is selected, maybe redirect to home
         router.push('/');
     }
+  }
+
+  const handleProductSelect = (product: LoanProduct) => {
+    handleApply(product.id);
   }
 
   return (
@@ -63,50 +98,89 @@ export default function DashboardPage() {
               <span className="font-bold">LoanFlow Mini</span>
             </a>
           </div>
+          <div className="flex flex-1 items-center justify-end space-x-4">
+             <Button variant="ghost" onClick={() => router.push('/')}>Change Provider</Button>
+          </div>
         </div>
       </header>
       <main className="flex-1">
         <div className="container py-8 md:py-12">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Loan Dashboard</h1>
-                <Button size="lg" onClick={handleApply}>Apply for New Loan</Button>
+                <h1 className="text-3xl font-bold tracking-tight">
+                    {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
+                </h1>
             </div>
-            
-            <Card>
-                <CardHeader>
-                    <CardTitle>Loan History</CardTitle>
-                    <CardDescription>View your past and current loans.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Loan</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Due Date</TableHead>
-                                <TableHead className="text-right">Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {mockLoanHistory.map((loan, index) => (
-                                <TableRow key={index}>
-                                    <TableCell>
-                                        <div className="font-medium">{loan.productName}</div>
-                                        <div className="text-sm text-muted-foreground">{loan.providerName}</div>
-                                    </TableCell>
-                                    <TableCell>{formatCurrency(loan.loanAmount)}</TableCell>
-                                    <TableCell>{format(loan.dueDate, 'PPP')}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                            {loan.repaymentStatus}
-                                        </Badge>
-                                    </TableCell>
-                                </TableRow>
+
+            <div className="grid gap-8 lg:grid-cols-2">
+                <div>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Loan History</CardTitle>
+                            <CardDescription>View your past and current loans.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Loan</TableHead>
+                                        <TableHead>Amount</TableHead>
+                                        <TableHead>Due Date</TableHead>
+                                        <TableHead className="text-right">Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {mockLoanHistory.map((loan, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>
+                                                <div className="font-medium">{loan.productName}</div>
+                                                <div className="text-sm text-muted-foreground">{loan.providerName}</div>
+                                            </TableCell>
+                                            <TableCell>{formatCurrency(loan.loanAmount)}</TableCell>
+                                            <TableCell>{format(loan.dueDate, 'PPP')}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                                    {loan.repaymentStatus}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+                <div>
+                {selectedProvider && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Available Loan Products</CardTitle>
+                            <CardDescription>Select a product to start a new application.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {selectedProvider.products.map((product) => (
+                                <Card
+                                    key={product.id}
+                                    onClick={() => handleProductSelect(product)}
+                                    className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-300"
+                                >
+                                    <CardHeader>
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-secondary p-3 rounded-full">
+                                                <product.icon className="h-6 w-6 text-primary" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg">{product.name}</CardTitle>
+                                                <CardDescription>{product.description}</CardDescription>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                </Card>
                             ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
+                )}
+                </div>
+            </div>
         </div>
       </main>
     </div>
