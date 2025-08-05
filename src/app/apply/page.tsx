@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
 
@@ -60,16 +60,31 @@ export default function ApplyPage() {
   const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(() => selectedProvider?.products.find(p => p.id === initialProductId) || null);
   const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
 
-  const minLoan = 500;
-  const maxLoan = 50000;
+  const eligibilityResult = useMemo(() => {
+    if (!selectedProduct) {
+        return {
+            isEligible: false,
+            reason: 'No product selected'
+        }
+    }
+    let minLoan = 500;
+    let maxLoan = 50000;
 
-  // This is a mock eligibility result
-  const eligibilityResult = {
-    isEligible: true,
-    suggestedLoanAmountMin: minLoan,
-    suggestedLoanAmountMax: maxLoan,
-    reason: 'You are eligible for a loan.'
-  }
+    if (selectedProduct.name === 'Personal Loan') {
+        minLoan = 400;
+        maxLoan = 2000;
+    } else if (selectedProduct.name === 'Home Improvement Loan') {
+        minLoan = 10000;
+        maxLoan = 50000;
+    }
+
+    return {
+        isEligible: true,
+        suggestedLoanAmountMin: minLoan,
+        suggestedLoanAmountMax: maxLoan,
+        reason: 'You are eligible for a loan.'
+    }
+  }, [selectedProduct]);
 
   const updateUrl = (newStep: Step, params: Record<string, string> = {}) => {
     const newParams = new URLSearchParams(searchParams);
