@@ -49,10 +49,9 @@ export default function WelcomePage() {
     <div className="flex flex-col min-h-screen bg-background">
       <header className="sticky top-0 z-40 w-full border-b bg-yellow-300/30 backdrop-blur supports-[backdrop-filter]:bg-yellow-300/30">
         <div className="container flex h-16 items-center">
-          <div className="mr-4 flex">
-            <a className="mr-6 flex items-center space-x-2" href="/">
-              <Logo className="h-6 w-6" />
-            </a>
+          <div className="mr-4 flex items-center">
+            <Logo className="h-6 w-6 mr-4" />
+            <h1 className="text-xl font-semibold tracking-tight">LoanFlow</h1>
           </div>
         </div>
       </header>

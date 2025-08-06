@@ -14,7 +14,7 @@ export function ProviderSelection({ providers, onSelect }: ProviderSelectionProp
   return (
     <div className="max-w-md mx-auto">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Choose a Loan Provider</h1>
+        <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Choose a Loan Provider</h2>
         <p className="text-lg text-muted-foreground mt-2">Select a provider to see their available loan products.</p>
       </div>
       <div className="space-y-4">
