@@ -135,7 +135,6 @@ export default function ApplyPage() {
       <header className="sticky top-0 z-40 w-full border-b bg-primary">
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
-            <Logo className="h-6 w-6 mr-4" />
             <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
@@ -151,5 +150,3 @@ export default function ApplyPage() {
     </div>
   );
 }
-
-    
