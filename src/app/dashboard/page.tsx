@@ -27,8 +27,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-yellow-500',
     colorHex: '#fdb913',
     products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500 },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500 },
     ],
   },
   {
@@ -49,8 +49,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-green-600',
     colorHex: '#16a34a',
     products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding },
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000 },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000 },
     ],
   },
 ];
@@ -136,7 +136,6 @@ export default function DashboardPage() {
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2 text-primary-foreground hover:bg-white/20">
               <ArrowLeft className="h-6 w-6" />
             </Button>
-            <Logo className="h-6 w-6 mr-4" />
              <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
                 {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
             </h1>
@@ -221,7 +220,6 @@ export default function DashboardPage() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Available Loan Products</CardTitle>
-                                <CardDescription>Select a product to start a new application.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {selectedProvider.products.map((product) => (
@@ -238,9 +236,13 @@ export default function DashboardPage() {
                                                 <div>
                                                     <CardTitle className="text-lg">{product.name}</CardTitle>
                                                     <CardDescription>
-                                                        {product.minLoan && product.maxLoan && (
+                                                        {product.minLoan && product.maxLoan ? (
                                                             <span className="block text-sm text-muted-foreground mt-1">
                                                                 Credit Limit: {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="block text-sm text-muted-foreground mt-1">
+                                                                {product.description}
                                                             </span>
                                                         )}
                                                     </CardDescription>
