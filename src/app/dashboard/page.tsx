@@ -110,7 +110,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <header className="sticky top-0 z-40 w-full border-b bg-primary">
+      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: '#fdb913' }}>
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
@@ -189,8 +189,8 @@ export default function DashboardPage() {
                                 >
                                     <CardHeader>
                                         <div className="flex items-center gap-4">
-                                            <div className="bg-secondary p-3 rounded-full">
-                                                <product.icon className="h-6 w-6 text-primary" />
+                                            <div className="p-3 rounded-full" style={{ backgroundColor: '#fdb913' }}>
+                                                <product.icon className="h-6 w-6 text-primary-foreground" />
                                             </div>
                                             <div>
                                                 <CardTitle className="text-lg">{product.name}</CardTitle>
