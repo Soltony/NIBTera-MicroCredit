@@ -122,17 +122,17 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           {calculatedTerms && (
              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
-                    <div className="font-medium">Service Charge (1.5%)</div>
-                    <div className="text-right">{formatCurrency(calculatedTerms.serviceFee)}</div>
+                    <div className="font-medium">Facilitation Fee</div>
+                    <div className="text-right">{product.facilitationFee}</div>
                     
-                    <div className="font-medium">Interest Rate (5%)</div>
-                    <div className="text-right">{formatCurrency(calculatedTerms.interestRate)}</div>
+                    <div className="font-medium">Daily Fee</div>
+                    <div className="text-right">{product.dailyFee}</div>
                     
                     <div className="font-medium">Due Date</div>
                     <div className="text-right">{format(calculatedTerms.dueDate, 'PPP')}</div>
                     
-                    <div className="font-medium text-destructive">Penalty on late payment</div>
-                    <div className="text-right text-destructive">{formatCurrency(calculatedTerms.penaltyAmount)}</div>
+                    <div className="font-medium text-destructive">Penalty Fee After Due Date</div>
+                    <div className="text-right text-destructive">{product.penaltyFee}</div>
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
