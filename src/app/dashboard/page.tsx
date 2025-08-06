@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -228,7 +228,7 @@ export default function DashboardPage() {
                                         onClick={() => handleProductSelect(product)}
                                         className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-300"
                                     >
-                                        <CardHeader>
+                                        <CardHeader className="flex flex-row items-center justify-between">
                                             <div className="flex items-center gap-4">
                                                 <div className="p-3 rounded-full" style={{ backgroundColor: selectedProvider.colorHex || '#fdb913' }}>
                                                     <product.icon className="h-6 w-6 text-primary-foreground" />
@@ -248,6 +248,7 @@ export default function DashboardPage() {
                                                     </CardDescription>
                                                 </div>
                                             </div>
+                                            <ChevronRight className="h-6 w-6 text-muted-foreground" />
                                         </CardHeader>
                                     </Card>
                                 ))}
@@ -262,3 +263,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
