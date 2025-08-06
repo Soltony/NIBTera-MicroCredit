@@ -69,7 +69,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                 <button
                     onClick={onClose}
                     className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent"
-                    style={{ color: providerColor }}
+                    style={{'--ring': providerColor, color: providerColor} as React.CSSProperties}
                 >
                     <X className="h-6 w-6" />
                     <span className="sr-only">Close</span>
@@ -124,7 +124,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                     <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
-                                className="h-16 text-2xl rounded-none bg-background"
+                                className="h-16 text-2xl rounded-none bg-background flex items-center justify-center"
                                 onClick={handleBackspace}
                             >
                             <Delete className="h-7 w-7" />
