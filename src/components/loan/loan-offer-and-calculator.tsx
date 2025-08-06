@@ -17,13 +17,14 @@ interface LoanOfferAndCalculatorProps {
   isLoading: boolean;
   eligibilityResult: CheckLoanEligibilityOutput | null;
   onAccept: (details: Omit<LoanDetails, 'providerName' | 'productName'>) => void;
+  providerColor?: string;
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept }: LoanOfferAndCalculatorProps) {
+export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState(eligibilityResult?.suggestedLoanAmountMin ?? 0);
 
   const calculatedTerms = useMemo(() => {
@@ -110,6 +111,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
               className="w-full text-xl font-bold"
               min={suggestedLoanAmountMin}
               max={suggestedLoanAmountMax}
+              style={{'--ring': providerColor} as React.CSSProperties}
             />
           </div>
 
@@ -130,7 +132,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           )}
         </CardContent>
         <CardFooter>
-          <Button size="lg" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleAccept}>
+          <Button size="lg" className="w-full text-white" onClick={handleAccept} style={{backgroundColor: providerColor}}>
             Accept and Disburse Loan
           </Button>
         </CardFooter>

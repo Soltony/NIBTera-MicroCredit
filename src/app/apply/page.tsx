@@ -13,31 +13,37 @@ import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
 
 const mockProviders: LoanProvider[] = [
-  {
+    {
     id: 'provider-3',
     name: 'NIb Bank',
     icon: Building2,
+    color: 'text-yellow-500',
+    colorHex: '#fdb913',
     products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500 },
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
     ],
   },
   {
     id: 'provider-1',
     name: 'Capital Bank',
     icon: Building2,
+    color: 'text-blue-600',
+    colorHex: '#2563eb',
     products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000 },
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
     ],
   },
   {
     id: 'provider-2',
     name: 'Providus Financial',
     icon: Landmark,
+    color: 'text-green-600',
+    colorHex: '#16a34a',
     products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000 },
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
     ],
   },
 ];
@@ -53,7 +59,7 @@ export default function ApplyPage() {
   const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
 
   // State restoration from URL
-  const initialStep: Step = 'calculator';
+  const initialStep: Step = searchParams.get('step') as Step || 'calculator';
   const initialProductId = searchParams.get('product');
 
   const [step, setStep] = useState<Step>(initialStep);
@@ -108,31 +114,35 @@ export default function ApplyPage() {
       setStep('calculator');
       updateUrl('calculator', { product: selectedProduct!.id });
     } else if (step === 'calculator') {
-      router.push(`/?providerId=${providerId}`);
+      const params = new URLSearchParams();
+      if(providerId) params.set('providerId', providerId);
+      router.push(`/?${params.toString()}`);
     }
   };
 
   const handleReset = () => {
-    router.push('/');
+    const params = new URLSearchParams();
+    if(providerId) params.set('providerId', providerId);
+    router.push(`/?${params.toString()}`);
   };
   
   const renderStep = () => {
     if (!selectedProvider) {
-        return <div className="text-center">Provider not found. Please <a href="/" className="text-primary underline">start over</a>.</div>
+        return <div className="text-center">Provider not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
     }
     switch (step) {
       case 'calculator':
-        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} />;
+        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
       case 'details':
-        return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} />;
+        return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={selectedProvider.colorHex} />;
       default:
-        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} />;
+        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
     }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <header className="sticky top-0 z-40 w-full border-b bg-primary">
+      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || 'hsl(var(--primary))' }}>
         <div className="container flex h-16 items-center">
           <div className="flex items-center">
             <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">

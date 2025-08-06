@@ -11,17 +11,18 @@ import { Separator } from '@/components/ui/separator';
 interface LoanDetailsViewProps {
   details: LoanDetails;
   onReset: () => void;
+  providerColor?: string;
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanDetailsView({ details, onReset }: LoanDetailsViewProps) {
+export function LoanDetailsView({ details, onReset, providerColor = 'hsl(var(--primary))' }: LoanDetailsViewProps) {
   return (
     <div className="max-w-2xl mx-auto">
        <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold tracking-tight md:text-4xl text-primary">Loan Disbursed Successfully!</h1>
+        <h1 className="text-3xl font-bold tracking-tight md:text-4xl" style={{color: providerColor}}>Loan Disbursed Successfully!</h1>
         <p className="text-lg text-muted-foreground mt-2">Here is a summary of your new loan.</p>
       </div>
       <Card className="shadow-lg">
@@ -32,7 +33,7 @@ export function LoanDetailsView({ details, onReset }: LoanDetailsViewProps) {
         <CardContent className="space-y-4">
           <div className="flex justify-between items-baseline p-4 bg-secondary rounded-lg">
             <span className="text-muted-foreground">Loan Amount</span>
-            <span className="text-5xl font-bold text-primary">{formatCurrency(details.loanAmount)}</span>
+            <span className="text-5xl font-bold" style={{color: providerColor}}>{formatCurrency(details.loanAmount)}</span>
           </div>
 
           <Separator />
