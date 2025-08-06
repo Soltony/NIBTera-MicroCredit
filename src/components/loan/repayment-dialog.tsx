@@ -80,7 +80,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                             <Button
                                 key={key}
                                 variant="ghost"
-                                className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
+                                className="h-16 text-2xl rounded-none bg-background"
                                 onClick={() => handleNumberClick(key)}
                             >
                                 {key}
@@ -88,14 +88,14 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         ))}
                          <Button
                             variant="ghost"
-                            className="h-16 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
+                            className="h-16 text-2xl rounded-none bg-background col-span-2"
                             onClick={() => handleNumberClick('0')}
                         >
                             0
                         </Button>
                         <Button
                             variant="ghost"
-                            className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
+                            className="h-16 text-2xl rounded-none bg-background"
                             onClick={() => handleNumberClick('.')}
                         >
                             .
@@ -104,7 +104,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                     <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
-                                className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
+                                className="h-16 text-2xl rounded-none bg-background"
                                 onClick={handleBackspace}
                             >
                             <Delete className="h-7 w-7" />
