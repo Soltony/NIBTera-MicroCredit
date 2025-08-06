@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { LoanDetails, Payment } from '@/lib/types';
+import { differenceInDays } from 'date-fns';
 
 const MOCK_LOAN_HISTORY: LoanDetails[] = [
     {
