@@ -98,11 +98,10 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
       <Card className="shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">{product.name}</CardTitle>
-          <CardDescription>Loan Offer</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <Label htmlFor="loanAmount" className="text-xl font-semibold">Enter Your Desired Loan Amount</Label>
+            <Label htmlFor="loanAmount" className="text-xl font-semibold font-headline">Enter Your Desired Loan Amount</Label>
             <Input
               id="loanAmount"
               type="number"
