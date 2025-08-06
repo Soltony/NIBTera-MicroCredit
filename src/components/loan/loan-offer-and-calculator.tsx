@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { Separator } from '../ui/separator';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
@@ -30,10 +31,13 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   const calculatedTerms = useMemo(() => {
     if (!eligibilityResult?.isEligible) return null;
     const serviceFee = loanAmount * 0.015;
+    const interest = loanAmount * (5.0 / 100);
     const interestRate = 5.0; // Fixed 5%
     const penaltyAmount = loanAmount * 0.1;
     const dueDate = addDays(new Date(), 30);
-    return { serviceFee, interestRate, penaltyAmount, dueDate };
+    const totalRepayable = loanAmount + serviceFee + interest;
+
+    return { serviceFee, interestRate, penaltyAmount, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult]);
 
   if (isLoading) {
@@ -116,18 +120,27 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           </div>
 
           {calculatedTerms && (
-             <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
-                <div className="font-medium">Service Charge (1.5%)</div>
-                <div className="text-right">{formatCurrency(calculatedTerms.serviceFee)}</div>
-                
-                <div className="font-medium">Interest Rate</div>
-                <div className="text-right">{calculatedTerms.interestRate.toFixed(2)}%</div>
-                
-                <div className="font-medium">Due Date</div>
-                <div className="text-right">{format(calculatedTerms.dueDate, 'PPP')}</div>
-                
-                <div className="font-medium text-destructive">Penalty on late payment</div>
-                <div className="text-right text-destructive">{formatCurrency(calculatedTerms.penaltyAmount)}</div>
+             <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
+                    <div className="font-medium">Service Charge (1.5%)</div>
+                    <div className="text-right">{formatCurrency(calculatedTerms.serviceFee)}</div>
+                    
+                    <div className="font-medium">Interest Rate</div>
+                    <div className="text-right">{calculatedTerms.interestRate.toFixed(2)}%</div>
+                    
+                    <div className="font-medium">Due Date</div>
+                    <div className="text-right">{format(calculatedTerms.dueDate, 'PPP')}</div>
+                    
+                    <div className="font-medium text-destructive">Penalty on late payment</div>
+                    <div className="text-right text-destructive">{formatCurrency(calculatedTerms.penaltyAmount)}</div>
+                </div>
+
+                <div className="flex justify-between items-center p-4 rounded-lg border">
+                    <span className="text-base font-semibold">Total Repayable Amount</span>
+                    <span className="text-2xl font-bold" style={{color: providerColor}}>
+                        {formatCurrency(calculatedTerms.totalRepayable)}
+                    </span>
+                </div>
             </div>
           )}
         </CardContent>
