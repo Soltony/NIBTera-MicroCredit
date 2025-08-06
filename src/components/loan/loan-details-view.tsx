@@ -62,7 +62,7 @@ export function LoanDetailsView({ details, onReset, providerColor = 'hsl(var(--p
           </div>
         </CardContent>
         <CardFooter>
-          <Button variant="outline" className="w-full" onClick={onReset}>
+          <Button className="w-full text-white" onClick={onReset} style={{backgroundColor: providerColor}}>
             Start New Application
           </Button>
         </CardFooter>
