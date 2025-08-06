@@ -82,7 +82,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         ))}
                          <Button
                             variant="ghost"
-                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
+                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
                             onClick={() => handleNumberClick('0')}
                         >
                             0
@@ -95,7 +95,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                             .
                         </Button>
                     </div>
-                    <div className="col-span-1 grid grid-rows-4 gap-px">
+                    <div className="col-span-1 grid grid-rows-2 gap-px">
                          <Button
                                 variant="ghost"
                                 className="h-full text-2xl rounded-none bg-background hover:bg-muted"
@@ -104,7 +104,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                             <Delete className="h-7 w-7" />
                         </Button>
                         <Button
-                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-3"
+                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white"
                             onClick={handleConfirm}
                         >
                             OK
