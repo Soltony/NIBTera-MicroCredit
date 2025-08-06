@@ -54,11 +54,11 @@ export function ProductCard({ product, providerColor = '#fdb913', onApply }: Pro
                             </div>
                             <div>
                                 <p className="text-lg font-semibold">{product.dailyFee}</p>
-                                <p className="text-xs text-muted-foreground">Daily Fee</p>
+                                <p className="text-xs text-muted-foreground">Interest Rate</p>
                             </div>
                             <div>
                                 <p className="text-lg font-semibold">{product.penaltyFee}</p>
-                                <p className="text-xs text-muted-foreground">Penalty Fee After Due Date</p>
+                                <p className="text-xs text-muted-foreground">Penalty Fee</p>
                             </div>
                             <div>
                                 <p className="text-lg font-semibold">{formatCurrency(product.availableLimit ?? 0)}</p>
