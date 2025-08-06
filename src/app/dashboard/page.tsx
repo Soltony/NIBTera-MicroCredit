@@ -141,10 +141,7 @@ export default function DashboardPage() {
         <div className="container py-8 md:py-12">
             <div className="mb-8">
                 <Card>
-                    <CardHeader>
-                        <CardDescription>Select a provider to view their products.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                         <div className="flex space-x-4 overflow-x-auto pb-4">
                             {mockProviders.map((provider) => (
                                 <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
