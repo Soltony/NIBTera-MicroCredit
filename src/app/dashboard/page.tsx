@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,7 +21,7 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-const mockProviders: LoanProvider[] = [
+const mockProvidersData: LoanProvider[] = [
     {
     id: 'provider-3',
     name: 'NIb Bank',
@@ -86,25 +86,36 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
 
-  const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProviders[0].id);
-
-  const selectedProvider = useMemo(() => {
-    return mockProviders.find(p => p.id === selectedProviderId) || null;
-  }, [selectedProviderId]);
-
-
-  const maxLoanLimit = useMemo(() => {
+  const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProvidersData[0].id);
+  
+  const { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders } = useMemo(() => {
     const max = searchParams.get('max');
-    return max ? parseFloat(max) : 50000;
-  }, [searchParams]);
+    const maxLoanLimit = max ? parseFloat(max) : 50000;
 
-  const { totalBorrowed, availableToBorrow } = useMemo(() => {
     const totalBorrowed = mockLoanHistory
       .filter(loan => loan.repaymentStatus === 'Unpaid')
       .reduce((acc, loan) => acc + loan.loanAmount, 0);
+
     const availableToBorrow = maxLoanLimit - totalBorrowed;
-    return { totalBorrowed, availableToBorrow };
-  }, [maxLoanLimit]);
+
+    const updatedProviders = mockProvidersData.map(provider => ({
+      ...provider,
+      products: provider.products.map(product => {
+          const productMax = product.maxLoan ?? 0;
+          const available = Math.max(0, productMax - totalBorrowed);
+          return {
+              ...product,
+              availableLimit: available
+          }
+      })
+    }));
+
+    return { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders: updatedProviders };
+  }, [searchParams]);
+
+  const selectedProvider = useMemo(() => {
+    return mockProviders.find(p => p.id === selectedProviderId) || null;
+  }, [selectedProviderId, mockProviders]);
 
   const handleApply = (productId: string) => {
     if(selectedProviderId) {
