@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import type { LoanDetails } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { XIcon } from 'lucide-react';
+import { XIcon, Delete } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -69,7 +69,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                     </p>
                 </div>
                  <div className="grid grid-cols-4 gap-px bg-border rounded-b-lg overflow-hidden mt-4">
-                    <div className="col-span-3 grid grid-cols-3 gap-px">
+                    <div className="col-span-3 grid grid-cols-3 grid-rows-4 gap-px">
                         {numberPadKeys.map(key => (
                             <Button
                                 key={key}
@@ -80,6 +80,13 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                                 {key}
                             </Button>
                         ))}
+                         <Button
+                            variant="ghost"
+                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
+                            onClick={() => handleNumberClick('0')}
+                        >
+                            0
+                        </Button>
                         <Button
                             variant="ghost"
                             className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
@@ -87,24 +94,17 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         >
                             .
                         </Button>
-                        <Button
-                            variant="ghost"
-                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
-                            onClick={() => handleNumberClick('0')}
-                        >
-                            0
-                        </Button>
                     </div>
-                    <div className="col-span-1 flex flex-col gap-px">
-                        <Button
+                    <div className="col-span-1 grid grid-rows-4 gap-px">
+                         <Button
                                 variant="ghost"
                                 className="h-full text-2xl rounded-none bg-background hover:bg-muted"
                                 onClick={handleBackspace}
                             >
-                            <XIcon className="h-7 w-7" />
+                            <Delete className="h-7 w-7" />
                         </Button>
                         <Button
-                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white"
+                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-3"
                             onClick={handleConfirm}
                         >
                             OK
