@@ -6,6 +6,7 @@ import type { LoanDetails } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { XIcon, Delete } from 'lucide-react';
+import { differenceInDays } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -23,10 +24,18 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
 
     const totalAmountToRepay = useMemo(() => {
         const principal = loan.loanAmount;
-        const interest = loan.loanAmount * (loan.interestRate / 100);
-        const fee = loan.serviceFee;
-        const penalty = new Date() > loan.dueDate ? loan.penaltyAmount : 0;
-        return principal + interest + fee + penalty;
+        const serviceFee = loan.serviceFee;
+        const now = new Date();
+        const dueDate = loan.dueDate;
+
+        // Daily fee is 0.2% of loan amount, interestRate is used for this
+        const dailyFeeRate = loan.interestRate / 100 / 30; // Assuming interestRate is monthly
+        const daysSinceLoan = differenceInDays(now, new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000));
+        const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
+
+        const penalty = now > dueDate ? loan.penaltyAmount : 0;
+        
+        return principal + serviceFee + dailyFees + penalty;
     }, [loan]);
 
     const remainingAmount = useMemo(() => {
