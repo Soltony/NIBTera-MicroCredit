@@ -149,10 +149,10 @@ export default function DashboardPage() {
                         {mockProviders.map((provider) => (
                             <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
                                 <div className={cn(
-                                    "h-20 w-20 rounded-full flex items-center justify-center border-2",
+                                    "h-20 w-20 rounded-full flex items-center justify-center border-2 transition-all",
                                     selectedProviderId === provider.id ? 'border-primary' : 'border-transparent'
                                 )}>
-                                    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                                    <div className={cn("h-16 w-16 rounded-full bg-card flex items-center justify-center transition-all shadow-md hover:shadow-lg", selectedProviderId === provider.id ? 'shadow-lg' : '')}>
                                         <provider.icon className="h-8 w-8 text-muted-foreground" />
                                     </div>
                                 </div>
