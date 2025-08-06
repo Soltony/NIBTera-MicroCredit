@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput } from '@/lib/types';
 import { addDays, format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -31,6 +31,15 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   const [amountError, setAmountError] = useState('');
 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
+  
+  const minLoan = product.minLoan ?? 0;
+  const maxLoan = product.maxLoan ?? 0;
+
+  useEffect(() => {
+    // Set initial loan amount, respecting the lower of suggested min and product min
+    setLoanAmount(minLoan);
+  }, [product.id, minLoan]);
+  
 
   const calculatedTerms = useMemo(() => {
     if (!eligibilityResult?.isEligible) return null;
@@ -45,8 +54,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   }, [loanAmount, eligibilityResult]);
 
   const validateAmount = (amount: number) => {
-    if (amount > suggestedLoanAmountMax || amount < suggestedLoanAmountMin) {
-      setAmountError(`Please enter an amount between ${formatCurrency(suggestedLoanAmountMin)} and ${formatCurrency(suggestedLoanAmountMax)}.`);
+    if (amount > maxLoan || amount < minLoan) {
+      setAmountError(`Please enter an amount between ${formatCurrency(minLoan)} and ${formatCurrency(maxLoan)}.`);
       return false;
     }
     setAmountError('');
@@ -132,15 +141,15 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                 "w-full text-xl font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                 amountError ? "border-destructive ring-destructive ring-2" : ""
               )}
-              min={suggestedLoanAmountMin}
-              max={suggestedLoanAmountMax}
+              min={minLoan}
+              max={maxLoan}
               style={{'--ring': amountError ? 'hsl(var(--destructive))' : providerColor} as React.CSSProperties}
             />
             {amountError ? (
               <p className="text-sm text-destructive">{amountError}</p>
             ) : (
              <p className="text-sm text-muted-foreground text-center">
-              Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}
+              Credit Limit: {formatCurrency(minLoan ?? 0)} - {formatCurrency(maxLoan ?? 0)}
             </p>
             )}
           </div>
