@@ -112,7 +112,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
               type="number"
               value={loanAmount}
               onChange={(e) => setLoanAmount(Number(e.target.value))}
-              className="w-full text-xl font-bold"
+              className="w-full text-xl font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               min={suggestedLoanAmountMin}
               max={suggestedLoanAmountMax}
               style={{'--ring': providerColor} as React.CSSProperties}
