@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -245,8 +246,8 @@ export default function DashboardPage() {
                                                 </TableHeader>
                                                 <TableBody>
                                                 {loanHistory.map((loan, index) => (
-                                                    <>
-                                                        <TableRow key={index} className="cursor-pointer" onClick={() => setExpandedLoan(expandedLoan === loan.productName ? null : loan.productName)}>
+                                                    <React.Fragment key={`${loan.productName}-${loan.providerName}-${index}`}>
+                                                        <TableRow className="cursor-pointer" onClick={() => setExpandedLoan(expandedLoan === loan.productName ? null : loan.productName)}>
                                                             <TableCell className="px-4">
                                                                 {loan.payments && loan.payments.length > 0 && (
                                                                     expandedLoan === loan.productName ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
@@ -289,7 +290,7 @@ export default function DashboardPage() {
                                                               </TableCell>
                                                           </TableRow>
                                                         )}
-                                                    </>
+                                                    </React.Fragment>
                                                 ))}
                                                 </TableBody>
                                             </Table>
