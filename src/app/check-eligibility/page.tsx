@@ -19,10 +19,9 @@ export default function CheckEligibilityPage() {
 
   useEffect(() => {
     const performCheck = async () => {
-      if (!providerId) {
-        router.push('/');
-        return;
-      }
+      // Default to NIb Bank if no providerId is present
+      const currentProviderId = providerId || 'provider-3';
+
       setIsLoading(true);
       setError(null);
       try {
@@ -33,18 +32,24 @@ export default function CheckEligibilityPage() {
           annualIncome: 60000,
         });
         
+        const params = new URLSearchParams();
+        params.set('providerId', currentProviderId);
+
         if (eligibilityResult.isEligible) {
-          const params = new URLSearchParams();
-          params.set('providerId', providerId);
           params.set('min', String(eligibilityResult.suggestedLoanAmountMin || 0));
           params.set('max', String(eligibilityResult.suggestedLoanAmountMax || 0));
-          router.push(`/?${params.toString()}`);
         } else {
-          setError(eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
+          // Still redirect, but the dashboard will show ineligibility
+          params.set('error', eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
         }
+        router.push(`/dashboard?${params.toString()}`);
+
       } catch (error) {
         console.error('Eligibility check failed:', error);
-        setError('An unexpected error occurred.');
+        const params = new URLSearchParams();
+        params.set('providerId', currentProviderId);
+        params.set('error', 'An unexpected error occurred during the eligibility check.');
+        router.push(`/dashboard?${params.toString()}`);
       } finally {
         setIsLoading(false);
       }
@@ -66,36 +71,17 @@ export default function CheckEligibilityPage() {
             <Logo className="h-6 w-6 mr-4" />
             <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Check Eligibility</h1>
           </div>
-          <div className="flex flex-1 items-center justify-end space-x-4">
-             <Button variant="outline" onClick={handleBack} className="bg-white hover:bg-white/90" style={{ color: '#8a4d1f' }}>Back</Button>
-          </div>
         </div>
       </header>
        <main className="flex-1 flex items-center justify-center">
         <div className="max-w-md mx-auto text-center">
-            {isLoading && (
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
-                    <p className="text-muted-foreground">Please wait a moment.</p>
-                </div>
-            )}
-            {error && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Eligibility Check Failed</AlertTitle>
-                    <AlertDescription>
-                        {error}
-                        <Button variant="link" onClick={handleBack} className="p-0 h-auto mt-2 block">
-                            Return to Home
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-            )}
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
+                <p className="text-muted-foreground">Please wait a moment while we check your loan eligibility.</p>
+            </div>
         </div>
       </main>
     </div>
   );
 }
-
-    
