@@ -25,11 +25,8 @@ export default function CheckEligibilityPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // In a real app, you'd collect user input here.
-        // For this mock, we use hardcoded values.
         const eligibilityResult = await checkLoanEligibility({
-          creditScore: 700,
-          annualIncome: 60000,
+            providerId: currentProviderId,
         });
         
         const params = new URLSearchParams();

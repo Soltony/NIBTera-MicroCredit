@@ -34,8 +34,7 @@ export interface LoanDetails {
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
-  creditScore: z.number().describe("The user's credit score."),
-  annualIncome: z.number().describe("The user's annual income."),
+  providerId: z.string().describe("The ID of the loan provider."),
 });
 export type CheckLoanEligibilityInput = z.infer<typeof CheckLoanEligibilityInputSchema>;
 
