@@ -44,7 +44,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
 
         const penalty = now > dueDate ? activeLoan.penaltyAmount : 0;
         
-        return principal + serviceFee + dailyFees + penalty;
+        return principal + serviceFee + dailyFees + penalty - (activeLoan.repaidAmount || 0);
     }, [activeLoan]);
 
     return (

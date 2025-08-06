@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -41,16 +42,21 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
         return principal + serviceFee + dailyFees + penalty;
     }, [loan]);
 
+    const balanceDue = useMemo(() => {
+        return totalAmountToRepay - (loan.repaidAmount || 0);
+    },[totalAmountToRepay, loan.repaidAmount]);
+
+
     useEffect(() => {
         if (isOpen) {
-            setAmount(totalAmountToRepay.toFixed(2));
+            setAmount(balanceDue.toFixed(2));
         }
-    }, [isOpen, totalAmountToRepay]);
+    }, [isOpen, balanceDue]);
 
     const remainingAmount = useMemo(() => {
         const enteredAmount = parseFloat(amount) || 0;
-        return totalAmountToRepay - enteredAmount;
-    }, [amount, totalAmountToRepay]);
+        return balanceDue - enteredAmount;
+    }, [amount, balanceDue]);
 
     const handleNumberClick = (num: string) => {
         if (num === '.' && amount.includes('.')) return;
@@ -97,7 +103,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                          <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">USD</span>
                     </div>
                     <div className="text-center text-sm text-muted-foreground">
-                        <p>Total amount to be repaid: {formatCurrency(totalAmountToRepay)}</p>
+                        <p>Total amount to be repaid: {formatCurrency(balanceDue)}</p>
                         <p>Remaining amount: {formatCurrency(remainingAmount)}</p>
                     </div>
                 </div>
