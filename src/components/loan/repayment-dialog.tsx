@@ -100,23 +100,26 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                             <Button
                                 key={key}
                                 variant="ghost"
-                                className="h-16 text-2xl rounded-none bg-background"
+                                className="h-16 text-2xl rounded-none bg-background hover:bg-primary/10"
                                 onClick={() => handleNumberClick(key)}
+                                style={{'--primary': providerColor} as React.CSSProperties}
                             >
                                 {key}
                             </Button>
                         ))}
                          <Button
                             variant="ghost"
-                            className="h-16 text-2xl rounded-none bg-background col-span-2"
+                            className="h-16 text-2xl rounded-none bg-background col-span-2 hover:bg-primary/10"
                             onClick={() => handleNumberClick('0')}
+                            style={{'--primary': providerColor} as React.CSSProperties}
                         >
                             0
                         </Button>
                         <Button
                             variant="ghost"
-                            className="h-16 text-2xl rounded-none bg-background"
+                            className="h-16 text-2xl rounded-none bg-background hover:bg-primary/10"
                             onClick={() => handleNumberClick('.')}
+                             style={{'--primary': providerColor} as React.CSSProperties}
                         >
                             .
                         </Button>
@@ -124,8 +127,9 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                     <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
-                                className="h-16 text-2xl rounded-none bg-background flex items-center justify-center"
+                                className="h-16 text-2xl rounded-none bg-background flex items-center justify-center hover:bg-primary/10"
                                 onClick={handleBackspace}
+                                style={{'--primary': providerColor} as React.CSSProperties}
                             >
                             <Delete className="h-7 w-7" />
                         </Button>
