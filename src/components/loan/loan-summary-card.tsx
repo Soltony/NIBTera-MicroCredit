@@ -20,16 +20,13 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
       <div className="absolute inset-0 z-0 opacity-10">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern id="geometric-pattern" patternUnits="userSpaceOnUse" width="60" height="60" patternTransform="scale(1) rotate(0)">
-              <path d="M 0 10 L 10 0 L 20 10 L 10 20 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
-              <path d="M 30 10 L 40 0 L 50 10 L 40 20 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
-              <path d="M 0 40 L 10 30 L 20 40 L 10 50 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
-              <path d="M 30 40 L 40 30 L 50 40 L 40 50 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
-              <path d="M 20 40 L 30 30 L 40 40 L 30 50 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
-              <path d="M 20 10 L 30 0 L 40 10 L 30 20 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
+            <pattern id="hex-pattern" patternUnits="userSpaceOnUse" width="40" height="69.28" patternTransform="scale(1) rotate(0)">
+              <polygon points="20,0 40,17.32 40,51.96 20,69.28 0,51.96 0,17.32" stroke="#ffffff" strokeWidth="1.5" fill="none" />
+              <polygon points="60,0 80,17.32 80,51.96 60,69.28 40,51.96 40,17.32" stroke="#ffffff" strokeWidth="1.5" fill="none" />
+              <polygon points="-20,0 0,17.32 0,51.96 -20,69.28 -40,51.96 -40,17.32" stroke="#ffffff" strokeWidth="1.5" fill="none" />
             </pattern>
           </defs>
-          <rect width="100%" height="100%" fill="url(#geometric-pattern)"/>
+          <rect width="100%" height="100%" fill="url(#hex-pattern)"/>
         </svg>
       </div>
 
