@@ -80,25 +80,25 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                                 {key}
                             </Button>
                         ))}
-                         <Button
-                            variant="ghost"
-                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
-                            onClick={() => handleNumberClick('.')}
-                        >
-                            .
-                        </Button>
                         <Button
                             variant="ghost"
-                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
+                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
                             onClick={() => handleNumberClick('0')}
                         >
                             0
+                        </Button>
+                         <Button
+                            variant="ghost"
+                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
+                            onClick={() => handleNumberClick('.')}
+                        >
+                            .
                         </Button>
                     </div>
                     <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
-                                className="h-full text-2xl rounded-none bg-background hover:bg-muted"
+                                className="h-full text-2xl rounded-none bg-background hover:bg-muted row-span-1"
                                 onClick={handleBackspace}
                             >
                             <Delete className="h-7 w-7" />
