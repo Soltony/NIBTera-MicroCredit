@@ -5,6 +5,8 @@ export interface LoanProvider {
   name: string;
   icon: React.ComponentType<{ className?: string }>;
   products: LoanProduct[];
+  color?: string;
+  colorHex?: string;
 }
 
 export interface LoanProduct {

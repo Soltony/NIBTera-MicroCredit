@@ -4,17 +4,18 @@
 interface LoanSummaryCardProps {
   maxLoanLimit: number;
   availableToBorrow: number;
+  color?: string;
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanSummaryCard({ maxLoanLimit, availableToBorrow }: LoanSummaryCardProps) {
+export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb913' }: LoanSummaryCardProps) {
   return (
     <div 
       className="relative p-6 rounded-2xl text-yellow-900 shadow-lg flex flex-col justify-between min-h-[180px] overflow-hidden"
-      style={{ backgroundColor: '#fdb913' }}
+      style={{ backgroundColor: color }}
     >
       <div className="absolute inset-0 z-0 opacity-10">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">

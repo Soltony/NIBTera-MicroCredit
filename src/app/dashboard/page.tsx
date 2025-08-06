@@ -24,6 +24,8 @@ const mockProviders: LoanProvider[] = [
     id: 'provider-1',
     name: 'Capital Bank',
     icon: Building2,
+    color: 'text-blue-600',
+    colorHex: '#2563eb',
     products: [
       { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000 },
       { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000 },
@@ -33,6 +35,8 @@ const mockProviders: LoanProvider[] = [
     id: 'provider-2',
     name: 'Providus Financial',
     icon: Landmark,
+    color: 'text-green-600',
+    colorHex: '#16a34a',
     products: [
       { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase },
       { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding },
@@ -42,6 +46,8 @@ const mockProviders: LoanProvider[] = [
     id: 'provider-3',
     name: 'FairMoney Group',
     icon: Building2,
+    color: 'text-red-600',
+    colorHex: '#dc2626',
     products: [
       { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
       { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },
@@ -124,7 +130,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: '#fdb913' }}>
+      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || '#fdb913' }}>
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
@@ -155,7 +161,7 @@ export default function DashboardPage() {
                                     </div>
                                     <span className={cn(
                                         "text-sm font-medium",
-                                        selectedProviderId === provider.id ? 'text-primary' : 'text-muted-foreground'
+                                        selectedProviderId === provider.id ? provider.color : 'text-muted-foreground'
                                     )}>{provider.name}</span>
                                 </div>
                             ))}
@@ -167,6 +173,7 @@ export default function DashboardPage() {
                 <LoanSummaryCard
                     maxLoanLimit={maxLoanLimit}
                     availableToBorrow={availableToBorrow}
+                    color={selectedProvider?.colorHex}
                 />
             </div>
             
@@ -227,7 +234,7 @@ export default function DashboardPage() {
                                 >
                                     <CardHeader>
                                         <div className="flex items-center gap-4">
-                                            <div className="p-3 rounded-full" style={{ backgroundColor: '#fdb913' }}>
+                                            <div className="p-3 rounded-full" style={{ backgroundColor: selectedProvider.colorHex || '#fdb913' }}>
                                                 <product.icon className="h-6 w-6 text-primary-foreground" />
                                             </div>
                                             <div>
