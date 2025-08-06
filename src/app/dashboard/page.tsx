@@ -62,23 +62,13 @@ const mockLoanHistory: LoanDetails[] = [
     {
         providerName: 'Capital Bank',
         productName: 'Personal Loan',
-        loanAmount: 5000,
-        serviceFee: 75,
+        loanAmount: 100,
+        serviceFee: 1.5,
         interestRate: 5.0,
         dueDate: new Date('2024-08-15'),
-        penaltyAmount: 500,
-        repaymentStatus: 'Paid',
-    },
-    {
-        providerName: 'Providus Financial',
-        productName: 'Startup Business Loan',
-        loanAmount: 25000,
-        serviceFee: 375,
-        interestRate: 6.2,
-        dueDate: new Date('2025-01-20'),
-        penaltyAmount: 2500,
+        penaltyAmount: 10,
         repaymentStatus: 'Unpaid',
-    }
+    },
 ];
 
 export default function DashboardPage() {
