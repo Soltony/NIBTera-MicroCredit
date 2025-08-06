@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
 
-import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, ArrowLeft } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import { ProductSelection } from '@/components/loan/product-selection';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
@@ -134,11 +134,13 @@ export default function ApplyPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <header className="sticky top-0 z-40 w-full border-b bg-primary">
         <div className="container flex h-16 items-center">
-          <div className="mr-4 flex items-center">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
             <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
-             <Button variant="outline" onClick={handleBack} className="bg-white hover:bg-white/90" style={{ color: '#8a4d1f' }}>Back</Button>
           </div>
         </div>
       </header>
