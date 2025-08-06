@@ -132,11 +132,11 @@ export default function ApplyPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <header className="sticky top-0 z-40 w-full border-b bg-yellow-300/30 backdrop-blur supports-[backdrop-filter]:bg-yellow-300/30">
+      <header className="sticky top-0 z-40 w-full border-b bg-primary">
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
-            <h1 className="text-xl font-semibold tracking-tight">Loan Application</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
              <Button variant="ghost" onClick={handleBack}>Back</Button>
