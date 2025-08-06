@@ -45,7 +45,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
         }
     };
 
-    const numberPadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'];
+    const numberPadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -80,20 +80,36 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                                 {key}
                             </Button>
                         ))}
-                         <Button
+                        <Button
                             variant="ghost"
                             className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
-                            onClick={handleBackspace}
+                            onClick={() => handleNumberClick('.')}
                         >
-                            <XIcon className="h-7 w-7" />
+                            .
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
+                            onClick={() => handleNumberClick('0')}
+                        >
+                            0
                         </Button>
                     </div>
-                    <Button
-                        className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white"
-                        onClick={handleConfirm}
-                    >
-                        OK
-                    </Button>
+                    <div className="col-span-1 flex flex-col gap-px">
+                        <Button
+                                variant="ghost"
+                                className="h-full text-2xl rounded-none bg-background hover:bg-muted"
+                                onClick={handleBackspace}
+                            >
+                            <XIcon className="h-7 w-7" />
+                        </Button>
+                        <Button
+                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white"
+                            onClick={handleConfirm}
+                        >
+                            OK
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
