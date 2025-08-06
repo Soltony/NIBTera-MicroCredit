@@ -15,13 +15,18 @@ const formatCurrency = (amount: number) => {
 };
 
 export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb913' }: LoanSummaryCardProps) {
-    const [isVisible, setIsVisible] = useState(true);
+    const [isMaxLimitVisible, setIsMaxLimitVisible] = useState(true);
+    const [isAvailableVisible, setIsAvailableVisible] = useState(true);
 
-    const toggleVisibility = () => {
-        setIsVisible(!isVisible);
+    const toggleMaxLimitVisibility = () => {
+        setIsMaxLimitVisible(!isMaxLimitVisible);
+    }
+    
+    const toggleAvailableVisibility = () => {
+        setIsAvailableVisible(!isAvailableVisible);
     }
 
-    const renderAmount = (amount: number) => {
+    const renderAmount = (amount: number, isVisible: boolean) => {
         if (!isVisible) {
             return '******';
         }
@@ -48,20 +53,20 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         <div>
             <div className="flex items-center gap-2">
                 <p className="text-sm opacity-80 mb-1">Maximum Loan Limit</p>
-                <button onClick={toggleVisibility} className="text-primary-foreground focus:outline-none">
-                    {isVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
+                <button onClick={toggleMaxLimitVisibility} className="text-primary-foreground focus:outline-none">
+                    {isMaxLimitVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
                 </button>
             </div>
-            <p className="text-2xl font-semibold tracking-tight">{renderAmount(maxLoanLimit)}</p>
+            <p className="text-2xl font-semibold tracking-tight">{renderAmount(maxLoanLimit, isMaxLimitVisible)}</p>
         </div>
         <div className="text-right">
             <div className="flex items-center gap-2 justify-end">
                 <p className="text-lg opacity-80 mb-1">Available to Borrow</p>
-                 <button onClick={toggleVisibility} className="text-primary-foreground focus:outline-none">
-                    {isVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
+                 <button onClick={toggleAvailableVisibility} className="text-primary-foreground focus:outline-none">
+                    {isAvailableVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
                 </button>
             </div>
-            <p className="text-4xl font-bold tracking-tight">{renderAmount(availableToBorrow)}</p>
+            <p className="text-4xl font-bold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>
         </div>
       </div>
     </div>
