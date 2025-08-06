@@ -146,28 +146,24 @@ export default function DashboardPage() {
       <main className="flex-1">
         <div className="container py-8 md:py-12">
             <div className="mb-8">
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex space-x-4 overflow-x-auto pb-4">
-                            {mockProviders.map((provider) => (
-                                <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
-                                    <div className={cn(
-                                        "h-20 w-20 rounded-full flex items-center justify-center border-2",
-                                        selectedProviderId === provider.id ? 'border-primary' : 'border-transparent'
-                                    )}>
-                                        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                                            <provider.icon className="h-8 w-8 text-muted-foreground" />
-                                        </div>
-                                    </div>
-                                    <span className={cn(
-                                        "text-sm font-medium",
-                                        selectedProviderId === provider.id ? provider.color : 'text-muted-foreground'
-                                    )}>{provider.name}</span>
+                <div className="flex space-x-4 overflow-x-auto pb-4">
+                    {mockProviders.map((provider) => (
+                        <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
+                            <div className={cn(
+                                "h-20 w-20 rounded-full flex items-center justify-center border-2",
+                                selectedProviderId === provider.id ? 'border-primary' : 'border-transparent'
+                            )}>
+                                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                                    <provider.icon className="h-8 w-8 text-muted-foreground" />
                                 </div>
-                            ))}
+                            </div>
+                            <span className={cn(
+                                "text-sm font-medium",
+                                selectedProviderId === provider.id ? provider.color : 'text-muted-foreground'
+                            )}>{provider.name}</span>
                         </div>
-                    </CardContent>
-                </Card>
+                    ))}
+                </div>
             </div>
             <div className="mb-8">
                 <LoanSummaryCard
