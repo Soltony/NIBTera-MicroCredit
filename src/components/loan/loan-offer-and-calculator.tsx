@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '../ui/separator';
+import { cn } from '@/lib/utils';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
@@ -27,6 +28,9 @@ const formatCurrency = (amount: number) => {
 
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState(eligibilityResult?.suggestedLoanAmountMin ?? 0);
+  const [amountError, setAmountError] = useState('');
+
+  const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
 
   const calculatedTerms = useMemo(() => {
     if (!eligibilityResult?.isEligible) return null;
@@ -39,6 +43,34 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
     return { serviceFee, interestRate, penaltyAmount, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult]);
+
+  const validateAmount = (amount: number) => {
+    if (amount > suggestedLoanAmountMax || amount < suggestedLoanAmountMin) {
+      setAmountError(`Please enter an amount between ${formatCurrency(suggestedLoanAmountMin)} and ${formatCurrency(suggestedLoanAmountMax)}.`);
+      return false;
+    }
+    setAmountError('');
+    return true;
+  }
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAmount = Number(e.target.value);
+    setLoanAmount(newAmount);
+    validateAmount(newAmount);
+  };
+  
+  const handleAccept = () => {
+    if (calculatedTerms) {
+      if (!validateAmount(loanAmount)) {
+        return;
+      }
+      onAccept({
+        loanAmount,
+        repaymentStatus: 'Unpaid',
+        ...calculatedTerms,
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -81,22 +113,6 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     );
   }
 
-  const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult;
-
-  const handleAccept = () => {
-    if (calculatedTerms) {
-      if (loanAmount > suggestedLoanAmountMax || loanAmount < suggestedLoanAmountMin) {
-        // Simple alert for now. Could be a toast notification.
-        alert(`Please enter an amount between ${formatCurrency(suggestedLoanAmountMin)} and ${formatCurrency(suggestedLoanAmountMax)}.`);
-        return;
-      }
-      onAccept({
-        loanAmount,
-        repaymentStatus: 'Unpaid',
-        ...calculatedTerms,
-      });
-    }
-  };
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -111,15 +127,22 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
               id="loanAmount"
               type="number"
               value={loanAmount}
-              onChange={(e) => setLoanAmount(Number(e.target.value))}
-              className="w-full text-xl font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              onChange={handleAmountChange}
+              className={cn(
+                "w-full text-xl font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                amountError ? "border-destructive ring-destructive ring-2" : ""
+              )}
               min={suggestedLoanAmountMin}
               max={suggestedLoanAmountMax}
-              style={{'--ring': providerColor} as React.CSSProperties}
+              style={{'--ring': amountError ? 'hsl(var(--destructive))' : providerColor} as React.CSSProperties}
             />
+            {amountError ? (
+              <p className="text-sm text-destructive">{amountError}</p>
+            ) : (
              <p className="text-sm text-muted-foreground text-center">
               Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}
             </p>
+            )}
           </div>
 
           {calculatedTerms && (
@@ -145,7 +168,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           )}
         </CardContent>
         <CardFooter>
-          <Button size="lg" className="w-full text-white" onClick={handleAccept} style={{backgroundColor: providerColor}}>
+          <Button size="lg" className="w-full text-white" onClick={handleAccept} disabled={!!amountError} style={{backgroundColor: providerColor}}>
             Accept and Disburse Loan
           </Button>
         </CardFooter>
