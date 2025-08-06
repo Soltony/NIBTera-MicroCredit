@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LoanProduct } from '@/lib/types';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -41,7 +41,10 @@ export function ProductCard({ product, providerColor = '#fdb913', onApply }: Pro
                             )}
                         </div>
                     </div>
-                    <Button variant="outline" onClick={onApply} className="text-primary border-primary hover:bg-primary/10 hover:text-primary">Apply</Button>
+                     <div className="flex items-center">
+                        <Button variant="outline" onClick={onApply} className="text-primary border-primary hover:bg-primary/10 hover:text-primary">Apply</Button>
+                        <ArrowRight className="h-5 w-5 text-muted-foreground ml-2" />
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -50,7 +53,7 @@ export function ProductCard({ product, providerColor = '#fdb913', onApply }: Pro
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div>
                                 <p className="text-lg font-semibold text-green-600">{product.facilitationFee}</p>
-                                <p className="text-xs text-muted-foreground">Facilitation Fee</p>
+                                <p className="text-xs text-muted-foreground">Service Charge</p>
                             </div>
                             <div>
                                 <p className="text-lg font-semibold">{product.dailyFee}</p>

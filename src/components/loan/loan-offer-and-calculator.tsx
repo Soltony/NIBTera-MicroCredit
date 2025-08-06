@@ -115,7 +115,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
           {calculatedTerms && (
              <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
-                <div className="font-medium">Service Fee (1.5%)</div>
+                <div className="font-medium">Service Charge (1.5%)</div>
                 <div className="text-right">{formatCurrency(calculatedTerms.serviceFee)}</div>
                 
                 <div className="font-medium">Interest Rate</div>
