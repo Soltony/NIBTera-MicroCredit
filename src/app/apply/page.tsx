@@ -20,8 +20,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-yellow-500',
     colorHex: '#fdb913',
     products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
     ],
   },
   {
@@ -31,8 +31,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-blue-600',
     colorHex: '#2563eb',
     products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
     ],
   },
   {
@@ -42,8 +42,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-green-600',
     colorHex: '#16a34a',
     products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, facilitationFee: '1.5%', dailyFee: '5.0%', penaltyFee: '10%', availableLimit: 0 },
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
     ],
   },
 ];
@@ -184,4 +184,3 @@ export default function ApplyPage() {
     </div>
   );
 }
-
