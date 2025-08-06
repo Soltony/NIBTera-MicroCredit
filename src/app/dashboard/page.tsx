@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useLoanHistory } from '@/hooks/use-loan-history';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -58,30 +59,6 @@ const mockProvidersData: LoanProvider[] = [
   },
 ];
 
-
-const mockLoanHistory: LoanDetails[] = [
-    {
-        providerName: 'Capital Bank',
-        productName: 'Personal Loan',
-        loanAmount: 100,
-        serviceFee: 1.5,
-        interestRate: 5.0,
-        dueDate: new Date('2024-08-15'),
-        penaltyAmount: 10,
-        repaymentStatus: 'Unpaid',
-    },
-    {
-        providerName: 'NIb Bank',
-        productName: 'Quick Cash Loan',
-        loanAmount: 500,
-        serviceFee: 7.5,
-        interestRate: 5.0,
-        dueDate: new Date('2024-07-25'),
-        penaltyAmount: 50,
-        repaymentStatus: 'Paid',
-    },
-];
-
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,6 +68,7 @@ export default function DashboardPage() {
   const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProvidersData[0].id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
+  const { loans: loanHistory, updateLoan } = useLoanHistory();
 
   useEffect(() => {
     if (providerId) {
@@ -102,7 +80,7 @@ export default function DashboardPage() {
     const max = searchParams.get('max');
     const maxLoanLimit = max ? parseFloat(max) : 0; // Default to 0 if not eligible
 
-    const unpaidLoans = mockLoanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
+    const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
     
     const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
     const availableToBorrow = Math.max(0, maxLoanLimit - totalBorrowed);
@@ -126,7 +104,7 @@ export default function DashboardPage() {
     }));
 
     return { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders: updatedProviders, activeLoansByProduct };
-  }, [searchParams]);
+  }, [searchParams, loanHistory]);
 
   const selectedProvider = useMemo(() => {
     return mockProviders.find(p => p.id === selectedProviderId) || null;
@@ -154,8 +132,12 @@ export default function DashboardPage() {
   }
 
   const handleConfirmRepayment = (amount: number) => {
-    console.log(`Repaying ${amount} for loan:`, repayingLoan);
-    alert(`Repayment of ${formatCurrency(amount)} for ${repayingLoan?.productName} is not yet implemented.`);
+    if (repayingLoan) {
+      // This is a simplified repayment logic. 
+      // A real app would have a more robust system.
+      const updatedLoan = { ...repayingLoan, repaymentStatus: 'Paid' as 'Paid' | 'Unpaid' };
+      updateLoan(updatedLoan);
+    }
     setIsRepayDialogOpen(false);
     setRepayingLoan(null);
   }
@@ -245,7 +227,7 @@ export default function DashboardPage() {
                                                       </TableRow>
                                                   </TableHeader>
                                                   <TableBody>
-                                                  {mockLoanHistory.map((loan, index) => (
+                                                  {loanHistory.map((loan, index) => (
                                                       <TableRow key={index}>
                                                           <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
                                                           <TableCell className="py-3 px-4">{loan.providerName}</TableCell>

@@ -11,6 +11,7 @@ import { ProductSelection } from '@/components/loan/product-selection';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
+import { useLoanHistory } from '@/hooks/use-loan-history';
 
 const mockProviders: LoanProvider[] = [
     {
@@ -54,6 +55,7 @@ export default function ApplyPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { addLoan } = useLoanHistory();
   
   const providerId = searchParams.get('providerId');
   const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
@@ -102,11 +104,12 @@ export default function ApplyPage() {
   
   const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName'>) => {
     if (selectedProvider && selectedProduct) {
-      const finalDetails = {
+      const finalDetails: LoanDetails = {
         ...details,
         providerName: selectedProvider.name,
         productName: selectedProduct.name,
       };
+      addLoan(finalDetails);
       setLoanDetails(finalDetails);
       setStep('details');
       const newParams = new URLSearchParams(searchParams);

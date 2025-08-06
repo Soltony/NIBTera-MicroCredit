@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { LoanDetails } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -28,17 +28,24 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
         const principal = loan.loanAmount;
         const serviceFee = loan.serviceFee;
         const now = new Date();
-        const dueDate = loan.dueDate;
+        const dueDate = new Date(loan.dueDate);
 
         // Daily fee is 0.2% of loan amount, interestRate is used for this
         const dailyFeeRate = loan.interestRate / 100 / 30; // Assuming interestRate is monthly
-        const daysSinceLoan = differenceInDays(now, new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000));
+        const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const daysSinceLoan = differenceInDays(now, loanStartDate);
         const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
 
         const penalty = now > dueDate ? loan.penaltyAmount : 0;
         
         return principal + serviceFee + dailyFees + penalty;
     }, [loan]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setAmount(totalAmountToRepay.toFixed(2));
+        }
+    }, [isOpen, totalAmountToRepay]);
 
     const remainingAmount = useMemo(() => {
         const enteredAmount = parseFloat(amount) || 0;
