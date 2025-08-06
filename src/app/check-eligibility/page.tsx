@@ -60,7 +60,7 @@ export default function CheckEligibilityPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+       <header className="sticky top-0 z-40 w-full border-b bg-yellow-400/20 backdrop-blur supports-[backdrop-filter]:bg-yellow-400/20">
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex">
             <a className="mr-6 flex items-center space-x-2" href="/">
