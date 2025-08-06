@@ -141,6 +141,9 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || '#fdb913' }}>
         <div className="container flex h-16 items-center">
           <div className="flex items-center">
+            <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2 text-primary-foreground hover:bg-white/20">
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
              <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
                 {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
             </h1>
