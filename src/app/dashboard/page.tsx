@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -132,7 +132,10 @@ export default function DashboardPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || '#fdb913' }}>
         <div className="container flex h-16 items-center">
-          <div className="mr-4 flex items-center">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2 text-primary-foreground hover:bg-white/20">
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
             <Logo className="h-6 w-6 mr-4" />
              <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
                 {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
