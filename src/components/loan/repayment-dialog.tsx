@@ -24,6 +24,7 @@ interface RepaymentDialogProps {
 
 export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColor = '#fdb913' }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
+    const [error, setError] = useState('');
 
     const totalAmountToRepay = useMemo(() => {
         const principal = loan.loanAmount;
@@ -50,6 +51,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
     useEffect(() => {
         if (isOpen) {
             setAmount(balanceDue.toFixed(2));
+            setError('');
         }
     }, [isOpen, balanceDue]);
 
@@ -58,18 +60,36 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
         return balanceDue - enteredAmount;
     }, [amount, balanceDue]);
 
+    const validateAmount = (value: string) => {
+        const numericAmount = parseFloat(value);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            setError('Please enter a valid amount.');
+            return false;
+        }
+        if (numericAmount > balanceDue) {
+            setError(`Amount cannot be more than the balance due of ${formatCurrency(balanceDue)}.`);
+            return false;
+        }
+        setError('');
+        return true;
+    }
+
     const handleNumberClick = (num: string) => {
         if (num === '.' && amount.includes('.')) return;
-        setAmount(prev => prev + num);
+        const newAmount = amount + num;
+        setAmount(newAmount);
+        validateAmount(newAmount);
     };
 
     const handleBackspace = () => {
-        setAmount(prev => prev.slice(0, -1));
+        const newAmount = amount.slice(0, -1);
+        setAmount(newAmount);
+        validateAmount(newAmount);
     };
 
     const handleConfirm = () => {
         const numericAmount = parseFloat(amount);
-        if (!isNaN(numericAmount) && numericAmount > 0) {
+        if (validateAmount(amount) && !isNaN(numericAmount)) {
             onConfirm(numericAmount);
         }
     };
@@ -97,15 +117,22 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                             readOnly
                             value={amount}
                             placeholder="0.00"
-                            className="w-full text-center text-4xl font-bold border-b-2 py-2 bg-transparent outline-none"
-                            style={{ borderColor: providerColor }}
+                            className={cn(
+                                "w-full text-center text-4xl font-bold border-b-2 py-2 bg-transparent outline-none",
+                                error ? "border-destructive" : ""
+                            )}
+                            style={{ borderColor: error ? 'hsl(var(--destructive))' : providerColor }}
                         />
                          <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">USD</span>
                     </div>
-                    <div className="text-center text-sm text-muted-foreground">
-                        <p>Total amount to be repaid: {formatCurrency(balanceDue)}</p>
-                        <p>Remaining amount: {formatCurrency(remainingAmount)}</p>
-                    </div>
+                     {error ? (
+                        <p className="text-sm text-destructive text-center">{error}</p>
+                    ) : (
+                        <div className="text-center text-sm text-muted-foreground">
+                            <p>Total amount to be repaid: {formatCurrency(balanceDue)}</p>
+                            <p>Remaining amount: {formatCurrency(remainingAmount)}</p>
+                        </div>
+                    )}
                 </div>
                  <div className="grid grid-cols-4 gap-px bg-border rounded-b-lg overflow-hidden mt-4">
                     <div className="col-span-3 grid grid-cols-3 grid-rows-4 gap-px">
@@ -149,6 +176,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                         <Button
                             className="h-full text-2xl rounded-none text-primary-foreground row-span-3"
                             onClick={handleConfirm}
+                            disabled={!!error}
                             style={{ backgroundColor: providerColor }}
                         >
                             OK
