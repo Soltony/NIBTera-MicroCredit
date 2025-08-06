@@ -2,12 +2,12 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { LoanProduct, LoanDetails } from '@/lib/types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -25,6 +25,27 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > activeLoan.dueDate : false;
+
+    const totalRepayable = useMemo(() => {
+        if (!activeLoan) return 0;
+
+        const principal = activeLoan.loanAmount;
+        const serviceFee = activeLoan.serviceFee;
+        const now = new Date();
+        const dueDate = activeLoan.dueDate;
+        
+        // This logic should be centralized, but for now, it's copied from RepaymentDialog
+        // Daily fee is 0.2% of loan amount, interestRate is used for this
+        const dailyFeeRate = activeLoan.interestRate / 100 / 30; // Assuming interestRate is monthly
+        // Note: This assumes a 30-day loan term. A more robust solution would store the loan creation date.
+        const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const daysSinceLoan = differenceInDays(now, loanStartDate);
+        const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
+
+        const penalty = now > dueDate ? activeLoan.penaltyAmount : 0;
+        
+        return principal + serviceFee + dailyFees + penalty;
+    }, [activeLoan]);
 
     return (
         <Card className="hover:shadow-lg transition-all duration-300">
@@ -53,7 +74,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     <div className="bg-muted/50 p-4 rounded-lg mt-2 mb-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-2xl font-bold">{formatCurrency(activeLoan.loanAmount)}</p>
+                                <p className="text-2xl font-bold">{formatCurrency(totalRepayable)}</p>
                                 <p className="text-sm text-muted-foreground">
                                     Due Date: {format(activeLoan.dueDate, 'yyyy-MM-dd')}
                                     {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}
