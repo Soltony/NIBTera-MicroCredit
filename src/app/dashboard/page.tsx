@@ -142,7 +142,6 @@ export default function DashboardPage() {
             <div className="mb-8">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Loan Providers</CardTitle>
                         <CardDescription>Select a provider to view their products.</CardDescription>
                     </CardHeader>
                     <CardContent>
