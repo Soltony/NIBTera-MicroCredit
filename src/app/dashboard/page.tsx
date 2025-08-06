@@ -138,7 +138,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: '#fdb913' }}>
+      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || '#fdb913' }}>
         <div className="container flex h-16 items-center">
           <div className="flex items-center">
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2 text-primary-foreground hover:bg-white/20">
@@ -162,8 +162,9 @@ export default function DashboardPage() {
                                 <div 
                                     className={cn(
                                         "h-20 w-20 rounded-full flex items-center justify-center border-2 transition-all",
-                                        selectedProviderId === provider.id ? `border-current ${provider.color}` : 'border-transparent'
+                                        selectedProviderId === provider.id ? `border-current` : 'border-transparent'
                                     )}
+                                    style={{ color: selectedProviderId === provider.id ? provider.colorHex : 'transparent' }}
                                 >
                                     <div className={cn("h-16 w-16 rounded-full bg-card flex items-center justify-center transition-all shadow-md hover:shadow-lg", selectedProviderId === provider.id ? 'shadow-lg' : '')}>
                                         <provider.icon className="h-8 w-8 text-muted-foreground" />
@@ -171,8 +172,8 @@ export default function DashboardPage() {
                                 </div>
                                 <span className={cn(
                                     "text-sm font-medium",
-                                    selectedProviderId === provider.id ? provider.color : 'text-muted-foreground'
-                                )}>{provider.name}</span>
+                                    selectedProviderId === provider.id ? '' : 'text-muted-foreground'
+                                )} style={{ color: selectedProviderId === provider.id ? provider.colorHex : '' }}>{provider.name}</span>
                             </div>
                         ))}
                     </div>
@@ -188,8 +189,8 @@ export default function DashboardPage() {
                     <div>
                         <Accordion type="single" collapsible className="w-full" defaultValue="loan-history">
                             <AccordionItem value="loan-history" className="border-none">
-                                <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: '#d0c3ba' }}>
-                                    <div className="flex items-center justify-between w-full">
+                                <AccordionTrigger className="text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: selectedProvider ? `${selectedProvider.colorHex}1A` : '#fef3c7' }}>
+                                    <div className="flex items-center justify-between w-full" style={{ color: selectedProvider?.colorHex }}>
                                         <span>Loan History</span>
                                         <ChevronDown className="h-6 w-6 transition-transform duration-200" />
                                     </div>
