@@ -68,8 +68,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
             <DialogContent className="sm:max-w-md p-0" onPointerDownOutside={(e) => e.preventDefault()}>
                 <button
                     onClick={onClose}
-                    className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent"
-                    style={{'--ring': providerColor, color: providerColor} as React.CSSProperties}
+                    className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                    style={{'--ring': providerColor, color: providerColor, borderColor: providerColor} as React.CSSProperties}
                 >
                     <X className="h-6 w-6" />
                     <span className="sr-only">Close</span>
