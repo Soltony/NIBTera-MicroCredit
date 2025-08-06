@@ -59,7 +59,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                     {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}
                                 </p>
                             </div>
-                            <Button onClick={() => onRepay(activeLoan)} className="bg-green-500 hover:bg-green-600 text-white">Repay</Button>
+                            <Button onClick={() => onRepay(activeLoan)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                     </div>
                 )}
