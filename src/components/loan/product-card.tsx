@@ -43,7 +43,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                            <Button variant="outline" onClick={onApply} className="text-primary border-primary hover:bg-primary/10 hover:text-primary">Apply</Button>
+                            <Button variant="outline" onClick={onApply} style={{ color: providerColor, borderColor: providerColor }} className="hover:bg-primary/10">Apply</Button>
                         )}
                     </div>
                 </div>
