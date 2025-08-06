@@ -5,8 +5,9 @@ import { useState, useMemo } from 'react';
 import type { LoanDetails } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { XIcon, Delete } from 'lucide-react';
+import { X, Delete } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -75,7 +76,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                             readOnly
                             value={amount}
                             placeholder="0.00"
-                            className="w-full text-center text-4xl font-bold border-b-2 border-primary py-2 bg-transparent outline-none"
+                            className="w-full text-center text-4xl font-bold border-b-2 py-2 bg-transparent outline-none"
+                            style={{ borderColor: providerColor }}
                         />
                          <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">USD</span>
                     </div>
