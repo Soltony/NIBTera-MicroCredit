@@ -108,7 +108,7 @@ export default function ApplyPage() {
       setStep('calculator');
       updateUrl('calculator', { product: selectedProduct!.id });
     } else if (step === 'calculator') {
-      router.push(`/dashboard?providerId=${providerId}`);
+      router.push(`/?providerId=${providerId}`);
     }
   };
 

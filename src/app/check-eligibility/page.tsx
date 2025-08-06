@@ -38,7 +38,7 @@ export default function CheckEligibilityPage() {
           params.set('providerId', providerId);
           params.set('min', String(eligibilityResult.suggestedLoanAmountMin || 0));
           params.set('max', String(eligibilityResult.suggestedLoanAmountMax || 0));
-          router.push(`/dashboard?${params.toString()}`);
+          router.push(`/?${params.toString()}`);
         } else {
           setError(eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
         }
