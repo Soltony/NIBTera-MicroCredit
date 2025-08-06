@@ -139,7 +139,7 @@ export default function ApplyPage() {
             <h1 className="text-xl font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
-             <Button variant="outline" onClick={handleBack} className="bg-white text-primary hover:bg-white/90 hover:text-primary">Back</Button>
+             <Button variant="outline" onClick={handleBack} className="bg-white hover:bg-white/90" style={{ color: '#8a4d1f' }}>Back</Button>
           </div>
         </div>
       </header>

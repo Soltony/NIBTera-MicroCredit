@@ -119,7 +119,7 @@ export default function DashboardPage() {
             </h1>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
-             <Button variant="outline" onClick={() => router.push('/')} className="bg-white text-primary hover:bg-white/90 hover:text-primary">Change Provider</Button>
+             <Button variant="outline" onClick={() => router.push('/')} className="bg-white hover:bg-white/90" style={{ color: '#8a4d1f' }}>Change Provider</Button>
           </div>
         </div>
       </header>
