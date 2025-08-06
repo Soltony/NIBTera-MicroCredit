@@ -205,7 +205,6 @@ export default function DashboardPage() {
                                                         <TableHead className="py-3 px-4">Provider</TableHead>
                                                         <TableHead className="text-right py-3 px-4">Amount</TableHead>
                                                         <TableHead className="text-center py-3 px-4">Status</TableHead>
-                                                        <TableHead className="text-right py-3 px-4">Actions</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
@@ -218,9 +217,6 @@ export default function DashboardPage() {
                                                             <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
                                                             {loan.repaymentStatus}
                                                             </Badge>
-                                                        </TableCell>
-                                                        <TableCell className="text-right py-3 px-4">
-                                                            <Button variant="link" size="sm" className="h-auto p-0 text-primary">View</Button>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
