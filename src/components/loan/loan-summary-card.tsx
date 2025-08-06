@@ -1,6 +1,8 @@
 
 'use client';
 
+import { Eye } from 'lucide-react';
+
 interface LoanSummaryCardProps {
   maxLoanLimit: number;
   availableToBorrow: number;
@@ -28,14 +30,24 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         </svg>
       </div>
 
-      <div className="relative z-10 flex flex-col justify-between h-full">
+      <div className="relative z-10 flex justify-between h-full">
         <div>
-            <p className="text-sm opacity-80 mb-1">Maximum Loan Limit</p>
-            <p className="text-2xl font-semibold tracking-tight">{formatCurrency(maxLoanLimit)}</p>
+            <div className="flex items-center gap-2">
+                <p className="text-sm opacity-80 mb-1">Maximum Loan Limit</p>
+            </div>
+            <div className="flex items-center gap-2">
+                <p className="text-2xl font-semibold tracking-tight">{formatCurrency(maxLoanLimit)}</p>
+                <Eye className="h-5 w-5 opacity-80" />
+            </div>
         </div>
-        <div className="text-right self-end">
-            <p className="text-lg opacity-80 mb-1">Available to Borrow</p>
-            <p className="text-4xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
+        <div className="text-right">
+            <div className="flex items-center gap-2 justify-end">
+                <p className="text-lg opacity-80 mb-1">Available to Borrow</p>
+            </div>
+            <div className="flex items-center gap-2">
+                <p className="text-4xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
+                <Eye className="h-6 w-6 opacity-80" />
+            </div>
         </div>
       </div>
     </div>
