@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Walle
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -76,7 +77,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
-  const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
+
+  const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProviders[0].id);
+
+  const selectedProvider = useMemo(() => {
+    return mockProviders.find(p => p.id === selectedProviderId) || null;
+  }, [selectedProviderId]);
+
 
   const maxLoanLimit = useMemo(() => {
     const max = searchParams.get('max');
@@ -92,11 +99,18 @@ export default function DashboardPage() {
   }, [maxLoanLimit]);
 
   const handleApply = (productId: string) => {
-    if(providerId) {
-        router.push(`/apply?providerId=${providerId}&product=${productId}`);
+    if(selectedProviderId) {
+        router.push(`/apply?providerId=${selectedProviderId}&product=${productId}`);
     } else {
         router.push('/');
     }
+  }
+
+  const handleProviderSelect = (provider: LoanProvider) => {
+    setSelectedProviderId(provider.id);
+    const params = new URLSearchParams(searchParams);
+    params.set('providerId', provider.id);
+    router.push(`/dashboard?${params.toString()}`, { scroll: false });
   }
 
   const handleProductSelect = (product: LoanProduct) => {
@@ -126,6 +140,34 @@ export default function DashboardPage() {
       <main className="flex-1">
         <div className="container py-8 md:py-12">
             <div className="mb-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Loan Providers</CardTitle>
+                        <CardDescription>Select a provider to view their products.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex space-x-4 overflow-x-auto pb-4">
+                            {mockProviders.map((provider) => (
+                                <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
+                                    <div className={cn(
+                                        "h-20 w-20 rounded-full flex items-center justify-center border-2",
+                                        selectedProviderId === provider.id ? 'border-primary' : 'border-transparent'
+                                    )}>
+                                        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                                            <provider.icon className="h-8 w-8 text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                    <span className={cn(
+                                        "text-sm font-medium",
+                                        selectedProviderId === provider.id ? 'text-primary' : 'text-muted-foreground'
+                                    )}>{provider.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            <div className="mb-8">
                 <LoanSummaryCard
                     maxLoanLimit={maxLoanLimit}
                     availableToBorrow={availableToBorrow}
@@ -136,7 +178,7 @@ export default function DashboardPage() {
                 <div>
                      <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="loan-history">
-                            <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180">
+                            <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: '#d0c3ba' }}>
                                 <div className="flex items-center justify-between w-full">
                                     <span>Loan History</span>
                                     <ChevronDown className="h-6 w-6 transition-transform duration-200" />
