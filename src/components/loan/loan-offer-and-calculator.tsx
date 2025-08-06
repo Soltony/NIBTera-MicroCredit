@@ -18,7 +18,7 @@ interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
   isLoading: boolean;
   eligibilityResult: CheckLoanEligibilityOutput | null;
-  onAccept: (details: Omit<LoanDetails, 'providerName' | 'productName'>) => void;
+  onAccept: (details: Omit<LoanDetails, 'providerName' | 'productName' | 'payments' >) => void;
   providerColor?: string;
 }
 
@@ -66,8 +66,13 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setLoanAmount(value);
-    validateAmount(value);
+    if (value === '') {
+      setLoanAmount('');
+      setAmountError(`Please enter an amount between ${formatCurrency(minLoan)} and ${formatCurrency(maxLoan)}.`);
+    } else {
+      setLoanAmount(value);
+      validateAmount(value);
+    }
   };
   
   const handleAccept = () => {
@@ -79,6 +84,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
       onAccept({
         loanAmount: numericLoanAmount,
         repaymentStatus: 'Unpaid',
+        repaidAmount: 0,
         ...calculatedTerms,
       });
     }

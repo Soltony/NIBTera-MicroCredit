@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -85,7 +85,8 @@ export default function DashboardPage() {
   const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProvidersData[0].id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const { loans: loanHistory, updateLoan } = useLoanHistory();
+  const { loans: loanHistory, addPayment } = useLoanHistory();
+  const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
 
   useEffect(() => {
     if (providerId) {
@@ -150,17 +151,7 @@ export default function DashboardPage() {
 
   const handleConfirmRepayment = (amount: number) => {
     if (repayingLoan) {
-      const totalRepayable = calculateTotalRepayable(repayingLoan);
-      const newRepaidAmount = (repayingLoan.repaidAmount || 0) + amount;
-      
-      const isPaid = newRepaidAmount >= totalRepayable;
-
-      const updatedLoan = { 
-        ...repayingLoan,
-        repaidAmount: newRepaidAmount,
-        repaymentStatus: isPaid ? 'Paid' as 'Paid' : 'Unpaid' as 'Unpaid'
-      };
-      updateLoan(updatedLoan);
+      addPayment(repayingLoan, amount);
     }
     setIsRepayDialogOpen(false);
     setRepayingLoan(null);
@@ -239,36 +230,71 @@ export default function DashboardPage() {
                                       </div>
                                   </AccordionTrigger>
                                   <AccordionContent>
-                                      <Card className="mt-2 shadow-sm rounded-lg">
-                                          <CardContent className="p-0">
-                                              <Table>
-                                                  <TableHeader>
-                                                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                          <TableHead className="py-3 px-4">Product</TableHead>
-                                                          <TableHead className="py-3 px-4">Provider</TableHead>
-                                                          <TableHead className="text-right py-3 px-4">Amount</TableHead>
-                                                          <TableHead className="text-right py-3 px-4">Repaid</TableHead>
-                                                          <TableHead className="text-center py-3 px-4">Status</TableHead>
-                                                      </TableRow>
-                                                  </TableHeader>
-                                                  <TableBody>
-                                                  {loanHistory.map((loan, index) => (
-                                                      <TableRow key={index}>
-                                                          <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
-                                                          <TableCell className="py-3 px-4">{loan.providerName}</TableCell>
-                                                          <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
-                                                          <TableCell className="text-right py-3 px-4">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
-                                                          <TableCell className="text-center py-3 px-4">
-                                                              <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                                              {loan.repaymentStatus}
-                                                              </Badge>
-                                                          </TableCell>
-                                                      </TableRow>
-                                                  ))}
-                                                  </TableBody>
-                                              </Table>
-                                          </CardContent>
-                                      </Card>
+                                    <Card className="mt-2 shadow-sm rounded-lg">
+                                        <CardContent className="p-0">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                        <TableHead className="py-3 px-4"></TableHead>
+                                                        <TableHead className="py-3 px-4">Product</TableHead>
+                                                        <TableHead className="py-3 px-4">Provider</TableHead>
+                                                        <TableHead className="text-right py-3 px-4">Amount</TableHead>
+                                                        <TableHead className="text-right py-3 px-4">Repaid</TableHead>
+                                                        <TableHead className="text-center py-3 px-4">Status</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                {loanHistory.map((loan, index) => (
+                                                    <>
+                                                        <TableRow key={index} className="cursor-pointer" onClick={() => setExpandedLoan(expandedLoan === loan.productName ? null : loan.productName)}>
+                                                            <TableCell className="px-4">
+                                                                {loan.payments && loan.payments.length > 0 && (
+                                                                    expandedLoan === loan.productName ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
+                                                            <TableCell className="py-3 px-4">{loan.providerName}</TableCell>
+                                                            <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
+                                                            <TableCell className="text-right py-3 px-4">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
+                                                            <TableCell className="text-center py-3 px-4">
+                                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                                                {loan.repaymentStatus}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {expandedLoan === loan.productName && loan.payments && loan.payments.length > 0 && (
+                                                          <TableRow>
+                                                              <TableCell colSpan={6} className="p-0">
+                                                                  <div className="p-4 bg-secondary/50">
+                                                                      <h4 className="font-semibold mb-2 text-sm">Payment History</h4>
+                                                                      <Table>
+                                                                          <TableHeader>
+                                                                              <TableRow className="bg-secondary hover:bg-secondary">
+                                                                                  <TableHead>Payment No.</TableHead>
+                                                                                  <TableHead>Date</TableHead>
+                                                                                  <TableHead className="text-right">Amount</TableHead>
+                                                                              </TableRow>
+                                                                          </TableHeader>
+                                                                          <TableBody>
+                                                                              {loan.payments.map((payment, pIndex) => (
+                                                                                  <TableRow key={pIndex}>
+                                                                                      <TableCell>#{pIndex + 1}</TableCell>
+                                                                                      <TableCell>{format(payment.date, 'yyyy-MM-dd')}</TableCell>
+                                                                                      <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                                                                                  </TableRow>
+                                                                              ))}
+                                                                          </TableBody>
+                                                                      </Table>
+                                                                  </div>
+                                                              </TableCell>
+                                                          </TableRow>
+                                                        )}
+                                                    </>
+                                                ))}
+                                                </TableBody>
+                                            </Table>
+                                        </CardContent>
+                                    </Card>
                                   </AccordionContent>
                               </AccordionItem>
                           </Accordion>

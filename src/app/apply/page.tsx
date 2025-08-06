@@ -102,12 +102,13 @@ export default function ApplyPage() {
     router.push(`${pathname}?${newParams.toString()}`);
   }
   
-  const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName'>) => {
+  const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName' | 'payments'>) => {
     if (selectedProvider && selectedProduct) {
       const finalDetails: LoanDetails = {
         ...details,
         providerName: selectedProvider.name,
         productName: selectedProduct.name,
+        payments: [],
       };
       addLoan(finalDetails);
       setLoanDetails(finalDetails);

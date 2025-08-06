@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, Payment } from '@/lib/types';
 
 const MOCK_LOAN_HISTORY: LoanDetails[] = [
     {
@@ -15,6 +15,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         penaltyAmount: 10,
         repaymentStatus: 'Unpaid',
         repaidAmount: 0,
+        payments: [],
     },
     {
         providerName: 'NIb Bank',
@@ -26,6 +27,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         penaltyAmount: 50,
         repaymentStatus: 'Paid',
         repaidAmount: 557.5,
+        payments: [{ amount: 557.5, date: new Date('2024-07-20') }],
     },
 ];
 
@@ -42,6 +44,7 @@ export function useLoanHistory() {
         const parsedLoans = JSON.parse(item).map((loan: any) => ({
           ...loan,
           dueDate: new Date(loan.dueDate), // Deserialize date
+          payments: loan.payments ? loan.payments.map((p: any) => ({...p, date: new Date(p.date)})) : [],
         }));
         setLoans(parsedLoans);
       } else {
@@ -55,8 +58,8 @@ export function useLoanHistory() {
     }
   }, []);
 
-  const addLoan = useCallback((newLoan: Omit<LoanDetails, 'repaidAmount'>) => {
-    const loanWithRepayment: LoanDetails = { ...newLoan, repaidAmount: 0 };
+  const addLoan = useCallback((newLoan: Omit<LoanDetails, 'repaidAmount' | 'payments'>) => {
+    const loanWithRepayment: LoanDetails = { ...newLoan, repaidAmount: 0, payments: [] };
     const updatedLoans = [...loans, loanWithRepayment];
     setLoans(updatedLoans);
     try {
@@ -78,6 +81,34 @@ export function useLoanHistory() {
     }
   }, [loans]);
   
+  const addPayment = useCallback((loanToUpdate: LoanDetails, paymentAmount: number) => {
+    const newPayment: Payment = { amount: paymentAmount, date: new Date() };
+    const totalRepaid = (loanToUpdate.repaidAmount || 0) + paymentAmount;
+    
+    // This calculation should ideally be in a shared utility
+    const principal = loanToUpdate.loanAmount;
+    const serviceFee = loanToUpdate.serviceFee;
+    const now = new Date();
+    const dueDate = new Date(loanToUpdate.dueDate);
+    const dailyFeeRate = 0.002;
+    const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const daysSinceLoan = differenceInDays(now, loanStartDate);
+    const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
+    const penalty = now > dueDate ? loanToUpdate.penaltyAmount : 0;
+    const totalRepayable = principal + serviceFee + dailyFees + penalty;
+    
+    const isPaid = totalRepaid >= totalRepayable;
 
-  return { loans, addLoan, updateLoan };
+    const updatedLoan: LoanDetails = {
+      ...loanToUpdate,
+      repaidAmount: totalRepaid,
+      payments: [...(loanToUpdate.payments || []), newPayment],
+      repaymentStatus: isPaid ? 'Paid' : 'Unpaid',
+    };
+
+    updateLoan(updatedLoan);
+
+  }, [updateLoan]);
+
+  return { loans, addLoan, updateLoan, addPayment };
 }

@@ -23,6 +23,11 @@ export interface LoanProduct {
   availableLimit?: number;
 }
 
+export interface Payment {
+  amount: number;
+  date: Date;
+}
+
 export interface LoanDetails {
   providerName: string;
   productName: string;
@@ -33,6 +38,7 @@ export interface LoanDetails {
   penaltyAmount: number;
   repaymentStatus: 'Paid' | 'Unpaid';
   repaidAmount?: number;
+  payments: Payment[];
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
