@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'LoanFlow Mini',
+  title: 'LoanFlow',
   description: 'A mini-app for handling loan applications and processing.',
 };
 
