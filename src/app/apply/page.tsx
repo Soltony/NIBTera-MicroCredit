@@ -139,7 +139,7 @@ export default function ApplyPage() {
             <h1 className="text-xl font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
-             <Button variant="ghost" onClick={handleBack}>Back</Button>
+             <Button variant="ghost" onClick={handleBack} className="text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground">Back</Button>
           </div>
         </div>
       </header>
