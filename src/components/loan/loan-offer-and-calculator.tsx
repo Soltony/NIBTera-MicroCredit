@@ -18,7 +18,7 @@ interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
   isLoading: boolean;
   eligibilityResult: CheckLoanEligibilityOutput | null;
-  onAccept: (details: Omit<LoanDetails, 'providerName' | 'productName' | 'payments' >) => void;
+  onAccept: (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments' >) => void;
   providerColor?: string;
 }
 

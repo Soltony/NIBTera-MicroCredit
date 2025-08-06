@@ -29,6 +29,7 @@ export interface Payment {
 }
 
 export interface LoanDetails {
+  id: string; // Added for unique identification
   providerName: string;
   productName: string;
   loanAmount: number;

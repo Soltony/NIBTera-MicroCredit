@@ -102,16 +102,23 @@ export default function ApplyPage() {
     router.push(`${pathname}?${newParams.toString()}`);
   }
   
-  const handleLoanAccept = (details: Omit<LoanDetails, 'providerName' | 'productName' | 'payments'>) => {
+  const handleLoanAccept = (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
     if (selectedProvider && selectedProduct) {
-      const finalDetails: LoanDetails = {
+      const finalDetails: Omit<LoanDetails, 'id'> = {
         ...details,
         providerName: selectedProvider.name,
         productName: selectedProduct.name,
         payments: [],
       };
-      addLoan(finalDetails);
-      setLoanDetails(finalDetails);
+      const newLoan = addLoan(finalDetails);
+      // We don't have the full loan details with ID yet from addLoan, so we create a temporary one for display
+      const displayLoan: LoanDetails = {
+          ...finalDetails,
+          id: `temp-${Date.now()}`,
+          repaidAmount: 0,
+          payments: [],
+      }
+      setLoanDetails(displayLoan);
       setStep('details');
       const newParams = new URLSearchParams(searchParams);
       newParams.set('step', 'details');

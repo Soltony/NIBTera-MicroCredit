@@ -1,7 +1,7 @@
 
-
 'use client';
 
+import React from 'react';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,6 @@ import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useLoanHistory } from '@/hooks/use-loan-history';
-import React from 'react';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -106,7 +105,10 @@ export default function DashboardPage() {
     const availableToBorrow = Math.max(0, maxLoanLimit - totalBorrowed);
 
     const activeLoansByProduct = unpaidLoans.reduce((acc, loan) => {
-        acc[loan.productName] = loan;
+        // Only consider the most recent loan for a given product
+        if (!acc[loan.productName] || new Date(loan.dueDate) > new Date(acc[loan.productName].dueDate)) {
+            acc[loan.productName] = loan;
+        }
         return acc;
     }, {} as Record<string, LoanDetails>);
 
@@ -246,12 +248,12 @@ export default function DashboardPage() {
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                {loanHistory.map((loan, index) => (
-                                                    <React.Fragment key={`${loan.productName}-${loan.providerName}-${index}`}>
-                                                        <TableRow className="cursor-pointer" onClick={() => setExpandedLoan(expandedLoan === loan.productName ? null : loan.productName)}>
+                                                {loanHistory.map((loan) => (
+                                                    <React.Fragment key={loan.id}>
+                                                        <TableRow className="cursor-pointer" onClick={() => setExpandedLoan(expandedLoan === loan.id ? null : loan.id)}>
                                                             <TableCell className="px-4">
                                                                 {loan.payments && loan.payments.length > 0 && (
-                                                                    expandedLoan === loan.productName ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                                                                    expandedLoan === loan.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
@@ -264,7 +266,7 @@ export default function DashboardPage() {
                                                                 </Badge>
                                                             </TableCell>
                                                         </TableRow>
-                                                        {expandedLoan === loan.productName && loan.payments && loan.payments.length > 0 && (
+                                                        {expandedLoan === loan.id && loan.payments && loan.payments.length > 0 && (
                                                           <TableRow>
                                                               <TableCell colSpan={6} className="p-0">
                                                                   <div className="p-4 bg-secondary/50">

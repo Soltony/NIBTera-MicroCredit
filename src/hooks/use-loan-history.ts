@@ -7,6 +7,7 @@ import { differenceInDays } from 'date-fns';
 
 const MOCK_LOAN_HISTORY: LoanDetails[] = [
     {
+        id: `loan-${Date.now()}-1`,
         providerName: 'Capital Bank',
         productName: 'Personal Loan',
         loanAmount: 100,
@@ -19,6 +20,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         payments: [],
     },
     {
+        id: `loan-${Date.now()}-2`,
         providerName: 'NIb Bank',
         productName: 'Quick Cash Loan',
         loanAmount: 500,
@@ -44,6 +46,7 @@ export function useLoanHistory() {
       if (item) {
         const parsedLoans = JSON.parse(item).map((loan: any) => ({
           ...loan,
+          id: loan.id || `loan-${Date.now()}-${Math.random()}`, // Ensure old loans get an ID
           dueDate: new Date(loan.dueDate), // Deserialize date
           payments: loan.payments ? loan.payments.map((p: any) => ({...p, date: new Date(p.date)})) : [],
         }));
@@ -59,9 +62,14 @@ export function useLoanHistory() {
     }
   }, []);
 
-  const addLoan = useCallback((newLoan: Omit<LoanDetails, 'repaidAmount' | 'payments'>) => {
-    const loanWithRepayment: LoanDetails = { ...newLoan, repaidAmount: 0, payments: [] };
-    const updatedLoans = [...loans, loanWithRepayment];
+  const addLoan = useCallback((newLoan: Omit<LoanDetails, 'id' | 'repaidAmount' | 'payments'>) => {
+    const loanWithId: LoanDetails = { 
+        ...newLoan, 
+        id: `loan-${Date.now()}-${Math.random()}`, 
+        repaidAmount: 0, 
+        payments: [] 
+    };
+    const updatedLoans = [...loans, loanWithId];
     setLoans(updatedLoans);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedLoans));
@@ -72,7 +80,7 @@ export function useLoanHistory() {
 
   const updateLoan = useCallback((updatedLoan: LoanDetails) => {
     const updatedLoans = loans.map(loan =>
-      (loan.productName === updatedLoan.productName && loan.providerName === updatedLoan.providerName) ? updatedLoan : loan
+      (loan.id === updatedLoan.id) ? updatedLoan : loan
     );
     setLoans(updatedLoans);
     try {
