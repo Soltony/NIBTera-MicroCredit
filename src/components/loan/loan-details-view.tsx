@@ -45,20 +45,19 @@ export function LoanDetailsView({ details, onReset, providerColor = 'hsl(var(--p
                 {details.repaymentStatus}
               </Badge>
             </div>
+            
+            <div className="text-muted-foreground">Service Fee</div>
+            <div className="text-right font-medium">3%</div>
 
-            <div className="text-muted-foreground">Interest Rate (5%)</div>
-            <div className="text-right font-medium">{formatCurrency(details.interestRate)}</div>
-
-            <div className="text-muted-foreground">Service Fee (1.5%)</div>
-            <div className="text-right font-medium">{formatCurrency(details.serviceFee)}</div>
+            <div className="text-muted-foreground">Daily Fee</div>
+            <div className="text-right font-medium">0.2%</div>
+            
+            <div className="text-muted-foreground">Penalty Fee After Due Date</div>
+            <div className="text-right font-medium">0.11% daily</div>
 
             <div className="text-muted-foreground">Due Date</div>
             <div className="text-right font-medium">{format(details.dueDate, 'PPP')}</div>
             
-            <div className="text-muted-foreground">Penalty Info</div>
-            <div className="text-right font-medium">
-              {formatCurrency(details.penaltyAmount)} after due date
-            </div>
           </div>
         </CardContent>
         <CardFooter>
