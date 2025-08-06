@@ -9,26 +9,27 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { ProductCard } from '@/components/loan/product-card';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
 const mockProviders: LoanProvider[] = [
-  {
+    {
     id: 'provider-3',
     name: 'NIb Bank',
     icon: Building2,
     color: 'text-yellow-500',
     colorHex: '#fdb913',
     products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500 },
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, facilitationFee: '2.5%', dailyFee: '0.15%', penaltyFee: '0.1% daily', availableLimit: 0 },
     ],
   },
   {
@@ -38,8 +39,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-blue-600',
     colorHex: '#2563eb',
     products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000 },
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, facilitationFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, facilitationFee: '2%', dailyFee: '0.1%', penaltyFee: '0.08% daily', availableLimit: 0 },
     ],
   },
   {
@@ -49,8 +50,8 @@ const mockProviders: LoanProvider[] = [
     color: 'text-green-600',
     colorHex: '#16a34a',
     products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000 },
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, facilitationFee: '4%', dailyFee: '0.25%', penaltyFee: '0.15% daily', availableLimit: 0 },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, facilitationFee: '3.5%', dailyFee: '0.18%', penaltyFee: '0.12% daily', availableLimit: 0 },
     ],
   },
 ];
@@ -123,11 +124,6 @@ export default function DashboardPage() {
     handleApply(product.id);
   }
 
-  const historyIcons: Record<string, React.ElementType> = {
-    'Paid': CreditCard,
-    'Unpaid': Wallet,
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: '#fdb913' }}>
@@ -176,7 +172,7 @@ export default function DashboardPage() {
             
                 <div className="grid gap-8 grid-cols-1">
                     <div>
-                        <Accordion type="single" collapsible className="w-full">
+                        <Accordion type="single" collapsible className="w-full" defaultValue="loan-history">
                             <AccordionItem value="loan-history">
                                 <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: '#d0c3ba' }}>
                                     <div className="flex items-center justify-between w-full">
@@ -223,34 +219,12 @@ export default function DashboardPage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {selectedProvider.products.map((product) => (
-                                    <Card
+                                    <ProductCard 
                                         key={product.id}
-                                        onClick={() => handleProductSelect(product)}
-                                        className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-300"
-                                    >
-                                        <CardHeader className="flex flex-row items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-3 rounded-full" style={{ backgroundColor: selectedProvider.colorHex || '#fdb913' }}>
-                                                    <product.icon className="h-6 w-6 text-primary-foreground" />
-                                                </div>
-                                                <div>
-                                                    <CardTitle className="text-lg">{product.name}</CardTitle>
-                                                    <CardDescription>
-                                                        {product.minLoan && product.maxLoan ? (
-                                                            <span className="block text-sm text-muted-foreground mt-1">
-                                                                Credit Limit: {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="block text-sm text-muted-foreground mt-1">
-                                                                {product.description}
-                                                            </span>
-                                                        )}
-                                                    </CardDescription>
-                                                </div>
-                                            </div>
-                                            <ChevronRight className="h-6 w-6 text-muted-foreground" />
-                                        </CardHeader>
-                                    </Card>
+                                        product={product}
+                                        providerColor={selectedProvider.colorHex}
+                                        onApply={() => handleProductSelect(product)}
+                                    />
                                 ))}
                             </CardContent>
                         </Card>
@@ -263,5 +237,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
