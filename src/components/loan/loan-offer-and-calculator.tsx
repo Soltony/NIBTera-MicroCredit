@@ -136,7 +136,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
-                    <span className="text-base font-semibold">Total Repayable Amount</span>
+                    <span className="text-base font-semibold">Total Repayable Amount on due date</span>
                     <span className="text-2xl font-bold" style={{color: providerColor}}>
                         {formatCurrency(calculatedTerms.totalRepayable)}
                     </span>
