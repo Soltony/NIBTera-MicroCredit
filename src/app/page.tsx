@@ -57,7 +57,7 @@ export default function WelcomePage() {
         </div>
       </header>
       <main className="flex-1 flex items-center">
-        <div className="container py-8 md:py-12 max-w-2xl">
+        <div className="container py-8 md:py-12 max-w-xl">
            <Card className="shadow-lg">
              <CardContent className="p-6 md:p-8">
                 <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />
