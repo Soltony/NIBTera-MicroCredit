@@ -47,11 +47,11 @@ export default function WelcomePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <header className="sticky top-0 z-40 w-full border-b bg-primary">
+      <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: '#fdb913' }}>
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
-            <h1 className="text-xl font-semibold tracking-tight text-primary-foreground">LoanFlow</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-primary-foreground">Welcome</h1>
           </div>
         </div>
       </header>

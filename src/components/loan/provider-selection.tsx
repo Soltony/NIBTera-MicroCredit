@@ -26,8 +26,8 @@ export function ProviderSelection({ providers, onSelect }: ProviderSelectionProp
           >
             <CardHeader className="flex flex-row items-center justify-between p-4">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-yellow-400 rounded-lg">
-                    <provider.icon className="h-8 w-8 text-white" />
+                <div className="p-3 bg-primary rounded-lg">
+                    <provider.icon className="h-8 w-8 text-primary-foreground" />
                 </div>
                 <div>
                   <CardTitle className="text-lg font-semibold text-card-foreground">{provider.name}</CardTitle>
