@@ -46,10 +46,10 @@ export function LoanDetailsView({ details, onReset, providerColor = 'hsl(var(--p
               </Badge>
             </div>
 
-            <div className="text-muted-foreground">Interest Rate</div>
-            <div className="text-right font-medium">{details.interestRate.toFixed(2)}%</div>
+            <div className="text-muted-foreground">Interest Rate (5%)</div>
+            <div className="text-right font-medium">{formatCurrency(details.interestRate)}</div>
 
-            <div className="text-muted-foreground">Service Fee</div>
+            <div className="text-muted-foreground">Service Fee (1.5%)</div>
             <div className="text-right font-medium">{formatCurrency(details.serviceFee)}</div>
 
             <div className="text-muted-foreground">Due Date</div>

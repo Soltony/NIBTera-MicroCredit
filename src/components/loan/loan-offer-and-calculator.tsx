@@ -31,8 +31,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   const calculatedTerms = useMemo(() => {
     if (!eligibilityResult?.isEligible) return null;
     const serviceFee = loanAmount * 0.015;
-    const interest = loanAmount * (5.0 / 100);
-    const interestRate = 5.0; // Fixed 5%
+    const interest = loanAmount * 0.05;
+    const interestRate = loanAmount * 0.05; // Fixed 5%
     const penaltyAmount = loanAmount * 0.1;
     const dueDate = addDays(new Date(), 30);
     const totalRepayable = loanAmount + serviceFee + interest;
@@ -125,8 +125,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                     <div className="font-medium">Service Charge (1.5%)</div>
                     <div className="text-right">{formatCurrency(calculatedTerms.serviceFee)}</div>
                     
-                    <div className="font-medium">Interest Rate</div>
-                    <div className="text-right">{calculatedTerms.interestRate.toFixed(2)}%</div>
+                    <div className="font-medium">Interest Rate (5%)</div>
+                    <div className="text-right">{formatCurrency(calculatedTerms.interestRate)}</div>
                     
                     <div className="font-medium">Due Date</div>
                     <div className="text-right">{format(calculatedTerms.dueDate, 'PPP')}</div>
