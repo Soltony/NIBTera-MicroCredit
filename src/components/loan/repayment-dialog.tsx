@@ -49,7 +49,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[425px] p-0" onPointerDownOutside={(e) => e.preventDefault()}>
+            <DialogContent className="sm:max-w-md p-0" onPointerDownOutside={(e) => e.preventDefault()}>
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="text-center text-xl">Set Amount</DialogTitle>
                 </DialogHeader>
@@ -68,31 +68,33 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         Total amount to be repaid: {formatCurrency(totalAmountToRepay)}
                     </p>
                 </div>
-                <div className="grid grid-cols-3 gap-px bg-border rounded-b-lg overflow-hidden mt-4">
-                    {numberPadKeys.map(key => (
-                        <Button
-                            key={key}
+                 <div className="grid grid-cols-4 gap-px bg-border rounded-b-lg overflow-hidden mt-4">
+                    <div className="col-span-3 grid grid-cols-3 gap-px">
+                        {numberPadKeys.map(key => (
+                            <Button
+                                key={key}
+                                variant="ghost"
+                                className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
+                                onClick={() => handleNumberClick(key)}
+                            >
+                                {key}
+                            </Button>
+                        ))}
+                         <Button
                             variant="ghost"
                             className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
-                            onClick={() => handleNumberClick(key)}
+                            onClick={handleBackspace}
                         >
-                            {key}
+                            <XIcon className="h-7 w-7" />
                         </Button>
-                    ))}
+                    </div>
                     <Button
-                        variant="ghost"
-                        className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
-                        onClick={handleBackspace}
+                        className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white"
+                        onClick={handleConfirm}
                     >
-                         <XIcon className="h-7 w-7" />
+                        OK
                     </Button>
                 </div>
-                 <Button
-                    className="w-full h-16 text-2xl rounded-t-none bg-green-500 hover:bg-green-600 text-white"
-                    onClick={handleConfirm}
-                >
-                    OK
-                </Button>
             </DialogContent>
         </Dialog>
     );
