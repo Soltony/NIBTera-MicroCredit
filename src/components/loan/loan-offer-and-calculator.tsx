@@ -117,6 +117,9 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
               max={suggestedLoanAmountMax}
               style={{'--ring': providerColor} as React.CSSProperties}
             />
+             <p className="text-sm text-muted-foreground text-center">
+              Enter an amount between {formatCurrency(suggestedLoanAmountMin)} and {formatCurrency(suggestedLoanAmountMax)}
+            </p>
           </div>
 
           {calculatedTerms && (
@@ -127,9 +130,6 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                     
                     <div className="font-medium">Daily Fee</div>
                     <div className="text-right">{product.dailyFee}</div>
-                    
-                    <div className="font-medium">Due Date</div>
-                    <div className="text-right">{format(calculatedTerms.dueDate, 'PPP')}</div>
                     
                     <div className="font-medium text-destructive">Penalty Fee After Due Date</div>
                     <div className="text-right text-destructive">{product.penaltyFee}</div>
