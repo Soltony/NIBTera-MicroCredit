@@ -69,6 +69,16 @@ const mockLoanHistory: LoanDetails[] = [
         penaltyAmount: 10,
         repaymentStatus: 'Unpaid',
     },
+    {
+        providerName: 'NIb Bank',
+        productName: 'Quick Cash Loan',
+        loanAmount: 500,
+        serviceFee: 7.5,
+        interestRate: 5.0,
+        dueDate: new Date('2024-07-25'),
+        penaltyAmount: 50,
+        repaymentStatus: 'Paid',
+    },
 ];
 
 export default function DashboardPage() {
@@ -175,7 +185,7 @@ export default function DashboardPage() {
                 <div className="grid gap-8 grid-cols-1">
                     <div>
                         <Accordion type="single" collapsible className="w-full" defaultValue="loan-history">
-                            <AccordionItem value="loan-history">
+                            <AccordionItem value="loan-history" className="border-none">
                                 <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: '#d0c3ba' }}>
                                     <div className="flex items-center justify-between w-full">
                                         <span>Loan History</span>
@@ -183,32 +193,38 @@ export default function DashboardPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent>
-                                    <div className="p-4 border rounded-b-lg">
-                                    <Table>
-                                        <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Product</TableHead>
-                                            <TableHead>Provider</TableHead>
-                                            <TableHead className="text-right">Amount</TableHead>
-                                            <TableHead className="text-center">Status</TableHead>
-                                        </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                        {mockLoanHistory.map((loan, index) => (
-                                            <TableRow key={index}>
-                                            <TableCell className="font-medium">{loan.productName}</TableCell>
-                                            <TableCell>{loan.providerName}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                                {loan.repaymentStatus}
-                                                </Badge>
-                                            </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        </TableBody>
-                                    </Table>
-                                    </div>
+                                    <Card className="mt-2 shadow-sm rounded-lg">
+                                        <CardContent className="p-0">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                        <TableHead className="py-3 px-4">Product</TableHead>
+                                                        <TableHead className="py-3 px-4">Provider</TableHead>
+                                                        <TableHead className="text-right py-3 px-4">Amount</TableHead>
+                                                        <TableHead className="text-center py-3 px-4">Status</TableHead>
+                                                        <TableHead className="text-right py-3 px-4">Actions</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                {mockLoanHistory.map((loan, index) => (
+                                                    <TableRow key={index}>
+                                                        <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
+                                                        <TableCell className="py-3 px-4">{loan.providerName}</TableCell>
+                                                        <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
+                                                        <TableCell className="text-center py-3 px-4">
+                                                            <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                                            {loan.repaymentStatus}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-right py-3 px-4">
+                                                            <Button variant="link" size="sm" className="h-auto p-0 text-primary">View</Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                                </TableBody>
+                                            </Table>
+                                        </CardContent>
+                                    </Card>
                                 </AccordionContent>
                             </AccordionItem>
                         </Accordion>
