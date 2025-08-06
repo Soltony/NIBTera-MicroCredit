@@ -32,7 +32,7 @@ export function LoanDetailsView({ details, onReset }: LoanDetailsViewProps) {
         <CardContent className="space-y-4">
           <div className="flex justify-between items-baseline p-4 bg-secondary rounded-lg">
             <span className="text-muted-foreground">Loan Amount</span>
-            <span className="text-3xl font-bold text-primary">{formatCurrency(details.loanAmount)}</span>
+            <span className="text-5xl font-bold text-primary">{formatCurrency(details.loanAmount)}</span>
           </div>
 
           <Separator />
