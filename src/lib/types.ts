@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export interface LoanProvider {
@@ -16,7 +17,7 @@ export interface LoanProduct {
   icon: React.ComponentType<{ className?: string }>;
   minLoan?: number;
   maxLoan?: number;
-  facilitationFee?: string;
+  serviceFee?: string;
   dailyFee?: string;
   penaltyFee?: string;
   availableLimit?: number;
