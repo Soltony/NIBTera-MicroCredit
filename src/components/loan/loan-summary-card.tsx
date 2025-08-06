@@ -20,11 +20,19 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
       <div className="absolute inset-0 z-0 opacity-20">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern id="honeycomb" patternUnits="userSpaceOnUse" width="40" height="23" patternTransform="scale(3) rotate(30)">
-              <polygon points="20,0 40,11.5 20,23 0,11.5" fill="none" stroke="currentColor" strokeWidth="0.5"/>
+            <pattern id="hexagons" patternUnits="userSpaceOnUse" width="100" height="86.6" patternTransform="scale(1.5) rotate(45)">
+              <g id="hexagon">
+                <polygon points="50,0 100,28.87 100,86.6 50,115.47 0,86.6 0,28.87" fill="#ffffff" />
+                <polygon points="50,0 100,28.87 50,57.74 0,28.87" fill="#f2f2f2" />
+                <polygon points="0,28.87 0,86.6 50,57.74" fill="#e6e6e6" />
+                <polygon points="0,86.6 50,115.47 50,57.74" fill="#d9d9d9" />
+              </g>
+              <use href="#hexagon" x="100" y="0" />
+              <use href="#hexagon" x="50" y="86.6" />
+              <use href="#hexagon" x="-50" y="86.6" />
             </pattern>
           </defs>
-          <rect width="100%" height="100%" fill="url(#honeycomb)"/>
+          <rect width="100%" height="100%" fill="url(#hexagons)"/>
         </svg>
       </div>
       <div className="relative z-10">
