@@ -44,10 +44,10 @@ const mockProviders: LoanProvider[] = [
   },
   {
     id: 'provider-3',
-    name: 'FairMoney Group',
+    name: 'NIb Bank',
     icon: Building2,
-    color: 'text-red-600',
-    colorHex: '#dc2626',
+    color: 'text-yellow-500',
+    colorHex: '#fdb913',
     products: [
       { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
       { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },

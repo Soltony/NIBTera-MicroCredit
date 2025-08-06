@@ -33,7 +33,7 @@ const mockProviders: LoanProvider[] = [
   },
   {
     id: 'provider-3',
-    name: 'FairMoney Group',
+    name: 'NIb Bank',
     icon: Building2,
     products: [
       { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
