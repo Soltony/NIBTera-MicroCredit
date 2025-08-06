@@ -297,6 +297,7 @@ export default function DashboardPage() {
             onClose={() => setIsRepayDialogOpen(false)}
             onConfirm={handleConfirmRepayment}
             loan={repayingLoan}
+            providerColor={selectedProvider?.colorHex}
         />
       )}
     </>

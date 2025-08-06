@@ -17,9 +17,10 @@ interface RepaymentDialogProps {
     onClose: () => void;
     onConfirm: (amount: number) => void;
     loan: LoanDetails;
+    providerColor?: string;
 }
 
-export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentDialogProps) {
+export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColor = '#fdb913' }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
 
     const totalAmountToRepay = useMemo(() => {
@@ -119,8 +120,9 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                             <Delete className="h-7 w-7" />
                         </Button>
                         <Button
-                            className="h-full text-2xl rounded-none bg-primary hover:bg-primary/90 text-primary-foreground row-span-3"
+                            className="h-full text-2xl rounded-none text-primary-foreground row-span-3"
                             onClick={handleConfirm}
+                            style={{ backgroundColor: providerColor }}
                         >
                             OK
                         </Button>
