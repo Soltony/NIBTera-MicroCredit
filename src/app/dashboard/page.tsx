@@ -241,7 +241,7 @@ export default function DashboardPage() {
                                                         {product.description}
                                                         {product.minLoan && product.maxLoan && (
                                                             <span className="block text-sm text-muted-foreground mt-1">
-                                                                {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
+                                                                Credit Limit: {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
                                                             </span>
                                                         )}
                                                     </CardDescription>
@@ -261,5 +261,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
