@@ -145,112 +145,113 @@ export default function DashboardPage() {
       </header>
       <main className="flex-1">
         <div className="container py-8 md:py-12">
-            <div className="mb-8">
-                <div className="flex space-x-4 overflow-x-auto pb-4">
-                    {mockProviders.map((provider) => (
-                        <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
-                            <div className={cn(
-                                "h-20 w-20 rounded-full flex items-center justify-center border-2",
-                                selectedProviderId === provider.id ? 'border-primary' : 'border-transparent'
-                            )}>
-                                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                                    <provider.icon className="h-8 w-8 text-muted-foreground" />
+            <div className="flex flex-col space-y-8">
+                <div>
+                    <div className="flex space-x-4 overflow-x-auto pb-4">
+                        {mockProviders.map((provider) => (
+                            <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
+                                <div className={cn(
+                                    "h-20 w-20 rounded-full flex items-center justify-center border-2",
+                                    selectedProviderId === provider.id ? 'border-primary' : 'border-transparent'
+                                )}>
+                                    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                                        <provider.icon className="h-8 w-8 text-muted-foreground" />
+                                    </div>
                                 </div>
+                                <span className={cn(
+                                    "text-sm font-medium",
+                                    selectedProviderId === provider.id ? provider.color : 'text-muted-foreground'
+                                )}>{provider.name}</span>
                             </div>
-                            <span className={cn(
-                                "text-sm font-medium",
-                                selectedProviderId === provider.id ? provider.color : 'text-muted-foreground'
-                            )}>{provider.name}</span>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
-            </div>
-            <div className="mb-8">
+
                 <LoanSummaryCard
                     maxLoanLimit={maxLoanLimit}
                     availableToBorrow={availableToBorrow}
                     color={selectedProvider?.colorHex}
                 />
-            </div>
             
-            <div className="grid gap-8 grid-cols-1">
-                <div>
-                     <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="loan-history">
-                            <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: '#d0c3ba' }}>
-                                <div className="flex items-center justify-between w-full">
-                                    <span>Loan History</span>
-                                    <ChevronDown className="h-6 w-6 transition-transform duration-200" />
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                                <div className="p-4 border rounded-b-lg">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Product</TableHead>
-                                        <TableHead>Provider</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {mockLoanHistory.map((loan, index) => (
-                                        <TableRow key={index}>
-                                          <TableCell className="font-medium">{loan.productName}</TableCell>
-                                          <TableCell>{loan.providerName}</TableCell>
-                                          <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
-                                          <TableCell className="text-center">
-                                            <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                              {loan.repaymentStatus}
-                                            </Badge>
-                                          </TableCell>
+                <div className="grid gap-8 grid-cols-1">
+                    <div>
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="loan-history">
+                                <AccordionTrigger className="bg-muted text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: '#d0c3ba' }}>
+                                    <div className="flex items-center justify-between w-full">
+                                        <span>Loan History</span>
+                                        <ChevronDown className="h-6 w-6 transition-transform duration-200" />
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                    <div className="p-4 border rounded-b-lg">
+                                    <Table>
+                                        <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Product</TableHead>
+                                            <TableHead>Provider</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                            <TableHead className="text-center">Status</TableHead>
                                         </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                     </Accordion>
-                </div>
-                <div>
-                {selectedProvider && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Available Loan Products</CardTitle>
-                            <CardDescription>Select a product to start a new application.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {selectedProvider.products.map((product) => (
-                                <Card
-                                    key={product.id}
-                                    onClick={() => handleProductSelect(product)}
-                                    className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-300"
-                                >
-                                    <CardHeader>
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-3 rounded-full" style={{ backgroundColor: selectedProvider.colorHex || '#fdb913' }}>
-                                                <product.icon className="h-6 w-6 text-primary-foreground" />
+                                        </TableHeader>
+                                        <TableBody>
+                                        {mockLoanHistory.map((loan, index) => (
+                                            <TableRow key={index}>
+                                            <TableCell className="font-medium">{loan.productName}</TableCell>
+                                            <TableCell>{loan.providerName}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                                {loan.repaymentStatus}
+                                                </Badge>
+                                            </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        </TableBody>
+                                    </Table>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </div>
+                    <div>
+                    {selectedProvider && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Available Loan Products</CardTitle>
+                                <CardDescription>Select a product to start a new application.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {selectedProvider.products.map((product) => (
+                                    <Card
+                                        key={product.id}
+                                        onClick={() => handleProductSelect(product)}
+                                        className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-300"
+                                    >
+                                        <CardHeader>
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 rounded-full" style={{ backgroundColor: selectedProvider.colorHex || '#fdb913' }}>
+                                                    <product.icon className="h-6 w-6 text-primary-foreground" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-lg">{product.name}</CardTitle>
+                                                    <CardDescription>
+                                                        {product.description}
+                                                        {product.minLoan && product.maxLoan && (
+                                                            <span className="block text-sm text-muted-foreground mt-1">
+                                                                {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
+                                                            </span>
+                                                        )}
+                                                    </CardDescription>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <CardTitle className="text-lg">{product.name}</CardTitle>
-                                                <CardDescription>
-                                                    {product.description}
-                                                    {product.minLoan && product.maxLoan && (
-                                                        <span className="block text-sm text-muted-foreground mt-1">
-                                                            {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
-                                                        </span>
-                                                    )}
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                </Card>
-                            ))}
-                        </CardContent>
-                    </Card>
-                )}
+                                        </CardHeader>
+                                    </Card>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    )}
+                    </div>
                 </div>
             </div>
         </div>
