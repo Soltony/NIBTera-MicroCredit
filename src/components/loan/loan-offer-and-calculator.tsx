@@ -27,7 +27,7 @@ const formatCurrency = (amount: number) => {
 };
 
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
-  const [loanAmount, setLoanAmount] = useState(eligibilityResult?.suggestedLoanAmountMin ?? 0);
+  const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
@@ -42,19 +42,21 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   
 
   const calculatedTerms = useMemo(() => {
-    if (!eligibilityResult?.isEligible) return null;
-    const serviceFee = loanAmount * 0.015;
-    const interest = loanAmount * 0.05;
-    const interestRate = loanAmount * 0.05; // Fixed 5%
-    const penaltyAmount = loanAmount * 0.1;
+    const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
+    if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
+    const serviceFee = numericLoanAmount * 0.015;
+    const interest = numericLoanAmount * 0.05;
+    const interestRate = numericLoanAmount * 0.05; // Fixed 5%
+    const penaltyAmount = numericLoanAmount * 0.1;
     const dueDate = addDays(new Date(), 30);
-    const totalRepayable = loanAmount + serviceFee + interest;
+    const totalRepayable = numericLoanAmount + serviceFee + interest;
 
     return { serviceFee, interestRate, penaltyAmount, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult]);
 
-  const validateAmount = (amount: number) => {
-    if (amount > maxLoan || amount < minLoan) {
+  const validateAmount = (amount: number | string) => {
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(numericAmount) || numericAmount > maxLoan || numericAmount < minLoan) {
       setAmountError(`Please enter an amount between ${formatCurrency(minLoan)} and ${formatCurrency(maxLoan)}.`);
       return false;
     }
@@ -63,18 +65,19 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   }
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newAmount = Number(e.target.value);
-    setLoanAmount(newAmount);
-    validateAmount(newAmount);
+    const value = e.target.value;
+    setLoanAmount(value);
+    validateAmount(value);
   };
   
   const handleAccept = () => {
-    if (calculatedTerms) {
-      if (!validateAmount(loanAmount)) {
+    const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
+    if (calculatedTerms && !isNaN(numericLoanAmount)) {
+      if (!validateAmount(numericLoanAmount)) {
         return;
       }
       onAccept({
-        loanAmount,
+        loanAmount: numericLoanAmount,
         repaymentStatus: 'Unpaid',
         ...calculatedTerms,
       });
