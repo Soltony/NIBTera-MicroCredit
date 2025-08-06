@@ -7,6 +7,7 @@ import type { LoanProvider } from '@/lib/types';
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import { ProviderSelection } from '@/components/loan/provider-selection';
+import { Card, CardContent } from '@/components/ui/card';
 
 const mockProviders: LoanProvider[] = [
   {
@@ -57,7 +58,11 @@ export default function WelcomePage() {
       </header>
       <main className="flex-1 flex items-center">
         <div className="container py-8 md:py-12">
-            <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />
+           <Card className="shadow-lg">
+             <CardContent className="p-6 md:p-8">
+                <ProviderSelection providers={mockProviders} onSelect={handleProviderSelect} />
+             </CardContent>
+           </Card>
         </div>
       </main>
     </div>
