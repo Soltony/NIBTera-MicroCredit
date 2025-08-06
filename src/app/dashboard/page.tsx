@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
 import { Logo } from '@/components/icons';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -58,6 +58,23 @@ const mockProvidersData: LoanProvider[] = [
     ],
   },
 ];
+
+const calculateTotalRepayable = (loan: LoanDetails) => {
+    const principal = loan.loanAmount;
+    const serviceFee = loan.serviceFee;
+    const now = new Date();
+    const dueDate = new Date(loan.dueDate);
+
+    // Daily fee is 0.2% of loan amount
+    const dailyFeeRate = 0.002;
+    const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const daysSinceLoan = differenceInDays(now, loanStartDate);
+    const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
+
+    const penalty = now > dueDate ? loan.penaltyAmount : 0;
+    
+    return principal + serviceFee + dailyFees + penalty;
+};
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -133,9 +150,16 @@ export default function DashboardPage() {
 
   const handleConfirmRepayment = (amount: number) => {
     if (repayingLoan) {
-      // This is a simplified repayment logic. 
-      // A real app would have a more robust system.
-      const updatedLoan = { ...repayingLoan, repaymentStatus: 'Paid' as 'Paid' | 'Unpaid' };
+      const totalRepayable = calculateTotalRepayable(repayingLoan);
+      const newRepaidAmount = (repayingLoan.repaidAmount || 0) + amount;
+      
+      const isPaid = newRepaidAmount >= totalRepayable;
+
+      const updatedLoan = { 
+        ...repayingLoan,
+        repaidAmount: newRepaidAmount,
+        repaymentStatus: isPaid ? 'Paid' as 'Paid' : 'Unpaid' as 'Unpaid'
+      };
       updateLoan(updatedLoan);
     }
     setIsRepayDialogOpen(false);
@@ -223,6 +247,7 @@ export default function DashboardPage() {
                                                           <TableHead className="py-3 px-4">Product</TableHead>
                                                           <TableHead className="py-3 px-4">Provider</TableHead>
                                                           <TableHead className="text-right py-3 px-4">Amount</TableHead>
+                                                          <TableHead className="text-right py-3 px-4">Repaid</TableHead>
                                                           <TableHead className="text-center py-3 px-4">Status</TableHead>
                                                       </TableRow>
                                                   </TableHeader>
@@ -232,6 +257,7 @@ export default function DashboardPage() {
                                                           <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
                                                           <TableCell className="py-3 px-4">{loan.providerName}</TableCell>
                                                           <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
+                                                          <TableCell className="text-right py-3 px-4">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
                                                           <TableCell className="text-center py-3 px-4">
                                                               <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
                                                               {loan.repaymentStatus}

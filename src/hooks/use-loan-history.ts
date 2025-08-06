@@ -14,6 +14,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         dueDate: new Date('2024-08-15'),
         penaltyAmount: 10,
         repaymentStatus: 'Unpaid',
+        repaidAmount: 0,
     },
     {
         providerName: 'NIb Bank',
@@ -24,6 +25,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         dueDate: new Date('2024-07-25'),
         penaltyAmount: 50,
         repaymentStatus: 'Paid',
+        repaidAmount: 557.5,
     },
 ];
 
@@ -53,8 +55,9 @@ export function useLoanHistory() {
     }
   }, []);
 
-  const addLoan = useCallback((newLoan: LoanDetails) => {
-    const updatedLoans = [...loans, newLoan];
+  const addLoan = useCallback((newLoan: Omit<LoanDetails, 'repaidAmount'>) => {
+    const loanWithRepayment: LoanDetails = { ...newLoan, repaidAmount: 0 };
+    const updatedLoans = [...loans, loanWithRepayment];
     setLoans(updatedLoans);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedLoans));

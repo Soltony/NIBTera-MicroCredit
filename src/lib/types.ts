@@ -32,6 +32,7 @@ export interface LoanDetails {
   dueDate: Date;
   penaltyAmount: number;
   repaymentStatus: 'Paid' | 'Unpaid';
+  repaidAmount?: number;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
