@@ -238,7 +238,6 @@ export default function DashboardPage() {
                                                 <div>
                                                     <CardTitle className="text-lg">{product.name}</CardTitle>
                                                     <CardDescription>
-                                                        {product.description}
                                                         {product.minLoan && product.maxLoan && (
                                                             <span className="block text-sm text-muted-foreground mt-1">
                                                                 Credit Limit: {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
