@@ -118,7 +118,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
               style={{'--ring': providerColor} as React.CSSProperties}
             />
              <p className="text-sm text-muted-foreground text-center">
-              Enter an amount between {formatCurrency(suggestedLoanAmountMin)} and {formatCurrency(suggestedLoanAmountMax)}
+              Enter an amount between {formatCurrency(product.minLoan ?? 0)} and {formatCurrency(product.maxLoan ?? 0)}
             </p>
           </div>
 
