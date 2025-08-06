@@ -88,15 +88,19 @@ export default function DashboardPage() {
 
   const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProvidersData[0].id);
   
-  const { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders } = useMemo(() => {
+  const { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders, activeLoansByProduct } = useMemo(() => {
     const max = searchParams.get('max');
     const maxLoanLimit = max ? parseFloat(max) : 50000;
 
-    const totalBorrowed = mockLoanHistory
-      .filter(loan => loan.repaymentStatus === 'Unpaid')
-      .reduce((acc, loan) => acc + loan.loanAmount, 0);
-
+    const unpaidLoans = mockLoanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
+    
+    const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
     const availableToBorrow = maxLoanLimit - totalBorrowed;
+
+    const activeLoansByProduct = unpaidLoans.reduce((acc, loan) => {
+        acc[loan.productName] = loan;
+        return acc;
+    }, {} as Record<string, LoanDetails>);
 
     const updatedProviders = mockProvidersData.map(provider => ({
       ...provider,
@@ -110,7 +114,7 @@ export default function DashboardPage() {
       })
     }));
 
-    return { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders: updatedProviders };
+    return { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders: updatedProviders, activeLoansByProduct };
   }, [searchParams]);
 
   const selectedProvider = useMemo(() => {
@@ -134,6 +138,12 @@ export default function DashboardPage() {
 
   const handleProductSelect = (product: LoanProduct) => {
     handleApply(product.id);
+  }
+  
+  const handleRepay = (loan: LoanDetails) => {
+    // For now, just log to the console
+    console.log('Repaying loan:', loan);
+    alert(`Repayment functionality for ${loan.productName} is not yet implemented.`);
   }
 
   return (
@@ -240,7 +250,9 @@ export default function DashboardPage() {
                                         key={product.id}
                                         product={product}
                                         providerColor={selectedProvider.colorHex}
+                                        activeLoan={activeLoansByProduct[product.name]}
                                         onApply={() => handleProductSelect(product)}
+                                        onRepay={handleRepay}
                                     />
                                 ))}
                             </CardContent>

@@ -1,11 +1,13 @@
 
+
 'use client';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LoanProduct } from '@/lib/types';
+import type { LoanProduct, LoanDetails } from '@/lib/types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { format } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -14,11 +16,15 @@ const formatCurrency = (amount: number) => {
 interface ProductCardProps {
     product: LoanProduct;
     providerColor?: string;
+    activeLoan?: LoanDetails;
     onApply: () => void;
+    onRepay: (loan: LoanDetails) => void;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', onApply }: ProductCardProps) {
+export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
+    
+    const isOverdue = activeLoan ? new Date() > activeLoan.dueDate : false;
 
     return (
         <Card className="hover:shadow-lg transition-all duration-300">
@@ -30,24 +36,34 @@ export function ProductCard({ product, providerColor = '#fdb913', onApply }: Pro
                         </div>
                         <div>
                             <CardTitle className="text-lg">{product.name}</CardTitle>
-                            {product.minLoan && product.maxLoan ? (
-                                <span className="block text-sm text-muted-foreground mt-1">
-                                    Credit Limit: {formatCurrency(product.minLoan)} - {formatCurrency(product.maxLoan)}
-                                </span>
-                            ) : (
-                                <span className="block text-sm text-muted-foreground mt-1">
-                                    {product.description}
-                                </span>
-                            )}
+                             <span className="block text-sm text-muted-foreground mt-1">
+                                Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}
+                            </span>
                         </div>
                     </div>
                      <div className="flex items-center">
-                        <Button variant="outline" onClick={onApply} className="text-primary border-primary hover:bg-primary/10 hover:text-primary">Apply</Button>
+                        {!activeLoan && (
+                            <Button variant="outline" onClick={onApply} className="text-primary border-primary hover:bg-primary/10 hover:text-primary">Apply</Button>
+                        )}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
-                {isExpanded && (
+                 {activeLoan && (
+                    <div className="bg-muted/50 p-4 rounded-lg mt-2 mb-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-2xl font-bold">{formatCurrency(activeLoan.loanAmount)}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Due Date: {format(activeLoan.dueDate, 'yyyy-MM-dd')}
+                                    {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}
+                                </p>
+                            </div>
+                            <Button onClick={() => onRepay(activeLoan)} className="bg-green-500 hover:bg-green-600 text-white">Repay</Button>
+                        </div>
+                    </div>
+                )}
+                {isExpanded && !activeLoan && (
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div>
