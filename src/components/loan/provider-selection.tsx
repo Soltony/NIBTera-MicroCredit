@@ -22,7 +22,7 @@ export function ProviderSelection({ providers, onSelect }: ProviderSelectionProp
           <Card
             key={provider.id}
             onClick={() => onSelect(provider)}
-            className="cursor-pointer bg-card text-card-foreground hover:shadow-lg transition-all duration-300 group rounded-xl border"
+            className="cursor-pointer bg-card text-card-foreground hover:shadow-lg transition-all duration-300 group rounded-xl border shadow-md"
           >
             <CardHeader className="flex flex-row items-center justify-between p-4">
               <div className="flex items-center gap-4">
