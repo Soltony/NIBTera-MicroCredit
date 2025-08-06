@@ -21,6 +21,17 @@ const formatCurrency = (amount: number) => {
 
 const mockProviders: LoanProvider[] = [
   {
+    id: 'provider-3',
+    name: 'NIb Bank',
+    icon: Building2,
+    color: 'text-yellow-500',
+    colorHex: '#fdb913',
+    products: [
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },
+    ],
+  },
+  {
     id: 'provider-1',
     name: 'Capital Bank',
     icon: Building2,
@@ -40,17 +51,6 @@ const mockProviders: LoanProvider[] = [
     products: [
       { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase },
       { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding },
-    ],
-  },
-  {
-    id: 'provider-3',
-    name: 'NIb Bank',
-    icon: Building2,
-    color: 'text-yellow-500',
-    colorHex: '#fdb913',
-    products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home },
     ],
   },
 ];
