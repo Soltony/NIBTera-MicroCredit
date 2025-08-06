@@ -98,13 +98,13 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                     <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
-                                className="h-full text-2xl rounded-none bg-background hover:bg-muted row-span-2"
+                                className="h-full text-2xl rounded-none bg-background hover:bg-muted"
                                 onClick={handleBackspace}
                             >
                             <Delete className="h-7 w-7" />
                         </Button>
                         <Button
-                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-2"
+                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-3"
                             onClick={handleConfirm}
                         >
                             OK
