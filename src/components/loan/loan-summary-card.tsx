@@ -44,7 +44,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         </svg>
       </div>
 
-      <div className="relative z-10 flex justify-between h-full">
+      <div className="relative z-10 flex flex-col justify-between h-full">
         <div>
             <div className="flex items-center gap-2">
                 <p className="text-sm opacity-80 mb-1">Maximum Loan Limit</p>
