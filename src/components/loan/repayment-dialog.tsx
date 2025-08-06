@@ -88,18 +88,20 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         ))}
                          <Button
                             variant="ghost"
+                            className="h-16 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
+                            onClick={() => handleNumberClick('0')}
+                        >
+                            0
+                        </Button>
+                        <Button
+                            variant="ghost"
                             className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
                             onClick={() => handleNumberClick('.')}
                         >
                             .
                         </Button>
-                        <Button
-                            variant="ghost"
-                            className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
-                            onClick={() => handleNumberClick('0')}
-                        >
-                            0
-                        </Button>
+                    </div>
+                    <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
                                 className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
@@ -107,10 +109,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                             >
                             <Delete className="h-7 w-7" />
                         </Button>
-                    </div>
-                    <div className="col-span-1 grid grid-rows-1 gap-px">
                         <Button
-                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-4"
+                            className="h-full text-2xl rounded-none bg-primary hover:bg-primary/90 text-primary-foreground row-span-3"
                             onClick={handleConfirm}
                         >
                             OK
