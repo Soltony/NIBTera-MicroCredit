@@ -24,7 +24,7 @@ interface ProductCardProps {
 export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
-    const isOverdue = activeLoan ? new Date() > activeLoan.dueDate : false;
+    const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
 
     const totalRepayable = useMemo(() => {
         if (!activeLoan) return 0;
@@ -32,7 +32,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         const principal = activeLoan.loanAmount;
         const serviceFee = activeLoan.serviceFee;
         const now = new Date();
-        const dueDate = activeLoan.dueDate;
+        const dueDate = new Date(activeLoan.dueDate);
         
         // This logic should be centralized, but for now, it's copied from RepaymentDialog
         // Daily fee is 0.2% of loan amount, interestRate is used for this
@@ -88,7 +88,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div>
-                                <p className="text-lg font-semibold text-green-600">{product.serviceFee}</p>
+                                <p className="text-lg font-semibold">{product.serviceFee}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
                             <div>
