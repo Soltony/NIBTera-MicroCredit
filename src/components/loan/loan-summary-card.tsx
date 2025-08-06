@@ -17,7 +17,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
       className="relative p-6 rounded-2xl text-primary-foreground shadow-lg flex flex-col justify-between min-h-[180px] overflow-hidden"
       style={{ backgroundColor: color }}
     >
-      <div className="absolute inset-0 z-0 opacity-20">
+      <div className="absolute inset-0 z-0 opacity-10">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="hex-pattern" patternUnits="userSpaceOnUse" width="40" height="69.28" patternTransform="scale(1) rotate(0)">
@@ -28,12 +28,12 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         </svg>
       </div>
 
-      <div className="relative z-10 flex flex-col items-start h-full">
-        <div className="mb-4">
+      <div className="relative z-10 flex items-start justify-between h-full">
+        <div className="flex flex-col">
             <p className="text-sm opacity-80 mb-1">Maximum Loan Limit</p>
             <p className="text-2xl font-semibold tracking-tight">{formatCurrency(maxLoanLimit)}</p>
         </div>
-        <div>
+        <div className="flex flex-col items-end">
             <p className="text-lg opacity-80 mb-1">Available to Borrow</p>
             <p className="text-4xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
         </div>
