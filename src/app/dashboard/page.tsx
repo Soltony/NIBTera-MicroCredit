@@ -114,7 +114,7 @@ export default function DashboardPage() {
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
-             <h1 className="text-xl font-semibold tracking-tight text-primary-foreground">
+             <h1 className="text-lg md:text-xl font-semibold tracking-tight text-primary-foreground">
                 {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
             </h1>
           </div>
