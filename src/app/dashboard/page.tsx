@@ -105,7 +105,7 @@ export default function DashboardPage() {
     const unpaidLoans = mockLoanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
     
     const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const availableToBorrow = maxLoanLimit - totalBorrowed;
+    const availableToBorrow = Math.max(0, maxLoanLimit - totalBorrowed);
 
     const activeLoansByProduct = unpaidLoans.reduce((acc, loan) => {
         acc[loan.productName] = loan;
@@ -117,7 +117,7 @@ export default function DashboardPage() {
       products: provider.products.map(product => {
           const productMax = product.maxLoan ?? 0;
           // Ensure available limit respects both product max and overall max limit
-          const available = Math.min(productMax, Math.max(0, availableToBorrow));
+          const available = Math.min(productMax, availableToBorrow);
           return {
               ...product,
               availableLimit: available
@@ -133,7 +133,10 @@ export default function DashboardPage() {
   }, [selectedProviderId, mockProviders]);
 
   const handleApply = (productId: string) => {
-    router.push(`/apply?providerId=${selectedProviderId}&product=${productId}`);
+    const params = new URLSearchParams(searchParams);
+    params.set('providerId', selectedProviderId);
+    params.set('product', productId);
+    router.push(`/apply?${params.toString()}`);
   }
 
   const handleProviderSelect = (provider: LoanProvider) => {

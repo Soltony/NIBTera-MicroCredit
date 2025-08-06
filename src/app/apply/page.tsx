@@ -67,22 +67,28 @@ export default function ApplyPage() {
   const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
 
   const eligibilityResult = useMemo(() => {
-    if (!selectedProduct) {
-        return {
-            isEligible: false,
-            reason: 'No product selected'
-        }
-    }
-    let minLoan = selectedProduct.minLoan ?? 500;
-    let maxLoan = selectedProduct.maxLoan ?? 50000;
+    const min = searchParams.get('min');
+    const max = searchParams.get('max');
 
     return {
-        isEligible: true,
-        suggestedLoanAmountMin: minLoan,
-        suggestedLoanAmountMax: maxLoan,
-        reason: 'You are eligible for a loan.'
+      isEligible: true,
+      suggestedLoanAmountMin: min ? parseFloat(min) : selectedProduct?.minLoan ?? 0,
+      suggestedLoanAmountMax: max ? parseFloat(max) : selectedProduct?.maxLoan ?? 0,
+      reason: 'You are eligible for a loan.',
+    };
+  }, [searchParams, selectedProduct]);
+
+  useEffect(() => {
+    // If the product is not selected, or the step is already details, do nothing.
+    if (!selectedProduct || step === 'details') return;
+
+    // This handles the case where the component is rendered on the server with one product
+    // and then the client hydrates with a different product from the URL.
+    const productFromUrl = selectedProvider?.products.find(p => p.id === initialProductId);
+    if (productFromUrl && productFromUrl.id !== selectedProduct.id) {
+      setSelectedProduct(productFromUrl);
     }
-  }, [selectedProduct]);
+  }, [initialProductId, selectedProvider, selectedProduct, step]);
 
   const updateUrl = (newStep: Step, params: Record<string, string> = {}) => {
     const newParams = new URLSearchParams(searchParams);
@@ -110,33 +116,49 @@ export default function ApplyPage() {
   };
 
   const handleBack = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete('product');
+    params.delete('step');
+
     if (step === 'details') {
       setStep('calculator');
-      updateUrl('calculator', { product: selectedProduct!.id });
-    } else if (step === 'calculator') {
-      const params = new URLSearchParams();
-      if(providerId) params.set('providerId', providerId);
-      router.push(`/?${params.toString()}`);
+      params.set('step', 'calculator');
+      params.set('product', selectedProduct!.id);
+      router.push(`${pathname}?${params.toString()}`);
+    } else {
+       router.push(`/dashboard?${params.toString()}`);
     }
   };
 
   const handleReset = () => {
-    const params = new URLSearchParams();
-    if(providerId) params.set('providerId', providerId);
-    router.push(`/?${params.toString()}`);
+    const params = new URLSearchParams(searchParams);
+    params.delete('product');
+    params.delete('step');
+    router.push(`/dashboard?${params.toString()}`);
   };
   
   const renderStep = () => {
     if (!selectedProvider) {
         return <div className="text-center">Provider not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
     }
+
+    // Set product on initial render
+    if (!selectedProduct) {
+      const product = selectedProvider.products.find(p => p.id === initialProductId);
+      if (product) {
+        setSelectedProduct(product);
+      } else {
+        return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
+      }
+    }
+    
     switch (step) {
       case 'calculator':
         return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
       case 'details':
         return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={selectedProvider.colorHex} />;
       default:
-        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
+         return <div className="text-center">Invalid step.</div>;
     }
   };
 
@@ -162,3 +184,4 @@ export default function ApplyPage() {
     </div>
   );
 }
+
