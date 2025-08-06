@@ -29,6 +29,11 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
         return principal + interest + fee + penalty;
     }, [loan]);
 
+    const remainingAmount = useMemo(() => {
+        const enteredAmount = parseFloat(amount) || 0;
+        return totalAmountToRepay - enteredAmount;
+    }, [amount, totalAmountToRepay]);
+
     const handleNumberClick = (num: string) => {
         if (num === '.' && amount.includes('.')) return;
         setAmount(prev => prev + num);
@@ -64,9 +69,10 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         />
                          <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">USD</span>
                     </div>
-                    <p className="text-center text-sm text-muted-foreground">
-                        Total amount to be repaid: {formatCurrency(totalAmountToRepay)}
-                    </p>
+                    <div className="text-center text-sm text-muted-foreground">
+                        <p>Total amount to be repaid: {formatCurrency(totalAmountToRepay)}</p>
+                        <p>Remaining amount: {formatCurrency(remainingAmount)}</p>
+                    </div>
                 </div>
                  <div className="grid grid-cols-4 gap-px bg-border rounded-b-lg overflow-hidden mt-4">
                     <div className="col-span-3 grid grid-cols-3 grid-rows-4 gap-px">
@@ -74,7 +80,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                             <Button
                                 key={key}
                                 variant="ghost"
-                                className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
+                                className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
                                 onClick={() => handleNumberClick(key)}
                             >
                                 {key}
@@ -82,29 +88,29 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan }: RepaymentD
                         ))}
                          <Button
                             variant="ghost"
-                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted"
+                            className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
                             onClick={() => handleNumberClick('.')}
                         >
                             .
                         </Button>
                         <Button
                             variant="ghost"
-                            className="h-20 text-2xl rounded-none bg-background hover:bg-muted col-span-2"
+                            className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
                             onClick={() => handleNumberClick('0')}
                         >
                             0
                         </Button>
-                    </div>
-                    <div className="col-span-1 grid grid-rows-4 gap-px">
                          <Button
                                 variant="ghost"
-                                className="h-full text-2xl rounded-none bg-background hover:bg-muted row-span-1"
+                                className="h-16 text-2xl rounded-none bg-background hover:bg-muted"
                                 onClick={handleBackspace}
                             >
                             <Delete className="h-7 w-7" />
                         </Button>
+                    </div>
+                    <div className="col-span-1 grid grid-rows-1 gap-px">
                         <Button
-                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-3"
+                            className="h-full text-2xl rounded-none bg-green-500 hover:bg-green-600 text-white row-span-4"
                             onClick={handleConfirm}
                         >
                             OK
