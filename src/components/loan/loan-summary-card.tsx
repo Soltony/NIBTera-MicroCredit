@@ -17,27 +17,25 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
       className="relative p-6 rounded-2xl text-primary-foreground shadow-lg flex flex-col justify-between min-h-[180px] overflow-hidden"
       style={{ backgroundColor: color }}
     >
-      <div className="absolute inset-0 z-0 opacity-20">
+      <div className="absolute inset-0 z-0 opacity-10">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern id="hexagons" patternUnits="userSpaceOnUse" width="100" height="86.6" patternTransform="scale(1.5) rotate(45)">
-              <g id="hexagon">
-                <polygon points="50,0 100,28.87 100,86.6 50,115.47 0,86.6 0,28.87" fill="#ffffff" />
-                <polygon points="50,0 100,28.87 50,57.74 0,28.87" fill="#f2f2f2" />
-                <polygon points="0,28.87 0,86.6 50,57.74" fill="#e6e6e6" />
-                <polygon points="0,86.6 50,115.47 50,57.74" fill="#d9d9d9" />
-              </g>
-              <use href="#hexagon" x="100" y="0" />
-              <use href="#hexagon" x="50" y="86.6" />
-              <use href="#hexagon" x="-50" y="86.6" />
+            <pattern id="geometric-pattern" patternUnits="userSpaceOnUse" width="60" height="60" patternTransform="scale(1) rotate(0)">
+              <path d="M 0 10 L 10 0 L 20 10 L 10 20 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
+              <path d="M 30 10 L 40 0 L 50 10 L 40 20 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
+              <path d="M 0 40 L 10 30 L 20 40 L 10 50 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
+              <path d="M 30 40 L 40 30 L 50 40 L 40 50 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
+              <path d="M 20 40 L 30 30 L 40 40 L 30 50 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
+              <path d="M 20 10 L 30 0 L 40 10 L 30 20 Z" strokeWidth="1.5" stroke="#ffffff" fill="none"></path>
             </pattern>
           </defs>
-          <rect width="100%" height="100%" fill="url(#hexagons)"/>
+          <rect width="100%" height="100%" fill="url(#geometric-pattern)"/>
         </svg>
       </div>
+
       <div className="relative z-10">
-        <div className="absolute top-0 right-0 h-8 w-8 bg-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
-          <div className="h-6 w-6 bg-white/40 rounded-full" />
+        <div className="absolute -top-2 -right-2 h-12 w-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+          <div className="h-8 w-8 bg-white/30 rounded-full" />
         </div>
 
         <div>
@@ -47,7 +45,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         
         <div className="mt-4">
           <p className="text-base opacity-80 mb-1">Available to Borrow</p>
-          <p className="text-2xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
+          <p className="text-3xl font-bold tracking-tight">{formatCurrency(availableToBorrow)}</p>
         </div>
       </div>
     </div>
