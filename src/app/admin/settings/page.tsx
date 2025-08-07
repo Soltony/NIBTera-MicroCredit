@@ -31,6 +31,7 @@ import { useLoanHistory } from '@/hooks/use-loan-history';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
+import { AddProductDialog } from '@/components/loan/add-product-dialog';
 
 
 const mockProviders: LoanProvider[] = [
@@ -104,6 +105,8 @@ const ProductSettingsForm = ({ product, providerColor }: { product: LoanProduct,
 export default function AdminSettingsPage() {
     const [providers, setProviders] = useState<LoanProvider[]>(mockProviders);
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
+    const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+    const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
     const nibBankColor = mockProviders.find(p => p.name === 'NIb Bank')?.colorHex;
     
     const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products'>) => {
@@ -113,6 +116,31 @@ export default function AdminSettingsPage() {
             products: [],
         };
         setProviders([...providers, providerWithId]);
+    };
+    
+    const handleOpenAddProductDialog = (providerId: string) => {
+        setSelectedProviderId(providerId);
+        setIsAddProductDialogOpen(true);
+    };
+
+    const handleAddProduct = (newProduct: Omit<LoanProduct, 'id'>) => {
+        if (!selectedProviderId) return;
+
+        const productWithId: LoanProduct = {
+            ...newProduct,
+            id: `prod-${Date.now()}`
+        };
+
+        const updatedProviders = providers.map(p => {
+            if (p.id === selectedProviderId) {
+                return {
+                    ...p,
+                    products: [...p.products, productWithId]
+                };
+            }
+            return p;
+        });
+        setProviders(updatedProviders);
     };
 
     return (
@@ -144,7 +172,7 @@ export default function AdminSettingsPage() {
                                              <ProductSettingsForm product={product} providerColor={provider.colorHex} />
                                         </div>
                                     ))}
-                                    <Button variant="outline" className="w-full">
+                                    <Button variant="outline" className="w-full" onClick={() => handleOpenAddProductDialog(provider.id)}>
                                         <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
                                     </Button>
                                 </div>
@@ -157,6 +185,11 @@ export default function AdminSettingsPage() {
                 isOpen={isAddProviderDialogOpen}
                 onClose={() => setIsAddProviderDialogOpen(false)}
                 onAddProvider={handleAddProvider}
+            />
+            <AddProductDialog
+                isOpen={isAddProductDialogOpen}
+                onClose={() => setIsAddProductDialogOpen(false)}
+                onAddProduct={handleAddProduct}
             />
         </>
     );
