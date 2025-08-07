@@ -59,7 +59,7 @@ export default function AdminLayout({
 
   return (
     <SidebarProvider>
-    <div className="bg-muted/40 min-h-screen w-full">
+    <div className="bg-muted/40 min-h-screen w-full flex">
         <Sidebar>
             <SidebarHeader>
                  <SidebarTrigger>
@@ -86,7 +86,7 @@ export default function AdminLayout({
                  </SidebarMenu>
             </SidebarContent>
         </Sidebar>
-        <SidebarInset>
+        <div className="flex flex-col flex-1">
             <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
                 <Button
                     variant="outline"
@@ -119,10 +119,10 @@ export default function AdminLayout({
                     </DropdownMenuContent>
                 </DropdownMenu>
             </header>
-            <main>
+            <main className="flex-1">
                 {children}
             </main>
-        </SidebarInset>
+        </div>
     </div>
     </SidebarProvider>
   );
