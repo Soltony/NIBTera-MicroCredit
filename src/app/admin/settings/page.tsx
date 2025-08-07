@@ -32,6 +32,7 @@ import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle } from
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
+import { cn } from '@/lib/utils';
 
 
 const ProductSettingsForm = ({ product, providerColor }: { product: LoanProduct, providerColor?: string }) => {
@@ -115,7 +116,13 @@ export default function AdminSettingsPage() {
                                              <ProductSettingsForm product={product} providerColor={provider.colorHex} />
                                         </div>
                                     ))}
-                                    <Button variant="outline" className="w-full" onClick={() => handleOpenAddProductDialog(provider.id)}>
+                                    <Button 
+                                        variant="outline" 
+                                        className="w-full hover:text-white"
+                                        onClick={() => handleOpenAddProductDialog(provider.id)}
+                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || nibBankColor; }}
+                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
+                                    >
                                         <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
                                     </Button>
                                 </div>
