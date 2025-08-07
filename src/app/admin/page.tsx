@@ -1,6 +1,7 @@
 
 'use client';
 
+import React, { useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -17,106 +18,303 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Activity, CreditCard, DollarSign, Users } from 'lucide-react';
+import { useLoanHistory } from '@/hooks/use-loan-history';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import { subDays, format, isAfter } from 'date-fns';
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+};
 
 export default function AdminDashboard() {
+  const { loans } = useLoanHistory();
+
+  const {
+    totalLoans,
+    totalDisbursed,
+    repaymentRate,
+    atRiskLoans,
+    totalUsers,
+    loanDisbursementData,
+    loanStatusData,
+    recentActivity,
+    productOverview,
+  } = useMemo(() => {
+    const totalLoans = loans.length;
+    const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
+    const paidLoans = loans.filter(loan => loan.repaymentStatus === 'Paid');
+    const repaidOnTime = paidLoans.filter(loan => {
+        const payment = loan.payments?.[0];
+        if (!payment) return false;
+        return !isAfter(new Date(payment.date), new Date(loan.dueDate));
+    }).length;
+    const repaymentRate = paidLoans.length > 0 ? (repaidOnTime / paidLoans.length) * 100 : 0;
+    const atRiskLoans = loans.filter(
+      (loan) => loan.repaymentStatus === 'Unpaid' && new Date() > new Date(loan.dueDate)
+    ).length;
+    const totalUsers = new Set(loans.map((loan) => loan.providerName)).size;
+
+    // Data for Loan Disbursement Chart
+    const disbursementData: { [key: string]: number } = {};
+    for (let i = 6; i >= 0; i--) {
+      const date = subDays(new Date(), i);
+      const formattedDate = format(date, 'MMM d');
+      disbursementData[formattedDate] = 0;
+    }
+    loans.forEach((loan) => {
+      // For mock data, we need a creation date. We'll estimate it from due date.
+      const creationDate = subDays(new Date(loan.dueDate), 30);
+      const formattedDate = format(creationDate, 'MMM d');
+      if (formattedDate in disbursementData) {
+        disbursementData[formattedDate] += loan.loanAmount;
+      }
+    });
+    const loanDisbursementData = Object.entries(disbursementData).map(([name, amount]) => ({ name, amount }));
+
+    // Data for Loan Status Distribution Chart
+    const overdueCount = loans.filter(loan => loan.repaymentStatus === 'Unpaid' && isAfter(new Date(), new Date(loan.dueDate))).length;
+    const activeUnpaidCount = loans.filter(loan => loan.repaymentStatus === 'Unpaid' && !isAfter(new Date(), new Date(loan.dueDate))).length;
+    const paidCount = loans.filter(loan => loan.repaymentStatus === 'Paid').length;
+    const loanStatusData = [
+      { name: 'Paid', value: paidCount, color: '#22c55e' },
+      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: '#3b82f6' },
+      { name: 'Overdue', value: overdueCount, color: '#ef4444' },
+    ];
+    
+    // Data for Recent Loan Activity Table
+    const recentActivity = [...loans]
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
+      .slice(0, 5);
+
+    // Data for Loan Products Overview
+    const products: { [key: string]: { provider: string, active: number, defaulted: number, total: number } } = {};
+    loans.forEach(loan => {
+        if (!products[loan.productName]) {
+            products[loan.productName] = { provider: loan.providerName, active: 0, defaulted: 0, total: 0 };
+        }
+        products[loan.productName].total++;
+        if (loan.repaymentStatus === 'Unpaid') {
+            products[loan.productName].active++;
+            if (new Date() > new Date(loan.dueDate)) {
+                products[loan.productName].defaulted++;
+            }
+        }
+    });
+    const productOverview = Object.entries(products).map(([name, data]) => ({
+        name,
+        ...data,
+        defaultRate: data.total > 0 ? (data.defaulted / data.total) * 100 : 0
+    }));
+
+
+    return {
+      totalLoans,
+      totalDisbursed,
+      repaymentRate,
+      atRiskLoans,
+      totalUsers,
+      loanDisbursementData,
+      loanStatusData,
+      recentActivity,
+      productOverview,
+    };
+  }, [loans]);
+
+  const RADIAN = Math.PI / 180;
+  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }: any) => {
+    if (value === 0) return null;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  
+    return (
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-xs font-bold">
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  };
+
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Disbursed
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
-            <p className="text-xs text-muted-foreground">
-              +20.1% from last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+2350</div>
-            <p className="text-xs text-muted-foreground">
-              +180.1% from last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Active Loans
-            </CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+12,234</div>
-            <p className="text-xs text-muted-foreground">
-              +19% from last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Default Rate
-            </CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">5.2%</div>
-            <p className="text-xs text-muted-foreground">
-              +2% from last month
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      <div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Loan Activity</CardTitle>
-            <CardDescription>
-              A log of the most recent loan applications and repayments.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>
-                    <div className="font-medium">John Doe</div>
-                    <div className="text-sm text-muted-foreground">
-                      john.doe@email.com
-                    </div>
-                  </TableCell>
-                  <TableCell>Capital Bank</TableCell>
-                  <TableCell>Personal Loan</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">Approved</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">$2,500.00</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+    <div className="flex-1 space-y-4 p-8 pt-6">
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{totalLoans}</div>
+                    <p className="text-xs text-muted-foreground">All loans issued</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Disbursed</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
+                    <p className="text-xs text-muted-foreground">Total amount loaned</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Repayment Rate</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{repaymentRate.toFixed(1)}%</div>
+                    <p className="text-xs text-muted-foreground">Loans repaid on time</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">At-Risk Loans</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{atRiskLoans}</div>
+                    <p className="text-xs text-muted-foreground">Loans currently overdue</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{totalUsers}</div>
+                    <p className="text-xs text-muted-foreground">All users on the platform</p>
+                </CardContent>
+            </Card>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="lg:col-span-4">
+                <CardHeader>
+                    <CardTitle>Loan Disbursement Over Time</CardTitle>
+                    <CardDescription>Last 7 days</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={loanDisbursementData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" tick={{fontSize: 12}} tickLine={false} axisLine={false}/>
+                            <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                            <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '0.5rem' }} />
+                            <Legend wrapperStyle={{fontSize: '12px'}}/>
+                            <Line type="monotone" dataKey="amount" stroke="#fdb913" strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
+                        </LineChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+            <Card className="lg:col-span-3">
+                <CardHeader>
+                    <CardTitle>Loan Status Distribution</CardTitle>
+                    <CardDescription>A breakdown of all loans by their current status.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                   <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                        <Pie
+                            data={loanStatusData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={renderCustomizedLabel}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                        >
+                            {loanStatusData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                        </Pie>
+                         <Legend iconType="circle" wrapperStyle={{fontSize: '12px'}}/>
+                        <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '0.5rem' }}/>
+                        </PieChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+        </div>
+         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="lg:col-span-4">
+              <CardHeader>
+                <CardTitle>Recent Loan Activity</CardTitle>
+                <CardDescription>
+                  A log of the most recent loan applications.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentActivity.map((loan) => (
+                        <TableRow key={loan.id}>
+                            <TableCell>{loan.providerName}</TableCell>
+                            <TableCell>{loan.productName}</TableCell>
+                            <TableCell>
+                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                    {loan.repaymentStatus}
+                                </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
+                        </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+            <Card className="lg:col-span-3">
+              <CardHeader>
+                <CardTitle>Loan Products Overview</CardTitle>
+                <CardDescription>
+                  A summary of all available loan products.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Active Loans</TableHead>
+                      <TableHead className="text-right">Default Rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productOverview.map((product) => (
+                        <TableRow key={product.name}>
+                            <TableCell>{product.name}</TableCell>
+                            <TableCell>{product.provider}</TableCell>
+                            <TableCell>{product.active}</TableCell>
+                            <TableCell className="text-right">{product.defaultRate.toFixed(1)}%</TableCell>
+                        </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+        </div>
     </div>
   );
 }
+
+    
