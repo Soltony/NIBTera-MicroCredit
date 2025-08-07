@@ -123,12 +123,13 @@ export default function AdminSettingsPage() {
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = (newProduct: Omit<LoanProduct, 'id'>) => {
+    const handleAddProduct = (newProduct: Omit<LoanProduct, 'id' | 'availableLimit'>) => {
         if (!selectedProviderId) return;
 
         const productWithId: LoanProduct = {
             ...newProduct,
-            id: `prod-${Date.now()}`
+            id: `prod-${Date.now()}`,
+            availableLimit: 0, // Ensure availableLimit is set
         };
 
         const updatedProviders = providers.map(p => {
