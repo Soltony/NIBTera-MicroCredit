@@ -27,48 +27,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useLoanHistory } from '@/hooks/use-loan-history';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
-
-
-const mockProviders: LoanProvider[] = [
-    {
-    id: 'provider-3',
-    name: 'NIb Bank',
-    icon: Building2,
-    color: 'text-yellow-500',
-    colorHex: '#fdb913',
-    products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-  {
-    id: 'provider-1',
-    name: 'Capital Bank',
-    icon: Building2,
-    color: 'text-blue-600',
-    colorHex: '#2563eb',
-    products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-  {
-    id: 'provider-2',
-    name: 'Providus Financial',
-    icon: Landmark,
-    color: 'text-green-600',
-    colorHex: '#16a34a',
-    products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-];
 
 
 const ProductSettingsForm = ({ product, providerColor }: { product: LoanProduct, providerColor?: string }) => {
@@ -103,19 +66,14 @@ const ProductSettingsForm = ({ product, providerColor }: { product: LoanProduct,
 }
 
 export default function AdminSettingsPage() {
-    const [providers, setProviders] = useState<LoanProvider[]>(mockProviders);
+    const { providers, addProvider, addProduct } = useLoanProviders();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-    const nibBankColor = mockProviders.find(p => p.name === 'NIb Bank')?.colorHex;
+    const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
     
     const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products'>) => {
-        const providerWithId: LoanProvider = {
-            ...newProvider,
-            id: `provider-${Date.now()}`,
-            products: [],
-        };
-        setProviders([...providers, providerWithId]);
+        addProvider(newProvider);
     };
     
     const handleOpenAddProductDialog = (providerId: string) => {
@@ -125,23 +83,7 @@ export default function AdminSettingsPage() {
 
     const handleAddProduct = (newProduct: Omit<LoanProduct, 'id' | 'availableLimit'>) => {
         if (!selectedProviderId) return;
-
-        const productWithId: LoanProduct = {
-            ...newProduct,
-            id: `prod-${Date.now()}`,
-            availableLimit: 0, // Ensure availableLimit is set
-        };
-
-        const updatedProviders = providers.map(p => {
-            if (p.id === selectedProviderId) {
-                return {
-                    ...p,
-                    products: [...p.products, productWithId]
-                };
-            }
-            return p;
-        });
-        setProviders(updatedProviders);
+        addProduct(selectedProviderId, newProduct);
     };
 
     return (

@@ -12,42 +12,7 @@ import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calcula
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
 import { useLoanHistory } from '@/hooks/use-loan-history';
-
-const mockProviders: LoanProvider[] = [
-    {
-    id: 'provider-3',
-    name: 'NIb Bank',
-    icon: Building2,
-    color: 'text-yellow-500',
-    colorHex: '#fdb913',
-    products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-  {
-    id: 'provider-1',
-    name: 'Capital Bank',
-    icon: Building2,
-    color: 'text-blue-600',
-    colorHex: '#2563eb',
-    products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-  {
-    id: 'provider-2',
-    name: 'Providus Financial',
-    icon: Landmark,
-    color: 'text-green-600',
-    colorHex: '#16a34a',
-    products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-];
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 type Step = 'calculator' | 'details';
 
@@ -56,6 +21,7 @@ export default function ApplyPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { addLoan } = useLoanHistory();
+  const { providers: mockProviders } = useLoanProviders();
   
   const providerId = searchParams.get('providerId');
   const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
@@ -110,7 +76,7 @@ export default function ApplyPage() {
         productName: selectedProduct.name,
         payments: [],
       };
-      const newLoan = addLoan(finalDetails);
+      addLoan(finalDetails);
       // We don't have the full loan details with ID yet from addLoan, so we create a temporary one for display
       const displayLoan: LoanDetails = {
           ...finalDetails,

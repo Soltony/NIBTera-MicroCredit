@@ -19,46 +19,11 @@ import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useLoanHistory } from '@/hooks/use-loan-history';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
-
-const mockProvidersData: LoanProvider[] = [
-    {
-    id: 'provider-3',
-    name: 'NIb Bank',
-    icon: Building2,
-    color: 'text-yellow-500',
-    colorHex: '#fdb913',
-    products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: PersonStanding, minLoan: 500, maxLoan: 2500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: Home, minLoan: 300, maxLoan: 1500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-  {
-    id: 'provider-1',
-    name: 'Capital Bank',
-    icon: Building2,
-    color: 'text-blue-600',
-    colorHex: '#2563eb',
-    products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: PersonStanding, minLoan: 400, maxLoan: 2000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: Home, minLoan: 10000, maxLoan: 50000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-  {
-    id: 'provider-2',
-    name: 'Providus Financial',
-    icon: Landmark,
-    color: 'text-green-600',
-    colorHex: '#16a34a',
-    products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: Briefcase, minLoan: 5000, maxLoan: 100000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: PersonStanding, minLoan: 2000, maxLoan: 30000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-    ],
-  },
-];
 
 const calculateTotalRepayable = (loan: LoanDetails) => {
     const principal = loan.loanAmount;
@@ -83,6 +48,7 @@ export default function DashboardPage() {
   const providerId = searchParams.get('providerId');
   const eligibilityError = searchParams.get('error');
 
+  const { providers: mockProviders } = useLoanProviders();
   const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? 'provider-3');
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
@@ -95,7 +61,7 @@ export default function DashboardPage() {
     }
   }, [providerId]);
 
-  const { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders, activeLoansByProduct } = useMemo(() => {
+  const { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct, providersWithLimits } = useMemo(() => {
     const max = searchParams.get('max');
     const maxLoanLimit = max ? parseFloat(max) : 0; // Default to 0 if not eligible
 
@@ -112,7 +78,7 @@ export default function DashboardPage() {
         return acc;
     }, {} as Record<string, LoanDetails>);
 
-    const updatedProviders = mockProvidersData.map(provider => ({
+    const providersWithLimits = mockProviders.map(provider => ({
       ...provider,
       products: provider.products.map(product => {
           const productMax = product.maxLoan ?? 0;
@@ -125,12 +91,12 @@ export default function DashboardPage() {
       })
     }));
 
-    return { totalBorrowed, availableToBorrow, maxLoanLimit, mockProviders: updatedProviders, activeLoansByProduct };
-  }, [searchParams, loanHistory]);
+    return { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct, providersWithLimits };
+  }, [searchParams, loanHistory, mockProviders]);
 
   const selectedProvider = useMemo(() => {
-    return mockProviders.find(p => p.id === selectedProviderId) || mockProviders.find(p => p.id === 'provider-3') || null;
-  }, [selectedProviderId, mockProviders]);
+    return providersWithLimits.find(p => p.id === selectedProviderId) || providersWithLimits.find(p => p.id === 'provider-3') || null;
+  }, [selectedProviderId, providersWithLimits]);
 
   const handleApply = (productId: string) => {
     const params = new URLSearchParams(searchParams);
@@ -341,5 +307,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
