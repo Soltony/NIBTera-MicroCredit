@@ -30,6 +30,7 @@ import {
 import { useLoanHistory } from '@/hooks/use-loan-history';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
+import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 
 
 const mockProviders: LoanProvider[] = [
@@ -102,44 +103,61 @@ const ProductSettingsForm = ({ product, providerColor }: { product: LoanProduct,
 
 export default function AdminSettingsPage() {
     const [providers, setProviders] = useState<LoanProvider[]>(mockProviders);
+    const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const nibBankColor = mockProviders.find(p => p.name === 'NIb Bank')?.colorHex;
+    
+    const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products'>) => {
+        const providerWithId: LoanProvider = {
+            ...newProvider,
+            id: `provider-${Date.now()}`,
+            products: [],
+        };
+        setProviders([...providers, providerWithId]);
+    };
 
     return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
-            <div className="flex items-center justify-between space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">Loan Settings</h2>
-                 <Button style={{ backgroundColor: nibBankColor }} className="text-white">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
-                </Button>
-            </div>
-            <Accordion type="multiple" className="w-full space-y-4">
-                {providers.map((provider) => (
-                    <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                        <AccordionTrigger className="p-4 hover:no-underline">
-                            <div className="flex items-center gap-4">
-                                <provider.icon className="h-8 w-8 text-muted-foreground" style={{ color: provider.colorHex }} />
-                                <div>
-                                    <h3 className="text-lg font-semibold">{provider.name}</h3>
-                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
-                                </div>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="p-4 border-t">
-                            <div className="space-y-6">
-                                {provider.products.map(product => (
-                                    <div key={product.id}>
-                                         <h4 className="text-md font-semibold mb-2">{product.name}</h4>
-                                         <ProductSettingsForm product={product} providerColor={provider.colorHex} />
+        <>
+            <div className="flex-1 space-y-4 p-8 pt-6">
+                <div className="flex items-center justify-between space-y-2">
+                    <h2 className="text-3xl font-bold tracking-tight">Loan Settings</h2>
+                     <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: nibBankColor }} className="text-white">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+                    </Button>
+                </div>
+                <Accordion type="multiple" className="w-full space-y-4">
+                    {providers.map((provider) => (
+                        <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                            <AccordionTrigger className="p-4 hover:no-underline">
+                                <div className="flex items-center gap-4">
+                                    <provider.icon className="h-8 w-8 text-muted-foreground" style={{ color: provider.colorHex }} />
+                                    <div>
+                                        <h3 className="text-lg font-semibold">{provider.name}</h3>
+                                        <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
                                     </div>
-                                ))}
-                                <Button variant="outline" className="w-full">
-                                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
-                                </Button>
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-                ))}
-            </Accordion>
-        </div>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="p-4 border-t">
+                                <div className="space-y-6">
+                                    {provider.products.map(product => (
+                                        <div key={product.id}>
+                                             <h4 className="text-md font-semibold mb-2">{product.name}</h4>
+                                             <ProductSettingsForm product={product} providerColor={provider.colorHex} />
+                                        </div>
+                                    ))}
+                                    <Button variant="outline" className="w-full">
+                                        <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+                                    </Button>
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
+            </div>
+            <AddProviderDialog
+                isOpen={isAddProviderDialogOpen}
+                onClose={() => setIsAddProviderDialogOpen(false)}
+                onAddProvider={handleAddProvider}
+            />
+        </>
     );
 }
