@@ -46,6 +46,7 @@ export default function AdminDashboard() {
   const {
     totalLoans,
     totalDisbursed,
+    totalPaid,
     repaymentRate,
     atRiskLoans,
     totalUsers,
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
     const totalLoans = loans.length;
     const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
     const paidLoans = loans.filter(loan => loan.repaymentStatus === 'Paid');
+    const totalPaid = paidLoans.reduce((acc, loan) => acc + (loan.repaidAmount || loan.loanAmount), 0);
     const repaidOnTime = paidLoans.filter(loan => {
         const payment = loan.payments?.[0];
         if (!payment) return false;
@@ -90,9 +92,9 @@ export default function AdminDashboard() {
     const activeUnpaidCount = loans.filter(loan => loan.repaymentStatus === 'Unpaid' && !isAfter(new Date(), new Date(loan.dueDate))).length;
     const paidCount = loans.filter(loan => loan.repaymentStatus === 'Paid').length;
     const loanStatusData = [
-      { name: 'Paid', value: paidCount, color: '#4ade80' },
-      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: '#fbbf24' },
-      { name: 'Overdue', value: overdueCount, color: '#f87171' },
+      { name: 'Paid', value: paidCount, color: '#fdb913' },
+      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: '#fde08a' },
+      { name: 'Overdue', value: overdueCount, color: '#fef3c7' },
     ];
     
     // Data for Recent Loan Activity Table
@@ -124,6 +126,7 @@ export default function AdminDashboard() {
     return {
       totalLoans,
       totalDisbursed,
+      totalPaid,
       repaymentRate,
       atRiskLoans,
       totalUsers,
@@ -152,7 +155,7 @@ export default function AdminDashboard() {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
@@ -169,6 +172,15 @@ export default function AdminDashboard() {
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
                     <p className="text-xs text-muted-foreground">Total amount loaned</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(totalPaid)}</div>
+                    <p className="text-xs text-muted-foreground">Total amount repaid</p>
                 </CardContent>
             </Card>
             <Card>
