@@ -43,6 +43,11 @@ const menuItems = [
     label: 'Dashboard',
     icon: LayoutDashboard,
   },
+  {
+    path: '/admin/settings',
+    label: 'Settings',
+    icon: Settings,
+  },
 ];
 
 export default function AdminLayout({
@@ -53,44 +58,72 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   return (
+    <SidebarProvider>
     <div className="bg-muted/40 min-h-screen w-full">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 justify-end">
-            <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-            >
-                <Bell className="h-4 w-4" />
-                <span className="sr-only">Toggle notifications</span>
-            </Button>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+        <Sidebar>
+            <SidebarHeader>
+                 <SidebarTrigger>
+                    <Logo className="h-6 w-6" />
+                 </SidebarTrigger>
+            </SidebarHeader>
+            <SidebarContent>
+                 <SidebarMenu>
+                    {menuItems.map((item) => (
+                      <SidebarMenuItem key={item.label}>
+                          <Link href={item.path}>
+                            <SidebarMenuButton
+                                isActive={pathname === item.path}
+                                tooltip={{
+                                    children: item.label
+                                }}
+                            >
+                                <item.icon />
+                                <span>{item.label}</span>
+                            </SidebarMenuButton>
+                          </Link>
+                      </SidebarMenuItem>
+                    ))}
+                 </SidebarMenu>
+            </SidebarContent>
+        </Sidebar>
+        <SidebarInset>
+            <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 justify-end">
                 <Button
                     variant="outline"
                     size="icon"
-                    className="overflow-hidden rounded-full"
+                    className="h-8 w-8"
                 >
-                    <Avatar>
-                        <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                        <AvatarFallback>SA</AvatarFallback>
-                    </Avatar>
+                    <Bell className="h-4 w-4" />
+                    <span className="sr-only">Toggle notifications</span>
                 </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem>Support</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>Logout</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </header>
-        <main className="flex-1">
-            {children}
-        </main>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="overflow-hidden rounded-full"
+                    >
+                        <Avatar>
+                            <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+                            <AvatarFallback>SA</AvatarFallback>
+                        </Avatar>
+                    </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>Settings</DropdownMenuItem>
+                    <DropdownMenuItem>Support</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>Logout</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </header>
+            <main className="flex-1">
+                {children}
+            </main>
+        </SidebarInset>
     </div>
+    </SidebarProvider>
   );
 }
-
-    
