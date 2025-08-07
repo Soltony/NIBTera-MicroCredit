@@ -83,7 +83,7 @@ export default function DashboardPage() {
   const providerId = searchParams.get('providerId');
   const eligibilityError = searchParams.get('error');
 
-  const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? mockProvidersData[0].id);
+  const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? 'provider-3');
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
   const { loans: loanHistory, addPayment } = useLoanHistory();
@@ -129,7 +129,7 @@ export default function DashboardPage() {
   }, [searchParams, loanHistory]);
 
   const selectedProvider = useMemo(() => {
-    return mockProviders.find(p => p.id === selectedProviderId) || null;
+    return mockProviders.find(p => p.id === selectedProviderId) || mockProviders.find(p => p.id === 'provider-3') || null;
   }, [selectedProviderId, mockProviders]);
 
   const handleApply = (productId: string) => {
@@ -341,3 +341,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
