@@ -13,6 +13,14 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
+const formatFee = (fee: string | undefined, suffix: string) => {
+    if (!fee) return 'N/A';
+    if (fee.includes('%') || fee.toLowerCase().includes('daily')) {
+        return fee;
+    }
+    return `${fee}${suffix}`;
+}
+
 interface ProductCardProps {
     product: LoanProduct;
     providerColor?: string;
@@ -88,15 +96,15 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div>
-                                <p className="text-lg font-semibold">{product.serviceFee}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.serviceFee, '%')}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{product.dailyFee}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, '%')}</p>
                                 <p className="text-xs text-muted-foreground">Daily Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{product.penaltyFee}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.penaltyFee, '% daily')}</p>
                                 <p className="text-xs text-muted-foreground">Penalty Fee After Due Date</p>
                             </div>
                             <div>

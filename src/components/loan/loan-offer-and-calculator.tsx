@@ -26,6 +26,14 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
+const formatFee = (fee: string | undefined, suffix: string) => {
+    if (!fee) return 'N/A';
+    if (fee.includes('%') || fee.toLowerCase().includes('daily')) {
+        return fee;
+    }
+    return `${fee}${suffix}`;
+}
+
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
@@ -167,13 +175,13 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
                     <div className="font-medium">Service Fee</div>
-                    <div className="text-right">{product.serviceFee}</div>
+                    <div className="text-right">{formatFee(product.serviceFee, '%')}</div>
                     
                     <div className="font-medium">Daily Fee</div>
-                    <div className="text-right">{product.dailyFee}</div>
+                    <div className="text-right">{formatFee(product.dailyFee, '%')}</div>
                     
                     <div className="font-medium text-destructive">Penalty Fee After Due Date</div>
-                    <div className="text-right text-destructive">{product.penaltyFee}</div>
+                    <div className="text-right text-destructive">{formatFee(product.penaltyFee, '% daily')}</div>
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
