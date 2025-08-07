@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Logo } from '@/components/icons';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 const menuItems = [
   {
@@ -62,6 +63,8 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { providers } = useLoanProviders();
+  const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
 
   return (
     <SidebarProvider>

@@ -5,6 +5,7 @@ import React from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useLoanHistory } from '@/hooks/use-loan-history';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 import {
   Card,
   CardContent,
@@ -32,6 +33,8 @@ const formatCurrency = (amount: number) => {
 
 export default function AdminReportsPage() {
   const { loans } = useLoanHistory();
+  const { providers } = useLoanProviders();
+  const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
 
   const handleExport = () => {
     const reportData = loans.map(loan => ({
@@ -68,7 +71,7 @@ export default function AdminReportsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Loan Reports</h2>
-        <Button onClick={handleExport}>
+        <Button onClick={handleExport} style={{ backgroundColor: nibBankColor }} className="text-white">
           <Download className="mr-2 h-4 w-4" />
           Export to Excel
         </Button>
@@ -98,7 +101,7 @@ export default function AdminReportsPage() {
                   <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
                   <TableCell>
-                    <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                    <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: nibBankColor, color: 'white' } : {}}>
                       {loan.repaymentStatus}
                     </Badge>
                   </TableCell>

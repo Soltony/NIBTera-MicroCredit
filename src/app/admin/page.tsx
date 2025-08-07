@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useLoanHistory } from '@/hooks/use-loan-history';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 import {
   BarChart,
   Bar,
@@ -42,6 +43,8 @@ const formatCurrency = (amount: number) => {
 
 export default function AdminDashboard() {
   const { loans } = useLoanHistory();
+  const { providers } = useLoanProviders();
+  const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
 
   const {
     totalLoans,
@@ -225,7 +228,7 @@ export default function AdminDashboard() {
                             <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
                             <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '0.5rem' }} />
                             <Legend wrapperStyle={{fontSize: '12px'}}/>
-                            <Line type="monotone" dataKey="amount" stroke="#fdb913" strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
+                            <Line type="monotone" dataKey="amount" stroke={nibBankColor} strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
                         </LineChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -283,7 +286,7 @@ export default function AdminDashboard() {
                             <TableCell>{loan.providerName}</TableCell>
                             <TableCell>{loan.productName}</TableCell>
                             <TableCell>
-                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
+                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: nibBankColor, color: 'white' } : {}}>
                                     {loan.repaymentStatus}
                                 </Badge>
                             </TableCell>
