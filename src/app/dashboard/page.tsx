@@ -220,9 +220,9 @@ export default function DashboardPage() {
                                                 <TableBody>
                                                 {loanHistory.map((loan) => (
                                                     <React.Fragment key={loan.id}>
-                                                        <TableRow className="cursor-pointer" onClick={() => setExpandedLoan(expandedLoan === loan.id ? null : loan.id)}>
+                                                        <TableRow className={cn(loan.payments && loan.payments.length > 1 && "cursor-pointer")} onClick={() => loan.payments && loan.payments.length > 1 && setExpandedLoan(expandedLoan === loan.id ? null : loan.id)}>
                                                             <TableCell className="px-4">
-                                                                {loan.payments && loan.payments.length > 0 && (
+                                                                {loan.payments && loan.payments.length > 1 && (
                                                                     expandedLoan === loan.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                                                                 )}
                                                             </TableCell>
@@ -236,7 +236,7 @@ export default function DashboardPage() {
                                                                 </Badge>
                                                             </TableCell>
                                                         </TableRow>
-                                                        {expandedLoan === loan.id && loan.payments && loan.payments.length > 0 && (
+                                                        {expandedLoan === loan.id && loan.payments && loan.payments.length > 1 && (
                                                           <TableRow>
                                                               <TableCell colSpan={6} className="p-0">
                                                                   <div className="p-4 bg-secondary/50">
