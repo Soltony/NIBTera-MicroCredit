@@ -42,16 +42,6 @@ const menuItems = [
     label: 'Dashboard',
     icon: LayoutDashboard,
   },
-  {
-    path: '/admin/users',
-    label: 'Users & Providers',
-    icon: Users,
-  },
-  {
-    path: '/admin/settings',
-    label: 'Settings',
-    icon: Settings,
-  },
 ];
 
 export default function AdminLayout({
@@ -151,7 +141,7 @@ export default function AdminLayout({
                     </DropdownMenuContent>
                 </DropdownMenu>
              </header>
-             <main className="flex-1 p-4 sm:px-6 sm:py-0 sm:gap-4">
+             <main className="flex-1 p-4 sm:px-6 sm:py-0">
                 {children}
              </main>
         </SidebarInset>
