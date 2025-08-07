@@ -98,7 +98,11 @@ export default function DashboardPage() {
     return providersWithLimits.find(p => p.id === selectedProviderId) || providersWithLimits.find(p => p.id === 'provider-3') || null;
   }, [selectedProviderId, providersWithLimits]);
 
-  const handleApply = (productId: string) => {
+  const handleApply = (productId: string, productName: string) => {
+    if (activeLoansByProduct[productName]) {
+      // Do not proceed if there is an active loan for this product
+      return;
+    }
     const params = new URLSearchParams(searchParams);
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
@@ -111,7 +115,7 @@ export default function DashboardPage() {
   }
 
   const handleProductSelect = (product: LoanProduct) => {
-    handleApply(product.id);
+    handleApply(product.id, product.name);
   }
   
   const handleRepay = (loan: LoanDetails) => {

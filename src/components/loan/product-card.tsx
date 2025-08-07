@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import type { LoanProduct, LoanDetails } from '@/lib/types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -72,7 +73,15 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                            <Button variant="outline" onClick={onApply} style={{ color: providerColor, borderColor: providerColor }} className="hover:bg-primary/10">Apply</Button>
+                            <Button 
+                                variant="outline" 
+                                onClick={onApply} 
+                                style={{ color: providerColor, borderColor: providerColor }} 
+                                className="hover:bg-primary/10"
+                                disabled={!!activeLoan}
+                            >
+                                Apply
+                            </Button>
                         )}
                     </div>
                 </div>
