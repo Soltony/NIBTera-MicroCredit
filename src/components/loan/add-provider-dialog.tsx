@@ -74,6 +74,7 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
                 onChange={(e) => setProviderName(e.target.value)}
                 placeholder="e.g., Acme Financial"
                 required
+                style={{'--ring': primaryColor} as React.CSSProperties}
               />
             </div>
             <div className="space-y-2">
