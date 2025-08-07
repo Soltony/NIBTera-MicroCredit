@@ -88,7 +88,8 @@ export default function ApplyPage() {
       setStep('details');
       const newParams = new URLSearchParams(searchParams);
       newParams.set('step', 'details');
-      router.push(`${pathname}?${newParams.toString()}`);
+      // Use replace instead of push to prevent going back to the calculator
+      router.replace(`${pathname}?${newParams.toString()}`);
     }
   };
 
@@ -98,10 +99,8 @@ export default function ApplyPage() {
     params.delete('step');
 
     if (step === 'details') {
-      setStep('calculator');
-      params.set('step', 'calculator');
-      params.set('product', selectedProduct!.id);
-      router.push(`${pathname}?${params.toString()}`);
+      // From the success page, back should always go to the dashboard
+      router.push(`/dashboard?${params.toString()}`);
     } else {
        router.push(`/dashboard?${params.toString()}`);
     }
