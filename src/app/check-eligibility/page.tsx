@@ -17,6 +17,8 @@ export default function CheckEligibilityPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const nibBankColor = '#fdb913';
+
   useEffect(() => {
     const performCheck = async () => {
       // Default to NIb Bank if no providerId is present
@@ -62,7 +64,7 @@ export default function CheckEligibilityPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-       <header className="sticky top-0 z-40 w-full border-b bg-primary">
+       <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: nibBankColor }}>
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
@@ -73,7 +75,7 @@ export default function CheckEligibilityPage() {
        <main className="flex-1 flex items-center justify-center">
         <div className="max-w-md mx-auto text-center">
             <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <Loader2 className="h-12 w-12 animate-spin" style={{ color: nibBankColor }} />
                 <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
                 <p className="text-muted-foreground">Please wait a moment while we check your loan eligibility.</p>
             </div>
