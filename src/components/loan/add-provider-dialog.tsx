@@ -21,6 +21,7 @@ interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onAddProvider: (provider: Omit<LoanProvider, 'id' | 'products'>) => void;
+  primaryColor?: string;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [
@@ -37,7 +38,7 @@ const colors = [
   { name: 'Purple', hex: '#7c3aed' },
 ];
 
-export function AddProviderDialog({ isOpen, onClose, onAddProvider }: AddProviderDialogProps) {
+export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor = '#fdb913' }: AddProviderDialogProps) {
   const [providerName, setProviderName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(icons[0].component);
   const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
@@ -87,8 +88,9 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider }: AddProvide
                     onClick={() => setSelectedIcon(() => Icon)}
                     className={cn(
                       'h-12 w-12',
-                      selectedIcon === Icon && 'ring-2 ring-primary'
+                      selectedIcon === Icon && 'ring-2'
                     )}
+                    style={{'--ring': primaryColor} as React.CSSProperties}
                   >
                     <Icon className="h-6 w-6" />
                   </Button>
@@ -105,9 +107,9 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider }: AddProvide
                     onClick={() => setSelectedColorHex(color.hex)}
                     className={cn(
                       'h-8 w-8 rounded-full border',
-                      selectedColorHex === color.hex && 'ring-2 ring-offset-2 ring-primary'
+                      selectedColorHex === color.hex && 'ring-2 ring-offset-2'
                     )}
-                    style={{ backgroundColor: color.hex }}
+                    style={{ backgroundColor: color.hex, '--ring': primaryColor } as React.CSSProperties}
                     aria-label={`Select ${color.name} color`}
                   />
                 ))}
@@ -120,7 +122,7 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider }: AddProvide
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit">Add Provider</Button>
+            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">Add Provider</Button>
           </DialogFooter>
         </form>
       </DialogContent>

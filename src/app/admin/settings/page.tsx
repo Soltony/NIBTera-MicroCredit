@@ -70,7 +70,7 @@ export default function AdminSettingsPage() {
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-    const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
+    const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
     
     const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products'>) => {
         addProvider(newProvider);
@@ -128,6 +128,7 @@ export default function AdminSettingsPage() {
                 isOpen={isAddProviderDialogOpen}
                 onClose={() => setIsAddProviderDialogOpen(false)}
                 onAddProvider={handleAddProvider}
+                primaryColor={nibBankColor}
             />
             <AddProductDialog
                 isOpen={isAddProductDialogOpen}
