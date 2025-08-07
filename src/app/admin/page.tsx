@@ -90,9 +90,9 @@ export default function AdminDashboard() {
     const activeUnpaidCount = loans.filter(loan => loan.repaymentStatus === 'Unpaid' && !isAfter(new Date(), new Date(loan.dueDate))).length;
     const paidCount = loans.filter(loan => loan.repaymentStatus === 'Paid').length;
     const loanStatusData = [
-      { name: 'Paid', value: paidCount, color: '#22c55e' },
-      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: '#3b82f6' },
-      { name: 'Overdue', value: overdueCount, color: '#ef4444' },
+      { name: 'Paid', value: paidCount, color: '#4ade80' },
+      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: '#fbbf24' },
+      { name: 'Overdue', value: overdueCount, color: '#f87171' },
     ];
     
     // Data for Recent Loan Activity Table
@@ -316,5 +316,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-    
