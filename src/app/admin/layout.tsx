@@ -11,6 +11,7 @@ import {
   PanelLeft,
   Search,
   Bell,
+  FileText,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -42,6 +43,11 @@ const menuItems = [
     path: '/admin',
     label: 'Dashboard',
     icon: LayoutDashboard,
+  },
+  {
+    path: '/admin/reports',
+    label: 'Reports',
+    icon: FileText,
   },
   {
     path: '/admin/settings',

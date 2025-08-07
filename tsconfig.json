@@ -22,10 +22,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["node", "@types/recharts"]
+    "types": ["node", "@types/recharts", "@types/file-saver"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }
-
-    
