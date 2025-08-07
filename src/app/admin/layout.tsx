@@ -87,7 +87,7 @@ export default function AdminLayout({
             </SidebarContent>
         </Sidebar>
         <SidebarInset>
-            <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 justify-end">
+            <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
                 <Button
                     variant="outline"
                     size="icon"
@@ -119,7 +119,7 @@ export default function AdminLayout({
                     </DropdownMenuContent>
                 </DropdownMenu>
             </header>
-            <main className="flex-1">
+            <main>
                 {children}
             </main>
         </SidebarInset>
