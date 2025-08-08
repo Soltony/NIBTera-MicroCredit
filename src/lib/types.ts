@@ -54,3 +54,16 @@ export const CheckLoanEligibilityOutputSchema = z.object({
   reason: z.string().describe('The reason for eligibility or ineligibility.'),
 });
 export type CheckLoanEligibilityOutput = z.infer<typeof CheckLoanEligibilityOutputSchema>;
+
+
+export type UserRole = 'Admin' | 'Loan Provider';
+export type UserStatus = 'Active' | 'Inactive';
+
+export interface User {
+    id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    role: UserRole;
+    status: UserStatus;
+}

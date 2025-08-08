@@ -46,6 +46,11 @@ const menuItems = [
     icon: LayoutDashboard,
   },
   {
+    path: '/admin/users',
+    label: 'Users',
+    icon: Users,
+  },
+  {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,

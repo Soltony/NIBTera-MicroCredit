@@ -1,0 +1,142 @@
+
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { User, UserRole, UserStatus } from '@/lib/types';
+
+interface AddUserDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (user: Omit<User, 'id'>) => void;
+  user: User | null;
+  primaryColor?: string;
+}
+
+export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#fdb913' }: AddUserDialogProps) {
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    role: 'Loan Provider' as UserRole,
+    status: 'Active' as UserStatus,
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+        status: user.status,
+      });
+    } else {
+      setFormData({
+        fullName: '',
+        email: '',
+        phoneNumber: '',
+        role: 'Loan Provider' as UserRole,
+        status: 'Active' as UserStatus,
+      });
+    }
+  }, [user, isOpen]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleSelectChange = (field: 'role' | 'status') => (value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{user ? 'Edit User' : 'Add New User'}</DialogTitle>
+          <DialogDescription>
+            {user ? 'Update the details of the existing user.' : 'Register a new user for the platform.'}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="fullName" className="text-right">
+              Full Name
+            </Label>
+            <Input id="fullName" value={formData.fullName} onChange={handleChange} className="col-span-3" required />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="email" className="text-right">
+              Email
+            </Label>
+            <Input id="email" type="email" value={formData.email} onChange={handleChange} className="col-span-3" required />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="phoneNumber" className="text-right">
+              Phone
+            </Label>
+            <Input id="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className="col-span-3" required />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="role" className="text-right">
+              Role
+            </Label>
+            <Select onValueChange={handleSelectChange('role')} value={formData.role}>
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select a role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Loan Provider">Loan Provider</SelectItem>
+                <SelectItem value="Admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="status" className="text-right">
+              Status
+            </Label>
+             <Select onValueChange={handleSelectChange('status')} value={formData.status}>
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select a status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">
+              {user ? 'Save Changes' : 'Add User'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
