@@ -32,8 +32,8 @@ const MOCK_PROVIDERS_DATA: Omit<LoanProvider, 'icon' | 'products'> & { icon: str
     color: 'text-yellow-500',
     colorHex: '#fdb913',
     products: [
-      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: 'PersonStanding', minLoan: 500, maxLoan: 2500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: 'Home', minLoan: 300, maxLoan: 1500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-3a', name: 'Quick Cash Loan', description: 'Instant cash for emergencies.', icon: 'PersonStanding', minLoan: 500, maxLoan: 2500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0, status: 'Active' },
+      { id: 'prod-3b', name: 'Gadget Financing', description: 'Upgrade your devices with easy financing.', icon: 'Home', minLoan: 300, maxLoan: 1500, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0, status: 'Active' },
     ],
   },
   {
@@ -43,8 +43,8 @@ const MOCK_PROVIDERS_DATA: Omit<LoanProvider, 'icon' | 'products'> & { icon: str
     color: 'text-blue-600',
     colorHex: '#2563eb',
     products: [
-      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: 'PersonStanding', minLoan: 400, maxLoan: 2000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: 'Home', minLoan: 10000, maxLoan: 50000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-1a', name: 'Personal Loan', description: 'Flexible personal loans for your needs.', icon: 'PersonStanding', minLoan: 400, maxLoan: 2000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0, status: 'Active' },
+      { id: 'prod-1b', name: 'Home Improvement Loan', description: 'Finance your home renovation projects.', icon: 'Home', minLoan: 10000, maxLoan: 50000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0, status: 'Disabled' },
     ],
   },
   {
@@ -54,8 +54,8 @@ const MOCK_PROVIDERS_DATA: Omit<LoanProvider, 'icon' | 'products'> & { icon: str
     color: 'text-green-600',
     colorHex: '#16a34a',
     products: [
-      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: 'Briefcase', minLoan: 5000, maxLoan: 100000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
-      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: 'PersonStanding', minLoan: 2000, maxLoan: 30000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0 },
+      { id: 'prod-2a', name: 'Startup Business Loan', description: 'Kickstart your new business venture.', icon: 'Briefcase', minLoan: 5000, maxLoan: 100000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0, status: 'Active' },
+      { id: 'prod-2b', name: 'Personal Auto Loan', description: 'Get behind the wheel of your new car.', icon: 'PersonStanding', minLoan: 2000, maxLoan: 30000, serviceFee: '3%', dailyFee: '0.2%', penaltyFee: '0.11% daily', availableLimit: 0, status: 'Active' },
     ],
   },
 ];
@@ -70,6 +70,7 @@ const deserializeProviders = (data: any[]): LoanProvider[] => {
         products: provider.products.map((product: any) => ({
             ...product,
             icon: ICONS[product.icon as string] || PersonStanding,
+            status: product.status || 'Active', // Default to active if status is missing
         }))
     }));
 };
@@ -127,11 +128,12 @@ export function useLoanProviders() {
     saveProviders([...providers, providerWithId]);
   }, [providers, saveProviders]);
 
-  const addProduct = useCallback((providerId: string, newProduct: Omit<LoanProduct, 'id' | 'availableLimit'>) => {
+  const addProduct = useCallback((providerId: string, newProduct: Omit<LoanProduct, 'id' | 'availableLimit' | 'status'>) => {
       const productWithId: LoanProduct = {
           ...newProduct,
           id: `prod-${Date.now()}`,
           availableLimit: 0,
+          status: 'Active',
       };
 
       const updatedProviders = providers.map(p => {
@@ -159,18 +161,5 @@ export function useLoanProviders() {
     saveProviders(updatedProviders);
   }, [providers, saveProviders]);
 
-  const deleteProduct = useCallback((providerId: string, productId: string) => {
-    const updatedProviders = providers.map(p => {
-        if (p.id === providerId) {
-            return {
-                ...p,
-                products: p.products.filter(prod => prod.id !== productId)
-            };
-        }
-        return p;
-    });
-    saveProviders(updatedProviders);
-  }, [providers, saveProviders]);
-
-  return { providers, addProvider, addProduct, updateProduct, deleteProduct };
+  return { providers, addProvider, addProduct, updateProduct };
 }

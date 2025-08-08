@@ -265,7 +265,9 @@ export default function DashboardPage() {
                                   <CardTitle>Available Loan Products</CardTitle>
                               </CardHeader>
                               <CardContent className="space-y-4">
-                                  {selectedProvider.products.map((product) => (
+                                  {selectedProvider.products
+                                    .filter(p => p.status === 'Active')
+                                    .map((product) => (
                                       <ProductCard 
                                           key={product.id}
                                           product={product}

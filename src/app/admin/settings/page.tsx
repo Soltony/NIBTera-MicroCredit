@@ -46,7 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void }) => {
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
     const [formData, setFormData] = useState(product);
 
     useEffect(() => {
@@ -57,6 +57,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         const { id, value } = e.target;
         const key = id.split('-')[0];
         setFormData(prev => ({ ...prev, [key]: value }));
+    }
+
+    const handleSwitchChange = (checked: boolean) => {
+        setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
     }
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -91,11 +95,15 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                 <Label htmlFor={`penaltyFee-${product.id}`}>Penalty Fee After Due Date</Label>
                 <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} />
             </div>
+            <div className="flex items-center space-x-2">
+                 <Switch 
+                    id={`status-${product.id}`}
+                    checked={formData.status === 'Active'} 
+                    onCheckedChange={handleSwitchChange}
+                />
+                <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+            </div>
              <div className="flex items-center space-x-2 md:col-span-2 justify-end">
-                <Button type="button" variant="destructive" onClick={() => onDelete(providerId, product.id)}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                </Button>
                 <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white">Save Changes</Button>
             </div>
         </form>
@@ -103,12 +111,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
 }
 
 export default function AdminSettingsPage() {
-    const { providers, addProvider, addProduct, updateProduct, deleteProduct } = useLoanProviders();
+    const { providers, addProvider, addProduct, updateProduct } = useLoanProviders();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [productToDelete, setProductToDelete] = useState<{ providerId: string; productId: string; productName: string; } | null>(null);
     const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
     const { toast } = useToast();
     
@@ -122,7 +128,7 @@ export default function AdminSettingsPage() {
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = (newProduct: Omit<LoanProduct, 'id' | 'availableLimit'>) => {
+    const handleAddProduct = (newProduct: Omit<LoanProduct, 'id' | 'availableLimit' | 'status'>) => {
         if (!selectedProviderId) return;
         addProduct(selectedProviderId, newProduct);
         toast({ title: "Product Added", description: `${newProduct.name} has been added successfully.` });
@@ -133,24 +139,6 @@ export default function AdminSettingsPage() {
         toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
     }
     
-    const handleOpenDeleteDialog = (providerId: string, productId: string) => {
-        const provider = providers.find(p => p.id === providerId);
-        const product = provider?.products.find(p => p.id === productId);
-        if (provider && product) {
-            setProductToDelete({ providerId, productId, productName: product.name });
-            setIsDeleteDialogOpen(true);
-        }
-    };
-    
-    const handleConfirmDelete = () => {
-        if (productToDelete) {
-            deleteProduct(productToDelete.providerId, productToDelete.productId);
-            toast({ title: "Product Deleted", description: `${productToDelete.productName} has been deleted.`, variant: 'destructive' });
-            setIsDeleteDialogOpen(false);
-            setProductToDelete(null);
-        }
-    };
-
     return (
         <>
             <div className="flex-1 space-y-4 p-8 pt-6">
@@ -182,7 +170,6 @@ export default function AdminSettingsPage() {
                                                 product={product} 
                                                 providerColor={provider.colorHex} 
                                                 onSave={handleSaveProduct}
-                                                onDelete={handleOpenDeleteDialog}
                                              />
                                         </div>
                                     ))}
@@ -212,24 +199,6 @@ export default function AdminSettingsPage() {
                 onClose={() => setIsAddProductDialogOpen(false)}
                 onAddProduct={handleAddProduct}
             />
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the 
-                        <span className="font-semibold"> {productToDelete?.productName} </span> 
-                        product.
-                    </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete
-                    </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </>
     );
 }

@@ -21,7 +21,7 @@ import type { LoanProduct } from '@/lib/types';
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'availableLimit'>) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'availableLimit' | 'status'>) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [

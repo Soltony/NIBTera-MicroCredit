@@ -23,6 +23,7 @@ export interface LoanProduct {
   dailyFee?: string;
   penaltyFee?: string;
   availableLimit?: number;
+  status: 'Active' | 'Disabled';
 }
 
 export interface Payment {
