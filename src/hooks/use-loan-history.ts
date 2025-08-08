@@ -12,14 +12,14 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         providerName: 'NIb Bank',
         productName: 'Quick Cash Loan',
         loanAmount: 500,
-        serviceFee: 7.5,
-        interestRate: 0.2, // This is now a daily rate
+        serviceFee: 15, // 3% of 500
+        interestRate: 0.2,
         disbursedDate: subDays(new Date('2024-07-25'), 30),
         dueDate: new Date('2024-07-25'),
-        penaltyAmount: 50,
+        penaltyAmount: 0.11,
         repaymentStatus: 'Paid',
-        repaidAmount: 540.23, // Corrected from 557.5 to match the actual calculated total
-        payments: [{ amount: 540.23, date: new Date('2024-07-20'), outstandingBalanceBeforePayment: 540.23 }],
+        repaidAmount: 545.96, // Corrected to match the actual calculated total
+        payments: [{ amount: 545.96, date: new Date('2024-07-20'), outstandingBalanceBeforePayment: 545.96 }],
     },
 ];
 
@@ -81,13 +81,16 @@ export function useLoanHistory() {
   }, [loans]);
   
   const addPayment = useCallback((loanToUpdate: LoanDetails, paymentAmount: number) => {
-    const outstandingBalanceBeforePayment = calculateTotalRepayable(loanToUpdate);
-    const newPayment: Payment = { amount: paymentAmount, date: new Date(), outstandingBalanceBeforePayment };
+    const paymentDate = new Date();
+    const totalRepayableAtPaymentDate = calculateTotalRepayable(loanToUpdate, paymentDate);
+    const outstandingBalanceBeforePayment = totalRepayableAtPaymentDate - (loanToUpdate.repaidAmount || 0);
+    
+    const newPayment: Payment = { amount: paymentAmount, date: paymentDate, outstandingBalanceBeforePayment };
     const totalRepaid = (loanToUpdate.repaidAmount || 0) + paymentAmount;
     
-    const totalRepayable = calculateTotalRepayable(loanToUpdate);
-    
-    const isPaid = totalRepaid >= totalRepayable;
+    // Check against total repayable today
+    const totalRepayableToday = calculateTotalRepayable(loanToUpdate, new Date());
+    const isPaid = totalRepaid >= totalRepayableToday;
 
     const updatedLoan: LoanDetails = {
       ...loanToUpdate,
