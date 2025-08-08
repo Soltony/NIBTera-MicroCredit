@@ -16,6 +16,7 @@ import { AddRoleDialog } from '@/components/user/add-role-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { User, Role } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products'];
 
@@ -24,6 +25,7 @@ function UsersTab() {
     const { providers } = useLoanProviders();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const { toast } = useToast();
 
     const handleOpenDialog = (user: User | null = null) => {
         setEditingUser(user);
@@ -40,9 +42,20 @@ function UsersTab() {
         const userWithProviderName = { ...userData, providerName };
         if (editingUser) {
             updateUser({ ...editingUser, ...userWithProviderName });
+            toast({ title: 'User Updated', description: `${userWithProviderName.fullName}'s details have been updated.` });
         } else {
             addUser(userWithProviderName);
+             toast({ title: 'User Added', description: `${userWithProviderName.fullName} has been added.` });
         }
+    };
+    
+    const handleToggleStatus = (user: User) => {
+        const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
+        updateUser({ ...user, status: newStatus });
+        toast({
+            title: `User ${newStatus === 'Active' ? 'Activated' : 'Deactivated'}`,
+            description: `${user.fullName}'s status has been changed to ${newStatus}.`,
+        });
     };
     
     const nibBankColor = '#fdb913';
@@ -99,7 +112,7 @@ function UsersTab() {
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                 <DropdownMenuItem onClick={() => handleOpenDialog(user)}>Edit</DropdownMenuItem>
-                                                <DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
                                                     {user.status === 'Active' ? 'Deactivate' : 'Activate'}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
