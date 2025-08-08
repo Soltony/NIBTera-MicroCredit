@@ -20,6 +20,8 @@ const MOCK_USERS_DATA: User[] = [
         phoneNumber: '098-765-4321',
         role: 'Loan Provider',
         status: 'Active',
+        providerId: 'provider-1',
+        providerName: 'Capital Bank',
     },
     {
         id: 'user-3',
@@ -28,6 +30,8 @@ const MOCK_USERS_DATA: User[] = [
         phoneNumber: '555-555-5555',
         role: 'Loan Provider',
         status: 'Inactive',
+        providerId: 'provider-2',
+        providerName: 'Providus Financial',
     }
 ];
 

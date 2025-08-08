@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
 import { useUsers } from '@/hooks/use-users';
 import { useRoles } from '@/hooks/use-roles';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +21,7 @@ const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products']
 
 function UsersTab() {
     const { users, addUser, updateUser } = useUsers();
+    const { providers } = useLoanProviders();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
 
@@ -34,10 +36,12 @@ function UsersTab() {
     };
 
     const handleSaveUser = (userData: Omit<User, 'id'>) => {
+        const providerName = providers.find(p => p.id === userData.providerId)?.name || '';
+        const userWithProviderName = { ...userData, providerName };
         if (editingUser) {
-            updateUser({ ...editingUser, ...userData });
+            updateUser({ ...editingUser, ...userWithProviderName });
         } else {
-            addUser(userData);
+            addUser(userWithProviderName);
         }
     };
     
@@ -62,8 +66,8 @@ function UsersTab() {
                             <TableRow>
                                 <TableHead>Full Name</TableHead>
                                 <TableHead>Email</TableHead>
-                                <TableHead>Phone Number</TableHead>
                                 <TableHead>Role</TableHead>
+                                <TableHead>Provider</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Actions</TableHead>
                             </TableRow>
@@ -73,12 +77,12 @@ function UsersTab() {
                                 <TableRow key={user.id}>
                                     <TableCell className="font-medium">{user.fullName}</TableCell>
                                     <TableCell>{user.email}</TableCell>
-                                    <TableCell>{user.phoneNumber}</TableCell>
                                     <TableCell>
                                         <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'} style={user.role === 'Admin' ? { backgroundColor: nibBankColor, color: 'white' } : {}}>
                                             {user.role}
                                         </Badge>
                                     </TableCell>
+                                    <TableCell>{user.providerName}</TableCell>
                                     <TableCell>
                                         <Badge variant={user.status === 'Active' ? 'secondary' : 'destructive'} style={user.status === 'Active' ? { backgroundColor: '#16a34a', color: 'white' } : {}}>
                                             {user.status}

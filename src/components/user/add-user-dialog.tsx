@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User, UserRole, UserStatus } from '@/lib/types';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 interface AddUserDialogProps {
   isOpen: boolean;
@@ -26,12 +27,15 @@ interface AddUserDialogProps {
 }
 
 export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#fdb913' }: AddUserDialogProps) {
+  const { providers } = useLoanProviders();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phoneNumber: '',
     role: 'Loan Provider' as UserRole,
     status: 'Active' as UserStatus,
+    providerId: '',
+    providerName: '',
   });
 
   useEffect(() => {
@@ -42,6 +46,8 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#
         phoneNumber: user.phoneNumber,
         role: user.role,
         status: user.status,
+        providerId: user.providerId || '',
+        providerName: user.providerName || '',
       });
     } else {
       setFormData({
@@ -50,17 +56,35 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#
         phoneNumber: '',
         role: 'Loan Provider' as UserRole,
         status: 'Active' as UserStatus,
+        providerId: providers.length > 0 ? providers[0].id : '',
+        providerName: providers.length > 0 ? providers[0].name : '',
       });
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, providers]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSelectChange = (field: 'role' | 'status') => (value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleSelectChange = (field: 'role' | 'status' | 'providerId') => (value: string) => {
+    if (field === 'providerId') {
+        const selectedProvider = providers.find(p => p.id === value);
+        setFormData(prev => ({
+            ...prev,
+            providerId: value,
+            providerName: selectedProvider?.name || ''
+        }));
+    } else {
+        const newRole = field === 'role' ? (value as UserRole) : formData.role;
+        setFormData(prev => ({
+            ...prev,
+            [field]: value,
+            // Reset provider if role is not 'Loan Provider'
+            providerId: newRole === 'Loan Provider' ? prev.providerId : '',
+            providerName: newRole === 'Loan Provider' ? prev.providerName : '',
+        }));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -111,6 +135,23 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#
               </SelectContent>
             </Select>
           </div>
+          {formData.role === 'Loan Provider' && (
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="providerId" className="text-right">
+                    Provider
+                </Label>
+                <Select onValueChange={handleSelectChange('providerId')} value={formData.providerId}>
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {providers.map(provider => (
+                            <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+             </div>
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="status" className="text-right">
               Status

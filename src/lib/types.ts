@@ -71,6 +71,8 @@ export interface User {
     phoneNumber: string;
     role: UserRole;
     status: UserStatus;
+    providerId?: string;
+    providerName?: string;
 }
 
 export type Permissions = {
