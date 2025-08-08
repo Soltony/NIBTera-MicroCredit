@@ -12,6 +12,7 @@ import {
   Search,
   Bell,
   FileText,
+  UsersCog,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -49,6 +50,11 @@ const menuItems = [
     path: '/admin/users',
     label: 'Users',
     icon: Users,
+  },
+  {
+      path: '/admin/roles',
+      label: 'Roles',
+      icon: UsersCog,
   },
   {
     path: '/admin/reports',

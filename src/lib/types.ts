@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 export interface LoanProvider {
@@ -66,4 +67,19 @@ export interface User {
     phoneNumber: string;
     role: UserRole;
     status: UserStatus;
+}
+
+export type Permissions = {
+    [key: string]: {
+        create: boolean;
+        read: boolean;
+        update: boolean;
+        delete: boolean;
+    };
+};
+
+export interface Role {
+    id: string;
+    name: string;
+    permissions: Permissions;
 }
