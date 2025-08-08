@@ -88,7 +88,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
             </CardHeader>
             <CardContent>
                  {activeLoan && (
-                    <div className="bg-muted/50 p-4 rounded-lg mt-2 mb-4">
+                    <div className="bg-muted/50 p-4 rounded-lg mt-2 mb-4 space-y-4">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-2xl font-bold">{formatCurrency(totalRepayable)}</p>
@@ -98,6 +98,24 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                 </p>
                             </div>
                             <Button onClick={() => onRepay(activeLoan)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
+                            <div>
+                                <p className="text-lg font-semibold">{formatFee(product.serviceFee, '%')}</p>
+                                <p className="text-xs text-muted-foreground">Service Fee</p>
+                            </div>
+                            <div>
+                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, '%')}</p>
+                                <p className="text-xs text-muted-foreground">Daily Fee</p>
+                            </div>
+                            <div>
+                                <p className="text-lg font-semibold">{formatFee(product.penaltyFee, '% daily')}</p>
+                                <p className="text-xs text-muted-foreground">Penalty Fee After Due Date</p>
+                            </div>
+                             <div>
+                                <p className="text-lg font-semibold">{formatCurrency(activeLoan.loanAmount)}</p>
+                                <p className="text-xs text-muted-foreground">Loan Amount</p>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -123,10 +141,12 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                         </div>
                     </div>
                 )}
+                {!activeLoan && (
                  <button onClick={() => setIsExpanded(!isExpanded)} className="w-full flex justify-center items-center mt-4 text-sm text-muted-foreground hover:text-primary">
                     {isExpanded ? 'Less' : 'More'}
                     {isExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
                 </button>
+                )}
             </CardContent>
         </Card>
     );
