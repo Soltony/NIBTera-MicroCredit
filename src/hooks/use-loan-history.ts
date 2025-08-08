@@ -32,8 +32,8 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         dueDate: new Date('2024-07-25'),
         penaltyAmount: 50,
         repaymentStatus: 'Paid',
-        repaidAmount: 557.5,
-        payments: [{ amount: 557.5, date: new Date('2024-07-20') }],
+        repaidAmount: 540.23, // Corrected from 557.5 to match the actual calculated total
+        payments: [{ amount: 540.23, date: new Date('2024-07-20') }],
     },
 ];
 
