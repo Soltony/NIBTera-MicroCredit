@@ -100,6 +100,8 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
                     id={`status-${product.id}`}
                     checked={formData.status === 'Active'} 
                     onCheckedChange={handleSwitchChange}
+                    className="data-[state=checked]:bg-[--provider-color]"
+                    style={{'--provider-color': providerColor} as React.CSSProperties}
                 />
                 <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
             </div>
