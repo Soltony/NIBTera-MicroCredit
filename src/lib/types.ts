@@ -94,7 +94,7 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
     const finalDate = startOfDay(asOfDate);
     
     // Initial balance is principal + one-time service fee
-    let balance = loan.loanAmount + loan.serviceFee;
+    let balance = loan.loanAmount;
 
     const dailyFeeRate = loan.interestRate / 100;
     
@@ -131,6 +131,9 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
         balance -= paymentsByDate.get(finalDayTime)!;
     }
     
+    // Add service fee at the end, before penalty
+    balance += loan.serviceFee;
+
     // Apply penalty if overdue and not yet fully paid
     if (finalDate > dueDate && balance > (loan.repaidAmount || 0)) {
        const daysOverdue = differenceInDays(finalDate, dueDate);

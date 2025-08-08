@@ -68,9 +68,21 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const penaltyAmount = numericLoanAmount * (penaltyFeePercentage / 100); 
     const dueDate = addDays(new Date(), 30);
     
-    // Simple interest calculation for 30 days
-    const dailyFees = numericLoanAmount * (dailyFeePercentage / 100) * 30;
-    const totalRepayable = numericLoanAmount + serviceFee + dailyFees;
+    const mockLoan: LoanDetails = {
+        id: 'temp',
+        loanAmount: numericLoanAmount,
+        serviceFee,
+        interestRate: dailyFeePercentage,
+        dueDate,
+        penaltyAmount,
+        repaymentStatus: 'Unpaid',
+        payments: [],
+        productName: product.name,
+        providerName: '',
+        repaidAmount: 0,
+    };
+
+    const totalRepayable = calculateTotalRepayable(mockLoan, dueDate);
 
     return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult, product]);
