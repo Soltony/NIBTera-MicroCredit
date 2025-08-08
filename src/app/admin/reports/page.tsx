@@ -36,7 +36,13 @@ export default function AdminReportsPage() {
   const { loans } = useLoanHistory();
   const { providers } = useLoanProviders();
   const { currentUser } = useAuth();
-  const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
+  
+  const themeColor = React.useMemo(() => {
+    if (currentUser?.role === 'Admin') {
+        return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    }
+    return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+  }, [currentUser, providers]);
 
   const filteredLoans = React.useMemo(() => {
     if (currentUser?.role === 'Loan Provider') {
@@ -82,7 +88,7 @@ export default function AdminReportsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Loan Reports</h2>
-        <Button onClick={handleExport} style={{ backgroundColor: nibBankColor }} className="text-white" disabled={filteredLoans.length === 0}>
+        <Button onClick={handleExport} style={{ backgroundColor: themeColor }} className="text-white" disabled={filteredLoans.length === 0}>
           <Download className="mr-2 h-4 w-4" />
           Export to Excel
         </Button>
@@ -117,7 +123,7 @@ export default function AdminReportsPage() {
                   <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
                   <TableCell>
-                    <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: nibBankColor, color: 'white' } : {}}>
+                    <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: themeColor, color: 'white' } : {}}>
                       {loan.repaymentStatus}
                     </Badge>
                   </TableCell>

@@ -44,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useAuth } from '@/hooks/use-auth';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
@@ -114,11 +115,18 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
 
 export default function AdminSettingsPage() {
     const { providers, addProvider, addProduct, updateProduct } = useLoanProviders();
+    const { currentUser } = useAuth();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-    const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
     const { toast } = useToast();
+    
+    const themeColor = React.useMemo(() => {
+        if (currentUser?.role === 'Admin') {
+            return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+        }
+        return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+    }, [currentUser, providers]);
     
     const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products'>) => {
         addProvider(newProvider);
@@ -146,7 +154,7 @@ export default function AdminSettingsPage() {
             <div className="flex-1 space-y-4 p-8 pt-6">
                 <div className="flex items-center justify-between space-y-2">
                     <h2 className="text-3xl font-bold tracking-tight">Loan Settings</h2>
-                     <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: nibBankColor }} className="text-white">
+                     <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: themeColor }} className="text-white">
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
                     </Button>
                 </div>
@@ -179,7 +187,7 @@ export default function AdminSettingsPage() {
                                         variant="outline" 
                                         className="w-full hover:text-white"
                                         onClick={() => handleOpenAddProductDialog(provider.id)}
-                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || nibBankColor; }}
+                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
                                         onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
                                     >
                                         <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
@@ -194,7 +202,7 @@ export default function AdminSettingsPage() {
                 isOpen={isAddProviderDialogOpen}
                 onClose={() => setIsAddProviderDialogOpen(false)}
                 onAddProvider={handleAddProvider}
-                primaryColor={nibBankColor}
+                primaryColor={themeColor}
             />
             <AddProductDialog
                 isOpen={isAddProductDialogOpen}

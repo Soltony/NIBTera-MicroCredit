@@ -77,7 +77,15 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     const { users } = useUsers();
     const { currentUser, login, logout, isLoading } = useAuth();
 
-    const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    const themeColor = React.useMemo(() => {
+        if (currentUser?.role === 'Admin') {
+            // Admin can have a default color, e.g., NIb Bank's color
+            return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+        }
+        // Loan provider sees their own color
+        return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+    }, [currentUser, providers]);
+
     const getInitials = (name: string = '') => name.split(' ').map(n => n[0]).join('');
 
     const menuItems = React.useMemo(() => {
@@ -165,7 +173,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </header>
-                <main className="flex-1">
+                <main className="flex-1" style={{'--provider-color': themeColor} as React.CSSProperties}>
                     {children}
                 </main>
             </div>

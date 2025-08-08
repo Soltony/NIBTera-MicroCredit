@@ -46,7 +46,13 @@ export default function AdminDashboard() {
   const { loans: allLoans } = useLoanHistory();
   const { providers } = useLoanProviders();
   const { currentUser } = useAuth();
-  const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
+  
+  const themeColor = React.useMemo(() => {
+    if (currentUser?.role === 'Admin') {
+        return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    }
+    return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+  }, [currentUser, providers]);
 
   const loans = useMemo(() => {
     if (currentUser?.role === 'Loan Provider') {
@@ -104,9 +110,9 @@ export default function AdminDashboard() {
     const activeUnpaidCount = loans.filter(loan => loan.repaymentStatus === 'Unpaid' && !isAfter(new Date(), new Date(loan.dueDate))).length;
     const paidCount = loans.filter(loan => loan.repaymentStatus === 'Paid').length;
     const loanStatusData = [
-      { name: 'Paid', value: paidCount, color: '#fdb913' },
-      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: '#fde08a' },
-      { name: 'Overdue', value: overdueCount, color: '#fef3c7' },
+      { name: 'Paid', value: paidCount, color: themeColor },
+      { name: 'Active (Unpaid)', value: activeUnpaidCount, color: `${themeColor}B3` }, // 70% opacity
+      { name: 'Overdue', value: overdueCount, color: `${themeColor}66` }, // 40% opacity
     ];
     
     // Data for Recent Loan Activity Table
@@ -147,7 +153,7 @@ export default function AdminDashboard() {
       recentActivity,
       productOverview,
     };
-  }, [loans]);
+  }, [loans, themeColor]);
 
   const RADIAN = Math.PI / 180;
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }: any) => {
@@ -237,7 +243,7 @@ export default function AdminDashboard() {
                             <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
                             <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '0.5rem' }} />
                             <Legend wrapperStyle={{fontSize: '12px'}}/>
-                            <Line type="monotone" dataKey="amount" stroke={nibBankColor} strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
+                            <Line type="monotone" dataKey="amount" stroke={themeColor} strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
                         </LineChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -295,7 +301,7 @@ export default function AdminDashboard() {
                             <TableCell>{loan.providerName}</TableCell>
                             <TableCell>{loan.productName}</TableCell>
                             <TableCell>
-                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: nibBankColor, color: 'white' } : {}}>
+                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: themeColor, color: 'white' } : {}}>
                                     {loan.repaymentStatus}
                                 </Badge>
                             </TableCell>

@@ -17,15 +17,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { User, Role } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products'];
 
 function UsersTab() {
     const { users, addUser, updateUser } = useUsers();
     const { providers } = useLoanProviders();
+    const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const { toast } = useToast();
+    
+    const themeColor = React.useMemo(() => {
+        if (currentUser?.role === 'Admin') {
+            return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+        }
+        return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+    }, [currentUser, providers]);
 
     const handleOpenDialog = (user: User | null = null) => {
         setEditingUser(user);
@@ -57,14 +66,12 @@ function UsersTab() {
             description: `${user.fullName}'s status has been changed to ${newStatus}.`,
         });
     };
-    
-    const nibBankColor = '#fdb913';
 
     return (
         <>
             <div className="flex items-center justify-between space-y-2 mb-4">
                 <div/>
-                <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: nibBankColor }} className="text-white">
+                <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: themeColor }} className="text-white">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add User
                 </Button>
             </div>
@@ -91,7 +98,7 @@ function UsersTab() {
                                     <TableCell className="font-medium">{user.fullName}</TableCell>
                                     <TableCell>{user.email}</TableCell>
                                     <TableCell>
-                                        <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'} style={user.role === 'Admin' ? { backgroundColor: nibBankColor, color: 'white' } : {}}>
+                                        <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'} style={user.role === 'Admin' ? { backgroundColor: themeColor, color: 'white' } : {}}>
                                             {user.role}
                                         </Badge>
                                     </TableCell>
@@ -129,7 +136,7 @@ function UsersTab() {
                 onClose={handleCloseDialog}
                 onSave={handleSaveUser}
                 user={editingUser}
-                primaryColor={nibBankColor}
+                primaryColor={themeColor}
             />
         </>
     );
@@ -137,8 +144,17 @@ function UsersTab() {
 
 function RolesTab() {
     const { roles, addRole, updateRole } = useRoles();
+    const { providers } = useLoanProviders();
+    const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
+
+    const themeColor = React.useMemo(() => {
+        if (currentUser?.role === 'Admin') {
+            return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+        }
+        return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+    }, [currentUser, providers]);
 
     const handleOpenDialog = (role: Role | null = null) => {
         setEditingRole(role);
@@ -157,14 +173,12 @@ function RolesTab() {
             addRole(roleData);
         }
     };
-    
-    const nibBankColor = '#fdb913';
 
     return (
         <>
             <div className="flex items-center justify-between space-y-2 mb-4">
                 <div />
-                <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: nibBankColor }} className="text-white">
+                <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: themeColor }} className="text-white">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Role
                 </Button>
             </div>
@@ -224,14 +238,13 @@ function RolesTab() {
                 onClose={handleCloseDialog}
                 onSave={handleSaveRole}
                 role={editingRole}
-                primaryColor={nibBankColor}
+                primaryColor={themeColor}
             />
         </>
     );
 }
 
 export default function AccessControlPage() {
-    const nibBankColor = '#fdb913';
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Access Control</h2>
