@@ -11,8 +11,8 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         id: `loan-${Date.now()}-1`,
         providerName: 'Capital Bank',
         productName: 'Personal Loan',
-        loanAmount: 100,
-        serviceFee: 1.5,
+        loanAmount: 400,
+        serviceFee: 12,
         interestRate: 0.2, // This is now a daily rate
         dueDate: new Date('2024-08-15'),
         penaltyAmount: 10,
