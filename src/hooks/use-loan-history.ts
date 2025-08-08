@@ -8,20 +8,6 @@ import { calculateTotalRepayable } from '@/lib/types';
 
 const MOCK_LOAN_HISTORY: LoanDetails[] = [
     {
-        id: `loan-${Date.now()}-1`,
-        providerName: 'Capital Bank',
-        productName: 'Personal Loan',
-        loanAmount: 400,
-        serviceFee: 12,
-        interestRate: 0.2, // This is now a daily rate
-        disbursedDate: subDays(new Date('2024-08-15'), 30),
-        dueDate: new Date('2024-08-15'),
-        penaltyAmount: 10,
-        repaymentStatus: 'Unpaid',
-        repaidAmount: 0,
-        payments: [],
-    },
-    {
         id: `loan-${Date.now()}-2`,
         providerName: 'NIb Bank',
         productName: 'Quick Cash Loan',
