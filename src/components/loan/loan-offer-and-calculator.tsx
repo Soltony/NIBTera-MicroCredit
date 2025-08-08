@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable } from '@/lib/types';
+import { calculateTotalRepayable, parseFee } from '@/lib/types';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
@@ -36,10 +36,6 @@ const formatFee = (fee: string | undefined, suffix: string) => {
     return `${fee}${suffix}`;
 }
 
-const parseFee = (feeString: string | undefined): number => {
-    if (!feeString) return 0;
-    return parseFloat(feeString.replace('%', '')) || 0;
-}
 
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState<number | string>('');
@@ -60,28 +56,28 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     
     const serviceFeePercentage = parseFee(product.serviceFee);
     const dailyFeePercentage = parseFee(product.dailyFee);
-    const penaltyFeePercentage = parseFee(product.penaltyFee);
     
     const serviceFee = numericLoanAmount * (serviceFeePercentage / 100);
     const dueDate = addDays(new Date(), 30);
     
-    const mockLoan: LoanDetails = {
+    // Create a temporary loan object to pass to the calculation function.
+    const tempLoan: LoanDetails = {
         id: 'temp',
         loanAmount: numericLoanAmount,
-        serviceFee: serviceFee,
+        serviceFee,
         interestRate: dailyFeePercentage, // Daily rate as a percentage
         dueDate: dueDate,
-        penaltyAmount: penaltyFeePercentage, // Penalty rate as a percentage
+        penaltyAmount: parseFee(product.penaltyFee), // Penalty rate
         repaymentStatus: 'Unpaid',
         payments: [],
         productName: product.name,
         providerName: '',
         repaidAmount: 0,
     };
+    
+    const totalRepayable = calculateTotalRepayable(tempLoan, dueDate);
 
-    const totalRepayable = calculateTotalRepayable(mockLoan, dueDate);
-
-    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount: penaltyFeePercentage, dueDate, totalRepayable };
+    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount: tempLoan.penaltyAmount, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {

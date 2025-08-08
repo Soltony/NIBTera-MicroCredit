@@ -85,6 +85,10 @@ export interface Role {
     permissions: Permissions;
 }
 
+export const parseFee = (feeString: string | undefined): number => {
+    if (!feeString) return 0;
+    return parseFloat(feeString.replace('%', '')) || 0;
+}
 
 // Corrected loan calculation logic based on remaining balance
 export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
@@ -106,26 +110,28 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
 
     // Determine the number of days for compounding, ensuring it doesn't go past the final date.
     const compoundingEndDate = finalDate > dueDate ? dueDate : finalDate;
-    const daysToCompound = differenceInDays(compoundingEndDate, loanStartDate);
+    const daysSinceStart = differenceInDays(compoundingEndDate, loanStartDate);
 
-    // Iterate day-by-day to apply payments and compound interest on the remaining balance
-    for (let i = 0; i <= daysToCompound; i++) {
-        const currentDate = startOfDay(new Date(loanStartDate.getTime() + i * 24 * 60 * 60 * 1000));
-        const dayTime = currentDate.getTime();
+    let compoundedBalance = loan.loanAmount;
 
-        // Apply payments made on this day before calculating interest
-        if (paymentsByDate.has(dayTime)) {
-            balance -= paymentsByDate.get(dayTime)!;
-        }
-
-        // Add daily fee (compounded) if balance is positive
-        if (balance > 0) {
-           balance *= (1 + dailyFeeRate);
-        }
+    // This loop calculates the compounded interest on the principal
+    for (let i = 0; i < daysSinceStart; i++) {
+        compoundedBalance *= (1 + dailyFeeRate);
     }
+    
+    // Start the balance with the compounded amount
+    balance = compoundedBalance;
     
     // Add the one-time service fee AFTER interest calculation
     balance += loan.serviceFee;
+
+    // Now, subtract all payments made up to the due date.
+    // This is a simplification; a day-by-day ledger is more accurate but complex.
+    // For this app's purpose, we assume payments reduce the final calculated balance.
+    if (loan.repaidAmount && loan.repaidAmount > 0) {
+        balance -= loan.repaidAmount;
+    }
+
 
     // Apply penalty if overdue. The penalty is simple interest on the outstanding amount for each day overdue.
     if (finalDate > dueDate) {
@@ -135,12 +141,6 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
             const penalty = balance * penaltyRate * daysOverdue; // Simple interest for penalty
             balance += penalty;
        }
-    }
-
-    // Final check for any payments made on the final calculation date if it's after the due date
-    const finalDayTime = finalDate.getTime();
-    if (finalDate > dueDate && paymentsByDate.has(finalDayTime)) {
-      balance -= paymentsByDate.get(finalDayTime)!;
     }
 
 
