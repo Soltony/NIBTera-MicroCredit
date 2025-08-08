@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { LoanDetails, Payment } from '@/lib/types';
 import { differenceInDays } from 'date-fns';
+import { calculateTotalRepayable } from '@/lib/types';
 
 const MOCK_LOAN_HISTORY: LoanDetails[] = [
     {
@@ -12,7 +13,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         productName: 'Personal Loan',
         loanAmount: 100,
         serviceFee: 1.5,
-        interestRate: 5.0,
+        interestRate: 0.2, // This is now a daily rate
         dueDate: new Date('2024-08-15'),
         penaltyAmount: 10,
         repaymentStatus: 'Unpaid',
@@ -25,7 +26,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         productName: 'Quick Cash Loan',
         loanAmount: 500,
         serviceFee: 7.5,
-        interestRate: 5.0,
+        interestRate: 0.2, // This is now a daily rate
         dueDate: new Date('2024-07-25'),
         penaltyAmount: 50,
         repaymentStatus: 'Paid',
@@ -94,17 +95,7 @@ export function useLoanHistory() {
     const newPayment: Payment = { amount: paymentAmount, date: new Date() };
     const totalRepaid = (loanToUpdate.repaidAmount || 0) + paymentAmount;
     
-    // This calculation should ideally be in a shared utility
-    const principal = loanToUpdate.loanAmount;
-    const serviceFee = loanToUpdate.serviceFee;
-    const now = new Date();
-    const dueDate = new Date(loanToUpdate.dueDate);
-    const dailyFeeRate = 0.002;
-    const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const daysSinceLoan = differenceInDays(now, loanStartDate);
-    const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
-    const penalty = now > dueDate ? loanToUpdate.penaltyAmount : 0;
-    const totalRepayable = principal + serviceFee + dailyFees + penalty;
+    const totalRepayable = calculateTotalRepayable(loanToUpdate);
     
     const isPaid = totalRepaid >= totalRepayable;
 

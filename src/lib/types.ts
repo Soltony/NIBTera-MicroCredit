@@ -1,6 +1,7 @@
 
 
 import { z } from 'zod';
+import { differenceInDays } from 'date-fns';
 
 export interface LoanProvider {
   id: string;
@@ -83,3 +84,23 @@ export interface Role {
     name: string;
     permissions: Permissions;
 }
+
+// Consolidated Loan Calculation Logic
+export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
+    const principal = loan.loanAmount;
+    const serviceFee = loan.serviceFee;
+    const dueDate = new Date(loan.dueDate);
+
+    // This is an approximation of the loan's start date
+    const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000); 
+
+    // The daily interest rate is stored in the interestRate field.
+    const dailyFeeRate = loan.interestRate / 100;
+
+    const daysSinceLoan = differenceInDays(asOfDate, loanStartDate);
+    const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
+
+    const penalty = asOfDate > dueDate ? loan.penaltyAmount : 0;
+    
+    return principal + serviceFee + dailyFees + penalty;
+};

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -13,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
+import { calculateTotalRepayable } from '@/lib/types';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
@@ -48,19 +50,42 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     setLoanAmount(minLoan);
   }, [product.id, minLoan]);
   
+  const parseFee = (feeString: string | undefined): number => {
+    if (!feeString) return 0;
+    return parseFloat(feeString.replace('%', '')) || 0;
+  }
 
   const calculatedTerms = useMemo(() => {
     const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
     if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
-    const serviceFee = numericLoanAmount * 0.015;
-    const interest = numericLoanAmount * 0.05;
-    const interestRate = numericLoanAmount * 0.05; // Fixed 5%
-    const penaltyAmount = numericLoanAmount * 0.1;
+    
+    const serviceFeePercentage = parseFee(product.serviceFee);
+    const dailyFeePercentage = parseFee(product.dailyFee);
+    const penaltyFeePercentage = parseFee(product.penaltyFee);
+    
+    const serviceFee = numericLoanAmount * (serviceFeePercentage / 100);
+    const penaltyAmount = numericLoanAmount * (penaltyFeePercentage / 100);
     const dueDate = addDays(new Date(), 30);
-    const totalRepayable = numericLoanAmount + serviceFee + interest;
+    
+    const dummyLoanDetails: LoanDetails = {
+        id: '',
+        providerName: '',
+        productName: '',
+        loanAmount: numericLoanAmount,
+        serviceFee: serviceFee,
+        interestRate: dailyFeePercentage, // interestRate now stores daily fee %
+        penaltyAmount: penaltyAmount,
+        dueDate: dueDate,
+        repaymentStatus: 'Unpaid',
+        repaidAmount: 0,
+        payments: [],
+    }
+    
+    // We calculate based on the due date for this view.
+    const totalRepayable = calculateTotalRepayable(dummyLoanDetails, dueDate);
 
-    return { serviceFee, interestRate, penaltyAmount, dueDate, totalRepayable };
-  }, [loanAmount, eligibilityResult]);
+    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount, dueDate, totalRepayable };
+  }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {
     const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
