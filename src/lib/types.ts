@@ -1,7 +1,7 @@
 
 
 import { z } from 'zod';
-import { differenceInDays } from 'date-fns';
+import { differenceInDays, startOfDay } from 'date-fns';
 
 export interface LoanProvider {
   id: string;
@@ -13,7 +13,7 @@ export interface LoanProvider {
 }
 
 export interface LoanProduct {
-  id: string;
+  id:string;
   name: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -36,7 +36,7 @@ export interface LoanDetails {
   productName: string;
   loanAmount: number;
   serviceFee: number;
-  interestRate: number;
+  interestRate: number; // Represents the daily fee percentage
   dueDate: Date;
   penaltyAmount: number;
   repaymentStatus: 'Paid' | 'Unpaid';
@@ -85,22 +85,50 @@ export interface Role {
     permissions: Permissions;
 }
 
-// Consolidated Loan Calculation Logic
+
+// Corrected loan calculation logic based on remaining balance
 export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
-    const principal = loan.loanAmount;
-    const serviceFee = loan.serviceFee;
-    const dueDate = new Date(loan.dueDate);
+    const dueDate = startOfDay(new Date(loan.dueDate));
+    const loanStartDate = startOfDay(new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000));
+    const finalDate = startOfDay(asOfDate);
 
-    // This is an approximation of the loan's start date
-    const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000); 
+    let balance = loan.loanAmount;
+    balance += loan.serviceFee;
 
-    // The daily interest rate is stored in the interestRate field.
     const dailyFeeRate = loan.interestRate / 100;
-
-    const daysSinceLoan = differenceInDays(asOfDate, loanStartDate);
-    const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
-
-    const penalty = asOfDate > dueDate ? loan.penaltyAmount : 0;
     
-    return principal + serviceFee + dailyFees + penalty;
+    // Create a map of payments for quick lookup
+    const paymentsByDate = new Map<number, number>();
+    if (loan.payments) {
+        for (const payment of loan.payments) {
+            const paymentDate = startOfDay(new Date(payment.date)).getTime();
+            paymentsByDate.set(paymentDate, (paymentsByDate.get(paymentDate) || 0) + payment.amount);
+        }
+    }
+
+    // Iterate day-by-day from loan start to asOfDate
+    for (
+        let d = new Date(loanStartDate.getTime());
+        d <= finalDate;
+        d.setDate(d.getDate() + 1)
+    ) {
+        // Apply payments made on this day
+        const dayTime = d.getTime();
+        if (paymentsByDate.has(dayTime)) {
+            balance -= paymentsByDate.get(dayTime)!;
+        }
+
+        // Add daily fee if balance is positive
+        if (balance > 0) {
+           balance += balance * dailyFeeRate;
+        }
+    }
+    
+    // Apply penalty if overdue and not yet fully paid
+    if (finalDate > dueDate && balance > 0) {
+        balance += loan.penaltyAmount;
+    }
+
+    // Ensure balance doesn't go below zero
+    return Math.max(0, balance);
 };
