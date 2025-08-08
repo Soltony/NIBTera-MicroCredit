@@ -6,13 +6,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  Users,
   Settings,
   PanelLeft,
-  Search,
   Bell,
   FileText,
-  UserCog,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -47,14 +45,9 @@ const menuItems = [
     icon: LayoutDashboard,
   },
   {
-    path: '/admin/users',
-    label: 'Users',
-    icon: Users,
-  },
-  {
-      path: '/admin/roles',
-      label: 'Roles',
-      icon: UserCog,
+    path: '/admin/access-control',
+    label: 'Access Control',
+    icon: ShieldCheck,
   },
   {
     path: '/admin/reports',
