@@ -44,26 +44,30 @@ import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useUsers } from '@/hooks/use-users';
 
-const menuItems = [
+const allMenuItems = [
   {
     path: '/admin',
     label: 'Dashboard',
     icon: LayoutDashboard,
+    roles: ['Admin', 'Loan Provider'],
   },
   {
     path: '/admin/access-control',
     label: 'Access Control',
     icon: ShieldCheck,
+    roles: ['Admin'],
   },
   {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,
+    roles: ['Admin', 'Loan Provider'],
   },
   {
     path: '/admin/settings',
     label: 'Settings',
     icon: Settings,
+    roles: ['Admin'],
   },
 ];
 
@@ -75,6 +79,11 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
     const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
     const getInitials = (name: string = '') => name.split(' ').map(n => n[0]).join('');
+
+    const menuItems = React.useMemo(() => {
+        if (!currentUser) return [];
+        return allMenuItems.filter(item => item.roles.includes(currentUser.role));
+    }, [currentUser]);
 
     if (isLoading) {
         return (

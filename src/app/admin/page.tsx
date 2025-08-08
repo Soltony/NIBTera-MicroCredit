@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useLoanHistory } from '@/hooks/use-loan-history';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
+import { useAuth } from '@/hooks/use-auth';
 import {
   BarChart,
   Bar,
@@ -42,9 +43,17 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function AdminDashboard() {
-  const { loans } = useLoanHistory();
+  const { loans: allLoans } = useLoanHistory();
   const { providers } = useLoanProviders();
+  const { currentUser } = useAuth();
   const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
+
+  const loans = useMemo(() => {
+    if (currentUser?.role === 'Loan Provider') {
+      return allLoans.filter(loan => loan.providerName === currentUser.providerName);
+    }
+    return allLoans;
+  }, [allLoans, currentUser]);
 
   const {
     totalLoans,
