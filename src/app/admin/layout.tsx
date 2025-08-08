@@ -11,6 +11,9 @@ import {
   Bell,
   FileText,
   ShieldCheck,
+  Users,
+  LogOut,
+  User,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -34,10 +37,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu';
 import { Logo } from '@/components/icons';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
-import { AuthProvider } from '@/hooks/use-auth';
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { useUsers } from '@/hooks/use-users';
 
 const menuItems = [
   {
@@ -62,84 +67,112 @@ const menuItems = [
   },
 ];
 
+function AuthWrapper({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const { providers } = useLoanProviders();
+    const { users } = useUsers();
+    const { currentUser, login, logout, isLoading } = useAuth();
+
+    const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    const getInitials = (name: string = '') => name.split(' ').map(n => n[0]).join('');
+
+    if (isLoading) {
+        return (
+             <div className="flex items-center justify-center h-screen">
+                <p>Loading user data...</p>
+             </div>
+        );
+    }
+    
+    return (
+        <SidebarProvider>
+        <div className="bg-muted/40 min-h-screen w-full flex">
+            <Sidebar>
+                <SidebarHeader>
+                     <SidebarTrigger>
+                        <Logo className="h-6 w-6" />
+                     </SidebarTrigger>
+                </SidebarHeader>
+                <SidebarContent>
+                     <SidebarMenu>
+                        {menuItems.map((item) => (
+                          <SidebarMenuItem key={item.label}>
+                              <Link href={item.path}>
+                                <SidebarMenuButton
+                                    isActive={pathname === item.path}
+                                    tooltip={{
+                                        children: item.label
+                                    }}
+                                >
+                                    <item.icon />
+                                    <span>{item.label}</span>
+                                </SidebarMenuButton>
+                              </Link>
+                          </SidebarMenuItem>
+                        ))}
+                     </SidebarMenu>
+                </SidebarContent>
+            </Sidebar>
+            <div className="flex flex-col flex-1">
+                <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                    >
+                        <Bell className="h-4 w-4" />
+                        <span className="sr-only">Toggle notifications</span>
+                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="overflow-hidden rounded-full"
+                        >
+                            <Avatar>
+                                <AvatarImage src={`https://github.com/shadcn.png`} alt={currentUser?.fullName} />
+                                <AvatarFallback>{getInitials(currentUser?.fullName)}</AvatarFallback>
+                            </Avatar>
+                        </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>{currentUser?.fullName}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Switch User</DropdownMenuLabel>
+                            {users.map(user => (
+                                <DropdownMenuItem key={user.id} onClick={() => login(user.id)} disabled={user.id === currentUser?.id}>
+                                    <User className="mr-2 h-4 w-4" />
+                                    <span>{user.fullName} ({user.role})</span>
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={logout}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Logout</span>
+                        </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </header>
+                <main className="flex-1">
+                    {children}
+                </main>
+            </div>
+        </div>
+        </SidebarProvider>
+    );
+}
+
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const { providers } = useLoanProviders();
-  const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
-
   return (
     <AuthProvider>
-      <SidebarProvider>
-      <div className="bg-muted/40 min-h-screen w-full flex">
-          <Sidebar>
-              <SidebarHeader>
-                   <SidebarTrigger>
-                      <Logo className="h-6 w-6" />
-                   </SidebarTrigger>
-              </SidebarHeader>
-              <SidebarContent>
-                   <SidebarMenu>
-                      {menuItems.map((item) => (
-                        <SidebarMenuItem key={item.label}>
-                            <Link href={item.path}>
-                              <SidebarMenuButton
-                                  isActive={pathname === item.path}
-                                  tooltip={{
-                                      children: item.label
-                                  }}
-                              >
-                                  <item.icon />
-                                  <span>{item.label}</span>
-                              </SidebarMenuButton>
-                            </Link>
-                        </SidebarMenuItem>
-                      ))}
-                   </SidebarMenu>
-              </SidebarContent>
-          </Sidebar>
-          <div className="flex flex-col flex-1">
-              <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
-                  <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                  >
-                      <Bell className="h-4 w-4" />
-                      <span className="sr-only">Toggle notifications</span>
-                  </Button>
-                  <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                      <Button
-                          variant="outline"
-                          size="icon"
-                          className="overflow-hidden rounded-full"
-                      >
-                          <Avatar>
-                              <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                              <AvatarFallback>SA</AvatarFallback>
-                          </Avatar>
-                      </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>Settings</DropdownMenuItem>
-                      <DropdownMenuItem>Support</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>Logout</DropdownMenuItem>
-                      </DropdownMenuContent>
-                  </DropdownMenu>
-              </header>
-              <main className="flex-1">
-                  {children}
-              </main>
-          </div>
-      </div>
-      </SidebarProvider>
+        <AuthWrapper>{children}</AuthWrapper>
     </AuthProvider>
   );
 }
