@@ -93,12 +93,9 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
     const loanStartDate = startOfDay(new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000));
     const finalDate = startOfDay(asOfDate);
     
-    // Initial balance is principal + one-time service fee
     let balance = loan.loanAmount;
-
     const dailyFeeRate = loan.interestRate / 100;
     
-    // Create a map of payments for quick lookup
     const paymentsByDate = new Map<number, number>();
     if (loan.payments && loan.payments.length > 0) {
         for (const payment of loan.payments) {
@@ -107,13 +104,14 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
         }
     }
 
-    // Iterate day-by-day from loan start to asOfDate
-    for (
-        let d = new Date(loanStartDate.getTime());
-        d < finalDate && d < dueDate; // Only accrue daily fees up to the due date for this calculation
-        d.setDate(d.getDate() + 1)
-    ) {
-        const dayTime = d.getTime();
+    // Determine the number of days for compounding, ensuring it doesn't go past the final date.
+    const compoundingEndDate = finalDate > dueDate ? dueDate : finalDate;
+    const daysToCompound = differenceInDays(compoundingEndDate, loanStartDate);
+
+    // Iterate day-by-day to apply payments and compound interest on the remaining balance
+    for (let i = 0; i <= daysToCompound; i++) {
+        const currentDate = startOfDay(new Date(loanStartDate.getTime() + i * 24 * 60 * 60 * 1000));
+        const dayTime = currentDate.getTime();
 
         // Apply payments made on this day before calculating interest
         if (paymentsByDate.has(dayTime)) {
@@ -125,23 +123,29 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
            balance *= (1 + dailyFeeRate);
         }
     }
-     // Apply payments on the final day
-    const finalDayTime = finalDate.getTime();
-    if (paymentsByDate.has(finalDayTime)) {
-        balance -= paymentsByDate.get(finalDayTime)!;
-    }
     
-    // Add service fee at the end, before penalty
+    // Add the one-time service fee AFTER interest calculation
     balance += loan.serviceFee;
 
-    // Apply penalty if overdue and not yet fully paid
-    if (finalDate > dueDate && balance > (loan.repaidAmount || 0)) {
+    // Apply penalty if overdue. The penalty is simple interest on the outstanding amount for each day overdue.
+    if (finalDate > dueDate) {
        const daysOverdue = differenceInDays(finalDate, dueDate);
-       // Simple interest for penalty
-       const penalty = loan.penaltyAmount * daysOverdue;
-       balance += penalty;
+       if (daysOverdue > 0) {
+            const penaltyRate = (loan.penaltyAmount || 0) / 100; // Assuming penalty is a percentage
+            const penalty = balance * penaltyRate * daysOverdue; // Simple interest for penalty
+            balance += penalty;
+       }
     }
 
-    // Ensure balance doesn't go below zero
+    // Final check for any payments made on the final calculation date if it's after the due date
+    const finalDayTime = finalDate.getTime();
+    if (finalDate > dueDate && paymentsByDate.has(finalDayTime)) {
+      balance -= paymentsByDate.get(finalDayTime)!;
+    }
+
+
+    // The total repayable is the final balance, but it shouldn't be less than what's already been paid.
+    // However, for calculating what's *due*, it can be less than zero if overpaid.
+    // For simplicity, we'll cap it at 0.
     return Math.max(0, balance);
 };

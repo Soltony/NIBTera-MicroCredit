@@ -36,6 +36,11 @@ const formatFee = (fee: string | undefined, suffix: string) => {
     return `${fee}${suffix}`;
 }
 
+const parseFee = (feeString: string | undefined): number => {
+    if (!feeString) return 0;
+    return parseFloat(feeString.replace('%', '')) || 0;
+}
+
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
@@ -46,15 +51,9 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   const maxLoan = product.maxLoan ?? 0;
 
   useEffect(() => {
-    // Set initial loan amount, respecting the lower of suggested min and product min
     setLoanAmount(minLoan);
   }, [product.id, minLoan]);
   
-  const parseFee = (feeString: string | undefined): number => {
-    if (!feeString) return 0;
-    return parseFloat(feeString.replace('%', '')) || 0;
-  }
-
   const calculatedTerms = useMemo(() => {
     const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
     if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
@@ -64,17 +63,15 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const penaltyFeePercentage = parseFee(product.penaltyFee);
     
     const serviceFee = numericLoanAmount * (serviceFeePercentage / 100);
-    // This is the flat penalty amount if overdue, not a rate
-    const penaltyAmount = numericLoanAmount * (penaltyFeePercentage / 100); 
     const dueDate = addDays(new Date(), 30);
     
     const mockLoan: LoanDetails = {
         id: 'temp',
         loanAmount: numericLoanAmount,
-        serviceFee,
-        interestRate: dailyFeePercentage,
-        dueDate,
-        penaltyAmount,
+        serviceFee: serviceFee,
+        interestRate: dailyFeePercentage, // Daily rate as a percentage
+        dueDate: dueDate,
+        penaltyAmount: penaltyFeePercentage, // Penalty rate as a percentage
         repaymentStatus: 'Unpaid',
         payments: [],
         productName: product.name,
@@ -84,7 +81,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
     const totalRepayable = calculateTotalRepayable(mockLoan, dueDate);
 
-    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount, dueDate, totalRepayable };
+    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount: penaltyFeePercentage, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {
