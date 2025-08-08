@@ -28,15 +28,25 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2 } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void }) => {
     const [formData, setFormData] = useState(product);
 
     useEffect(() => {
@@ -82,7 +92,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
                 <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} />
             </div>
              <div className="flex items-center space-x-2 md:col-span-2 justify-end">
-                <Button type="button" variant="outline">Cancel</Button>
+                <Button type="button" variant="destructive" onClick={() => onDelete(providerId, product.id)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                </Button>
                 <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white">Save Changes</Button>
             </div>
         </form>
@@ -90,10 +103,12 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
 }
 
 export default function AdminSettingsPage() {
-    const { providers, addProvider, addProduct, updateProduct } = useLoanProviders();
+    const { providers, addProvider, addProduct, updateProduct, deleteProduct } = useLoanProviders();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [productToDelete, setProductToDelete] = useState<{ providerId: string; productId: string; productName: string; } | null>(null);
     const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
     const { toast } = useToast();
     
@@ -117,6 +132,24 @@ export default function AdminSettingsPage() {
         updateProduct(providerId, product);
         toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
     }
+    
+    const handleOpenDeleteDialog = (providerId: string, productId: string) => {
+        const provider = providers.find(p => p.id === providerId);
+        const product = provider?.products.find(p => p.id === productId);
+        if (provider && product) {
+            setProductToDelete({ providerId, productId, productName: product.name });
+            setIsDeleteDialogOpen(true);
+        }
+    };
+    
+    const handleConfirmDelete = () => {
+        if (productToDelete) {
+            deleteProduct(productToDelete.providerId, productToDelete.productId);
+            toast({ title: "Product Deleted", description: `${productToDelete.productName} has been deleted.`, variant: 'destructive' });
+            setIsDeleteDialogOpen(false);
+            setProductToDelete(null);
+        }
+    };
 
     return (
         <>
@@ -149,6 +182,7 @@ export default function AdminSettingsPage() {
                                                 product={product} 
                                                 providerColor={provider.colorHex} 
                                                 onSave={handleSaveProduct}
+                                                onDelete={handleOpenDeleteDialog}
                                              />
                                         </div>
                                     ))}
@@ -178,6 +212,24 @@ export default function AdminSettingsPage() {
                 onClose={() => setIsAddProductDialogOpen(false)}
                 onAddProduct={handleAddProduct}
             />
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the 
+                        <span className="font-semibold"> {productToDelete?.productName} </span> 
+                        product.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }

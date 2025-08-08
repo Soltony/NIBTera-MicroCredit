@@ -159,5 +159,18 @@ export function useLoanProviders() {
     saveProviders(updatedProviders);
   }, [providers, saveProviders]);
 
-  return { providers, addProvider, addProduct, updateProduct };
+  const deleteProduct = useCallback((providerId: string, productId: string) => {
+    const updatedProviders = providers.map(p => {
+        if (p.id === providerId) {
+            return {
+                ...p,
+                products: p.products.filter(prod => prod.id !== productId)
+            };
+        }
+        return p;
+    });
+    saveProviders(updatedProviders);
+  }, [providers, saveProviders]);
+
+  return { providers, addProvider, addProduct, updateProduct, deleteProduct };
 }
