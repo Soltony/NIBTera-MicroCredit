@@ -60,61 +60,62 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add New Loan Provider</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="provider-name">Provider Name</Label>
-              <Input
-                id="provider-name"
-                value={providerName}
-                onChange={(e) => setProviderName(e.target.value)}
-                placeholder="e.g., Acme Financial"
-                required
-                style={{'--ring': primaryColor} as React.CSSProperties}
-              />
+        <form onSubmit={handleSubmit} className="grid gap-6 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="provider-name" className="text-right">
+              Name
+            </Label>
+            <Input
+              id="provider-name"
+              value={providerName}
+              onChange={(e) => setProviderName(e.target.value)}
+              placeholder="e.g., Acme Financial"
+              required
+              className="col-span-3"
+              style={{'--ring': primaryColor} as React.CSSProperties}
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Icon</Label>
+            <div className="col-span-3 flex space-x-2">
+              {icons.map(({ name, component: Icon }) => (
+                <Button
+                  key={name}
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSelectedIcon(() => Icon)}
+                  className={cn(
+                    'h-12 w-12',
+                    selectedIcon === Icon && 'ring-2'
+                  )}
+                  style={{'--ring': primaryColor} as React.CSSProperties}
+                >
+                  <Icon className="h-6 w-6" />
+                </Button>
+              ))}
             </div>
-            <div className="space-y-2">
-              <Label>Icon</Label>
-              <div className="flex space-x-2">
-                {icons.map(({ name, component: Icon }) => (
-                  <Button
-                    key={name}
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setSelectedIcon(() => Icon)}
-                    className={cn(
-                      'h-12 w-12',
-                      selectedIcon === Icon && 'ring-2'
-                    )}
-                    style={{'--ring': primaryColor} as React.CSSProperties}
-                  >
-                    <Icon className="h-6 w-6" />
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Color</Label>
-              <div className="flex space-x-2">
-                {colors.map((color) => (
-                  <button
-                    key={color.name}
-                    type="button"
-                    onClick={() => setSelectedColorHex(color.hex)}
-                    className={cn(
-                      'h-8 w-8 rounded-full border',
-                      selectedColorHex === color.hex && 'ring-2 ring-offset-2'
-                    )}
-                    style={{ backgroundColor: color.hex, '--ring': primaryColor } as React.CSSProperties}
-                    aria-label={`Select ${color.name} color`}
-                  />
-                ))}
-              </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Color</Label>
+            <div className="col-span-3 flex space-x-2">
+              {colors.map((color) => (
+                <button
+                  key={color.name}
+                  type="button"
+                  onClick={() => setSelectedColorHex(color.hex)}
+                  className={cn(
+                    'h-8 w-8 rounded-full border',
+                    selectedColorHex === color.hex && 'ring-2 ring-offset-2'
+                  )}
+                  style={{ backgroundColor: color.hex, '--ring': primaryColor } as React.CSSProperties}
+                  aria-label={`Select ${color.name} color`}
+                />
+              ))}
             </div>
           </div>
           <DialogFooter>
