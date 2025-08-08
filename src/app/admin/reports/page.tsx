@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useLoanHistory } from '@/hooks/use-loan-history';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
+import { useAuth } from '@/hooks/use-auth';
 import {
   Card,
   CardContent,
@@ -34,10 +35,18 @@ const formatCurrency = (amount: number) => {
 export default function AdminReportsPage() {
   const { loans } = useLoanHistory();
   const { providers } = useLoanProviders();
+  const { currentUser } = useAuth();
   const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex;
 
+  const filteredLoans = React.useMemo(() => {
+    if (currentUser?.role === 'Loan Provider') {
+      return loans.filter(loan => loan.providerName === currentUser.providerName);
+    }
+    return loans;
+  }, [loans, currentUser]);
+
   const handleExport = () => {
-    const reportData = loans.map(loan => ({
+    const reportData = filteredLoans.map(loan => ({
       'Loan ID': loan.id,
       'Provider': loan.providerName,
       'Product': loan.productName,
@@ -51,6 +60,8 @@ export default function AdminReportsPage() {
       'Payments Count': loan.payments.length,
     }));
 
+    if(reportData.length === 0) return;
+
     const worksheet = XLSX.utils.json_to_sheet(reportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Loans Report');
@@ -58,7 +69,7 @@ export default function AdminReportsPage() {
     // Auto-size columns
     const cols = Object.keys(reportData[0]);
     const colWidths = cols.map(col => ({
-        wch: Math.max(...reportData.map(row => row[col as keyof typeof row].toString().length), col.length)
+        wch: Math.max(...reportData.map(row => row[col as keyof typeof row]?.toString().length ?? 0), col.length)
     }));
     worksheet['!cols'] = colWidths;
     
@@ -71,7 +82,7 @@ export default function AdminReportsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Loan Reports</h2>
-        <Button onClick={handleExport} style={{ backgroundColor: nibBankColor }} className="text-white">
+        <Button onClick={handleExport} style={{ backgroundColor: nibBankColor }} className="text-white" disabled={filteredLoans.length === 0}>
           <Download className="mr-2 h-4 w-4" />
           Export to Excel
         </Button>
@@ -79,7 +90,12 @@ export default function AdminReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Loans</CardTitle>
-          <CardDescription>A comprehensive list of all loans in the system.</CardDescription>
+          <CardDescription>
+            {currentUser?.role === 'Loan Provider' 
+              ? `A comprehensive list of all loans for ${currentUser.providerName}.`
+              : 'A comprehensive list of all loans in the system.'
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -94,7 +110,7 @@ export default function AdminReportsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loans.map((loan) => (
+              {filteredLoans.map((loan) => (
                 <TableRow key={loan.id}>
                   <TableCell>{loan.providerName}</TableCell>
                   <TableCell>{loan.productName}</TableCell>

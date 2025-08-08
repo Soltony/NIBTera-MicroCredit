@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Logo } from '@/components/icons';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
+import { AuthProvider } from '@/hooks/use-auth';
 
 const menuItems = [
   {
@@ -71,72 +72,74 @@ export default function AdminLayout({
   const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
 
   return (
-    <SidebarProvider>
-    <div className="bg-muted/40 min-h-screen w-full flex">
-        <Sidebar>
-            <SidebarHeader>
-                 <SidebarTrigger>
-                    <Logo className="h-6 w-6" />
-                 </SidebarTrigger>
-            </SidebarHeader>
-            <SidebarContent>
-                 <SidebarMenu>
-                    {menuItems.map((item) => (
-                      <SidebarMenuItem key={item.label}>
-                          <Link href={item.path}>
-                            <SidebarMenuButton
-                                isActive={pathname === item.path}
-                                tooltip={{
-                                    children: item.label
-                                }}
-                            >
-                                <item.icon />
-                                <span>{item.label}</span>
-                            </SidebarMenuButton>
-                          </Link>
-                      </SidebarMenuItem>
-                    ))}
-                 </SidebarMenu>
-            </SidebarContent>
-        </Sidebar>
-        <div className="flex flex-col flex-1">
-            <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
-                <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                >
-                    <Bell className="h-4 w-4" />
-                    <span className="sr-only">Toggle notifications</span>
-                </Button>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="overflow-hidden rounded-full"
-                    >
-                        <Avatar>
-                            <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                            <AvatarFallback>SA</AvatarFallback>
-                        </Avatar>
-                    </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>Settings</DropdownMenuItem>
-                    <DropdownMenuItem>Support</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>Logout</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </header>
-            <main className="flex-1">
-                {children}
-            </main>
-        </div>
-    </div>
-    </SidebarProvider>
+    <AuthProvider>
+      <SidebarProvider>
+      <div className="bg-muted/40 min-h-screen w-full flex">
+          <Sidebar>
+              <SidebarHeader>
+                   <SidebarTrigger>
+                      <Logo className="h-6 w-6" />
+                   </SidebarTrigger>
+              </SidebarHeader>
+              <SidebarContent>
+                   <SidebarMenu>
+                      {menuItems.map((item) => (
+                        <SidebarMenuItem key={item.label}>
+                            <Link href={item.path}>
+                              <SidebarMenuButton
+                                  isActive={pathname === item.path}
+                                  tooltip={{
+                                      children: item.label
+                                  }}
+                              >
+                                  <item.icon />
+                                  <span>{item.label}</span>
+                              </SidebarMenuButton>
+                            </Link>
+                        </SidebarMenuItem>
+                      ))}
+                   </SidebarMenu>
+              </SidebarContent>
+          </Sidebar>
+          <div className="flex flex-col flex-1">
+              <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
+                  <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                  >
+                      <Bell className="h-4 w-4" />
+                      <span className="sr-only">Toggle notifications</span>
+                  </Button>
+                  <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                      <Button
+                          variant="outline"
+                          size="icon"
+                          className="overflow-hidden rounded-full"
+                      >
+                          <Avatar>
+                              <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+                              <AvatarFallback>SA</AvatarFallback>
+                          </Avatar>
+                      </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem>Settings</DropdownMenuItem>
+                      <DropdownMenuItem>Support</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem>Logout</DropdownMenuItem>
+                      </DropdownMenuContent>
+                  </DropdownMenu>
+              </header>
+              <main className="flex-1">
+                  {children}
+              </main>
+          </div>
+      </div>
+      </SidebarProvider>
+    </AuthProvider>
   );
 }
