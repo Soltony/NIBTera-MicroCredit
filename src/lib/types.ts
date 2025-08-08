@@ -120,10 +120,5 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
        }
     }
 
-    // 4. Subtract any payments made
-    if (loan.repaidAmount && loan.repaidAmount > 0) {
-        balance -= loan.repaidAmount;
-    }
-
     return Math.max(0, balance);
 };
