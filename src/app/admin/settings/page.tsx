@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -33,48 +33,73 @@ import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 
-const ProductSettingsForm = ({ product, providerColor }: { product: LoanProduct, providerColor?: string }) => {
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
+    const [formData, setFormData] = useState(product);
+
+    useEffect(() => {
+        setFormData(product);
+    }, [product]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { id, value } = e.target;
+        const key = id.split('-')[0];
+        setFormData(prev => ({ ...prev, [key]: value }));
+    }
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const updatedProduct: LoanProduct = {
+            ...formData,
+            minLoan: parseFloat(formData.minLoan as any),
+            maxLoan: parseFloat(formData.maxLoan as any),
+        };
+        onSave(providerId, updatedProduct);
+    }
+
     return (
-        <form className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-background">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-background">
             <div className="space-y-2">
-                <Label htmlFor={`min-loan-${product.id}`}>Minimum Loan Amount</Label>
-                <Input id={`min-loan-${product.id}`} type="number" defaultValue={product.minLoan} />
+                <Label htmlFor={`minLoan-${product.id}`}>Minimum Loan Amount</Label>
+                <Input id={`minLoan-${product.id}`} type="number" value={formData.minLoan} onChange={handleChange} />
             </div>
             <div className="space-y-2">
-                <Label htmlFor={`max-loan-${product.id}`}>Maximum Loan Amount</Label>
-                <Input id={`max-loan-${product.id}`} type="number" defaultValue={product.maxLoan} />
+                <Label htmlFor={`maxLoan-${product.id}`}>Maximum Loan Amount</Label>
+                <Input id={`maxLoan-${product.id}`} type="number" value={formData.maxLoan} onChange={handleChange} />
             </div>
             <div className="space-y-2">
-                <Label htmlFor={`service-fee-${product.id}`}>Service Fee (%)</Label>
-                <Input id={`service-fee-${product.id}`} defaultValue={product.serviceFee} />
+                <Label htmlFor={`serviceFee-${product.id}`}>Service Fee (%)</Label>
+                <Input id={`serviceFee-${product.id}`} value={formData.serviceFee} onChange={handleChange} />
             </div>
             <div className="space-y-2">
-                <Label htmlFor={`daily-fee-${product.id}`}>Daily Fee (%)</Label>
-                <Input id={`daily-fee-${product.id}`} defaultValue={product.dailyFee} />
+                <Label htmlFor={`dailyFee-${product.id}`}>Daily Fee (%)</Label>
+                <Input id={`dailyFee-${product.id}`} value={formData.dailyFee} onChange={handleChange} />
             </div>
             <div className="space-y-2">
-                <Label htmlFor={`penalty-fee-${product.id}`}>Penalty Fee After Due Date</Label>
-                <Input id={`penalty-fee-${product.id}`} defaultValue={product.penaltyFee} />
+                <Label htmlFor={`penaltyFee-${product.id}`}>Penalty Fee After Due Date</Label>
+                <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} />
             </div>
              <div className="flex items-center space-x-2 md:col-span-2 justify-end">
-                <Button variant="outline">Cancel</Button>
-                <Button style={{ backgroundColor: providerColor }} className="text-white">Save Changes</Button>
+                <Button type="button" variant="outline">Cancel</Button>
+                <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white">Save Changes</Button>
             </div>
         </form>
     )
 }
 
 export default function AdminSettingsPage() {
-    const { providers, addProvider, addProduct } = useLoanProviders();
+    const { providers, addProvider, addProduct, updateProduct } = useLoanProviders();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
     const nibBankColor = providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    const { toast } = useToast();
     
     const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products'>) => {
         addProvider(newProvider);
+        toast({ title: "Provider Added", description: `${newProvider.name} has been added successfully.` });
     };
     
     const handleOpenAddProductDialog = (providerId: string) => {
@@ -85,7 +110,13 @@ export default function AdminSettingsPage() {
     const handleAddProduct = (newProduct: Omit<LoanProduct, 'id' | 'availableLimit'>) => {
         if (!selectedProviderId) return;
         addProduct(selectedProviderId, newProduct);
+        toast({ title: "Product Added", description: `${newProduct.name} has been added successfully.` });
     };
+
+    const handleSaveProduct = (providerId: string, product: LoanProduct) => {
+        updateProduct(providerId, product);
+        toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
+    }
 
     return (
         <>
@@ -113,7 +144,12 @@ export default function AdminSettingsPage() {
                                     {provider.products.map(product => (
                                         <div key={product.id}>
                                              <h4 className="text-md font-semibold mb-2">{product.name}</h4>
-                                             <ProductSettingsForm product={product} providerColor={provider.colorHex} />
+                                             <ProductSettingsForm 
+                                                providerId={provider.id}
+                                                product={product} 
+                                                providerColor={provider.colorHex} 
+                                                onSave={handleSaveProduct}
+                                             />
                                         </div>
                                     ))}
                                     <Button 
