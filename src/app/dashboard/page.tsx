@@ -231,7 +231,8 @@ export default function DashboardPage() {
                                                                               <TableRow className="bg-secondary hover:bg-secondary">
                                                                                   <TableHead>Payment No.</TableHead>
                                                                                   <TableHead>Date</TableHead>
-                                                                                  <TableHead className="text-right">Amount</TableHead>
+                                                                                  <TableHead className="text-right">Outstanding Balance</TableHead>
+                                                                                  <TableHead className="text-right">Amount Paid</TableHead>
                                                                               </TableRow>
                                                                           </TableHeader>
                                                                           <TableBody>
@@ -239,6 +240,7 @@ export default function DashboardPage() {
                                                                                   <TableRow key={pIndex}>
                                                                                       <TableCell>#{pIndex + 1}</TableCell>
                                                                                       <TableCell>{format(payment.date, 'yyyy-MM-dd')}</TableCell>
+                                                                                      <TableCell className="text-right">{formatCurrency(payment.outstandingBalanceBeforePayment ?? 0)}</TableCell>
                                                                                       <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
                                                                                   </TableRow>
                                                                               ))}

@@ -19,7 +19,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         penaltyAmount: 50,
         repaymentStatus: 'Paid',
         repaidAmount: 540.23, // Corrected from 557.5 to match the actual calculated total
-        payments: [{ amount: 540.23, date: new Date('2024-07-20') }],
+        payments: [{ amount: 540.23, date: new Date('2024-07-20'), outstandingBalanceBeforePayment: 540.23 }],
     },
 ];
 
@@ -81,7 +81,8 @@ export function useLoanHistory() {
   }, [loans]);
   
   const addPayment = useCallback((loanToUpdate: LoanDetails, paymentAmount: number) => {
-    const newPayment: Payment = { amount: paymentAmount, date: new Date() };
+    const outstandingBalanceBeforePayment = calculateTotalRepayable(loanToUpdate);
+    const newPayment: Payment = { amount: paymentAmount, date: new Date(), outstandingBalanceBeforePayment };
     const totalRepaid = (loanToUpdate.repaidAmount || 0) + paymentAmount;
     
     const totalRepayable = calculateTotalRepayable(loanToUpdate);

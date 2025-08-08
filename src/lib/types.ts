@@ -29,6 +29,7 @@ export interface LoanProduct {
 export interface Payment {
   amount: number;
   date: Date;
+  outstandingBalanceBeforePayment?: number;
 }
 
 export interface LoanDetails {
