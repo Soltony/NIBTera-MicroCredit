@@ -58,7 +58,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const dailyFeePercentage = parseFee(product.dailyFee);
     
     const serviceFee = numericLoanAmount * (serviceFeePercentage / 100);
-    const dueDate = addDays(new Date(), 30);
+    const disbursedDate = new Date();
+    const dueDate = addDays(disbursedDate, 30);
     
     // Create a temporary loan object to pass to the calculation function.
     const tempLoan: LoanDetails = {
@@ -66,7 +67,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         loanAmount: numericLoanAmount,
         serviceFee,
         interestRate: dailyFeePercentage, // Daily rate as a percentage
-        dueDate: dueDate,
+        disbursedDate,
+        dueDate,
         penaltyAmount: parseFee(product.penaltyFee), // Penalty rate
         repaymentStatus: 'Unpaid',
         payments: [],
@@ -77,7 +79,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     
     const totalRepayable = calculateTotalRepayable(tempLoan, dueDate);
 
-    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount: tempLoan.penaltyAmount, dueDate, totalRepayable };
+    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount: tempLoan.penaltyAmount, disbursedDate, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {

@@ -1,7 +1,7 @@
 
 
 import { z } from 'zod';
-import { differenceInDays, startOfDay } from 'date-fns';
+import { differenceInDays, startOfDay, subDays } from 'date-fns';
 
 export interface LoanProvider {
   id: string;
@@ -37,6 +37,7 @@ export interface LoanDetails {
   loanAmount: number;
   serviceFee: number;
   interestRate: number; // Represents the daily fee percentage
+  disbursedDate: Date;
   dueDate: Date;
   penaltyAmount: number;
   repaymentStatus: 'Paid' | 'Unpaid';
@@ -90,62 +91,37 @@ export const parseFee = (feeString: string | undefined): number => {
     return parseFloat(feeString.replace('%', '')) || 0;
 }
 
-// Corrected loan calculation logic based on remaining balance
+// Corrected loan calculation logic based on compounding interest.
 export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
-    const dueDate = startOfDay(new Date(loan.dueDate));
-    // A standard 30 day loan is assumed
-    const loanStartDate = startOfDay(new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000));
-    const finalDate = startOfDay(asOfDate);
-    
     let balance = loan.loanAmount;
-    const dailyFeeRate = loan.interestRate / 100;
     
-    const paymentsByDate = new Map<number, number>();
-    if (loan.payments && loan.payments.length > 0) {
-        for (const payment of loan.payments) {
-            const paymentDate = startOfDay(new Date(payment.date)).getTime();
-            paymentsByDate.set(paymentDate, (paymentsByDate.get(paymentDate) || 0) + payment.amount);
-        }
+    // 1. Calculate compounded interest on the principal
+    const loanStartDate = startOfDay(new Date(loan.disbursedDate));
+    const finalDate = startOfDay(asOfDate);
+    const daysSinceStart = differenceInDays(finalDate, loanStartDate);
+
+    if (daysSinceStart > 0) {
+      balance = loan.loanAmount * Math.pow(1 + (loan.interestRate / 100), daysSinceStart);
     }
 
-    // Determine the number of days for compounding, ensuring it doesn't go past the final date.
-    const compoundingEndDate = finalDate > dueDate ? dueDate : finalDate;
-    const daysSinceStart = differenceInDays(compoundingEndDate, loanStartDate);
-
-    let compoundedBalance = loan.loanAmount;
-
-    // This loop calculates the compounded interest on the principal
-    for (let i = 0; i < daysSinceStart; i++) {
-        compoundedBalance *= (1 + dailyFeeRate);
-    }
-    
-    // Start the balance with the compounded amount
-    balance = compoundedBalance;
-    
-    // Add the one-time service fee AFTER interest calculation
+    // 2. Add the one-time service fee
     balance += loan.serviceFee;
 
-    // Now, subtract all payments made up to the due date.
-    // This is a simplification; a day-by-day ledger is more accurate but complex.
-    // For this app's purpose, we assume payments reduce the final calculated balance.
-    if (loan.repaidAmount && loan.repaidAmount > 0) {
-        balance -= loan.repaidAmount;
-    }
-
-
-    // Apply penalty if overdue. The penalty is simple interest on the outstanding amount for each day overdue.
+    // 3. Apply penalty if overdue
+    const dueDate = startOfDay(new Date(loan.dueDate));
     if (finalDate > dueDate) {
        const daysOverdue = differenceInDays(finalDate, dueDate);
        if (daysOverdue > 0) {
-            const penaltyRate = (loan.penaltyAmount || 0) / 100; // Assuming penalty is a percentage
-            const penalty = balance * penaltyRate * daysOverdue; // Simple interest for penalty
+            const penaltyRate = (loan.penaltyAmount || 0) / 100;
+            const penalty = (loan.loanAmount) * penaltyRate * daysOverdue;
             balance += penalty;
        }
     }
 
+    // 4. Subtract any payments made
+    if (loan.repaidAmount && loan.repaidAmount > 0) {
+        balance -= loan.repaidAmount;
+    }
 
-    // The total repayable is the final balance, but it shouldn't be less than what's already been paid.
-    // However, for calculating what's *due*, it can be less than zero if overpaid.
-    // For simplicity, we'll cap it at 0.
     return Math.max(0, balance);
 };

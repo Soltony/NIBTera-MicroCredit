@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { LoanDetails, Payment } from '@/lib/types';
-import { differenceInDays } from 'date-fns';
+import { differenceInDays, subDays } from 'date-fns';
 import { calculateTotalRepayable } from '@/lib/types';
 
 const MOCK_LOAN_HISTORY: LoanDetails[] = [
@@ -14,6 +14,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         loanAmount: 400,
         serviceFee: 12,
         interestRate: 0.2, // This is now a daily rate
+        disbursedDate: subDays(new Date('2024-08-15'), 30),
         dueDate: new Date('2024-08-15'),
         penaltyAmount: 10,
         repaymentStatus: 'Unpaid',
@@ -27,6 +28,7 @@ const MOCK_LOAN_HISTORY: LoanDetails[] = [
         loanAmount: 500,
         serviceFee: 7.5,
         interestRate: 0.2, // This is now a daily rate
+        disbursedDate: subDays(new Date('2024-07-25'), 30),
         dueDate: new Date('2024-07-25'),
         penaltyAmount: 50,
         repaymentStatus: 'Paid',
@@ -48,6 +50,7 @@ export function useLoanHistory() {
         const parsedLoans = JSON.parse(item).map((loan: any) => ({
           ...loan,
           id: loan.id || `loan-${Date.now()}-${Math.random()}`, // Ensure old loans get an ID
+          disbursedDate: loan.disbursedDate ? new Date(loan.disbursedDate) : subDays(new Date(loan.dueDate), 30),
           dueDate: new Date(loan.dueDate), // Deserialize date
           payments: loan.payments ? loan.payments.map((p: any) => ({...p, date: new Date(p.date)})) : [],
         }));

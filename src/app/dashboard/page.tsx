@@ -25,23 +25,6 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-const calculateTotalRepayable = (loan: LoanDetails) => {
-    const principal = loan.loanAmount;
-    const serviceFee = loan.serviceFee;
-    const now = new Date();
-    const dueDate = new Date(loan.dueDate);
-
-    // Daily fee is 0.2% of loan amount
-    const dailyFeeRate = 0.002;
-    const loanStartDate = new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const daysSinceLoan = differenceInDays(now, loanStartDate);
-    const dailyFees = principal * dailyFeeRate * Math.max(0, daysSinceLoan);
-
-    const penalty = now > dueDate ? loan.penaltyAmount : 0;
-    
-    return principal + serviceFee + dailyFees + penalty;
-};
-
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -211,7 +194,8 @@ export default function DashboardPage() {
                                                     <TableRow className="bg-muted/50 hover:bg-muted/50">
                                                         <TableHead className="py-3 px-4"></TableHead>
                                                         <TableHead className="py-3 px-4">Product</TableHead>
-                                                        <TableHead className="py-3 px-4">Provider</TableHead>
+                                                        <TableHead className="py-3 px-4">Disbursed Date</TableHead>
+                                                        <TableHead className="py-3 px-4">Due Date</TableHead>
                                                         <TableHead className="text-right py-3 px-4">Amount</TableHead>
                                                         <TableHead className="text-right py-3 px-4">Repaid</TableHead>
                                                         <TableHead className="text-center py-3 px-4">Status</TableHead>
@@ -227,7 +211,8 @@ export default function DashboardPage() {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
-                                                            <TableCell className="py-3 px-4">{loan.providerName}</TableCell>
+                                                            <TableCell className="py-3 px-4">{format(loan.disbursedDate, 'yyyy-MM-dd')}</TableCell>
+                                                            <TableCell className="py-3 px-4">{format(loan.dueDate, 'yyyy-MM-dd')}</TableCell>
                                                             <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
                                                             <TableCell className="text-right py-3 px-4">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
                                                             <TableCell className="text-center py-3 px-4">
@@ -238,7 +223,7 @@ export default function DashboardPage() {
                                                         </TableRow>
                                                         {expandedLoan === loan.id && loan.payments && loan.payments.length > 0 && (
                                                           <TableRow>
-                                                              <TableCell colSpan={6} className="p-0">
+                                                              <TableCell colSpan={7} className="p-0">
                                                                   <div className="p-4 bg-secondary/50">
                                                                       <h4 className="font-semibold mb-2 text-sm">Payment History</h4>
                                                                       <Table>
