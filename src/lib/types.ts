@@ -89,17 +89,18 @@ export interface Role {
 // Corrected loan calculation logic based on remaining balance
 export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
     const dueDate = startOfDay(new Date(loan.dueDate));
+    // A standard 30 day loan is assumed
     const loanStartDate = startOfDay(new Date(dueDate.getTime() - 30 * 24 * 60 * 60 * 1000));
     const finalDate = startOfDay(asOfDate);
-
-    let balance = loan.loanAmount;
-    balance += loan.serviceFee;
+    
+    // Initial balance is principal + one-time service fee
+    let balance = loan.loanAmount + loan.serviceFee;
 
     const dailyFeeRate = loan.interestRate / 100;
     
     // Create a map of payments for quick lookup
     const paymentsByDate = new Map<number, number>();
-    if (loan.payments) {
+    if (loan.payments && loan.payments.length > 0) {
         for (const payment of loan.payments) {
             const paymentDate = startOfDay(new Date(payment.date)).getTime();
             paymentsByDate.set(paymentDate, (paymentsByDate.get(paymentDate) || 0) + payment.amount);
@@ -109,24 +110,33 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
     // Iterate day-by-day from loan start to asOfDate
     for (
         let d = new Date(loanStartDate.getTime());
-        d <= finalDate;
+        d < finalDate && d < dueDate; // Only accrue daily fees up to the due date for this calculation
         d.setDate(d.getDate() + 1)
     ) {
-        // Apply payments made on this day
         const dayTime = d.getTime();
+
+        // Apply payments made on this day before calculating interest
         if (paymentsByDate.has(dayTime)) {
             balance -= paymentsByDate.get(dayTime)!;
         }
 
-        // Add daily fee if balance is positive
+        // Add daily fee (compounded) if balance is positive
         if (balance > 0) {
-           balance += balance * dailyFeeRate;
+           balance *= (1 + dailyFeeRate);
         }
+    }
+     // Apply payments on the final day
+    const finalDayTime = finalDate.getTime();
+    if (paymentsByDate.has(finalDayTime)) {
+        balance -= paymentsByDate.get(finalDayTime)!;
     }
     
     // Apply penalty if overdue and not yet fully paid
-    if (finalDate > dueDate && balance > 0) {
-        balance += loan.penaltyAmount;
+    if (finalDate > dueDate && balance > (loan.repaidAmount || 0)) {
+       const daysOverdue = differenceInDays(finalDate, dueDate);
+       // Simple interest for penalty
+       const penalty = loan.penaltyAmount * daysOverdue;
+       balance += penalty;
     }
 
     // Ensure balance doesn't go below zero

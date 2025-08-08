@@ -64,7 +64,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const penaltyFeePercentage = parseFee(product.penaltyFee);
     
     const serviceFee = numericLoanAmount * (serviceFeePercentage / 100);
-    const penaltyAmount = numericLoanAmount * (penaltyFeePercentage / 100);
+    // This is the flat penalty amount if overdue, not a rate
+    const penaltyAmount = numericLoanAmount * (penaltyFeePercentage / 100); 
     const dueDate = addDays(new Date(), 30);
     
     const dummyLoanDetails: LoanDetails = {
