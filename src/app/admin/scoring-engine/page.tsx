@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useScoringParameters } from '@/hooks/use-scoring-parameters';
+import { useScoringParameters, type GenderImpact } from '@/hooks/use-scoring-parameters';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 
@@ -34,8 +34,28 @@ const ParameterSlider = ({ label, value, onValueChange }: { label: string; value
   );
 };
 
+const GenderImpactSelector = ({ label, value, onValueChange }: { label: string; value: GenderImpact; onValueChange: (value: GenderImpact) => void; }) => {
+    return (
+        <div className="space-y-2">
+            <Label>{label}</Label>
+            <Select value={value} onValueChange={onValueChange}>
+                <SelectTrigger>
+                    <SelectValue placeholder="Select impact" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="no_impact">No Impact</SelectItem>
+                    <SelectItem value="slight_positive">Slight Positive</SelectItem>
+                    <SelectItem value="positive">Positive</SelectItem>
+                    <SelectItem value="slight_negative">Slight Negative</SelectItem>
+                    <SelectItem value="negative">Negative</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+    );
+}
+
 export default function ScoringEnginePage() {
-  const { parameters, updateParameter, setOccupationRisk, addOccupation, removeOccupation, resetParameters } = useScoringParameters();
+  const { parameters, updateParameter, setGenderImpact, setOccupationRisk, addOccupation, removeOccupation, resetParameters } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
 
@@ -74,21 +94,16 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for user demographic data.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-                <Label>Gender Impact</Label>
-                <Select value={parameters.genderImpact} onValueChange={(v) => updateParameter('genderImpact', v)}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select impact" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="no_impact">No Impact</SelectItem>
-                        <SelectItem value="positive">Factor In</SelectItem>
-                    </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground pt-1">
-                    Choose whether to include gender as a factor in the credit score.
-                </p>
-            </div>
+            <GenderImpactSelector
+                label="Male Impact"
+                value={parameters.genderImpact.male}
+                onValueChange={(v) => setGenderImpact('male', v)}
+            />
+             <GenderImpactSelector
+                label="Female Impact"
+                value={parameters.genderImpact.female}
+                onValueChange={(v) => setGenderImpact('female', v)}
+            />
           </CardContent>
         </Card>
 

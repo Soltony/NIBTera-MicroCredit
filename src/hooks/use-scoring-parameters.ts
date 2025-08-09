@@ -4,6 +4,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { produce } from 'immer';
 
+export type GenderImpact = 'no_impact' | 'slight_positive' | 'positive' | 'slight_negative' | 'negative';
+
 export interface ScoringParameters {
   weights: {
     transactionHistoryTotal: number;
@@ -12,7 +14,10 @@ export interface ScoringParameters {
     onTimeRepayments: number;
     salary: number;
   };
-  genderImpact: 'no_impact' | 'positive';
+  genderImpact: {
+    male: GenderImpact;
+    female: GenderImpact;
+  };
   occupationRisk: Record<string, 'Low' | 'Medium' | 'High'>;
 }
 
@@ -24,7 +29,10 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
     onTimeRepayments: 25,
     salary: 10,
   },
-  genderImpact: 'no_impact',
+  genderImpact: {
+    male: 'no_impact',
+    female: 'no_impact',
+  },
   occupationRisk: {
     'doctor': 'Low',
     'engineer': 'Low',
@@ -37,6 +45,21 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
 
 const STORAGE_KEY = 'scoringParameters';
 
+// Helper for migrating old data structure
+const migrateParameters = (data: any): ScoringParameters => {
+    if (typeof data.genderImpact === 'string') {
+        return {
+            ...data,
+            genderImpact: {
+                male: 'no_impact',
+                female: 'no_impact',
+            }
+        };
+    }
+    return data;
+}
+
+
 export function useScoringParameters() {
   const [parameters, setParameters] = useState<ScoringParameters>(DEFAULT_PARAMETERS);
 
@@ -44,12 +67,12 @@ export function useScoringParameters() {
     try {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
-        // Basic migration for removing 'age'
         const parsed = JSON.parse(item);
         if (parsed?.weights?.age) {
             delete parsed.weights.age;
         }
-        setParameters(parsed);
+        const migrated = migrateParameters(parsed);
+        setParameters(migrated);
       } else {
         setParameters(DEFAULT_PARAMETERS);
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PARAMETERS));
@@ -69,16 +92,20 @@ export function useScoringParameters() {
     }
   }, []);
 
-  const updateParameter = useCallback((key: keyof ScoringParameters['weights'] | 'genderImpact', value: number | string) => {
+  const updateParameter = useCallback((key: keyof ScoringParameters['weights'], value: number) => {
     const updated = produce(parameters, draft => {
-        if (key in draft.weights) {
-            draft.weights[key as keyof typeof draft.weights] = value as number;
-        } else {
-            draft[key as 'genderImpact'] = value as 'no_impact' | 'positive';
-        }
+        draft.weights[key as keyof typeof draft.weights] = value;
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
+
+  const setGenderImpact = useCallback((gender: 'male' | 'female', value: GenderImpact) => {
+    const updated = produce(parameters, draft => {
+        draft.genderImpact[gender] = value;
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
+
 
   const setOccupationRisk = useCallback((occupation: string, risk: 'Low' | 'Medium' | 'High') => {
       const updated = produce(parameters, draft => {
@@ -107,5 +134,5 @@ export function useScoringParameters() {
     saveParameters(DEFAULT_PARAMETERS);
   }, [saveParameters]);
 
-  return { parameters, updateParameter, setOccupationRisk, addOccupation, removeOccupation, resetParameters };
+  return { parameters, updateParameter, setGenderImpact, setOccupationRisk, addOccupation, removeOccupation, resetParameters };
 }
