@@ -115,7 +115,7 @@ export default function ScoringEnginePage() {
         Configure the parameters and weights used to calculate customer credit scores. The total of all weights should ideally be 100%.
       </p>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Demographics</CardTitle>
@@ -166,11 +166,35 @@ export default function ScoringEnginePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Financial History</CardTitle>
-            <CardDescription>Weights for financial and loan history.</CardDescription>
+            <CardTitle>Transaction History</CardTitle>
+            <CardDescription>Weights for overall and product-specific transaction history.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-             {Object.entries(parameters.weights).filter(([key]) => ['transactionHistoryTotal', 'transactionHistoryByProduct', 'loanHistoryCount', 'onTimeRepayments'].includes(key)).map(([key, param]) => (
+             {Object.entries(parameters.weights).filter(([key]) => ['transactionHistoryTotal', 'transactionHistoryByProduct'].includes(key)).map(([key, param]) => (
+                <div key={key}>
+                    <ParameterToggle
+                        label={key}
+                        isChecked={param.enabled}
+                        onCheckedChange={() => toggleParameterEnabled('weights', key as keyof ScoringParameters['weights'])}
+                    />
+                    <ParameterSlider
+                      label="Weight"
+                      value={param.value}
+                      onValueChange={(v) => updateParameter(key as keyof ScoringParameters['weights'], v[0])}
+                      isEnabled={param.enabled}
+                    />
+                </div>
+             ))}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Loan History</CardTitle>
+            <CardDescription>Weights for past loan performance.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             {Object.entries(parameters.weights).filter(([key]) => ['loanHistoryCount', 'onTimeRepayments'].includes(key)).map(([key, param]) => (
                 <div key={key}>
                     <ParameterToggle
                         label={key}
