@@ -19,9 +19,21 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 
-const ParameterSlider = ({ label, value, onValueChange }: { label: string; value: number; onValueChange: (value: number[]) => void; }) => {
+const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
+    <div className="flex items-center justify-between space-x-2 pb-4 border-b">
+        <Label htmlFor={`${label}-switch`} className="font-medium capitalize">{label.replace(/([A-Z])/g, ' $1')}</Label>
+        <Switch
+            id={`${label}-switch`}
+            checked={isChecked}
+            onCheckedChange={onCheckedChange}
+        />
+    </div>
+);
+
+const ParameterSlider = ({ label, value, onValueChange, isEnabled }: { label: string; value: number; onValueChange: (value: number[]) => void; isEnabled: boolean; }) => {
+  if (!isEnabled) return null;
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 pt-4">
       <div className="flex justify-between">
         <Label>{label}</Label>
         <span className="text-sm font-medium">{value}%</span>
@@ -51,12 +63,11 @@ const GenderImpactInput = ({ label, value, onValueChange }: { label: string; val
 }
 
 export default function ScoringEnginePage() {
-  const { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters } = useScoringParameters();
+  const { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
 
   const handleSave = () => {
-    // The hook already saves on change, but we can add a toast for user feedback
     toast({
       title: 'Parameters Saved',
       description: 'Your credit scoring parameters have been updated.',
@@ -101,16 +112,18 @@ export default function ScoringEnginePage() {
              {parameters.genderImpact.enabled && (
               <>
                 <Separator />
-                <GenderImpactInput
-                    label="Male Impact"
-                    value={parameters.genderImpact.male}
-                    onValueChange={(e) => setGenderImpact('male', parseFloat(e.target.value) || 0)}
-                />
-                <GenderImpactInput
-                    label="Female Impact"
-                    value={parameters.genderImpact.female}
-                    onValueChange={(e) => setGenderImpact('female', parseFloat(e.target.value) || 0)}
-                />
+                <div className="pt-4 space-y-4">
+                    <GenderImpactInput
+                        label="Male Impact"
+                        value={parameters.genderImpact.male}
+                        onValueChange={(e) => setGenderImpact('male', parseFloat(e.target.value) || 0)}
+                    />
+                    <GenderImpactInput
+                        label="Female Impact"
+                        value={parameters.genderImpact.female}
+                        onValueChange={(e) => setGenderImpact('female', parseFloat(e.target.value) || 0)}
+                    />
+                </div>
               </>
             )}
           </CardContent>
@@ -122,26 +135,21 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for financial and loan history.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <ParameterSlider
-              label="Transaction History (Total)"
-              value={parameters.weights.transactionHistoryTotal}
-              onValueChange={(v) => updateParameter('transactionHistoryTotal', v[0])}
-            />
-            <ParameterSlider
-              label="Transaction History (by Product)"
-              value={parameters.weights.transactionHistoryByProduct}
-              onValueChange={(v) => updateParameter('transactionHistoryByProduct', v[0])}
-            />
-            <ParameterSlider
-              label="Loan History (Count)"
-              value={parameters.weights.loanHistoryCount}
-              onValueChange={(v) => updateParameter('loanHistoryCount', v[0])}
-            />
-             <ParameterSlider
-              label="On-Time Repayments"
-              value={parameters.weights.onTimeRepayments}
-              onValueChange={(v) => updateParameter('onTimeRepayments', v[0])}
-            />
+             {Object.entries(parameters.weights).filter(([key]) => ['transactionHistoryTotal', 'transactionHistoryByProduct', 'loanHistoryCount', 'onTimeRepayments'].includes(key)).map(([key, param]) => (
+                <div key={key}>
+                    <ParameterToggle
+                        label={key}
+                        isChecked={param.enabled}
+                        onCheckedChange={() => toggleParameterEnabled('weights', key as keyof ScoringParameters['weights'])}
+                    />
+                    <ParameterSlider
+                      label="Weight"
+                      value={param.value}
+                      onValueChange={(v) => updateParameter(key as keyof ScoringParameters['weights'], v[0])}
+                      isEnabled={param.enabled}
+                    />
+                </div>
+             ))}
           </CardContent>
         </Card>
 
@@ -151,41 +159,61 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for employment and salary information.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <ParameterSlider
-              label="Salary"
-              value={parameters.weights.salary}
-              onValueChange={(v) => updateParameter('salary', v[0])}
-            />
-             <div className="space-y-2">
-                <Label>Occupation Risk Levels</Label>
-                 <div className="flex space-x-2">
-                    <Input 
-                        value={newOccupation}
-                        onChange={(e) => setNewOccupation(e.target.value)}
-                        placeholder="e.g., Engineer"
-                    />
-                    <Button onClick={handleAddOccupation}>Add</Button>
-                </div>
-                <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
-                    {Object.entries(parameters.occupationRisk).map(([occupation, risk]) => (
-                        <div key={occupation} className="flex items-center justify-between space-x-2">
-                            <span className="capitalize text-sm flex-1">{occupation}</span>
-                             <Select value={risk} onValueChange={(v) => setOccupationRisk(occupation, v as 'Low' | 'Medium' | 'High')}>
-                                <SelectTrigger className="w-[120px]">
-                                    <SelectValue placeholder="Risk" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Low">Low</SelectItem>
-                                    <SelectItem value="Medium">Medium</SelectItem>
-                                    <SelectItem value="High">High</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeOccupation(occupation)}>
-                                &times;
-                            </Button>
+             <div>
+                <ParameterToggle
+                    label="Salary"
+                    isChecked={parameters.weights.salary.enabled}
+                    onCheckedChange={() => toggleParameterEnabled('weights', 'salary')}
+                />
+                <ParameterSlider
+                  label="Weight"
+                  value={parameters.weights.salary.value}
+                  onValueChange={(v) => updateParameter('salary', v[0])}
+                  isEnabled={parameters.weights.salary.enabled}
+                />
+            </div>
+
+            <Separator/>
+            
+            <div>
+                 <ParameterToggle
+                    label="Occupation Risk"
+                    isChecked={parameters.occupationRisk.enabled}
+                    onCheckedChange={() => toggleParameterEnabled('occupationRisk', 'values')}
+                />
+                {parameters.occupationRisk.enabled && (
+                    <div className="space-y-2 pt-4">
+                        <Label>Occupation Risk Levels</Label>
+                         <div className="flex space-x-2">
+                            <Input 
+                                value={newOccupation}
+                                onChange={(e) => setNewOccupation(e.target.value)}
+                                placeholder="e.g., Engineer"
+                            />
+                            <Button onClick={handleAddOccupation}>Add</Button>
                         </div>
-                    ))}
-                </div>
+                        <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
+                            {Object.entries(parameters.occupationRisk.values).map(([occupation, risk]) => (
+                                <div key={occupation} className="flex items-center justify-between space-x-2">
+                                    <span className="capitalize text-sm flex-1">{occupation}</span>
+                                     <Select value={risk} onValueChange={(v) => setOccupationRisk(occupation, v as 'Low' | 'Medium' | 'High')}>
+                                        <SelectTrigger className="w-[120px]">
+                                            <SelectValue placeholder="Risk" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Low">Low</SelectItem>
+                                            <SelectItem value="Medium">Medium</SelectItem>
+                                            <SelectItem value="High">High</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeOccupation(occupation)}>
+                                        &times;
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
           </CardContent>
         </Card>

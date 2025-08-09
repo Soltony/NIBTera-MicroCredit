@@ -8,27 +8,30 @@ export type GenderImpact = number;
 
 export interface ScoringParameters {
   weights: {
-    transactionHistoryTotal: number;
-    transactionHistoryByProduct: number;
-    loanHistoryCount: number;
-    onTimeRepayments: number;
-    salary: number;
+    transactionHistoryTotal: { enabled: boolean; value: number };
+    transactionHistoryByProduct: { enabled: boolean; value: number };
+    loanHistoryCount: { enabled: boolean; value: number };
+    onTimeRepayments: { enabled: boolean; value: number };
+    salary: { enabled: boolean; value: number };
   };
   genderImpact: {
     enabled: boolean;
     male: GenderImpact;
     female: GenderImpact;
   };
-  occupationRisk: Record<string, 'Low' | 'Medium' | 'High'>;
+  occupationRisk: {
+    enabled: boolean;
+    values: Record<string, 'Low' | 'Medium' | 'High'>;
+  };
 }
 
 const DEFAULT_PARAMETERS: ScoringParameters = {
   weights: {
-    transactionHistoryTotal: 25,
-    transactionHistoryByProduct: 20,
-    loanHistoryCount: 20,
-    onTimeRepayments: 25,
-    salary: 10,
+    transactionHistoryTotal: { enabled: true, value: 25 },
+    transactionHistoryByProduct: { enabled: true, value: 20 },
+    loanHistoryCount: { enabled: true, value: 20 },
+    onTimeRepayments: { enabled: true, value: 25 },
+    salary: { enabled: true, value: 10 },
   },
   genderImpact: {
     enabled: false,
@@ -36,42 +39,71 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
     female: 0,
   },
   occupationRisk: {
-    'doctor': 'Low',
-    'engineer': 'Low',
-    'teacher': 'Low',
-    'artist': 'Medium',
-    'freelancer': 'Medium',
-    'unemployed': 'High',
+    enabled: true,
+    values: {
+        'doctor': 'Low',
+        'engineer': 'Low',
+        'teacher': 'Low',
+        'artist': 'Medium',
+        'freelancer': 'Medium',
+        'unemployed': 'High',
+    },
   },
 };
 
 const STORAGE_KEY = 'scoringParameters';
 
-// Helper for migrating old data structure
 const migrateParameters = (data: any): ScoringParameters => {
-    // Check for old structure without 'enabled' flag
-    if (data.genderImpact && typeof data.genderImpact.enabled === 'undefined') {
-        return {
-            ...data,
-            genderImpact: {
-                enabled: false, // Default to disabled for old structures
-                male: 0,
-                female: 0,
-            }
-        };
-    }
-    // Check for even older structure where impact was a string
-    if (data.genderImpact && typeof data.genderImpact.male === 'string') {
-        return {
-             ...data,
-            genderImpact: {
-                enabled: data.genderImpact.enabled,
-                male: 0,
-                female: 0,
+    let migratedData = produce(DEFAULT_PARAMETERS, draft => {
+        if (typeof data !== 'object' || data === null) return;
+
+        // Migrate weights
+        if (data.weights) {
+            for (const key in draft.weights) {
+                const typedKey = key as keyof typeof draft.weights;
+                if (typeof data.weights[key] === 'number') {
+                    // Old format: weights: { transactionHistoryTotal: 25 }
+                    draft.weights[typedKey] = { enabled: true, value: data.weights[key] };
+                } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
+                    // New format might be present, merge it
+                    Object.assign(draft.weights[typedKey], data.weights[key]);
+                }
             }
         }
+
+        // Migrate genderImpact
+        if (data.genderImpact) {
+            if (typeof data.genderImpact.enabled === 'boolean') {
+                 draft.genderImpact.enabled = data.genderImpact.enabled;
+            }
+             if (typeof data.genderImpact.male === 'number') {
+                 draft.genderImpact.male = data.genderImpact.male;
+            }
+             if (typeof data.genderImpact.female === 'number') {
+                 draft.genderImpact.female = data.genderImpact.female;
+            }
+        }
+        
+        // Migrate occupationRisk
+        if (data.occupationRisk) {
+             if (typeof data.occupationRisk.enabled === 'boolean') {
+                draft.occupationRisk.enabled = data.occupationRisk.enabled;
+            }
+            if (typeof data.occupationRisk.values === 'object') {
+                draft.occupationRisk.values = data.occupationRisk.values;
+            } else if (typeof data.occupationRisk === 'object' && typeof data.occupationRisk.enabled === 'undefined') {
+                // Oldest format: occupationRisk: { 'doctor': 'Low' }
+                draft.occupationRisk.values = data.occupationRisk;
+            }
+        }
+    });
+    
+    // Final check for very old `age` property
+    if (migratedData?.weights?.['age' as any]) {
+        delete migratedData.weights['age' as any];
     }
-    return data;
+    
+    return migratedData;
 }
 
 
@@ -83,9 +115,6 @@ export function useScoringParameters() {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
         const parsed = JSON.parse(item);
-        if (parsed?.weights?.age) {
-            delete parsed.weights.age;
-        }
         const migrated = migrateParameters(parsed);
         setParameters(migrated);
       } else {
@@ -109,10 +138,23 @@ export function useScoringParameters() {
 
   const updateParameter = useCallback((key: keyof ScoringParameters['weights'], value: number) => {
     const updated = produce(parameters, draft => {
-        draft.weights[key as keyof typeof draft.weights] = value;
+        draft.weights[key as keyof typeof draft.weights].value = value;
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
+
+  const toggleParameterEnabled = useCallback((type: 'weights' | 'occupationRisk', key: keyof ScoringParameters['weights'] | 'values') => {
+      const updated = produce(parameters, draft => {
+          if (type === 'weights') {
+              const weightKey = key as keyof ScoringParameters['weights'];
+              draft.weights[weightKey].enabled = !draft.weights[weightKey].enabled;
+          } else if (type === 'occupationRisk') {
+              draft.occupationRisk.enabled = !draft.occupationRisk.enabled;
+          }
+      });
+      saveParameters(updated);
+  }, [parameters, saveParameters]);
+
 
   const setGenderImpactEnabled = useCallback((enabled: boolean) => {
       const updated = produce(parameters, draft => {
@@ -131,15 +173,15 @@ export function useScoringParameters() {
 
   const setOccupationRisk = useCallback((occupation: string, risk: 'Low' | 'Medium' | 'High') => {
       const updated = produce(parameters, draft => {
-          draft.occupationRisk[occupation] = risk;
+          draft.occupationRisk.values[occupation] = risk;
       });
       saveParameters(updated);
   }, [parameters, saveParameters]);
 
   const addOccupation = useCallback((occupation: string) => {
     const updated = produce(parameters, draft => {
-      if (!draft.occupationRisk[occupation]) {
-        draft.occupationRisk[occupation] = 'Medium';
+      if (!draft.occupationRisk.values[occupation]) {
+        draft.occupationRisk.values[occupation] = 'Medium';
       }
     });
     saveParameters(updated);
@@ -147,7 +189,7 @@ export function useScoringParameters() {
   
   const removeOccupation = useCallback((occupation: string) => {
     const updated = produce(parameters, draft => {
-      delete draft.occupationRisk[occupation];
+      delete draft.occupationRisk.values[occupation];
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
@@ -156,5 +198,5 @@ export function useScoringParameters() {
     saveParameters(DEFAULT_PARAMETERS);
   }, [saveParameters]);
 
-  return { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters };
+  return { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled };
 }
