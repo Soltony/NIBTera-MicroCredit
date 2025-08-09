@@ -122,6 +122,20 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for user demographic data.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div>
+                <ParameterToggle
+                    label="Age"
+                    isChecked={parameters.weights.age.enabled}
+                    onCheckedChange={() => toggleParameterEnabled('weights', 'age')}
+                />
+                <ParameterSlider
+                  label="Weight"
+                  value={parameters.weights.age.value}
+                  onValueChange={(v) => updateParameter('age', v[0])}
+                  isEnabled={parameters.weights.age.enabled}
+                />
+            </div>
+            <Separator />
             <div className="flex items-center justify-between space-x-2">
               <Label htmlFor="gender-factor-switch" className="font-medium">Factor in Gender</Label>
               <Switch

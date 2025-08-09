@@ -8,6 +8,7 @@ export type GenderImpact = number;
 
 export interface ScoringParameters {
   weights: {
+    age: { enabled: boolean; value: number };
     transactionHistoryTotal: { enabled: boolean; value: number };
     transactionHistoryByProduct: { enabled: boolean; value: number };
     loanHistoryCount: { enabled: boolean; value: number };
@@ -27,8 +28,9 @@ export interface ScoringParameters {
 
 const DEFAULT_PARAMETERS: ScoringParameters = {
   weights: {
-    transactionHistoryTotal: { enabled: true, value: 25 },
-    transactionHistoryByProduct: { enabled: true, value: 20 },
+    age: { enabled: true, value: 10 },
+    transactionHistoryTotal: { enabled: true, value: 20 },
+    transactionHistoryByProduct: { enabled: true, value: 15 },
     loanHistoryCount: { enabled: true, value: 20 },
     onTimeRepayments: { enabled: true, value: 25 },
     salary: { enabled: true, value: 10 },
@@ -61,12 +63,14 @@ const migrateParameters = (data: any): ScoringParameters => {
         if (data.weights) {
             for (const key in draft.weights) {
                 const typedKey = key as keyof typeof draft.weights;
-                if (typeof data.weights[key] === 'number') {
-                    // Old format: weights: { transactionHistoryTotal: 25 }
-                    draft.weights[typedKey] = { enabled: true, value: data.weights[key] };
-                } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
-                    // New format might be present, merge it
-                    Object.assign(draft.weights[typedKey], data.weights[key]);
+                if (data.weights[key] !== undefined) {
+                    if (typeof data.weights[key] === 'number') {
+                        // Old format: weights: { transactionHistoryTotal: 25 }
+                        draft.weights[typedKey] = { enabled: true, value: data.weights[key] };
+                    } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
+                        // New format might be present, merge it
+                        Object.assign(draft.weights[typedKey], data.weights[key]);
+                    }
                 }
             }
         }
@@ -97,11 +101,6 @@ const migrateParameters = (data: any): ScoringParameters => {
             }
         }
     });
-    
-    // Final check for very old `age` property
-    if (migratedData?.weights?.['age' as any]) {
-        delete migratedData.weights['age' as any];
-    }
     
     return migratedData;
 }
