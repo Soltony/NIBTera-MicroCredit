@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -13,11 +13,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useScoringParameters } from '@/hooks/use-scoring-parameters';
+import { useScoringParameters, type ScoringParameters } from '@/hooks/use-scoring-parameters';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <div className="flex items-center justify-between space-x-2 pb-4 border-b">
@@ -67,7 +68,21 @@ export default function ScoringEnginePage() {
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
 
+  const totalWeight = useMemo(() => {
+    return Object.values(parameters.weights).reduce((sum, param) => {
+        return param.enabled ? sum + param.value : sum;
+    }, 0);
+  }, [parameters.weights]);
+
   const handleSave = () => {
+    if (totalWeight !== 100) {
+        toast({
+            title: 'Invalid Configuration',
+            description: 'The total weight of all enabled parameters must be exactly 100%.',
+            variant: 'destructive',
+        });
+        return;
+    }
     toast({
       title: 'Parameters Saved',
       description: 'Your credit scoring parameters have been updated.',
@@ -86,8 +101,14 @@ export default function ScoringEnginePage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
         <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 mr-4">
+                <span className="text-sm font-medium">Total Weight:</span>
+                <span className={cn("text-lg font-bold", totalWeight === 100 ? 'text-green-600' : 'text-red-600')}>
+                    {totalWeight}%
+                </span>
+            </div>
             <Button variant="outline" onClick={resetParameters}>Reset to Defaults</Button>
-            <Button onClick={handleSave}>Save Configuration</Button>
+            <Button onClick={handleSave} disabled={totalWeight !== 100}>Save Configuration</Button>
         </div>
       </div>
       <p className="text-muted-foreground">
