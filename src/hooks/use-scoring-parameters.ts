@@ -15,6 +15,7 @@ export interface ScoringParameters {
     salary: number;
   };
   genderImpact: {
+    enabled: boolean;
     male: GenderImpact;
     female: GenderImpact;
   };
@@ -30,6 +31,7 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
     salary: 10,
   },
   genderImpact: {
+    enabled: false,
     male: 'no_impact',
     female: 'no_impact',
   },
@@ -47,10 +49,23 @@ const STORAGE_KEY = 'scoringParameters';
 
 // Helper for migrating old data structure
 const migrateParameters = (data: any): ScoringParameters => {
+    // Check for old structure without 'enabled' flag
+    if (data.genderImpact && typeof data.genderImpact.enabled === 'undefined') {
+        return {
+            ...data,
+            genderImpact: {
+                enabled: false, // Default to disabled for old structures
+                male: data.genderImpact.male || 'no_impact',
+                female: data.genderImpact.female || 'no_impact',
+            }
+        };
+    }
+    // Check for even older structure
     if (typeof data.genderImpact === 'string') {
         return {
             ...data,
             genderImpact: {
+                enabled: false,
                 male: 'no_impact',
                 female: 'no_impact',
             }
@@ -99,6 +114,13 @@ export function useScoringParameters() {
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
+  const setGenderImpactEnabled = useCallback((enabled: boolean) => {
+      const updated = produce(parameters, draft => {
+          draft.genderImpact.enabled = enabled;
+      });
+      saveParameters(updated);
+  }, [parameters, saveParameters]);
+
   const setGenderImpact = useCallback((gender: 'male' | 'female', value: GenderImpact) => {
     const updated = produce(parameters, draft => {
         draft.genderImpact[gender] = value;
@@ -134,5 +156,5 @@ export function useScoringParameters() {
     saveParameters(DEFAULT_PARAMETERS);
   }, [saveParameters]);
 
-  return { parameters, updateParameter, setGenderImpact, setOccupationRisk, addOccupation, removeOccupation, resetParameters };
+  return { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters };
 }

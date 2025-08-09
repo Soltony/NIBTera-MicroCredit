@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useScoringParameters, type GenderImpact } from '@/hooks/use-scoring-parameters';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 
 const ParameterSlider = ({ label, value, onValueChange }: { label: string; value: number; onValueChange: (value: number[]) => void; }) => {
   return (
@@ -55,7 +57,7 @@ const GenderImpactSelector = ({ label, value, onValueChange }: { label: string; 
 }
 
 export default function ScoringEnginePage() {
-  const { parameters, updateParameter, setGenderImpact, setOccupationRisk, addOccupation, removeOccupation, resetParameters } = useScoringParameters();
+  const { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
 
@@ -94,16 +96,29 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for user demographic data.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <GenderImpactSelector
-                label="Male Impact"
-                value={parameters.genderImpact.male}
-                onValueChange={(v) => setGenderImpact('male', v)}
-            />
-             <GenderImpactSelector
-                label="Female Impact"
-                value={parameters.genderImpact.female}
-                onValueChange={(v) => setGenderImpact('female', v)}
-            />
+            <div className="flex items-center justify-between space-x-2">
+              <Label htmlFor="gender-factor-switch" className="font-medium">Factor in Gender</Label>
+              <Switch
+                id="gender-factor-switch"
+                checked={parameters.genderImpact.enabled}
+                onCheckedChange={setGenderImpactEnabled}
+              />
+            </div>
+             {parameters.genderImpact.enabled && (
+              <>
+                <Separator />
+                <GenderImpactSelector
+                    label="Male Impact"
+                    value={parameters.genderImpact.male}
+                    onValueChange={(v) => setGenderImpact('male', v)}
+                />
+                <GenderImpactSelector
+                    label="Female Impact"
+                    value={parameters.genderImpact.female}
+                    onValueChange={(v) => setGenderImpact('female', v)}
+                />
+              </>
+            )}
           </CardContent>
         </Card>
 
