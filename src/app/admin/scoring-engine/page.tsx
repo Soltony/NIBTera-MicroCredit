@@ -26,18 +26,19 @@ import type { LoanProduct } from '@/lib/types';
 import { useTransactionProducts } from '@/hooks/use-transaction-products';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
+const ParameterToggle = ({ label, isChecked, onCheckedChange, color }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void, color?: string }) => (
     <div className="flex items-center justify-between space-x-2 pb-4 border-b">
         <Label htmlFor={`${label}-switch`} className="font-medium capitalize">{label.replace(/([A-Z])/g, ' $1')}</Label>
         <Switch
             id={`${label}-switch`}
             checked={isChecked}
             onCheckedChange={onCheckedChange}
+            style={{'--primary': color} as React.CSSProperties}
         />
     </div>
 );
 
-const ParameterSlider = ({ label, value, onValueChange, isEnabled }: { label: string; value: number; onValueChange: (value: number[]) => void; isEnabled: boolean; }) => {
+const ParameterSlider = ({ label, value, onValueChange, isEnabled, color }: { label: string; value: number; onValueChange: (value: number[]) => void; isEnabled: boolean; color?: string; }) => {
   if (!isEnabled) return null;
   return (
     <div className="space-y-2 pt-4">
@@ -50,6 +51,7 @@ const ParameterSlider = ({ label, value, onValueChange, isEnabled }: { label: st
         onValueChange={onValueChange}
         max={100}
         step={1}
+        style={{'--primary': color} as React.CSSProperties}
       />
     </div>
   );
@@ -79,6 +81,8 @@ export default function ScoringEnginePage() {
 
   const currentParameters = useMemo(() => getParametersForProvider(selectedProviderId), [getParametersForProvider, selectedProviderId]);
   const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
+  const themeColor = selectedProvider?.colorHex || '#fdb913';
+
 
   const totalWeight = useMemo(() => {
     if (!currentParameters) return 0;
@@ -151,7 +155,7 @@ export default function ScoringEnginePage() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
+    <div className="flex-1 space-y-4 p-8 pt-6" style={{'--primary': themeColor} as React.CSSProperties}>
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
         <div className="flex items-center space-x-2">
@@ -162,7 +166,7 @@ export default function ScoringEnginePage() {
                 </span>
             </div>
             <Button variant="outline" onClick={() => resetParameters(selectedProviderId)}>Reset to Defaults</Button>
-            <Button onClick={handleSave} disabled={totalWeight !== 100}>Save Configuration</Button>
+            <Button onClick={handleSave} disabled={totalWeight !== 100} style={{backgroundColor: themeColor}} className="text-white">Save Configuration</Button>
         </div>
       </div>
 
@@ -198,6 +202,7 @@ export default function ScoringEnginePage() {
                             id={`product-${product.id}`}
                             checked={currentParameters.productIds?.includes(product.id)}
                             onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
+                            style={{'--primary': themeColor} as React.CSSProperties}
                         />
                         <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
                     </div>
@@ -218,12 +223,14 @@ export default function ScoringEnginePage() {
                     label="Age"
                     isChecked={currentParameters.weights.age.enabled}
                     onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'age')}
+                    color={themeColor}
                 />
                 <ParameterSlider
                   label="Weight"
                   value={currentParameters.weights.age.value}
                   onValueChange={(v) => updateParameter(selectedProviderId, 'age', v[0])}
                   isEnabled={currentParameters.weights.age.enabled}
+                  color={themeColor}
                 />
             </div>
             <Separator />
@@ -233,6 +240,7 @@ export default function ScoringEnginePage() {
                 id="gender-factor-switch"
                 checked={currentParameters.genderImpact.enabled}
                 onCheckedChange={(checked) => setGenderImpactEnabled(selectedProviderId, checked)}
+                style={{'--primary': themeColor} as React.CSSProperties}
               />
             </div>
              {currentParameters.genderImpact.enabled && (
@@ -266,12 +274,14 @@ export default function ScoringEnginePage() {
                     label="Transaction History Total"
                     isChecked={currentParameters.weights.transactionHistoryTotal.enabled}
                     onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'transactionHistoryTotal')}
+                    color={themeColor}
                 />
                 <ParameterSlider
                   label="Weight"
                   value={currentParameters.weights.transactionHistoryTotal.value}
                   onValueChange={(v) => updateParameter(selectedProviderId, 'transactionHistoryTotal', v[0])}
                   isEnabled={currentParameters.weights.transactionHistoryTotal.enabled}
+                  color={themeColor}
                 />
             </div>
             <Separator/>
@@ -280,6 +290,7 @@ export default function ScoringEnginePage() {
                     label="Transaction History By Product"
                     isChecked={currentParameters.weights.transactionHistoryByProduct.enabled}
                     onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'transactionHistoryByProduct')}
+                    color={themeColor}
                 />
                 {currentParameters.weights.transactionHistoryByProduct.enabled && (
                     <div className="space-y-2 pt-4">
@@ -316,7 +327,7 @@ export default function ScoringEnginePage() {
                             </Table>
                         </Card>
                         <p className="text-xs text-muted-foreground pt-2">
-                           Transaction products are defined on the <a href="/admin/settings" className="underline">Settings</a> page.
+                           Transaction products are defined on the <a href="/admin/settings" className="underline" style={{color: themeColor}}>Settings</a> page.
                         </p>
                     </div>
                 )}
@@ -336,12 +347,14 @@ export default function ScoringEnginePage() {
                         label={key}
                         isChecked={param.enabled}
                         onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', key as keyof ScoringParameters['weights'])}
+                        color={themeColor}
                     />
                     <ParameterSlider
                       label="Weight"
                       value={param.value}
                       onValueChange={(v) => updateParameter(selectedProviderId, key as keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, v[0])}
                       isEnabled={param.enabled}
+                      color={themeColor}
                     />
                 </div>
              ))}
@@ -359,12 +372,14 @@ export default function ScoringEnginePage() {
                     label="Salary"
                     isChecked={currentParameters.weights.salary.enabled}
                     onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'salary')}
+                    color={themeColor}
                 />
                 <ParameterSlider
                   label="Weight"
                   value={currentParameters.weights.salary.value}
                   onValueChange={(v) => updateParameter(selectedProviderId, 'salary', v[0])}
                   isEnabled={currentParameters.weights.salary.enabled}
+                  color={themeColor}
                 />
             </div>
 
@@ -375,6 +390,7 @@ export default function ScoringEnginePage() {
                     label="Occupation Risk"
                     isChecked={currentParameters.occupationRisk.enabled}
                     onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'occupationRisk', 'values')}
+                    color={themeColor}
                 />
                 {currentParameters.occupationRisk.enabled && (
                     <div className="space-y-2 pt-4">
@@ -385,7 +401,7 @@ export default function ScoringEnginePage() {
                                 onChange={(e) => setNewOccupation(e.target.value)}
                                 placeholder="e.g., Engineer"
                             />
-                            <Button onClick={handleAddOccupation}>Add</Button>
+                            <Button onClick={handleAddOccupation} style={{backgroundColor: themeColor}} className="text-white">Add</Button>
                         </div>
                         <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
                             {Object.entries(currentParameters.occupationRisk.values).map(([occupation, risk]) => (
