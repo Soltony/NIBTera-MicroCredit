@@ -33,7 +33,8 @@ const ParameterToggle = ({ label, isChecked, onCheckedChange, color }: { label: 
             id={`${label}-switch`}
             checked={isChecked}
             onCheckedChange={onCheckedChange}
-            style={{'--primary': color} as React.CSSProperties}
+            style={{'--primary-hsl': color} as React.CSSProperties}
+            className="data-[state=checked]:bg-[--primary-hsl]"
         />
     </div>
 );
@@ -51,7 +52,8 @@ const ParameterSlider = ({ label, value, onValueChange, isEnabled, color }: { la
         onValueChange={onValueChange}
         max={100}
         step={1}
-        style={{'--primary': color} as React.CSSProperties}
+        style={{'--primary-hsl': color} as React.CSSProperties}
+        className="[&>span:first-child]:bg-[--primary-hsl] [&>span:last-child]:border-[--primary-hsl]"
       />
     </div>
   );
@@ -202,7 +204,8 @@ export default function ScoringEnginePage() {
                             id={`product-${product.id}`}
                             checked={currentParameters.productIds?.includes(product.id)}
                             onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
-                            style={{'--primary': themeColor} as React.CSSProperties}
+                            style={{'--primary-hsl': themeColor} as React.CSSProperties}
+                            className="border-[--primary-hsl] data-[state=checked]:bg-[--primary-hsl]"
                         />
                         <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
                     </div>
@@ -240,7 +243,8 @@ export default function ScoringEnginePage() {
                 id="gender-factor-switch"
                 checked={currentParameters.genderImpact.enabled}
                 onCheckedChange={(checked) => setGenderImpactEnabled(selectedProviderId, checked)}
-                style={{'--primary': themeColor} as React.CSSProperties}
+                style={{'--primary-hsl': themeColor} as React.CSSProperties}
+                className="data-[state=checked]:bg-[--primary-hsl]"
               />
             </div>
              {currentParameters.genderImpact.enabled && (
