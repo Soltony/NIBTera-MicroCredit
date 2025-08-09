@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { produce } from 'immer';
+import { deepClone } from 'fast-json-patch';
 
 export type GenderImpact = number;
 
@@ -62,13 +63,17 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
   },
 };
 
-const STORAGE_KEY = 'scoringParameters';
+const STORAGE_KEY = 'scoringParametersByProvider';
+
+type AllScoringParameters = Record<string, ScoringParameters>;
+
 
 const migrateParameters = (data: any): ScoringParameters => {
-    return produce(DEFAULT_PARAMETERS, draft => {
+    const newDefault = deepClone(DEFAULT_PARAMETERS);
+    return produce(newDefault, draft => {
         if (typeof data !== 'object' || data === null) return;
 
-        // Migrate weights
+        // This function now migrates a SINGLE parameter object
         if (data.weights) {
             for (const key in draft.weights) {
                 const typedKey = key as keyof typeof draft.weights;
@@ -81,38 +86,22 @@ const migrateParameters = (data: any): ScoringParameters => {
                             }
                         }
                     } else if (typeof data.weights[key] === 'number') {
-                        // Old format: weights: { transactionHistoryTotal: 25 }
                         (draft.weights[typedKey] as any) = { enabled: true, value: data.weights[key] };
                     } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
-                        // New format might be present, merge it
                         Object.assign(draft.weights[typedKey], data.weights[key]);
                     }
                 }
             }
         }
-
-        // Migrate genderImpact
         if (data.genderImpact) {
-            if (typeof data.genderImpact.enabled === 'boolean') {
-                 draft.genderImpact.enabled = data.genderImpact.enabled;
-            }
-             if (typeof data.genderImpact.male === 'number') {
-                 draft.genderImpact.male = data.genderImpact.male;
-            }
-             if (typeof data.genderImpact.female === 'number') {
-                 draft.genderImpact.female = data.genderImpact.female;
-            }
+             if (typeof data.genderImpact.enabled === 'boolean') draft.genderImpact.enabled = data.genderImpact.enabled;
+             if (typeof data.genderImpact.male === 'number') draft.genderImpact.male = data.genderImpact.male;
+             if (typeof data.genderImpact.female === 'number') draft.genderImpact.female = data.genderImpact.female;
         }
-        
-        // Migrate occupationRisk
         if (data.occupationRisk) {
-             if (typeof data.occupationRisk.enabled === 'boolean') {
-                draft.occupationRisk.enabled = data.occupationRisk.enabled;
-            }
-            if (typeof data.occupationRisk.values === 'object') {
-                draft.occupationRisk.values = data.occupationRisk.values;
-            } else if (typeof data.occupationRisk === 'object' && typeof data.occupationRisk.enabled === 'undefined') {
-                // Oldest format: occupationRisk: { 'doctor': 'Low' }
+             if (typeof data.occupationRisk.enabled === 'boolean') draft.occupationRisk.enabled = data.occupationRisk.enabled;
+             if (typeof data.occupationRisk.values === 'object') draft.occupationRisk.values = data.occupationRisk.values;
+             else if (typeof data.occupationRisk === 'object' && typeof data.occupationRisk.enabled === 'undefined') {
                 draft.occupationRisk.values = data.occupationRisk;
             }
         }
@@ -121,26 +110,35 @@ const migrateParameters = (data: any): ScoringParameters => {
 
 
 export function useScoringParameters() {
-  const [parameters, setParameters] = useState<ScoringParameters>(DEFAULT_PARAMETERS);
+  const [parameters, setParameters] = useState<AllScoringParameters>({});
 
   useEffect(() => {
     try {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
-        const parsed = JSON.parse(item);
-        const migrated = migrateParameters(parsed);
-        setParameters(migrated);
+        setParameters(JSON.parse(item));
       } else {
-        setParameters(DEFAULT_PARAMETERS);
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PARAMETERS));
+         // Migration from old single-object storage
+        const oldItem = window.localStorage.getItem('scoringParameters');
+        if (oldItem) {
+            const parsedOld = JSON.parse(oldItem);
+            const migrated = migrateParameters(parsedOld);
+            // Assume migration applies to a default provider, or handle more gracefully
+            const initialData = { 'provider-3': migrated }; // Defaulting to NIb Bank
+            setParameters(initialData);
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
+            window.localStorage.removeItem('scoringParameters'); // Clean up old key
+        } else {
+            setParameters({});
+        }
       }
     } catch (error) {
       console.warn(`Error reading localStorage key “${STORAGE_KEY}”:`, error);
-      setParameters(DEFAULT_PARAMETERS);
+      setParameters({});
     }
   }, []);
 
-  const saveParameters = useCallback((updatedParameters: ScoringParameters) => {
+  const saveParameters = useCallback((updatedParameters: AllScoringParameters) => {
     setParameters(updatedParameters);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedParameters));
@@ -149,90 +147,111 @@ export function useScoringParameters() {
     }
   }, []);
 
-  const updateParameter = useCallback((key: keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, value: number) => {
+  const getParametersForProvider = useCallback((providerId: string): ScoringParameters => {
+      return parameters[providerId] || deepClone(DEFAULT_PARAMETERS);
+  }, [parameters]);
+  
+  const updateParameter = useCallback((providerId: string, key: keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, value: number) => {
     const updated = produce(parameters, draft => {
-        (draft.weights[key] as { value: number }).value = value;
+        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+        (draft[providerId].weights[key] as { value: number }).value = value;
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const updateProductWeight = useCallback((productName: string, value: number) => {
+  const updateProductWeight = useCallback((providerId: string, productName: string, value: number) => {
     const updated = produce(parameters, draft => {
-        draft.weights.transactionHistoryByProduct.values[productName] = value;
+        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+        draft[providerId].weights.transactionHistoryByProduct.values[productName] = value;
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const addProduct = useCallback((productName: string) => {
+  const addProduct = useCallback((providerId: string, productName: string) => {
     const updated = produce(parameters, draft => {
-        if (!draft.weights.transactionHistoryByProduct.values[productName]) {
-            draft.weights.transactionHistoryByProduct.values[productName] = 0;
+        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+        if (!draft[providerId].weights.transactionHistoryByProduct.values[productName]) {
+            draft[providerId].weights.transactionHistoryByProduct.values[productName] = 0;
         }
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const removeProduct = useCallback((productName: string) => {
+  const removeProduct = useCallback((providerId: string, productName: string) => {
     const updated = produce(parameters, draft => {
-        delete draft.weights.transactionHistoryByProduct.values[productName];
+        if (draft[providerId]) {
+            delete draft[providerId].weights.transactionHistoryByProduct.values[productName];
+        }
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const toggleParameterEnabled = useCallback((type: 'weights' | 'occupationRisk', key: keyof ScoringParameters['weights'] | 'values') => {
+  const toggleParameterEnabled = useCallback((providerId: string, type: 'weights' | 'occupationRisk', key: keyof ScoringParameters['weights'] | 'values') => {
       const updated = produce(parameters, draft => {
+          if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
           if (type === 'weights') {
               const weightKey = key as keyof ScoringParameters['weights'];
-              (draft.weights[weightKey] as { enabled: boolean }).enabled = !(draft.weights[weightKey] as { enabled: boolean }).enabled;
+              (draft[providerId].weights[weightKey] as { enabled: boolean }).enabled = !(draft[providerId].weights[weightKey] as { enabled: boolean }).enabled;
           } else if (type === 'occupationRisk') {
-              draft.occupationRisk.enabled = !draft.occupationRisk.enabled;
+              draft[providerId].occupationRisk.enabled = !draft[providerId].occupationRisk.enabled;
           }
       });
       saveParameters(updated);
   }, [parameters, saveParameters]);
 
 
-  const setGenderImpactEnabled = useCallback((enabled: boolean) => {
+  const setGenderImpactEnabled = useCallback((providerId: string, enabled: boolean) => {
       const updated = produce(parameters, draft => {
-          draft.genderImpact.enabled = enabled;
+          if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+          draft[providerId].genderImpact.enabled = enabled;
       });
       saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const setGenderImpact = useCallback((gender: 'male' | 'female', value: GenderImpact) => {
+  const setGenderImpact = useCallback((providerId: string, gender: 'male' | 'female', value: GenderImpact) => {
     const updated = produce(parameters, draft => {
-        draft.genderImpact[gender] = value;
+        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+        draft[providerId].genderImpact[gender] = value;
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
 
-  const setOccupationRisk = useCallback((occupation: string, risk: 'Low' | 'Medium' | 'High') => {
+  const setOccupationRisk = useCallback((providerId: string, occupation: string, risk: 'Low' | 'Medium' | 'High') => {
       const updated = produce(parameters, draft => {
-          draft.occupationRisk.values[occupation] = risk;
+          if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+          draft[providerId].occupationRisk.values[occupation] = risk;
       });
       saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const addOccupation = useCallback((occupation: string) => {
+  const addOccupation = useCallback((providerId: string, occupation: string) => {
     const updated = produce(parameters, draft => {
-      if (!draft.occupationRisk.values[occupation]) {
-        draft.occupationRisk.values[occupation] = 'Medium';
+      if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+      if (!draft[providerId].occupationRisk.values[occupation]) {
+        draft[providerId].occupationRisk.values[occupation] = 'Medium';
       }
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
   
-  const removeOccupation = useCallback((occupation: string) => {
+  const removeOccupation = useCallback((providerId: string, occupation: string) => {
     const updated = produce(parameters, draft => {
-      delete draft.occupationRisk.values[occupation];
+      if (draft[providerId]) {
+        delete draft[providerId].occupationRisk.values[occupation];
+      }
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const resetParameters = useCallback(() => {
-    saveParameters(DEFAULT_PARAMETERS);
-  }, [saveParameters]);
+  const resetParameters = useCallback((providerId: string) => {
+    const updated = produce(parameters, draft => {
+        draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
 
-  return { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct };
+  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct };
 }
+
+    

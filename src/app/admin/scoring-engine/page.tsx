@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <div className="flex items-center justify-between space-x-2 pb-4 border-b">
@@ -64,14 +65,20 @@ const GenderImpactInput = ({ label, value, onValueChange }: { label: string; val
 }
 
 export default function ScoringEnginePage() {
-  const { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct } = useScoringParameters();
+  const { providers } = useLoanProviders();
+  const [selectedProviderId, setSelectedProviderId] = useState<string>(providers[0]?.id || '');
+  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
   const [newProduct, setNewProduct] = React.useState('');
 
+  const currentParameters = useMemo(() => getParametersForProvider(selectedProviderId), [getParametersForProvider, selectedProviderId]);
+
   const totalWeight = useMemo(() => {
+    if (!currentParameters) return 0;
+    
     let sum = 0;
-    const { weights } = parameters;
+    const { weights } = currentParameters;
 
     Object.keys(weights).forEach(key => {
         const paramKey = key as keyof typeof weights;
@@ -87,7 +94,7 @@ export default function ScoringEnginePage() {
     });
 
     return sum;
-  }, [parameters.weights]);
+  }, [currentParameters]);
 
 
   const handleSave = () => {
@@ -99,24 +106,44 @@ export default function ScoringEnginePage() {
         });
         return;
     }
+    // Note: The hook already saves on every change, so this is just for validation feedback.
     toast({
       title: 'Parameters Saved',
-      description: 'Your credit scoring parameters have been updated.',
+      description: `Credit scoring parameters for ${providers.find(p => p.id === selectedProviderId)?.name} have been updated.`,
     });
   };
 
   const handleAddOccupation = () => {
     if (newOccupation.trim()) {
-      addOccupation(newOccupation.trim());
+      addOccupation(selectedProviderId, newOccupation.trim());
       setNewOccupation('');
     }
   };
 
   const handleAddProduct = () => {
     if (newProduct.trim()) {
-        addProduct(newProduct.trim());
+        addProduct(selectedProviderId, newProduct.trim());
         setNewProduct('');
     }
+  }
+  
+  if (!selectedProviderId || !currentParameters) {
+    return (
+        <div className="flex-1 space-y-4 p-8 pt-6">
+             <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
+             <p className="text-muted-foreground">Select a provider to configure their scoring parameters.</p>
+             <Select onValueChange={setSelectedProviderId} value={selectedProviderId}>
+                <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Select a provider" />
+                </SelectTrigger>
+                <SelectContent>
+                    {providers.map(provider => (
+                        <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    )
   }
 
   return (
@@ -130,13 +157,29 @@ export default function ScoringEnginePage() {
                     {totalWeight}%
                 </span>
             </div>
-            <Button variant="outline" onClick={resetParameters}>Reset to Defaults</Button>
+            <Button variant="outline" onClick={() => resetParameters(selectedProviderId)}>Reset to Defaults</Button>
             <Button onClick={handleSave} disabled={totalWeight !== 100}>Save Configuration</Button>
         </div>
       </div>
-      <p className="text-muted-foreground">
-        Configure the parameters and weights used to calculate customer credit scores. The total of all weights should ideally be 100%.
-      </p>
+
+       <div className="flex justify-between items-center">
+        <p className="text-muted-foreground">
+            Configure the parameters and weights used to calculate customer credit scores.
+        </p>
+        <div>
+             <Label>Provider</Label>
+             <Select onValueChange={setSelectedProviderId} value={selectedProviderId}>
+                <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Select a provider" />
+                </SelectTrigger>
+                <SelectContent>
+                    {providers.map(provider => (
+                        <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
         <Card>
@@ -148,14 +191,14 @@ export default function ScoringEnginePage() {
             <div>
                 <ParameterToggle
                     label="Age"
-                    isChecked={parameters.weights.age.enabled}
-                    onCheckedChange={() => toggleParameterEnabled('weights', 'age')}
+                    isChecked={currentParameters.weights.age.enabled}
+                    onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'age')}
                 />
                 <ParameterSlider
                   label="Weight"
-                  value={parameters.weights.age.value}
-                  onValueChange={(v) => updateParameter('age', v[0])}
-                  isEnabled={parameters.weights.age.enabled}
+                  value={currentParameters.weights.age.value}
+                  onValueChange={(v) => updateParameter(selectedProviderId, 'age', v[0])}
+                  isEnabled={currentParameters.weights.age.enabled}
                 />
             </div>
             <Separator />
@@ -163,23 +206,23 @@ export default function ScoringEnginePage() {
               <Label htmlFor="gender-factor-switch" className="font-medium">Factor in Gender</Label>
               <Switch
                 id="gender-factor-switch"
-                checked={parameters.genderImpact.enabled}
-                onCheckedChange={setGenderImpactEnabled}
+                checked={currentParameters.genderImpact.enabled}
+                onCheckedChange={(checked) => setGenderImpactEnabled(selectedProviderId, checked)}
               />
             </div>
-             {parameters.genderImpact.enabled && (
+             {currentParameters.genderImpact.enabled && (
               <>
                 <Separator />
                 <div className="pt-4 space-y-4">
                     <GenderImpactInput
                         label="Male Impact"
-                        value={parameters.genderImpact.male}
-                        onValueChange={(e) => setGenderImpact('male', parseFloat(e.target.value) || 0)}
+                        value={currentParameters.genderImpact.male}
+                        onValueChange={(e) => setGenderImpact(selectedProviderId, 'male', parseFloat(e.target.value) || 0)}
                     />
                     <GenderImpactInput
                         label="Female Impact"
-                        value={parameters.genderImpact.female}
-                        onValueChange={(e) => setGenderImpact('female', parseFloat(e.target.value) || 0)}
+                        value={currentParameters.genderImpact.female}
+                        onValueChange={(e) => setGenderImpact(selectedProviderId, 'female', parseFloat(e.target.value) || 0)}
                     />
                 </div>
               </>
@@ -196,24 +239,24 @@ export default function ScoringEnginePage() {
             <div>
                 <ParameterToggle
                     label="Transaction History Total"
-                    isChecked={parameters.weights.transactionHistoryTotal.enabled}
-                    onCheckedChange={() => toggleParameterEnabled('weights', 'transactionHistoryTotal')}
+                    isChecked={currentParameters.weights.transactionHistoryTotal.enabled}
+                    onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'transactionHistoryTotal')}
                 />
                 <ParameterSlider
                   label="Weight"
-                  value={parameters.weights.transactionHistoryTotal.value}
-                  onValueChange={(v) => updateParameter('transactionHistoryTotal', v[0])}
-                  isEnabled={parameters.weights.transactionHistoryTotal.enabled}
+                  value={currentParameters.weights.transactionHistoryTotal.value}
+                  onValueChange={(v) => updateParameter(selectedProviderId, 'transactionHistoryTotal', v[0])}
+                  isEnabled={currentParameters.weights.transactionHistoryTotal.enabled}
                 />
             </div>
             <Separator/>
             <div>
                 <ParameterToggle
                     label="Transaction History By Product"
-                    isChecked={parameters.weights.transactionHistoryByProduct.enabled}
-                    onCheckedChange={() => toggleParameterEnabled('weights', 'transactionHistoryByProduct')}
+                    isChecked={currentParameters.weights.transactionHistoryByProduct.enabled}
+                    onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'transactionHistoryByProduct')}
                 />
-                {parameters.weights.transactionHistoryByProduct.enabled && (
+                {currentParameters.weights.transactionHistoryByProduct.enabled && (
                     <div className="space-y-2 pt-4">
                         <Label>Product Weights</Label>
                          <div className="flex space-x-2">
@@ -225,20 +268,20 @@ export default function ScoringEnginePage() {
                             <Button onClick={handleAddProduct}>Add</Button>
                         </div>
                         <div className="space-y-4 mt-4 max-h-48 overflow-y-auto pr-2">
-                            {Object.entries(parameters.weights.transactionHistoryByProduct.values).map(([product, weight]) => (
+                            {Object.entries(currentParameters.weights.transactionHistoryByProduct.values).map(([product, weight]) => (
                                 <div key={product} className="space-y-2">
                                     <div className="flex justify-between items-center">
                                         <Label className="capitalize">{product}</Label>
                                         <div className="flex items-center space-x-2">
                                             <span className="text-sm font-medium">{weight}%</span>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeProduct(product)}>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeProduct(selectedProviderId, product)}>
                                                 &times;
                                             </Button>
                                         </div>
                                     </div>
                                     <Slider
                                         value={[weight]}
-                                        onValueChange={(v) => updateProductWeight(product, v[0])}
+                                        onValueChange={(v) => updateProductWeight(selectedProviderId, product, v[0])}
                                         max={100}
                                         step={1}
                                     />
@@ -257,17 +300,17 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for past loan performance.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-             {Object.entries(parameters.weights).filter(([key]) => ['loanHistoryCount', 'onTimeRepayments'].includes(key)).map(([key, param]) => (
+             {Object.entries(currentParameters.weights).filter(([key]) => ['loanHistoryCount', 'onTimeRepayments'].includes(key)).map(([key, param]) => (
                 <div key={key}>
                     <ParameterToggle
                         label={key}
                         isChecked={param.enabled}
-                        onCheckedChange={() => toggleParameterEnabled('weights', key as keyof ScoringParameters['weights'])}
+                        onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', key as keyof ScoringParameters['weights'])}
                     />
                     <ParameterSlider
                       label="Weight"
                       value={param.value}
-                      onValueChange={(v) => updateParameter(key as keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, v[0])}
+                      onValueChange={(v) => updateParameter(selectedProviderId, key as keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, v[0])}
                       isEnabled={param.enabled}
                     />
                 </div>
@@ -284,14 +327,14 @@ export default function ScoringEnginePage() {
              <div>
                 <ParameterToggle
                     label="Salary"
-                    isChecked={parameters.weights.salary.enabled}
-                    onCheckedChange={() => toggleParameterEnabled('weights', 'salary')}
+                    isChecked={currentParameters.weights.salary.enabled}
+                    onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'weights', 'salary')}
                 />
                 <ParameterSlider
                   label="Weight"
-                  value={parameters.weights.salary.value}
-                  onValueChange={(v) => updateParameter('salary', v[0])}
-                  isEnabled={parameters.weights.salary.enabled}
+                  value={currentParameters.weights.salary.value}
+                  onValueChange={(v) => updateParameter(selectedProviderId, 'salary', v[0])}
+                  isEnabled={currentParameters.weights.salary.enabled}
                 />
             </div>
 
@@ -300,10 +343,10 @@ export default function ScoringEnginePage() {
             <div>
                  <ParameterToggle
                     label="Occupation Risk"
-                    isChecked={parameters.occupationRisk.enabled}
-                    onCheckedChange={() => toggleParameterEnabled('occupationRisk', 'values')}
+                    isChecked={currentParameters.occupationRisk.enabled}
+                    onCheckedChange={() => toggleParameterEnabled(selectedProviderId, 'occupationRisk', 'values')}
                 />
-                {parameters.occupationRisk.enabled && (
+                {currentParameters.occupationRisk.enabled && (
                     <div className="space-y-2 pt-4">
                         <Label>Occupation Risk Levels</Label>
                          <div className="flex space-x-2">
@@ -315,10 +358,10 @@ export default function ScoringEnginePage() {
                             <Button onClick={handleAddOccupation}>Add</Button>
                         </div>
                         <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
-                            {Object.entries(parameters.occupationRisk.values).map(([occupation, risk]) => (
+                            {Object.entries(currentParameters.occupationRisk.values).map(([occupation, risk]) => (
                                 <div key={occupation} className="flex items-center justify-between space-x-2">
                                     <span className="capitalize text-sm flex-1">{occupation}</span>
-                                     <Select value={risk} onValueChange={(v) => setOccupationRisk(occupation, v as 'Low' | 'Medium' | 'High')}>
+                                     <Select value={risk} onValueChange={(v) => setOccupationRisk(selectedProviderId, occupation, v as 'Low' | 'Medium' | 'High')}>
                                         <SelectTrigger className="w-[120px]">
                                             <SelectValue placeholder="Risk" />
                                         </SelectTrigger>
@@ -328,7 +371,7 @@ export default function ScoringEnginePage() {
                                             <SelectItem value="High">High</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeOccupation(occupation)}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeOccupation(selectedProviderId, occupation)}>
                                         &times;
                                     </Button>
                                 </div>
@@ -343,3 +386,5 @@ export default function ScoringEnginePage() {
     </div>
   );
 }
+
+    
