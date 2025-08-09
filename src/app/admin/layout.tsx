@@ -14,6 +14,7 @@ import {
   Users,
   LogOut,
   User,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -62,6 +63,12 @@ const allMenuItems = [
     label: 'Reports',
     icon: FileText,
     roles: ['Admin', 'Loan Provider'],
+  },
+  {
+    path: '/admin/scoring-engine',
+    label: 'Scoring Engine',
+    icon: SlidersHorizontal,
+    roles: ['Admin'],
   },
   {
     path: '/admin/settings',
