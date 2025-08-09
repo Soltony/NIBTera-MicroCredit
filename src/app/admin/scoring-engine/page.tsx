@@ -24,6 +24,7 @@ import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct } from '@/lib/types';
 import { useTransactionProducts } from '@/hooks/use-transaction-products';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <div className="flex items-center justify-between space-x-2 pb-4 border-b">
