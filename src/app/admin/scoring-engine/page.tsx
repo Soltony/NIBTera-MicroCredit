@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useScoringParameters, type GenderImpact } from '@/hooks/use-scoring-parameters';
+import { useScoringParameters } from '@/hooks/use-scoring-parameters';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -36,22 +36,16 @@ const ParameterSlider = ({ label, value, onValueChange }: { label: string; value
   );
 };
 
-const GenderImpactSelector = ({ label, value, onValueChange }: { label: string; value: GenderImpact; onValueChange: (value: GenderImpact) => void; }) => {
+const GenderImpactInput = ({ label, value, onValueChange }: { label: string; value: number; onValueChange: (event: React.ChangeEvent<HTMLInputElement>) => void; }) => {
     return (
         <div className="space-y-2">
             <Label>{label}</Label>
-            <Select value={value} onValueChange={onValueChange}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Select impact" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="no_impact">No Impact</SelectItem>
-                    <SelectItem value="slight_positive">Slight Positive</SelectItem>
-                    <SelectItem value="positive">Positive</SelectItem>
-                    <SelectItem value="slight_negative">Slight Negative</SelectItem>
-                    <SelectItem value="negative">Negative</SelectItem>
-                </SelectContent>
-            </Select>
+            <Input
+                type="number"
+                value={value}
+                onChange={onValueChange}
+                placeholder="Enter impact value"
+            />
         </div>
     );
 }
@@ -107,15 +101,15 @@ export default function ScoringEnginePage() {
              {parameters.genderImpact.enabled && (
               <>
                 <Separator />
-                <GenderImpactSelector
+                <GenderImpactInput
                     label="Male Impact"
                     value={parameters.genderImpact.male}
-                    onValueChange={(v) => setGenderImpact('male', v)}
+                    onValueChange={(e) => setGenderImpact('male', parseFloat(e.target.value) || 0)}
                 />
-                <GenderImpactSelector
+                <GenderImpactInput
                     label="Female Impact"
                     value={parameters.genderImpact.female}
-                    onValueChange={(v) => setGenderImpact('female', v)}
+                    onValueChange={(e) => setGenderImpact('female', parseFloat(e.target.value) || 0)}
                 />
               </>
             )}

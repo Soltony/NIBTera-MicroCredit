@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { produce } from 'immer';
 
-export type GenderImpact = 'no_impact' | 'slight_positive' | 'positive' | 'slight_negative' | 'negative';
+export type GenderImpact = number;
 
 export interface ScoringParameters {
   weights: {
@@ -32,8 +32,8 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
   },
   genderImpact: {
     enabled: false,
-    male: 'no_impact',
-    female: 'no_impact',
+    male: 0,
+    female: 0,
   },
   occupationRisk: {
     'doctor': 'Low',
@@ -55,21 +55,21 @@ const migrateParameters = (data: any): ScoringParameters => {
             ...data,
             genderImpact: {
                 enabled: false, // Default to disabled for old structures
-                male: data.genderImpact.male || 'no_impact',
-                female: data.genderImpact.female || 'no_impact',
+                male: 0,
+                female: 0,
             }
         };
     }
-    // Check for even older structure
-    if (typeof data.genderImpact === 'string') {
+    // Check for even older structure where impact was a string
+    if (data.genderImpact && typeof data.genderImpact.male === 'string') {
         return {
-            ...data,
+             ...data,
             genderImpact: {
-                enabled: false,
-                male: 'no_impact',
-                female: 'no_impact',
+                enabled: data.genderImpact.enabled,
+                male: 0,
+                female: 0,
             }
-        };
+        }
     }
     return data;
 }
