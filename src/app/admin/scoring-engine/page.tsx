@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct } from '@/lib/types';
+import { useTransactionProducts } from '@/hooks/use-transaction-products';
 
 const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <div className="flex items-center justify-between space-x-2 pb-4 border-b">
@@ -69,11 +70,11 @@ const GenderImpactInput = ({ label, value, onValueChange }: { label: string; val
 
 export default function ScoringEnginePage() {
   const { providers } = useLoanProviders();
+  const { transactionProducts } = useTransactionProducts();
   const [selectedProviderId, setSelectedProviderId] = useState<string>(providers[0]?.id || '');
-  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct, setAppliedProducts } = useScoringParameters();
+  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
-  const [newProduct, setNewProduct] = React.useState('');
 
   const currentParameters = useMemo(() => getParametersForProvider(selectedProviderId), [getParametersForProvider, selectedProviderId]);
   const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
@@ -84,21 +85,18 @@ export default function ScoringEnginePage() {
     let sum = 0;
     const { weights } = currentParameters;
 
-    Object.keys(weights).forEach(key => {
-        const paramKey = key as keyof typeof weights;
-        const param = weights[paramKey];
-        
-        if (paramKey === 'transactionHistoryByProduct') {
-            if (param.enabled) {
-                sum += Object.values(param.values).reduce((acc, v) => acc + v, 0);
-            }
-        } else if ('enabled' in param && 'value' in param && param.enabled) {
-            sum += param.value;
-        }
-    });
+    if (weights.age.enabled) sum += weights.age.value;
+    if (weights.transactionHistoryTotal.enabled) sum += weights.transactionHistoryTotal.value;
+    if (weights.loanHistoryCount.enabled) sum += weights.loanHistoryCount.value;
+    if (weights.onTimeRepayments.enabled) sum += weights.onTimeRepayments.value;
+    if (weights.salary.enabled) sum += weights.salary.value;
+    
+    if (weights.transactionHistoryByProduct.enabled) {
+      sum += transactionProducts.reduce((acc, p) => acc + p.weight, 0);
+    }
 
     return sum;
-  }, [currentParameters]);
+  }, [currentParameters, transactionProducts]);
 
 
   const handleSave = () => {
@@ -123,13 +121,6 @@ export default function ScoringEnginePage() {
       setNewOccupation('');
     }
   };
-
-  const handleAddProduct = () => {
-    if (newProduct.trim()) {
-        addProduct(selectedProviderId, newProduct.trim());
-        setNewProduct('');
-    }
-  }
 
   const handleProductSelectionChange = (productId: string, isChecked: boolean) => {
     const currentSelected = currentParameters.productIds || [];
@@ -292,35 +283,33 @@ export default function ScoringEnginePage() {
                 {currentParameters.weights.transactionHistoryByProduct.enabled && (
                     <div className="space-y-2 pt-4">
                         <Label>Product Weights</Label>
-                         <div className="flex space-x-2">
-                            <Input 
-                                value={newProduct}
-                                onChange={(e) => setNewProduct(e.target.value)}
-                                placeholder="e.g., Top-up"
-                            />
-                            <Button onClick={handleAddProduct}>Add</Button>
-                        </div>
-                        <div className="space-y-4 mt-4 max-h-48 overflow-y-auto pr-2">
-                            {Object.entries(currentParameters.weights.transactionHistoryByProduct.values).map(([product, weight]) => (
-                                <div key={product} className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <Label className="capitalize">{product}</Label>
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm font-medium">{weight}%</span>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeProduct(selectedProviderId, product)}>
-                                                &times;
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <Slider
-                                        value={[weight]}
-                                        onValueChange={(v) => updateProductWeight(selectedProviderId, product, v[0])}
-                                        max={100}
-                                        step={1}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                        <Card className="mt-2 bg-muted/50">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead className="text-right">Weight</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {transactionProducts.map((product) => (
+                                        <TableRow key={product.id}>
+                                            <TableCell className="font-medium">{product.name}</TableCell>
+                                            <TableCell className="text-right">{product.weight}%</TableCell>
+                                        </TableRow>
+                                    ))}
+                                    <TableRow>
+                                        <TableCell className="font-bold">Sub-Total</TableCell>
+                                        <TableCell className="text-right font-bold">
+                                            {transactionProducts.reduce((acc, p) => acc + p.weight, 0)}%
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </Card>
+                        <p className="text-xs text-muted-foreground pt-2">
+                           Product weights are managed on the <a href="/admin/settings" className="underline">Settings</a> page.
+                        </p>
                     </div>
                 )}
             </div>
@@ -419,5 +408,3 @@ export default function ScoringEnginePage() {
     </div>
   );
 }
-
-    

@@ -13,10 +13,7 @@ export interface ScoringParameters {
   weights: {
     age: { enabled: boolean; value: number };
     transactionHistoryTotal: { enabled: boolean; value: number };
-    transactionHistoryByProduct: { 
-        enabled: boolean; 
-        values: Record<string, number> 
-    };
+    transactionHistoryByProduct: { enabled: boolean; }; // Value is now managed globally
     loanHistoryCount: { enabled: boolean; value: number };
     onTimeRepayments: { enabled: boolean; value: number };
     salary: { enabled: boolean; value: number };
@@ -37,13 +34,7 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
   weights: {
     age: { enabled: true, value: 10 },
     transactionHistoryTotal: { enabled: true, value: 20 },
-    transactionHistoryByProduct: { 
-        enabled: true,
-        values: {
-            'Top-up': 10,
-            'Other Bank Transfer': 5,
-        }
-    },
+    transactionHistoryByProduct: { enabled: true },
     loanHistoryCount: { enabled: true, value: 20 },
     onTimeRepayments: { enabled: true, value: 25 },
     salary: { enabled: true, value: 10 },
@@ -82,12 +73,11 @@ const migrateParameters = (data: any): ScoringParameters => {
                 const typedKey = key as keyof typeof draft.weights;
                 if (data.weights[key] !== undefined) {
                     if (typedKey === 'transactionHistoryByProduct') {
-                        if (typeof data.weights.transactionHistoryByProduct === 'object' && data.weights.transactionHistoryByProduct !== null) {
+                         if (typeof data.weights.transactionHistoryByProduct === 'object' && data.weights.transactionHistoryByProduct !== null) {
                             draft.weights.transactionHistoryByProduct.enabled = data.weights.transactionHistoryByProduct.enabled ?? true;
-                            if (typeof data.weights.transactionHistoryByProduct.values === 'object') {
-                                draft.weights.transactionHistoryByProduct.values = data.weights.transactionHistoryByProduct.values;
-                            }
-                        }
+                         } else {
+                            draft.weights.transactionHistoryByProduct.enabled = true;
+                         }
                     } else if (typeof data.weights[key] === 'number') {
                         (draft.weights[typedKey] as any) = { enabled: true, value: data.weights[key] };
                     } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
@@ -120,22 +110,23 @@ export function useScoringParameters() {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
         const parsedData = JSON.parse(item);
-        // Simple migration check: if a provider's data is missing productIds, add it.
         const migratedData = produce(parsedData, draft => {
             for (const providerId in draft) {
                 if (!draft[providerId].productIds) {
                     draft[providerId].productIds = [];
                 }
+                // Migration for transactionHistoryByProduct
+                if (draft[providerId].weights?.transactionHistoryByProduct?.values) {
+                    delete draft[providerId].weights.transactionHistoryByProduct.values;
+                }
             }
         });
         setParameters(migratedData);
       } else {
-         // Migration from old single-object storage
-        const oldItem = window.localStorage.getItem('scoringParameters');
+         const oldItem = window.localStorage.getItem('scoringParameters');
         if (oldItem) {
             const parsedOld = JSON.parse(oldItem);
             const migrated = migrateParameters(parsedOld);
-            // Assume migration applies to a default provider, or handle more gracefully
             const initialData = { 'provider-3': migrated }; // Defaulting to NIb Bank
             setParameters(initialData);
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
@@ -171,32 +162,6 @@ export function useScoringParameters() {
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  const updateProductWeight = useCallback((providerId: string, productName: string, value: number) => {
-    const updated = produce(parameters, draft => {
-        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
-        draft[providerId].weights.transactionHistoryByProduct.values[productName] = value;
-    });
-    saveParameters(updated);
-  }, [parameters, saveParameters]);
-
-  const addProduct = useCallback((providerId: string, productName: string) => {
-    const updated = produce(parameters, draft => {
-        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
-        if (!draft[providerId].weights.transactionHistoryByProduct.values[productName]) {
-            draft[providerId].weights.transactionHistoryByProduct.values[productName] = 0;
-        }
-    });
-    saveParameters(updated);
-  }, [parameters, saveParameters]);
-
-  const removeProduct = useCallback((providerId: string, productName: string) => {
-    const updated = produce(parameters, draft => {
-        if (draft[providerId]) {
-            delete draft[providerId].weights.transactionHistoryByProduct.values[productName];
-        }
-    });
-    saveParameters(updated);
-  }, [parameters, saveParameters]);
 
   const toggleParameterEnabled = useCallback((providerId: string, type: 'weights' | 'occupationRisk', key: keyof ScoringParameters['weights'] | 'values') => {
       const updated = produce(parameters, draft => {
@@ -271,7 +236,5 @@ export function useScoringParameters() {
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct, setAppliedProducts };
+  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts };
 }
-
-    

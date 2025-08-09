@@ -90,6 +90,12 @@ export interface Role {
     permissions: Permissions;
 }
 
+export interface TransactionProduct {
+    id: string;
+    name: string;
+    weight: number;
+}
+
 export const parseFee = (feeString: string | undefined): number => {
     if (!feeString) return 0;
     return parseFloat(feeString.replace('%', '')) || 0;

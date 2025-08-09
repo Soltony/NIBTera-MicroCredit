@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -29,7 +30,7 @@ import {
 } from '@/components/ui/table';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2 } from 'lucide-react';
-import type { LoanProvider, LoanProduct } from '@/lib/types';
+import type { LoanProvider, LoanProduct, TransactionProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useTransactionProducts } from '@/hooks/use-transaction-products';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
@@ -113,7 +116,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
     )
 }
 
-export default function AdminSettingsPage() {
+function ProvidersTab() {
     const { providers, addProvider, addProduct, updateProduct } = useLoanProviders();
     const { currentUser } = useAuth();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
@@ -148,67 +151,152 @@ export default function AdminSettingsPage() {
         updateProduct(providerId, product);
         toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
     }
+
+    return <>
+        <div className="flex items-center justify-between space-y-2 mb-4">
+            <div/>
+            <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: themeColor }} className="text-white">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+            </Button>
+        </div>
+        <Accordion type="multiple" className="w-full space-y-4">
+            {providers.map((provider) => (
+                <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                    <AccordionTrigger className="p-4 hover:no-underline">
+                        <div className="flex items-center gap-4">
+                            <provider.icon className="h-8 w-8 text-muted-foreground" style={{ color: provider.colorHex }} />
+                            <div>
+                                <h3 className="text-lg font-semibold">{provider.name}</h3>
+                                <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                            </div>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 border-t">
+                        <div className="space-y-6">
+                            {provider.products.map(product => (
+                                <div key={product.id}>
+                                     <h4 className="text-md font-semibold mb-2">{product.name}</h4>
+                                     <ProductSettingsForm 
+                                        providerId={provider.id}
+                                        product={product} 
+                                        providerColor={provider.colorHex} 
+                                        onSave={handleSaveProduct}
+                                     />
+                                </div>
+                            ))}
+                            <Button 
+                                variant="outline" 
+                                className="w-full hover:text-white"
+                                onClick={() => handleOpenAddProductDialog(provider.id)}
+                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
+                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
+                            >
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+                            </Button>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
+        <AddProviderDialog
+            isOpen={isAddProviderDialogOpen}
+            onClose={() => setIsAddProviderDialogOpen(false)}
+            onAddProvider={handleAddProvider}
+            primaryColor={themeColor}
+        />
+        <AddProductDialog
+            isOpen={isAddProductDialogOpen}
+            onClose={() => setIsAddProductDialogOpen(false)}
+            onAddProduct={handleAddProduct}
+        />
+    </>
+}
+
+
+function ConfigurationTab() {
+    const { transactionProducts, addTransactionProduct, updateTransactionProduct, removeTransactionProduct } = useTransactionProducts();
+    const [newProductName, setNewProductName] = useState('');
     
+    const handleAddProduct = () => {
+        if (newProductName.trim()) {
+            addTransactionProduct({ name: newProductName.trim(), weight: 0 });
+            setNewProductName('');
+        }
+    }
+
     return (
-        <>
-            <div className="flex-1 space-y-4 p-8 pt-6">
-                <div className="flex items-center justify-between space-y-2">
-                    <h2 className="text-3xl font-bold tracking-tight">Loan Settings</h2>
-                     <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: themeColor }} className="text-white">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
-                    </Button>
+        <Card>
+            <CardHeader>
+                <CardTitle>Transaction Product Weights</CardTitle>
+                <CardDescription>
+                    Define the products used in the &quot;Transaction History By Product&quot; scoring factor and assign their weights.
+                    The sum of these weights will be used in the scoring engine if the factor is enabled.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <div className="flex space-x-2">
+                    <Input 
+                        value={newProductName}
+                        onChange={(e) => setNewProductName(e.target.value)}
+                        placeholder="e.g., Bill Payment"
+                    />
+                    <Button onClick={handleAddProduct}>Add Product</Button>
                 </div>
-                <Accordion type="multiple" className="w-full space-y-4">
-                    {providers.map((provider) => (
-                        <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                            <AccordionTrigger className="p-4 hover:no-underline">
-                                <div className="flex items-center gap-4">
-                                    <provider.icon className="h-8 w-8 text-muted-foreground" style={{ color: provider.colorHex }} />
-                                    <div>
-                                        <h3 className="text-lg font-semibold">{provider.name}</h3>
-                                        <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
-                                    </div>
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="p-4 border-t">
-                                <div className="space-y-6">
-                                    {provider.products.map(product => (
-                                        <div key={product.id}>
-                                             <h4 className="text-md font-semibold mb-2">{product.name}</h4>
-                                             <ProductSettingsForm 
-                                                providerId={provider.id}
-                                                product={product} 
-                                                providerColor={provider.colorHex} 
-                                                onSave={handleSaveProduct}
-                                             />
-                                        </div>
-                                    ))}
-                                    <Button 
-                                        variant="outline" 
-                                        className="w-full hover:text-white"
-                                        onClick={() => handleOpenAddProductDialog(provider.id)}
-                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
-                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
-                                    >
-                                        <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
-                                    </Button>
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                </Accordion>
-            </div>
-            <AddProviderDialog
-                isOpen={isAddProviderDialogOpen}
-                onClose={() => setIsAddProviderDialogOpen(false)}
-                onAddProvider={handleAddProvider}
-                primaryColor={themeColor}
-            />
-            <AddProductDialog
-                isOpen={isAddProductDialogOpen}
-                onClose={() => setIsAddProductDialogOpen(false)}
-                onAddProduct={handleAddProduct}
-            />
-        </>
+                <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product Name</TableHead>
+                                <TableHead className="w-[150px]">Weight (%)</TableHead>
+                                <TableHead className="w-[100px] text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {transactionProducts.map((product) => (
+                                <TableRow key={product.id}>
+                                    <TableCell className="font-medium">{product.name}</TableCell>
+                                    <TableCell>
+                                        <Input
+                                            type="number"
+                                            value={product.weight}
+                                            onChange={(e) => updateTransactionProduct({ ...product, weight: parseInt(e.target.value) || 0 })}
+                                            className="w-full"
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTransactionProduct(product.id)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                 <div className="flex justify-end font-semibold text-lg pr-4">
+                    Total Weight: {transactionProducts.reduce((acc, p) => acc + p.weight, 0)}%
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+export default function AdminSettingsPage() {
+    return (
+        <div className="flex-1 space-y-4 p-8 pt-6">
+            <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+            <Tabs defaultValue="providers" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
+                    <TabsTrigger value="configuration">Configuration</TabsTrigger>
+                </TabsList>
+                <TabsContent value="providers">
+                    <ProvidersTab />
+                </TabsContent>
+                <TabsContent value="configuration">
+                    <ConfigurationTab />
+                </TabsContent>
+            </Tabs>
+        </div>
     );
 }
