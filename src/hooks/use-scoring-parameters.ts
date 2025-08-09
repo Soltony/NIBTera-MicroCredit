@@ -6,7 +6,6 @@ import { produce } from 'immer';
 
 export interface ScoringParameters {
   weights: {
-    age: number;
     transactionHistoryTotal: number;
     transactionHistoryByProduct: number;
     loanHistoryCount: number;
@@ -19,9 +18,8 @@ export interface ScoringParameters {
 
 const DEFAULT_PARAMETERS: ScoringParameters = {
   weights: {
-    age: 10,
-    transactionHistoryTotal: 20,
-    transactionHistoryByProduct: 15,
+    transactionHistoryTotal: 25,
+    transactionHistoryByProduct: 20,
     loanHistoryCount: 20,
     onTimeRepayments: 25,
     salary: 10,
@@ -46,7 +44,12 @@ export function useScoringParameters() {
     try {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
-        setParameters(JSON.parse(item));
+        // Basic migration for removing 'age'
+        const parsed = JSON.parse(item);
+        if (parsed?.weights?.age) {
+            delete parsed.weights.age;
+        }
+        setParameters(parsed);
       } else {
         setParameters(DEFAULT_PARAMETERS);
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PARAMETERS));

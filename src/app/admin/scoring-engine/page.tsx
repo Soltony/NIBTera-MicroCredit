@@ -74,13 +74,8 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for user demographic data.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <ParameterSlider
-              label="Age"
-              value={parameters.weights.age}
-              onValueChange={(v) => updateParameter('age', v[0])}
-            />
             <div className="space-y-2">
-                <Label>Gender</Label>
+                <Label>Gender Impact</Label>
                 <Select value={parameters.genderImpact} onValueChange={(v) => updateParameter('genderImpact', v)}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select impact" />
@@ -90,6 +85,9 @@ export default function ScoringEnginePage() {
                         <SelectItem value="positive">Factor In</SelectItem>
                     </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground pt-1">
+                    Choose whether to include gender as a factor in the credit score.
+                </p>
             </div>
           </CardContent>
         </Card>
