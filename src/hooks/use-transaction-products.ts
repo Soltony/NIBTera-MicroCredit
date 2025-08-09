@@ -4,12 +4,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { TransactionProduct } from '@/lib/types';
-import { produce } from 'immer';
 
 const MOCK_TRANSACTION_PRODUCTS: TransactionProduct[] = [
-    { id: 'tp-1', name: 'Top-up', weight: 10 },
-    { id: 'tp-2', name: 'Other Bank Transfer', weight: 5 },
-    { id: 'tp-3', name: 'Bill Payment', weight: 8 },
+    { id: 'tp-1', name: 'Top-up' },
+    { id: 'tp-2', name: 'Other Bank Transfer' },
+    { id: 'tp-3', name: 'Bill Payment' },
 ];
 
 const STORAGE_KEY = 'transactionProducts';
@@ -21,7 +20,12 @@ export function useTransactionProducts() {
         try {
             const item = window.localStorage.getItem(STORAGE_KEY);
             if (item) {
-                setTransactionProducts(JSON.parse(item));
+                // Migration: remove weight property if it exists
+                const parsed = JSON.parse(item).map((p: any) => {
+                    delete p.weight;
+                    return p;
+                });
+                setTransactionProducts(parsed);
             } else {
                 setTransactionProducts(MOCK_TRANSACTION_PRODUCTS);
                 window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_TRANSACTION_PRODUCTS));

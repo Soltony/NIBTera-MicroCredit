@@ -93,7 +93,6 @@ export interface Role {
 export interface TransactionProduct {
     id: string;
     name: string;
-    weight: number;
 }
 
 export const parseFee = (feeString: string | undefined): number => {

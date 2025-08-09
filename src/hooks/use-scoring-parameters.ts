@@ -13,7 +13,7 @@ export interface ScoringParameters {
   weights: {
     age: { enabled: boolean; value: number };
     transactionHistoryTotal: { enabled: boolean; value: number };
-    transactionHistoryByProduct: { enabled: boolean; }; // Value is now managed globally
+    transactionHistoryByProduct: { enabled: boolean; values: Record<string, number> };
     loanHistoryCount: { enabled: boolean; value: number };
     onTimeRepayments: { enabled: boolean; value: number };
     salary: { enabled: boolean; value: number };
@@ -34,7 +34,7 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
   weights: {
     age: { enabled: true, value: 10 },
     transactionHistoryTotal: { enabled: true, value: 20 },
-    transactionHistoryByProduct: { enabled: true },
+    transactionHistoryByProduct: { enabled: true, values: { 'tp-1': 5, 'tp-2': 5, 'tp-3': 5 } },
     loanHistoryCount: { enabled: true, value: 20 },
     onTimeRepayments: { enabled: true, value: 25 },
     salary: { enabled: true, value: 10 },
@@ -61,47 +61,6 @@ const STORAGE_KEY = 'scoringParametersByProvider';
 
 type AllScoringParameters = Record<string, ScoringParameters>;
 
-
-const migrateParameters = (data: any): ScoringParameters => {
-    const newDefault = deepClone(DEFAULT_PARAMETERS);
-    return produce(newDefault, draft => {
-        if (typeof data !== 'object' || data === null) return;
-
-        // This function now migrates a SINGLE parameter object
-        if (data.weights) {
-            for (const key in draft.weights) {
-                const typedKey = key as keyof typeof draft.weights;
-                if (data.weights[key] !== undefined) {
-                    if (typedKey === 'transactionHistoryByProduct') {
-                         if (typeof data.weights.transactionHistoryByProduct === 'object' && data.weights.transactionHistoryByProduct !== null) {
-                            draft.weights.transactionHistoryByProduct.enabled = data.weights.transactionHistoryByProduct.enabled ?? true;
-                         } else {
-                            draft.weights.transactionHistoryByProduct.enabled = true;
-                         }
-                    } else if (typeof data.weights[key] === 'number') {
-                        (draft.weights[typedKey] as any) = { enabled: true, value: data.weights[key] };
-                    } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
-                        Object.assign(draft.weights[typedKey], data.weights[key]);
-                    }
-                }
-            }
-        }
-        if (data.genderImpact) {
-             if (typeof data.genderImpact.enabled === 'boolean') draft.genderImpact.enabled = data.genderImpact.enabled;
-             if (typeof data.genderImpact.male === 'number') draft.genderImpact.male = data.genderImpact.male;
-             if (typeof data.genderImpact.female === 'number') draft.genderImpact.female = data.genderImpact.female;
-        }
-        if (data.occupationRisk) {
-             if (typeof data.occupationRisk.enabled === 'boolean') draft.occupationRisk.enabled = data.occupationRisk.enabled;
-             if (typeof data.occupationRisk.values === 'object') draft.occupationRisk.values = data.occupationRisk.values;
-             else if (typeof data.occupationRisk === 'object' && typeof data.occupationRisk.enabled === 'undefined') {
-                draft.occupationRisk.values = data.occupationRisk;
-            }
-        }
-    });
-}
-
-
 export function useScoringParameters() {
   const [parameters, setParameters] = useState<AllScoringParameters>({});
 
@@ -110,30 +69,18 @@ export function useScoringParameters() {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
         const parsedData = JSON.parse(item);
+        // Migration logic can be added here if the data structure changes in the future
         const migratedData = produce(parsedData, draft => {
-            for (const providerId in draft) {
-                if (!draft[providerId].productIds) {
-                    draft[providerId].productIds = [];
+             for (const providerId in draft) {
+                const providerParams = draft[providerId];
+                if (providerParams.weights && providerParams.weights.transactionHistoryByProduct && typeof providerParams.weights.transactionHistoryByProduct.values === 'undefined') {
+                    providerParams.weights.transactionHistoryByProduct.values = deepClone(DEFAULT_PARAMETERS.weights.transactionHistoryByProduct.values);
                 }
-                // Migration for transactionHistoryByProduct
-                if (draft[providerId].weights?.transactionHistoryByProduct?.values) {
-                    delete draft[providerId].weights.transactionHistoryByProduct.values;
-                }
-            }
+             }
         });
         setParameters(migratedData);
       } else {
-         const oldItem = window.localStorage.getItem('scoringParameters');
-        if (oldItem) {
-            const parsedOld = JSON.parse(oldItem);
-            const migrated = migrateParameters(parsedOld);
-            const initialData = { 'provider-3': migrated }; // Defaulting to NIb Bank
-            setParameters(initialData);
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
-            window.localStorage.removeItem('scoringParameters'); // Clean up old key
-        } else {
-            setParameters({});
-        }
+        setParameters({});
       }
     } catch (error) {
       console.warn(`Error reading localStorage key “${STORAGE_KEY}”:`, error);
@@ -235,6 +182,17 @@ export function useScoringParameters() {
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
+  
+  const setTransactionProductWeight = useCallback((providerId: string, productId: string, weight: number) => {
+    const updated = produce(parameters, draft => {
+        if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+        if (!draft[providerId].weights.transactionHistoryByProduct.values) {
+            draft[providerId].weights.transactionHistoryByProduct.values = {};
+        }
+        draft[providerId].weights.transactionHistoryByProduct.values[productId] = weight;
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
 
-  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts };
+  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts, setTransactionProductWeight };
 }

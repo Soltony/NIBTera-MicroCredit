@@ -214,12 +214,12 @@ function ProvidersTab() {
 
 
 function ConfigurationTab() {
-    const { transactionProducts, addTransactionProduct, updateTransactionProduct, removeTransactionProduct } = useTransactionProducts();
+    const { transactionProducts, addTransactionProduct, removeTransactionProduct } = useTransactionProducts();
     const [newProductName, setNewProductName] = useState('');
     
     const handleAddProduct = () => {
         if (newProductName.trim()) {
-            addTransactionProduct({ name: newProductName.trim(), weight: 0 });
+            addTransactionProduct({ name: newProductName.trim() });
             setNewProductName('');
         }
     }
@@ -227,10 +227,10 @@ function ConfigurationTab() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Transaction Product Weights</CardTitle>
+                <CardTitle>Transaction Product Definitions</CardTitle>
                 <CardDescription>
-                    Define the products used in the &quot;Transaction History By Product&quot; scoring factor and assign their weights.
-                    The sum of these weights will be used in the scoring engine if the factor is enabled.
+                    Define the products available for the &quot;Transaction History By Product&quot; scoring factor. 
+                    The weights for these products are assigned on the Scoring Engine page.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -247,7 +247,6 @@ function ConfigurationTab() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Product Name</TableHead>
-                                <TableHead className="w-[150px]">Weight (%)</TableHead>
                                 <TableHead className="w-[100px] text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -255,14 +254,6 @@ function ConfigurationTab() {
                             {transactionProducts.map((product) => (
                                 <TableRow key={product.id}>
                                     <TableCell className="font-medium">{product.name}</TableCell>
-                                    <TableCell>
-                                        <Input
-                                            type="number"
-                                            value={product.weight}
-                                            onChange={(e) => updateTransactionProduct({ ...product, weight: parseInt(e.target.value) || 0 })}
-                                            className="w-full"
-                                        />
-                                    </TableCell>
                                     <TableCell className="text-right">
                                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTransactionProduct(product.id)}>
                                             <Trash2 className="h-4 w-4" />
@@ -272,9 +263,6 @@ function ConfigurationTab() {
                             ))}
                         </TableBody>
                     </Table>
-                </div>
-                 <div className="flex justify-end font-semibold text-lg pr-4">
-                    Total Weight: {transactionProducts.reduce((acc, p) => acc + p.weight, 0)}%
                 </div>
             </CardContent>
         </Card>

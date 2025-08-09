@@ -73,7 +73,7 @@ export default function ScoringEnginePage() {
   const { providers } = useLoanProviders();
   const { transactionProducts } = useTransactionProducts();
   const [selectedProviderId, setSelectedProviderId] = useState<string>(providers[0]?.id || '');
-  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts } = useScoringParameters();
+  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts, setTransactionProductWeight } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
 
@@ -93,11 +93,11 @@ export default function ScoringEnginePage() {
     if (weights.salary.enabled) sum += weights.salary.value;
     
     if (weights.transactionHistoryByProduct.enabled) {
-      sum += transactionProducts.reduce((acc, p) => acc + p.weight, 0);
+      sum += Object.values(weights.transactionHistoryByProduct.values || {}).reduce((acc, w) => acc + w, 0);
     }
 
     return sum;
-  }, [currentParameters, transactionProducts]);
+  }, [currentParameters]);
 
 
   const handleSave = () => {
@@ -289,27 +289,34 @@ export default function ScoringEnginePage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Product</TableHead>
-                                        <TableHead className="text-right">Weight</TableHead>
+                                        <TableHead className="text-right w-[120px]">Weight (%)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {transactionProducts.map((product) => (
                                         <TableRow key={product.id}>
                                             <TableCell className="font-medium">{product.name}</TableCell>
-                                            <TableCell className="text-right">{product.weight}%</TableCell>
+                                            <TableCell className="text-right">
+                                                <Input
+                                                    type="number"
+                                                    className="h-8 text-right"
+                                                    value={currentParameters.weights.transactionHistoryByProduct.values?.[product.id] ?? ''}
+                                                    onChange={(e) => setTransactionProductWeight(selectedProviderId, product.id, parseInt(e.target.value) || 0)}
+                                                />
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                     <TableRow>
                                         <TableCell className="font-bold">Sub-Total</TableCell>
                                         <TableCell className="text-right font-bold">
-                                            {transactionProducts.reduce((acc, p) => acc + p.weight, 0)}%
+                                            {Object.values(currentParameters.weights.transactionHistoryByProduct.values || {}).reduce((acc, w) => acc + w, 0)}%
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>
                         </Card>
                         <p className="text-xs text-muted-foreground pt-2">
-                           Product weights are managed on the <a href="/admin/settings" className="underline">Settings</a> page.
+                           Transaction products are defined on the <a href="/admin/settings" className="underline">Settings</a> page.
                         </p>
                     </div>
                 )}
