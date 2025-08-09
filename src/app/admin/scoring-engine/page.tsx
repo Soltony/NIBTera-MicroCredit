@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useMemo, useState } from 'react';
@@ -20,6 +21,8 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { LoanProduct } from '@/lib/types';
 
 const ParameterToggle = ({ label, isChecked, onCheckedChange }: { label: string; isChecked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <div className="flex items-center justify-between space-x-2 pb-4 border-b">
@@ -67,12 +70,13 @@ const GenderImpactInput = ({ label, value, onValueChange }: { label: string; val
 export default function ScoringEnginePage() {
   const { providers } = useLoanProviders();
   const [selectedProviderId, setSelectedProviderId] = useState<string>(providers[0]?.id || '');
-  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct } = useScoringParameters();
+  const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct, setAppliedProducts } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
   const [newProduct, setNewProduct] = React.useState('');
 
   const currentParameters = useMemo(() => getParametersForProvider(selectedProviderId), [getParametersForProvider, selectedProviderId]);
+  const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
 
   const totalWeight = useMemo(() => {
     if (!currentParameters) return 0;
@@ -126,6 +130,14 @@ export default function ScoringEnginePage() {
         setNewProduct('');
     }
   }
+
+  const handleProductSelectionChange = (productId: string, isChecked: boolean) => {
+    const currentSelected = currentParameters.productIds || [];
+    const newSelected = isChecked
+      ? [...currentSelected, productId]
+      : currentSelected.filter(id => id !== productId);
+    setAppliedProducts(selectedProviderId, newSelected);
+  };
   
   if (!selectedProviderId || !currentParameters) {
     return (
@@ -164,7 +176,7 @@ export default function ScoringEnginePage() {
 
        <div className="flex justify-between items-center">
         <p className="text-muted-foreground">
-            Configure the parameters and weights used to calculate customer credit scores.
+            Configure the parameters and weights used to calculate customer credit scores for the selected provider.
         </p>
         <div>
              <Label>Provider</Label>
@@ -180,6 +192,27 @@ export default function ScoringEnginePage() {
             </Select>
         </div>
       </div>
+      
+      {selectedProvider && (
+        <Card>
+            <CardHeader>
+                <CardTitle>Applied Products</CardTitle>
+                <CardDescription>Select which products from {selectedProvider.name} this scoring model applies to.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {selectedProvider.products.map((product: LoanProduct) => (
+                    <div key={product.id} className="flex items-center space-x-2">
+                        <Checkbox
+                            id={`product-${product.id}`}
+                            checked={currentParameters.productIds?.includes(product.id)}
+                            onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
+                        />
+                        <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
         <Card>

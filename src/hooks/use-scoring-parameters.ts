@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,6 +9,7 @@ import { deepClone } from 'fast-json-patch';
 export type GenderImpact = number;
 
 export interface ScoringParameters {
+  productIds: string[];
   weights: {
     age: { enabled: boolean; value: number };
     transactionHistoryTotal: { enabled: boolean; value: number };
@@ -31,6 +33,7 @@ export interface ScoringParameters {
 }
 
 const DEFAULT_PARAMETERS: ScoringParameters = {
+  productIds: [],
   weights: {
     age: { enabled: true, value: 10 },
     transactionHistoryTotal: { enabled: true, value: 20 },
@@ -116,7 +119,16 @@ export function useScoringParameters() {
     try {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (item) {
-        setParameters(JSON.parse(item));
+        const parsedData = JSON.parse(item);
+        // Simple migration check: if a provider's data is missing productIds, add it.
+        const migratedData = produce(parsedData, draft => {
+            for (const providerId in draft) {
+                if (!draft[providerId].productIds) {
+                    draft[providerId].productIds = [];
+                }
+            }
+        });
+        setParameters(migratedData);
       } else {
          // Migration from old single-object storage
         const oldItem = window.localStorage.getItem('scoringParameters');
@@ -251,7 +263,15 @@ export function useScoringParameters() {
     saveParameters(updated);
   }, [parameters, saveParameters]);
 
-  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct };
+  const setAppliedProducts = useCallback((providerId: string, productIds: string[]) => {
+    const updated = produce(parameters, draft => {
+      if (!draft[providerId]) draft[providerId] = deepClone(DEFAULT_PARAMETERS);
+      draft[providerId].productIds = productIds;
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
+
+  return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct, setAppliedProducts };
 }
 
     
