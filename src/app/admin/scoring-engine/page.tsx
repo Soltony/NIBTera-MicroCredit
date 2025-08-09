@@ -64,15 +64,31 @@ const GenderImpactInput = ({ label, value, onValueChange }: { label: string; val
 }
 
 export default function ScoringEnginePage() {
-  const { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled } = useScoringParameters();
+  const { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
+  const [newProduct, setNewProduct] = React.useState('');
 
   const totalWeight = useMemo(() => {
-    return Object.values(parameters.weights).reduce((sum, param) => {
-        return param.enabled ? sum + param.value : sum;
-    }, 0);
+    let sum = 0;
+    const { weights } = parameters;
+
+    Object.keys(weights).forEach(key => {
+        const paramKey = key as keyof typeof weights;
+        const param = weights[paramKey];
+        
+        if (paramKey === 'transactionHistoryByProduct') {
+            if (param.enabled) {
+                sum += Object.values(param.values).reduce((acc, v) => acc + v, 0);
+            }
+        } else if ('enabled' in param && 'value' in param && param.enabled) {
+            sum += param.value;
+        }
+    });
+
+    return sum;
   }, [parameters.weights]);
+
 
   const handleSave = () => {
     if (totalWeight !== 100) {
@@ -95,6 +111,13 @@ export default function ScoringEnginePage() {
       setNewOccupation('');
     }
   };
+
+  const handleAddProduct = () => {
+    if (newProduct.trim()) {
+        addProduct(newProduct.trim());
+        setNewProduct('');
+    }
+  }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -170,21 +193,61 @@ export default function ScoringEnginePage() {
             <CardDescription>Weights for overall and product-specific transaction history.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-             {Object.entries(parameters.weights).filter(([key]) => ['transactionHistoryTotal', 'transactionHistoryByProduct'].includes(key)).map(([key, param]) => (
-                <div key={key}>
-                    <ParameterToggle
-                        label={key}
-                        isChecked={param.enabled}
-                        onCheckedChange={() => toggleParameterEnabled('weights', key as keyof ScoringParameters['weights'])}
-                    />
-                    <ParameterSlider
-                      label="Weight"
-                      value={param.value}
-                      onValueChange={(v) => updateParameter(key as keyof ScoringParameters['weights'], v[0])}
-                      isEnabled={param.enabled}
-                    />
-                </div>
-             ))}
+            <div>
+                <ParameterToggle
+                    label="Transaction History Total"
+                    isChecked={parameters.weights.transactionHistoryTotal.enabled}
+                    onCheckedChange={() => toggleParameterEnabled('weights', 'transactionHistoryTotal')}
+                />
+                <ParameterSlider
+                  label="Weight"
+                  value={parameters.weights.transactionHistoryTotal.value}
+                  onValueChange={(v) => updateParameter('transactionHistoryTotal', v[0])}
+                  isEnabled={parameters.weights.transactionHistoryTotal.enabled}
+                />
+            </div>
+            <Separator/>
+            <div>
+                <ParameterToggle
+                    label="Transaction History By Product"
+                    isChecked={parameters.weights.transactionHistoryByProduct.enabled}
+                    onCheckedChange={() => toggleParameterEnabled('weights', 'transactionHistoryByProduct')}
+                />
+                {parameters.weights.transactionHistoryByProduct.enabled && (
+                    <div className="space-y-2 pt-4">
+                        <Label>Product Weights</Label>
+                         <div className="flex space-x-2">
+                            <Input 
+                                value={newProduct}
+                                onChange={(e) => setNewProduct(e.target.value)}
+                                placeholder="e.g., Top-up"
+                            />
+                            <Button onClick={handleAddProduct}>Add</Button>
+                        </div>
+                        <div className="space-y-4 mt-4 max-h-48 overflow-y-auto pr-2">
+                            {Object.entries(parameters.weights.transactionHistoryByProduct.values).map(([product, weight]) => (
+                                <div key={product} className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <Label className="capitalize">{product}</Label>
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-sm font-medium">{weight}%</span>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeProduct(product)}>
+                                                &times;
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <Slider
+                                        value={[weight]}
+                                        onValueChange={(v) => updateProductWeight(product, v[0])}
+                                        max={100}
+                                        step={1}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
           </CardContent>
         </Card>
         
@@ -204,7 +267,7 @@ export default function ScoringEnginePage() {
                     <ParameterSlider
                       label="Weight"
                       value={param.value}
-                      onValueChange={(v) => updateParameter(key as keyof ScoringParameters['weights'], v[0])}
+                      onValueChange={(v) => updateParameter(key as keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, v[0])}
                       isEnabled={param.enabled}
                     />
                 </div>

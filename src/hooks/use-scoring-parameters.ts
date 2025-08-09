@@ -10,7 +10,10 @@ export interface ScoringParameters {
   weights: {
     age: { enabled: boolean; value: number };
     transactionHistoryTotal: { enabled: boolean; value: number };
-    transactionHistoryByProduct: { enabled: boolean; value: number };
+    transactionHistoryByProduct: { 
+        enabled: boolean; 
+        values: Record<string, number> 
+    };
     loanHistoryCount: { enabled: boolean; value: number };
     onTimeRepayments: { enabled: boolean; value: number };
     salary: { enabled: boolean; value: number };
@@ -30,7 +33,13 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
   weights: {
     age: { enabled: true, value: 10 },
     transactionHistoryTotal: { enabled: true, value: 20 },
-    transactionHistoryByProduct: { enabled: true, value: 15 },
+    transactionHistoryByProduct: { 
+        enabled: true,
+        values: {
+            'Top-up': 10,
+            'Other Bank Transfer': 5,
+        }
+    },
     loanHistoryCount: { enabled: true, value: 20 },
     onTimeRepayments: { enabled: true, value: 25 },
     salary: { enabled: true, value: 10 },
@@ -56,7 +65,7 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
 const STORAGE_KEY = 'scoringParameters';
 
 const migrateParameters = (data: any): ScoringParameters => {
-    let migratedData = produce(DEFAULT_PARAMETERS, draft => {
+    return produce(DEFAULT_PARAMETERS, draft => {
         if (typeof data !== 'object' || data === null) return;
 
         // Migrate weights
@@ -64,9 +73,16 @@ const migrateParameters = (data: any): ScoringParameters => {
             for (const key in draft.weights) {
                 const typedKey = key as keyof typeof draft.weights;
                 if (data.weights[key] !== undefined) {
-                    if (typeof data.weights[key] === 'number') {
+                    if (typedKey === 'transactionHistoryByProduct') {
+                        if (typeof data.weights.transactionHistoryByProduct === 'object' && data.weights.transactionHistoryByProduct !== null) {
+                            draft.weights.transactionHistoryByProduct.enabled = data.weights.transactionHistoryByProduct.enabled ?? true;
+                            if (typeof data.weights.transactionHistoryByProduct.values === 'object') {
+                                draft.weights.transactionHistoryByProduct.values = data.weights.transactionHistoryByProduct.values;
+                            }
+                        }
+                    } else if (typeof data.weights[key] === 'number') {
                         // Old format: weights: { transactionHistoryTotal: 25 }
-                        draft.weights[typedKey] = { enabled: true, value: data.weights[key] };
+                        (draft.weights[typedKey] as any) = { enabled: true, value: data.weights[key] };
                     } else if (typeof data.weights[key] === 'object' && 'value' in data.weights[key]) {
                         // New format might be present, merge it
                         Object.assign(draft.weights[typedKey], data.weights[key]);
@@ -101,8 +117,6 @@ const migrateParameters = (data: any): ScoringParameters => {
             }
         }
     });
-    
-    return migratedData;
 }
 
 
@@ -135,9 +149,32 @@ export function useScoringParameters() {
     }
   }, []);
 
-  const updateParameter = useCallback((key: keyof ScoringParameters['weights'], value: number) => {
+  const updateParameter = useCallback((key: keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, value: number) => {
     const updated = produce(parameters, draft => {
-        draft.weights[key as keyof typeof draft.weights].value = value;
+        (draft.weights[key] as { value: number }).value = value;
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
+
+  const updateProductWeight = useCallback((productName: string, value: number) => {
+    const updated = produce(parameters, draft => {
+        draft.weights.transactionHistoryByProduct.values[productName] = value;
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
+
+  const addProduct = useCallback((productName: string) => {
+    const updated = produce(parameters, draft => {
+        if (!draft.weights.transactionHistoryByProduct.values[productName]) {
+            draft.weights.transactionHistoryByProduct.values[productName] = 0;
+        }
+    });
+    saveParameters(updated);
+  }, [parameters, saveParameters]);
+
+  const removeProduct = useCallback((productName: string) => {
+    const updated = produce(parameters, draft => {
+        delete draft.weights.transactionHistoryByProduct.values[productName];
     });
     saveParameters(updated);
   }, [parameters, saveParameters]);
@@ -146,7 +183,7 @@ export function useScoringParameters() {
       const updated = produce(parameters, draft => {
           if (type === 'weights') {
               const weightKey = key as keyof ScoringParameters['weights'];
-              draft.weights[weightKey].enabled = !draft.weights[weightKey].enabled;
+              (draft.weights[weightKey] as { enabled: boolean }).enabled = !(draft.weights[weightKey] as { enabled: boolean }).enabled;
           } else if (type === 'occupationRisk') {
               draft.occupationRisk.enabled = !draft.occupationRisk.enabled;
           }
@@ -197,5 +234,5 @@ export function useScoringParameters() {
     saveParameters(DEFAULT_PARAMETERS);
   }, [saveParameters]);
 
-  return { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled };
+  return { parameters, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, updateProductWeight, addProduct, removeProduct };
 }
