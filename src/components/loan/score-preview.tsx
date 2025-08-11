@@ -35,7 +35,7 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
     const fields = new Set<string>();
     parameters.forEach(param => {
       param.rules.forEach(rule => {
-        fields.add(rule.field);
+        if(rule.field) fields.add(rule.field);
       });
     });
     return Array.from(fields);
