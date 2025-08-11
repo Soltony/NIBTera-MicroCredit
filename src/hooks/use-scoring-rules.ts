@@ -56,6 +56,7 @@ type AllScoringRules = Record<string, ScoringParameter[]>;
 
 export function useScoringRules() {
     const [allParameters, setAllParameters] = useState<AllScoringRules>({});
+    const [parameters, setParameters] = useState<ScoringParameter[] | null>(null);
     const { providers } = useLoanProviders();
 
     useEffect(() => {
@@ -70,7 +71,9 @@ export function useScoringRules() {
                     return acc;
                 }, {} as AllScoringRules);
                 setAllParameters(initialData);
-                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
+                if (Object.keys(initialData).length > 0) {
+                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
+                }
             }
         } catch (error) {
             console.warn(`Error reading localStorage key “${STORAGE_KEY}”:`, error);
@@ -94,76 +97,10 @@ export function useScoringRules() {
         }
     }, [allParameters]);
 
-    const addParameter = useCallback((providerId: string) => {
-        const newParam: ScoringParameter = {
-            id: `param-${Date.now()}`,
-            name: 'New Parameter',
-            weight: 10,
-            rules: [{ id: `rule-${Date.now()}`, field: 'newField', condition: '>', value: '0', score: 10 }],
-        };
-        const currentParams = getParametersForProvider(providerId);
-        saveParametersForProvider(providerId, [...currentParams, newParam]);
-    }, [getParametersForProvider, saveParametersForProvider]);
-
-    const updateParameter = useCallback((providerId: string, paramId: string, updatedParam: ScoringParameter) => {
-         const currentParams = getParametersForProvider(providerId);
-        const updated = produce(currentParams, draft => {
-            const index = draft.findIndex(p => p.id === paramId);
-            if (index !== -1) {
-                draft[index] = updatedParam;
-            }
-        });
-        saveParametersForProvider(providerId, updated);
-    }, [getParametersForProvider, saveParametersForProvider]);
-
-    const removeParameter = useCallback((providerId: string, paramId: string) => {
-         const currentParams = getParametersForProvider(providerId);
-        saveParametersForProvider(providerId, currentParams.filter(p => p.id !== paramId));
-    }, [getParametersForProvider, saveParametersForProvider]);
-    
-    const addRule = useCallback((providerId: string, paramId: string) => {
-        const newRule: Rule = {
-            id: `rule-${Date.now()}`,
-            field: '',
-            condition: '',
-            value: '',
-            score: 0,
-        };
-        const currentParams = getParametersForProvider(providerId);
-        const updated = produce(currentParams, draft => {
-            const param = draft.find(p => p.id === paramId);
-            if (param) {
-                param.rules.push(newRule);
-            }
-        });
-        saveParametersForProvider(providerId, updated);
-    }, [getParametersForProvider, saveParametersForProvider]);
-
-    const updateRule = useCallback((providerId: string, paramId: string, ruleId: string, updatedRule: Rule) => {
-        const currentParams = getParametersForProvider(providerId);
-        const updated = produce(currentParams, draft => {
-            const param = draft.find(p => p.id === paramId);
-            if (param) {
-                const ruleIndex = param.rules.findIndex(r => r.id === ruleId);
-                if (ruleIndex !== -1) {
-                    param.rules[ruleIndex] = updatedRule;
-                }
-            }
-        });
-        saveParametersForProvider(providerId, updated);
-    }, [getParametersForProvider, saveParametersForProvider]);
-
-    const removeRule = useCallback((providerId: string, paramId: string, ruleId: string) => {
-        const currentParams = getParametersForProvider(providerId);
-        const updated = produce(currentParams, draft => {
-            const param = draft.find(p => p.id === paramId);
-            if (param) {
-                param.rules = param.rules.filter(r => r.id !== ruleId);
-            }
-        });
-        saveParametersForProvider(providerId, updated);
-    }, [getParametersForProvider, saveParametersForProvider]);
-
-
-    return { getParametersForProvider, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParametersForProvider };
+    return { 
+        parameters, 
+        setParameters,
+        getParametersForProvider, 
+        saveParametersForProvider,
+    };
 }

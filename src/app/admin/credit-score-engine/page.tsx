@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { PlusCircle, Trash2, Save } from 'lucide-react';
+import { PlusCircle, Trash2, Save, History, Loader } from 'lucide-react';
 import { useScoringRules, type Rule, type ScoringParameter } from '@/hooks/use-scoring-rules';
 import {
   AlertDialog,
@@ -29,7 +30,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { ScorePreview } from '@/components/loan/score-preview';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +38,8 @@ import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct } from '@/lib/types';
 import { useScoringParameters } from '@/hooks/use-scoring-parameters';
+import { useScoringHistory, type ScoringHistoryItem } from '@/hooks/use-scoring-history';
+import { format } from 'date-fns';
 
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     return (
@@ -78,8 +80,9 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
 export default function CreditScoreEnginePage() {
     const { providers } = useLoanProviders();
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-    const { getParametersForProvider, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParametersForProvider } = useScoringRules();
+    const { parameters: currentParameters, setParameters: setCurrentParameters, getParametersForProvider, saveParametersForProvider } = useScoringRules();
     const { getParametersForProvider: getScoringParams, setAppliedProducts } = useScoringParameters();
+    const { getHistoryForProvider, addHistoryItem } = useScoringHistory();
     
     const [deletingParameterId, setDeletingParameterId] = useState<string | null>(null);
     const { toast } = useToast();
@@ -89,23 +92,27 @@ export default function CreditScoreEnginePage() {
             setSelectedProviderId(providers[0].id);
         }
     }, [providers, selectedProviderId]);
+
+    useEffect(() => {
+        if (selectedProviderId) {
+            const loadedParams = getParametersForProvider(selectedProviderId);
+            setCurrentParameters(loadedParams);
+        }
+    }, [selectedProviderId, getParametersForProvider, setCurrentParameters]);
     
     const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
     const themeColor = selectedProvider?.colorHex || '#fdb913';
     const currentScoringParams = useMemo(() => getScoringParams(selectedProviderId), [getScoringParams, selectedProviderId]);
+    const configurationHistory = useMemo(() => selectedProviderId ? getHistoryForProvider(selectedProviderId) : [], [selectedProviderId, getHistoryForProvider]);
 
-
-    const currentParameters = useMemo(() => {
-        if (!selectedProviderId) return [];
-        return getParametersForProvider(selectedProviderId);
-    }, [selectedProviderId, getParametersForProvider]);
 
     const totalWeight = React.useMemo(() => {
+        if (!currentParameters) return 0;
         return currentParameters.reduce((sum, param) => sum + param.weight, 0);
     }, [currentParameters]);
 
     const handleSave = () => {
-        if (!selectedProviderId) return;
+        if (!selectedProviderId || !currentParameters) return;
         if (totalWeight > 100) {
             toast({
                 title: 'Invalid Configuration',
@@ -122,17 +129,61 @@ export default function CreditScoreEnginePage() {
             });
         }
         saveParametersForProvider(selectedProviderId, currentParameters);
+        addHistoryItem(selectedProviderId, currentParameters);
         toast({
             title: 'Configuration Saved',
-            description: 'Your credit scoring engine parameters have been successfully saved.',
+            description: 'Your credit scoring engine parameters have been successfully saved and a history snapshot has been created.',
         });
     };
     
     const handleUpdateParameter = (paramId: string, updatedData: Partial<ScoringParameter>) => {
-        const paramToUpdate = currentParameters.find(p => p.id === paramId);
+        const paramToUpdate = currentParameters?.find(p => p.id === paramId);
         if (paramToUpdate) {
-            updateParameter(selectedProviderId, paramId, { ...paramToUpdate, ...updatedData });
+            setCurrentParameters(currentParameters.map(p => p.id === paramId ? { ...p, ...updatedData } : p));
         }
+    };
+    
+    const handleAddParameter = () => {
+        const newParam: ScoringParameter = {
+            id: `param-${Date.now()}`,
+            name: 'New Parameter',
+            weight: 10,
+            rules: [{ id: `rule-${Date.now()}`, field: 'newField', condition: '>', value: '0', score: 10 }],
+        };
+        setCurrentParameters([...(currentParameters || []), newParam]);
+    };
+    
+    const handleRemoveParameter = (paramId: string) => {
+        if (!currentParameters) return;
+        setCurrentParameters(currentParameters.filter(p => p.id !== paramId));
+        setDeletingParameterId(null);
+    };
+
+    const handleAddRule = (paramId: string) => {
+         const newRule: Rule = {
+            id: `rule-${Date.now()}`,
+            field: '',
+            condition: '',
+            value: '',
+            score: 0,
+        };
+        setCurrentParameters((currentParameters || []).map(p => p.id === paramId ? { ...p, rules: [...p.rules, newRule] } : p));
+    }
+    
+    const handleUpdateRule = (paramId: string, ruleId: string, updatedRule: Rule) => {
+        setCurrentParameters((currentParameters || []).map(p => p.id === paramId ? { ...p, rules: p.rules.map(r => r.id === ruleId ? updatedRule : r) } : p));
+    }
+    
+    const handleRemoveRule = (paramId: string, ruleId: string) => {
+        setCurrentParameters((currentParameters || []).map(p => p.id === paramId ? { ...p, rules: p.rules.filter(r => r.id !== ruleId) } : p));
+    }
+
+    const handleLoadHistory = (historyItem: ScoringHistoryItem) => {
+        setCurrentParameters(historyItem.parameters);
+        toast({
+            title: 'Configuration Loaded',
+            description: `Loaded configuration saved on ${format(historyItem.savedAt, 'PPP p')}.`,
+        });
     };
 
     const handleProductSelectionChange = (productId: string, isChecked: boolean) => {
@@ -144,11 +195,13 @@ export default function CreditScoreEnginePage() {
         setAppliedProducts(selectedProviderId, newSelected);
       };
 
-    if (providers.length === 0) {
+    if (providers.length === 0 || !currentParameters) {
         return (
             <div className="flex-1 space-y-4 p-8 pt-6">
                 <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
-                <p className="text-muted-foreground">Loading providers...</p>
+                <div className="flex items-center justify-center h-64">
+                    <Loader className="h-8 w-8 animate-spin" />
+                </div>
             </div>
         );
     }
@@ -182,7 +235,7 @@ export default function CreditScoreEnginePage() {
                     <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white">
                         <Save className="mr-2 h-4 w-4" /> Save Configuration
                     </Button>
-                    <Button onClick={() => addParameter(selectedProviderId)} style={{ backgroundColor: themeColor }} className="text-white">
+                    <Button onClick={handleAddParameter} style={{ backgroundColor: themeColor }} className="text-white">
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
                     </Button>
                 </div>
@@ -252,7 +305,7 @@ export default function CreditScoreEnginePage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => removeParameter(selectedProviderId, param.id)} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleRemoveParameter(param.id)} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -272,15 +325,15 @@ export default function CreditScoreEnginePage() {
                                            <RuleRow 
                                                 key={rule.id}
                                                 rule={rule}
-                                                onUpdate={(updatedRule) => updateRule(selectedProviderId, param.id, rule.id, updatedRule)}
-                                                onRemove={() => removeRule(selectedProviderId, param.id, rule.id)}
+                                                onUpdate={(updatedRule) => handleUpdateRule(param.id, rule.id, updatedRule)}
+                                                onRemove={() => handleRemoveRule(param.id, rule.id)}
                                                 color={themeColor}
                                            />
                                         ))}
                                          <Button 
                                             variant="outline" 
                                             className="mt-2 w-full text-white" 
-                                            onClick={() => addRule(selectedProviderId, param.id)}
+                                            onClick={() => handleAddRule(param.id)}
                                             style={{ backgroundColor: themeColor }}
                                          >
                                             <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
@@ -292,6 +345,44 @@ export default function CreditScoreEnginePage() {
                     </Card>
                 ))}
             </div>
+
+             <Card>
+                <CardHeader>
+                    <CardTitle>Configuration History</CardTitle>
+                    <CardDescription>
+                        Previously saved versions of this provider&apos;s scoring configuration.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    {configurationHistory.length > 0 ? (
+                        configurationHistory.map((item) => (
+                            <Card key={item.id} className="flex items-center justify-between p-3 bg-muted/50">
+                                <div>
+                                    <p className="font-medium">
+                                        Saved on: {format(item.savedAt, 'PPP p')}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {item.parameters.length} parameters, Total Weight: {item.parameters.reduce((s, p) => s + p.weight, 0)}%
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleLoadHistory(item)}
+                                >
+                                    <History className="mr-2 h-4 w-4" />
+                                    Load
+                                </Button>
+                            </Card>
+                        ))
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            No history found. Save the configuration to create a snapshot.
+                        </p>
+                    )}
+                </CardContent>
+             </Card>
+
              <ScorePreview parameters={currentParameters} />
         </div>
     );
