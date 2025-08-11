@@ -75,23 +75,16 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
   };
 
   const handleSelectChange = (field: 'role' | 'status' | 'providerId') => (value: string) => {
-    if (field === 'providerId') {
-        const selectedProvider = providers.find(p => p.id === value);
-        setFormData(prev => ({
-            ...prev,
-            providerId: value,
-            providerName: selectedProvider?.name || ''
-        }));
-    } else {
-        const newRole = field === 'role' ? (value as UserRole) : formData.role;
-        setFormData(prev => ({
-            ...prev,
-            [field]: value,
-            // Reset provider if role is not a provider-specific role
-            providerId: newRole === 'Loan Provider' || newRole === 'Loan Manager' ? prev.providerId : '',
-            providerName: newRole === 'Loan Provider' || newRole === 'Loan Manager' ? prev.providerName : '',
-        }));
-    }
+      const newRole = field === 'role' ? (value as UserRole) : formData.role;
+      const isProviderRole = newRole === 'Loan Provider' || newRole === 'Loan Manager';
+      
+      setFormData(prev => ({
+          ...prev,
+          [field]: value,
+          // Reset provider if role is not a provider-specific role
+          providerId: field === 'role' && !isProviderRole ? '' : (field === 'providerId' ? value : prev.providerId),
+          providerName: field === 'role' && !isProviderRole ? '' : (field === 'providerId' ? providers.find(p => p.id === value)?.name || '' : prev.providerName),
+      }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {

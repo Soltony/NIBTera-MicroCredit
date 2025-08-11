@@ -52,7 +52,7 @@ export async function POST(req: Request) {
                 phoneNumber,
                 password: hashedPassword,
                 roleName: role,
-                providerId: providerId || null,
+                providerId: providerId ? providerId : null,
                 status,
             },
         });
@@ -77,6 +77,10 @@ export async function PUT(req: Request) {
         if (updateData.role) {
             updateData.roleName = updateData.role;
             delete updateData.role;
+        }
+        
+        if (Object.prototype.hasOwnProperty.call(updateData, 'providerId')) {
+          updateData.providerId = updateData.providerId ? updateData.providerId : null;
         }
 
         const updatedUser = await prisma.user.update({
