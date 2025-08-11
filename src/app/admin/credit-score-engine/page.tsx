@@ -36,7 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
 
-const RuleRow = ({ rule, onUpdate, onRemove }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     return (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
             <Input 
@@ -64,7 +64,7 @@ const RuleRow = ({ rule, onUpdate, onRemove }: { rule: Rule; onUpdate: (updatedR
                 onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
                  className="w-1/4"
             />
-            <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive">
+            <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white">
                 <Trash2 className="h-4 w-4" />
             </Button>
         </div>
@@ -197,7 +197,13 @@ export default function CreditScoreEnginePage() {
                             </div>
                              <AlertDialog open={deletingParameterId === param.id} onOpenChange={(isOpen) => !isOpen && setDeletingParameterId(null)}>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="icon" onClick={() => setDeletingParameterId(param.id)}>
+                                    <Button 
+                                        variant="destructive" 
+                                        size="icon" 
+                                        onClick={() => setDeletingParameterId(param.id)}
+                                        style={{ backgroundColor: themeColor }}
+                                        className="text-white"
+                                    >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </AlertDialogTrigger>
@@ -210,7 +216,7 @@ export default function CreditScoreEnginePage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => removeParameter(selectedProviderId, param.id)}>Delete</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => removeParameter(selectedProviderId, param.id)} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -232,9 +238,15 @@ export default function CreditScoreEnginePage() {
                                                 rule={rule}
                                                 onUpdate={(updatedRule) => updateRule(selectedProviderId, param.id, rule.id, updatedRule)}
                                                 onRemove={() => removeRule(selectedProviderId, param.id, rule.id)}
+                                                color={themeColor}
                                            />
                                         ))}
-                                         <Button variant="outline" className="mt-2 w-full" onClick={() => addRule(selectedProviderId, param.id)}>
+                                         <Button 
+                                            variant="outline" 
+                                            className="mt-2 w-full text-white" 
+                                            onClick={() => addRule(selectedProviderId, param.id)}
+                                            style={{ backgroundColor: themeColor }}
+                                         >
                                             <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
                                         </Button>
                                     </AccordionContent>
