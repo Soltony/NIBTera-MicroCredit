@@ -127,5 +127,8 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
        }
     }
 
-    return Math.max(0, balance);
+    // This was the bug: The function was returning the balance without considering what was already paid.
+    // It should return the total accumulated debt, which is then used to calculate the remaining balance elsewhere.
+    return balance;
 };
+

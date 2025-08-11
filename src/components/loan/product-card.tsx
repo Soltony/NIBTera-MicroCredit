@@ -36,10 +36,12 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
 
-    const totalRepayable = useMemo(() => {
+    const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        const fullAmount = calculateTotalRepayable(activeLoan);
-        return fullAmount - (activeLoan.repaidAmount || 0);
+        const totalDebt = calculateTotalRepayable(activeLoan, new Date());
+        const remainingBalance = totalDebt - (activeLoan.repaidAmount || 0);
+        // Return 0 if the balance is negative (overpayment)
+        return Math.max(0, remainingBalance);
     }, [activeLoan]);
 
     return (
@@ -77,7 +79,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     <div className="bg-muted/50 p-4 rounded-lg mt-2 mb-4 space-y-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-2xl font-bold">{formatCurrency(totalRepayable)}</p>
+                                <p className="text-2xl font-bold">{formatCurrency(balanceDue)}</p>
                                 <p className="text-sm text-muted-foreground">
                                     Due Date: {format(activeLoan.dueDate, 'yyyy-MM-dd')}
                                     {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}

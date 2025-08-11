@@ -90,7 +90,8 @@ export function useLoanHistory() {
     
     // Check against total repayable today
     const totalRepayableToday = calculateTotalRepayable(loanToUpdate, new Date());
-    const isPaid = totalRepaid >= totalRepayableToday;
+    // Use a small epsilon to handle floating point inaccuracies
+    const isPaid = totalRepaid >= totalRepayableToday - 0.01;
 
     const updatedLoan: LoanDetails = {
       ...loanToUpdate,
