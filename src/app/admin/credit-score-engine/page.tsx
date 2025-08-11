@@ -85,6 +85,9 @@ export default function CreditScoreEnginePage() {
             setSelectedProviderId(providers[0].id);
         }
     }, [providers, selectedProviderId]);
+    
+    const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
+    const themeColor = selectedProvider?.colorHex || '#fdb913';
 
     const currentParameters = useMemo(() => {
         if (!selectedProviderId) return [];
@@ -161,10 +164,10 @@ export default function CreditScoreEnginePage() {
                             {totalWeight}%
                         </span>
                     </div>
-                    <Button onClick={handleSave}>
+                    <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white">
                         <Save className="mr-2 h-4 w-4" /> Save Configuration
                     </Button>
-                    <Button onClick={() => addParameter(selectedProviderId)}>
+                    <Button onClick={() => addParameter(selectedProviderId)} style={{ backgroundColor: themeColor }} className="text-white">
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
                     </Button>
                 </div>
