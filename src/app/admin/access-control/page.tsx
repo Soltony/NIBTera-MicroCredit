@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
-import { useRoles } from '@/hooks/use-roles';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,13 +17,15 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products'];
 
 function UsersTab() {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const { roles } = useRoles();
+    const [roles, setRoles] = useState<Role[]>([]);
     const { providers } = useLoanProviders();
     const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -38,17 +39,25 @@ function UsersTab() {
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
 
-    const fetchUsers = async () => {
+    const fetchUsersAndRoles = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/users');
-            if (!response.ok) throw new Error('Failed to fetch users');
-            const data = await response.json();
-            setUsers(data);
+            const [usersResponse, rolesResponse] = await Promise.all([
+                fetch('/api/users'),
+                fetch('/api/roles')
+            ]);
+            if (!usersResponse.ok) throw new Error('Failed to fetch users');
+            if (!rolesResponse.ok) throw new Error('Failed to fetch roles');
+            
+            const usersData = await usersResponse.json();
+            const rolesData = await rolesResponse.json();
+
+            setUsers(usersData);
+            setRoles(rolesData);
         } catch (error) {
             toast({
                 title: 'Error',
-                description: 'Could not load user data.',
+                description: 'Could not load initial data.',
                 variant: 'destructive',
             });
         } finally {
@@ -57,7 +66,7 @@ function UsersTab() {
     };
 
     useEffect(() => {
-        fetchUsers();
+        fetchUsersAndRoles();
     }, []);
 
     const handleOpenDialog = (user: User | null = null) => {
@@ -91,7 +100,7 @@ function UsersTab() {
                 title: `User ${editingUser ? 'Updated' : 'Added'}`,
                 description: `${userData.fullName} has been successfully ${editingUser ? 'updated' : 'added'}.`,
             });
-            fetchUsers(); // Refresh the user list
+            fetchUsersAndRoles();
         } catch (error: any) {
             toast({
                 title: 'Error',
@@ -119,7 +128,7 @@ function UsersTab() {
                 title: `User ${newStatus === 'Active' ? 'Activated' : 'Deactivated'}`,
                 description: `${user.fullName}'s status has been changed to ${newStatus}.`,
             });
-            fetchUsers();
+            fetchUsersAndRoles();
         } catch (error: any) {
              toast({
                 title: 'Error',
@@ -210,11 +219,14 @@ function UsersTab() {
 }
 
 function RolesTab() {
-    const { roles, addRole, updateRole } = useRoles();
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const { providers } = useLoanProviders();
     const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
+    const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
+    const { toast } = useToast();
 
     const themeColor = React.useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -222,6 +234,28 @@ function RolesTab() {
         }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
+
+    const fetchRoles = async () => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/roles');
+            if (!response.ok) throw new Error('Failed to fetch roles');
+            const data = await response.json();
+            setRoles(data);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Could not load role data.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRoles();
+    }, []);
 
     const handleOpenDialog = (role: Role | null = null) => {
         setEditingRole(role);
@@ -233,13 +267,70 @@ function RolesTab() {
         setIsDialogOpen(false);
     };
 
-    const handleSaveRole = (roleData: Omit<Role, 'id'>) => {
-        if (editingRole) {
-            updateRole({ ...editingRole, ...roleData });
-        } else {
-            addRole(roleData);
+    const handleSaveRole = async (roleData: Omit<Role, 'id'>) => {
+        const method = editingRole ? 'PUT' : 'POST';
+        const endpoint = '/api/roles';
+        const body = JSON.stringify(editingRole ? { ...roleData, id: editingRole.id } : roleData);
+
+        try {
+            const response = await fetch(endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save role.');
+            }
+            
+            toast({
+                title: `Role ${editingRole ? 'Updated' : 'Added'}`,
+                description: `${roleData.name} has been successfully ${editingRole ? 'updated' : 'added'}.`,
+            });
+            fetchRoles();
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message,
+                variant: 'destructive',
+            });
         }
     };
+    
+    const handleDeleteRole = async () => {
+        if (!deletingRoleId) return;
+        try {
+            const response = await fetch('/api/roles', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: deletingRoleId }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete role.');
+            }
+            
+            toast({
+                title: 'Role Deleted',
+                description: 'The role has been successfully deleted.',
+            });
+            fetchRoles();
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message,
+                variant: 'destructive',
+            });
+        } finally {
+            setDeletingRoleId(null);
+        }
+    };
+    
+    if (isLoading) {
+        return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
+    }
 
     return (
         <>
@@ -290,7 +381,7 @@ function RolesTab() {
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                 <DropdownMenuItem onClick={() => handleOpenDialog(role)}>Edit</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                                                <DropdownMenuItem className="text-red-600" onClick={() => setDeletingRoleId(role.id)}>Delete</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
@@ -307,6 +398,20 @@ function RolesTab() {
                 role={editingRole}
                 primaryColor={themeColor}
             />
+            <AlertDialog open={!!deletingRoleId} onOpenChange={(isOpen) => !isOpen && setDeletingRoleId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to delete this role?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the role and may affect users assigned to it.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteRole} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
