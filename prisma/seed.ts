@@ -7,6 +7,18 @@ const prisma = new PrismaClient();
 async function main() {
   console.log(`Start seeding ...`);
 
+  // Clean up existing data to ensure idempotency
+  await prisma.payment.deleteMany({});
+  await prisma.loanDetails.deleteMany({});
+  await prisma.scoringParameterRule.deleteMany({});
+  await prisma.scoringParameter.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.loanProduct.deleteMany({});
+  await prisma.loanProvider.deleteMany({});
+  await prisma.role.deleteMany({});
+  console.log('Deleted existing data.');
+
+
   const salt = await bcrypt.genSalt(10);
 
   // Seed Roles
