@@ -38,10 +38,10 @@ export async function createSession(userId: string) {
 }
 
 export async function getSession() {
-  const sessionCookieValue = cookies().get('session')?.value;
-  if (!sessionCookieValue) return null;
+  const sessionCookie = cookies().get('session');
+  if (!sessionCookie) return null;
 
-  const sessionPayload = await decrypt(sessionCookieValue);
+  const sessionPayload = await decrypt(sessionCookie.value);
   if (!sessionPayload?.userId) return null;
 
   return sessionPayload;

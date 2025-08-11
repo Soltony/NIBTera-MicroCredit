@@ -3,12 +3,13 @@ import {NextRequest, NextResponse} from 'next/server';
 import {getSession} from '@/lib/session';
 
 const protectedAdminRoutes = ['/admin'];
+const publicRoutes = ['/admin/login'];
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  
-  // Allow direct access to the login page
-  if (path === '/admin/login') {
+
+  // Do not run middleware on public admin routes like login
+  if (publicRoutes.includes(path)) {
     return NextResponse.next();
   }
 
