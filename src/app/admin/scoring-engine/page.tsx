@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -205,8 +206,8 @@ export default function ScoringEnginePage() {
                             id={`product-${product.id}`}
                             checked={currentParameters.productIds?.includes(product.id)}
                             onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
-                            style={{'--primary-hsl': themeColor} as React.CSSProperties}
-                            className="border-[--primary-hsl] data-[state=checked]:bg-[--primary-hsl]"
+                            style={{'--primary': themeColor} as React.CSSProperties}
+                            className="border-[--primary] data-[state=checked]:bg-[--primary] data-[state=checked]:border-[--primary]"
                         />
                         <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
                     </div>
