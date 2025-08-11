@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ScorePreview } from '@/components/loan/score-preview';
 
 const RuleRow = ({ rule, onUpdate, onRemove }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; }) => {
     return (
@@ -157,6 +158,7 @@ export default function CreditScoreEnginePage() {
                     </Card>
                 ))}
             </div>
+             <ScorePreview parameters={parameters} />
         </div>
     );
 }
