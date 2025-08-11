@@ -19,7 +19,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { PlusCircle, Trash2 } from 'lucide-react';
-import { useScoringRules, type ScoringParameter, type Rule } from '@/hooks/use-scoring-rules';
+import { useScoringRules, type Rule } from '@/hooks/use-scoring-rules';
 import {
   AlertDialog,
   AlertDialogAction,
