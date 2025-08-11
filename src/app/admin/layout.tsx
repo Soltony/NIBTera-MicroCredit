@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -77,6 +76,11 @@ function AuthWrapper({children}: {children: React.ReactNode}) {
   const router = useRouter();
   const {providers} = useLoanProviders();
   const {currentUser, logout, isLoading} = useAuth();
+
+  // If on the login page, don't render the protected layout
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
 
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
