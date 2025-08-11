@@ -71,6 +71,6 @@ export async function getCurrentUser() {
 }
 
 
-export function deleteSession() {
+export async function deleteSession() {
   cookies().set('session', '', {expires: new Date(0)});
 }
