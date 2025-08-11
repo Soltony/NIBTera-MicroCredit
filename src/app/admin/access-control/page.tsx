@@ -1,9 +1,8 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
-import { useUsers } from '@/hooks/use-users';
 import { useRoles } from '@/hooks/use-roles';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Button } from '@/components/ui/button';
@@ -18,11 +17,13 @@ import type { User, Role } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { Loader2 } from 'lucide-react';
 
 const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products'];
 
 function UsersTab() {
-    const { users, addUser, updateUser } = useUsers();
+    const [users, setUsers] = useState<User[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const { roles } = useRoles();
     const { providers } = useLoanProviders();
     const { currentUser } = useAuth();
@@ -31,11 +32,33 @@ function UsersTab() {
     const { toast } = useToast();
     
     const themeColor = React.useMemo(() => {
-        if (currentUser?.role === 'Admin') {
+        if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
         }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
+
+    const fetchUsers = async () => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/users');
+            if (!response.ok) throw new Error('Failed to fetch users');
+            const data = await response.json();
+            setUsers(data);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Could not load user data.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUsers();
+    }, []);
 
     const handleOpenDialog = (user: User | null = null) => {
         setEditingUser(user);
@@ -47,26 +70,68 @@ function UsersTab() {
         setIsDialogOpen(false);
     };
 
-    const handleSaveUser = (userData: Omit<User, 'id'>) => {
-        const providerName = providers.find(p => p.id === userData.providerId)?.name || '';
-        const userWithProviderName = { ...userData, providerName };
-        if (editingUser) {
-            updateUser({ ...editingUser, ...userWithProviderName });
-            toast({ title: 'User Updated', description: `${userWithProviderName.fullName}'s details have been updated.` });
-        } else {
-            addUser(userWithProviderName);
-             toast({ title: 'User Added', description: `${userWithProviderName.fullName} has been added.` });
+    const handleSaveUser = async (userData: Omit<User, 'id'> & { id?: string; password?: string }) => {
+        const method = editingUser ? 'PUT' : 'POST';
+        const endpoint = '/api/users';
+        const body = JSON.stringify(editingUser ? { ...userData, id: editingUser.id } : userData);
+
+        try {
+            const response = await fetch(endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save user.');
+            }
+            
+            toast({
+                title: `User ${editingUser ? 'Updated' : 'Added'}`,
+                description: `${userData.fullName} has been successfully ${editingUser ? 'updated' : 'added'}.`,
+            });
+            fetchUsers(); // Refresh the user list
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message,
+                variant: 'destructive',
+            });
         }
     };
     
-    const handleToggleStatus = (user: User) => {
+    const handleToggleStatus = async (user: User) => {
         const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
-        updateUser({ ...user, status: newStatus });
-        toast({
-            title: `User ${newStatus === 'Active' ? 'Activated' : 'Deactivated'}`,
-            description: `${user.fullName}'s status has been changed to ${newStatus}.`,
-        });
+        try {
+            const response = await fetch('/api/users', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: user.id, status: newStatus }),
+            });
+            
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update status.');
+            }
+            
+            toast({
+                title: `User ${newStatus === 'Active' ? 'Activated' : 'Deactivated'}`,
+                description: `${user.fullName}'s status has been changed to ${newStatus}.`,
+            });
+            fetchUsers();
+        } catch (error: any) {
+             toast({
+                title: 'Error',
+                description: error.message,
+                variant: 'destructive',
+            });
+        }
     };
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
+    }
 
     return (
         <>
@@ -99,7 +164,7 @@ function UsersTab() {
                                     <TableCell className="font-medium">{user.fullName}</TableCell>
                                     <TableCell>{user.email}</TableCell>
                                     <TableCell>
-                                        <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'} style={user.role === 'Admin' ? { backgroundColor: themeColor, color: 'white' } : {}}>
+                                        <Badge variant={user.role === 'Admin' || user.role === 'Super Admin' ? 'default' : 'secondary'} style={user.role === 'Admin' || user.role === 'Super Admin' ? { backgroundColor: themeColor, color: 'white' } : {}}>
                                             {user.role}
                                         </Badge>
                                     </TableCell>
@@ -152,7 +217,7 @@ function RolesTab() {
     const [editingRole, setEditingRole] = useState<Role | null>(null);
 
     const themeColor = React.useMemo(() => {
-        if (currentUser?.role === 'Admin') {
+        if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
         }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';

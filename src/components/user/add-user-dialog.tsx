@@ -21,7 +21,7 @@ import { useLoanProviders } from '@/hooks/use-loan-providers';
 interface AddUserDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (user: Omit<User, 'id'>) => void;
+  onSave: (user: Omit<User, 'id'> & { password?: string }) => void;
   user: User | null;
   roles: Role[];
   primaryColor?: string;
@@ -33,6 +33,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
     fullName: '',
     email: '',
     phoneNumber: '',
+    password: '',
     role: 'Loan Provider' as UserRole,
     status: 'Active' as UserStatus,
     providerId: '',
@@ -41,12 +42,14 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
 
   useEffect(() => {
     const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
+    const defaultProvider = providers.length > 0 ? providers[0] : null;
 
     if (user) {
       setFormData({
         fullName: user.fullName,
         email: user.email,
         phoneNumber: user.phoneNumber,
+        password: '', // Password is not edited
         role: user.role,
         status: user.status,
         providerId: user.providerId || '',
@@ -57,10 +60,11 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         fullName: '',
         email: '',
         phoneNumber: '',
+        password: '',
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
-        providerId: providers.length > 0 ? providers[0].id : '',
-        providerName: providers.length > 0 ? providers[0].name : '',
+        providerId: defaultProvider?.id || '',
+        providerName: defaultProvider?.name || '',
       });
     }
   }, [user, isOpen, providers, roles]);
@@ -83,7 +87,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         setFormData(prev => ({
             ...prev,
             [field]: value,
-            // Reset provider if role is not 'Loan Provider'
+            // Reset provider if role is not a provider-specific role
             providerId: newRole === 'Loan Provider' || newRole === 'Loan Manager' ? prev.providerId : '',
             providerName: newRole === 'Loan Provider' || newRole === 'Loan Manager' ? prev.providerName : '',
         }));
@@ -92,7 +96,17 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    const submissionData: any = { ...formData };
+    if (!user) { // Only send password for new users
+        if (!submissionData.password) {
+            alert('Password is required for new users.');
+            return;
+        }
+    } else {
+        delete submissionData.password; // Don't send empty password for existing users
+    }
+
+    onSave(submissionData);
     onClose();
   };
 
@@ -124,6 +138,14 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
             </Label>
             <Input id="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className="col-span-3" required />
           </div>
+          {!user && (
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right">
+                Password
+                </Label>
+                <Input id="password" type="password" value={formData.password} onChange={handleChange} className="col-span-3" required />
+            </div>
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="role" className="text-right">
               Role

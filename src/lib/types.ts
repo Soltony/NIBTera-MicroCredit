@@ -61,7 +61,7 @@ export const CheckLoanEligibilityOutputSchema = z.object({
 export type CheckLoanEligibilityOutput = z.infer<typeof CheckLoanEligibilityOutputSchema>;
 
 
-export type UserRole = 'Admin' | 'Loan Provider';
+export type UserRole = 'Super Admin' | 'Admin' | 'Loan Manager' | 'Auditor' | 'Loan Provider';
 export type UserStatus = 'Active' | 'Inactive';
 
 export interface User {
