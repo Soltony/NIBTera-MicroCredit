@@ -49,18 +49,21 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
     let totalScore = 0;
     
     parameters.forEach(param => {
-        let parameterScore = 0;
+        let maxScoreForParam = 0;
         param.rules.forEach(rule => {
             const inputValue = parseFloat(applicantData[rule.field]);
             if (!isNaN(inputValue)) {
                  if (evaluateCondition(inputValue, rule.condition, rule.value)) {
-                    parameterScore += rule.score;
+                    // Find the highest score among matching rules for this parameter
+                    if (rule.score > maxScoreForParam) {
+                        maxScoreForParam = rule.score;
+                    }
                 }
             }
         });
         
-        // Apply weight to the parameter's score
-        totalScore += parameterScore * (param.weight / 100);
+        // Apply weight to the highest score found for the parameter
+        totalScore += maxScoreForParam * (param.weight / 100);
     });
 
     setCalculatedScore(totalScore);
