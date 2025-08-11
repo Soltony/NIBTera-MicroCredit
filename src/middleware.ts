@@ -11,7 +11,8 @@ export default async function middleware(req: NextRequest) {
     path.startsWith(prefix)
   );
 
-  if (publicRoutes.includes(path)) {
+  // Allow login page access
+  if (path === '/admin/login') {
     return NextResponse.next();
   }
 
