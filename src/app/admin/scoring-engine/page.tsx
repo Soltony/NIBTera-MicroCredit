@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -75,10 +75,16 @@ const GenderImpactInput = ({ label, value, onValueChange }: { label: string; val
 export default function ScoringEnginePage() {
   const { providers } = useLoanProviders();
   const { transactionProducts } = useTransactionProducts();
-  const [selectedProviderId, setSelectedProviderId] = useState<string>(providers[0]?.id || '');
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts, setTransactionProductWeight } = useScoringParameters();
   const { toast } = useToast();
   const [newOccupation, setNewOccupation] = React.useState('');
+
+  useEffect(() => {
+    if (providers.length > 0 && !selectedProviderId) {
+      setSelectedProviderId(providers[0].id);
+    }
+  }, [providers, selectedProviderId]);
 
   const currentParameters = useMemo(() => getParametersForProvider(selectedProviderId), [getParametersForProvider, selectedProviderId]);
   const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
@@ -142,21 +148,11 @@ export default function ScoringEnginePage() {
     setAppliedProducts(selectedProviderId, newSelected);
   };
   
-  if (!selectedProviderId || !currentParameters) {
+  if (!selectedProviderId || !currentParameters || providers.length === 0) {
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
              <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
-             <p className="text-muted-foreground">Select a provider to configure their scoring parameters.</p>
-             <Select onValueChange={setSelectedProviderId} value={selectedProviderId}>
-                <SelectTrigger className="w-[280px]">
-                    <SelectValue placeholder="Select a provider" />
-                </SelectTrigger>
-                <SelectContent>
-                    {providers.map(provider => (
-                        <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+             <p className="text-muted-foreground">Loading configurations...</p>
         </div>
     )
   }
@@ -441,6 +437,8 @@ export default function ScoringEnginePage() {
     </div>
   );
 }
+
+    
 
     
 
