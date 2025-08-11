@@ -73,6 +73,9 @@ export function useScoringParameters() {
         const migratedData = produce(parsedData, draft => {
              for (const providerId in draft) {
                 const providerParams = draft[providerId];
+                if (!providerParams.productIds) {
+                    providerParams.productIds = [];
+                }
                 if (providerParams.weights && providerParams.weights.transactionHistoryByProduct && typeof providerParams.weights.transactionHistoryByProduct.values === 'undefined') {
                     providerParams.weights.transactionHistoryByProduct.values = deepClone(DEFAULT_PARAMETERS.weights.transactionHistoryByProduct.values);
                 }
@@ -209,5 +212,3 @@ export function useScoringParameters() {
 
   return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts, setTransactionProductWeight };
 }
-
-    
