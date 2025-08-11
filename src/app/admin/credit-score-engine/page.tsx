@@ -35,6 +35,9 @@ import { ScorePreview } from '@/components/loan/score-preview';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { LoanProduct } from '@/lib/types';
+import { useScoringParameters } from '@/hooks/use-scoring-parameters';
 
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     return (
@@ -64,7 +67,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                 onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
                  className="w-1/4"
             />
-            <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white">
+            <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white hover:bg-destructive">
                 <Trash2 className="h-4 w-4" />
             </Button>
         </div>
@@ -76,10 +79,11 @@ export default function CreditScoreEnginePage() {
     const { providers } = useLoanProviders();
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
     const { getParametersForProvider, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParametersForProvider } = useScoringRules();
+    const { getParametersForProvider: getScoringParams, setAppliedProducts } = useScoringParameters();
+    
     const [deletingParameterId, setDeletingParameterId] = useState<string | null>(null);
     const { toast } = useToast();
     
-    // Set initial provider once providers are loaded
     useEffect(() => {
         if (providers.length > 0 && !selectedProviderId) {
             setSelectedProviderId(providers[0].id);
@@ -88,6 +92,8 @@ export default function CreditScoreEnginePage() {
     
     const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
     const themeColor = selectedProvider?.colorHex || '#fdb913';
+    const currentScoringParams = useMemo(() => getScoringParams(selectedProviderId), [getScoringParams, selectedProviderId]);
+
 
     const currentParameters = useMemo(() => {
         if (!selectedProviderId) return [];
@@ -129,7 +135,16 @@ export default function CreditScoreEnginePage() {
         }
     };
 
-    if (!selectedProviderId) {
+    const handleProductSelectionChange = (productId: string, isChecked: boolean) => {
+        if (!selectedProviderId) return;
+        const currentSelected = currentScoringParams.productIds || [];
+        const newSelected = isChecked
+          ? [...currentSelected, productId]
+          : currentSelected.filter(id => id !== productId);
+        setAppliedProducts(selectedProviderId, newSelected);
+      };
+
+    if (providers.length === 0) {
         return (
             <div className="flex-1 space-y-4 p-8 pt-6">
                 <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
@@ -173,7 +188,30 @@ export default function CreditScoreEnginePage() {
                 </div>
             </div>
 
-            <div className="space-y-4">
+            {selectedProvider && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Applied Products</CardTitle>
+                        <CardDescription>Select which products from {selectedProvider.name} this scoring model applies to.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedProvider.products.map((product: LoanProduct) => (
+                            <div key={product.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`product-${product.id}`}
+                                    checked={currentScoringParams.productIds?.includes(product.id)}
+                                    onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
+                                    style={{'--primary': themeColor} as React.CSSProperties}
+                                    className="border-[--primary] data-[state=checked]:bg-[--primary] data-[state=checked]:border-[--primary]"
+                                />
+                                <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+
+            <div className="space-y-4 mt-4">
                 {currentParameters.map((param) => (
                     <Card key={param.id}>
                         <CardHeader className="flex flex-row items-center justify-between">
@@ -201,8 +239,6 @@ export default function CreditScoreEnginePage() {
                                         variant="destructive" 
                                         size="icon" 
                                         onClick={() => setDeletingParameterId(param.id)}
-                                        style={{ backgroundColor: themeColor }}
-                                        className="text-white"
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>

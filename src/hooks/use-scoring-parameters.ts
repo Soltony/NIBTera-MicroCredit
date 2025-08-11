@@ -72,6 +72,7 @@ export function useScoringParameters() {
         // Migration logic can be added here if the data structure changes in the future
         const migratedData = produce(parsedData, draft => {
              for (const providerId in draft) {
+                if (!draft[providerId]) continue;
                 const providerParams = draft[providerId];
                 if (!providerParams.productIds) {
                     providerParams.productIds = [];
@@ -109,9 +110,9 @@ export function useScoringParameters() {
         // Merge defaults with existing params to ensure all keys are present.
         return produce(defaults, draft => {
             if (providerParams.productIds) draft.productIds = providerParams.productIds;
-            Object.assign(draft.weights, providerParams.weights);
-            Object.assign(draft.genderImpact, providerParams.genderImpact);
-            Object.assign(draft.occupationRisk, providerParams.occupationRisk);
+            if(providerParams.weights) Object.assign(draft.weights, providerParams.weights);
+            if(providerParams.genderImpact) Object.assign(draft.genderImpact, providerParams.genderImpact);
+            if(providerParams.occupationRisk) Object.assign(draft.occupationRisk, providerParams.occupationRisk);
         });
     }
     return defaults;
