@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String        @id @default(cuid())
+  fullName    String
+  email       String        @unique
+  phoneNumber String
+  roleName    String
+  status      UserStatus
+  providerId  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  role        Role          @relation(fields: [roleName], references: [name])
+  provider    LoanProvider? @relation(fields: [providerId], references: [id])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions Json
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LoanProvider {
+  id       String   @id @default(cuid())
+  name     String   @unique
+  icon     String
+  colorHex String
+  users    User[]
+  products LoanProduct[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LoanProduct {
+  id             String   @id @default(cuid())
+  name           String
+  description    String
+  icon           String
+  minLoan        Float
+  maxLoan        Float
+  serviceFee     String
+  dailyFee       String
+  penaltyFee     String
+  status         ProductStatus
+  providerId     String
+  loanProvider   LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  loans          LoanDetails[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model LoanDetails {
+  id              String   @id @default(cuid())
+  loanAmount      Float
+  serviceFee      Float
+  interestRate    Float
+  disbursedDate   DateTime
+  dueDate         DateTime
+  penaltyAmount   Float
+  repaymentStatus RepaymentStatus
+  repaidAmount    Float?
+  productId       String
+  product         LoanProduct @relation(fields: [productId], references: [id])
+  payments        Payment[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Payment {
+  id                           String   @id @default(cuid())
+  amount                       Float
+  date                         DateTime
+  outstandingBalanceBeforePayment Float?
+  loanId                       String
+  loan                         LoanDetails @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+}
+
+model ScoringParameter {
+  id      String   @id @default(cuid())
+  name    String
+  weight  Float
+  rules   Json
+  providerId String @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+enum UserStatus {
+  Active
+  Inactive
+}
+
+enum ProductStatus {
+  Active
+  Disabled
+}
+
+enum RepaymentStatus {
+  Paid
+  Unpaid
+}
