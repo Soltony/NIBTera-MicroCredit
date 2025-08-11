@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -46,9 +45,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useTransactionProducts } from '@/hooks/use-transaction-products';
-
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
     const [formData, setFormData] = useState(product);
@@ -212,79 +208,13 @@ function ProvidersTab() {
     </>
 }
 
-
-function ConfigurationTab() {
-    const { transactionProducts, addTransactionProduct, removeTransactionProduct } = useTransactionProducts();
-    const [newProductName, setNewProductName] = useState('');
-    
-    const handleAddProduct = () => {
-        if (newProductName.trim()) {
-            addTransactionProduct({ name: newProductName.trim() });
-            setNewProductName('');
-        }
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Transaction Product Definitions</CardTitle>
-                <CardDescription>
-                    Define the products available for the &quot;Transaction History By Product&quot; scoring factor. 
-                    The weights for these products are assigned on the Scoring Engine page.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex space-x-2">
-                    <Input 
-                        value={newProductName}
-                        onChange={(e) => setNewProductName(e.target.value)}
-                        placeholder="e.g., Bill Payment"
-                    />
-                    <Button onClick={handleAddProduct}>Add Product</Button>
-                </div>
-                <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Product Name</TableHead>
-                                <TableHead className="w-[100px] text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {transactionProducts.map((product) => (
-                                <TableRow key={product.id}>
-                                    <TableCell className="font-medium">{product.name}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTransactionProduct(product.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 export default function AdminSettingsPage() {
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-            <Tabs defaultValue="providers" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
-                    <TabsTrigger value="configuration">Configuration</TabsTrigger>
-                </TabsList>
-                <TabsContent value="providers">
-                    <ProvidersTab />
-                </TabsContent>
-                <TabsContent value="configuration">
-                    <ConfigurationTab />
-                </TabsContent>
-            </Tabs>
+            <div className="space-y-4">
+                <ProvidersTab />
+            </div>
         </div>
     );
 }
