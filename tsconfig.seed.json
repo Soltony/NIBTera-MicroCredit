@@ -1,0 +1,14 @@
+
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "es2017",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "types": ["node"]
+  },
+  "include": ["prisma/seed.ts"],
+}
