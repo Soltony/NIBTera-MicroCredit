@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 setCurrentUser(user || null);
             } else if (users.length > 0) {
                 // Default to admin user if no one is logged in
-                const adminUser = users.find(u => u.role === 'Admin');
+                const adminUser = users.find(u => u.role === 'Super Admin');
                 if (adminUser) {
                     setCurrentUser(adminUser);
                     window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, adminUser.id);

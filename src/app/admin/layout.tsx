@@ -51,31 +51,31 @@ const allMenuItems = [
     path: '/admin',
     label: 'Dashboard',
     icon: LayoutDashboard,
-    roles: ['Admin', 'Loan Provider'],
+    roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
   },
   {
     path: '/admin/access-control',
     label: 'Access Control',
     icon: ShieldCheck,
-    roles: ['Admin'],
+    roles: ['Super Admin'],
   },
   {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,
-    roles: ['Admin', 'Loan Provider'],
+    roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
   },
   {
     path: '/admin/credit-score-engine',
     label: 'Scoring Engine',
     icon: FileCog,
-    roles: ['Admin'],
+    roles: ['Super Admin', 'Loan Manager'],
   },
   {
     path: '/admin/settings',
     label: 'Settings',
     icon: Settings,
-    roles: ['Admin'],
+    roles: ['Super Admin', 'Loan Manager'],
   },
 ];
 
@@ -86,11 +86,9 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     const { currentUser, login, logout, isLoading } = useAuth();
 
     const themeColor = React.useMemo(() => {
-        if (currentUser?.role === 'Admin') {
-            // Admin can have a default color, e.g., NIb Bank's color
+        if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
         }
-        // Loan provider sees their own color
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
 
@@ -98,7 +96,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
     const menuItems = React.useMemo(() => {
         if (!currentUser) return [];
-        return allMenuItems.filter(item => item.roles.includes(currentUser.role));
+        return allMenuItems.filter(item => item.roles.includes(currentUser.role as string));
     }, [currentUser]);
 
     if (isLoading) {
