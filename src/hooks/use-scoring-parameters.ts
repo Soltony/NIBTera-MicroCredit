@@ -196,3 +196,5 @@ export function useScoringParameters() {
 
   return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts, setTransactionProductWeight };
 }
+
+    

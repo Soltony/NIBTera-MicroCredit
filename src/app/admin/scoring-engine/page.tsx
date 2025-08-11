@@ -440,5 +440,6 @@ export default function ScoringEnginePage() {
       </div>
     </div>
   );
+}
 
     
