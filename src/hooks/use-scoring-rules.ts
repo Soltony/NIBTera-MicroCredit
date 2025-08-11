@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { produce } from 'immer';
+import { useLoanProviders } from './use-loan-providers';
 
 export interface Rule {
     id: string;
@@ -19,7 +20,7 @@ export interface ScoringParameter {
     rules: Rule[];
 }
 
-const MOCK_SCORING_PARAMETERS: ScoringParameter[] = [
+const DEFAULT_SCORING_PARAMETERS: ScoringParameter[] = [
     {
         id: 'param-1',
         name: 'Age',
@@ -38,62 +39,89 @@ const MOCK_SCORING_PARAMETERS: ScoringParameter[] = [
             { id: 'rule-2b', field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
         ]
     },
+    {
+        id: 'param-3',
+        name: 'Income Level',
+        weight: 50,
+        rules: [
+            { id: 'rule-3a', field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
+             { id: 'rule-3b', field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
+        ]
+    },
 ];
 
-const STORAGE_KEY = 'creditScoringRules';
+const STORAGE_KEY = 'creditScoringRulesByProvider';
+
+type AllScoringRules = Record<string, ScoringParameter[]>;
 
 export function useScoringRules() {
-    const [parameters, setParameters] = useState<ScoringParameter[]>([]);
+    const [allParameters, setAllParameters] = useState<AllScoringRules>({});
+    const { providers } = useLoanProviders();
 
     useEffect(() => {
         try {
             const item = window.localStorage.getItem(STORAGE_KEY);
             if (item) {
-                setParameters(JSON.parse(item));
+                setAllParameters(JSON.parse(item));
             } else {
-                setParameters(MOCK_SCORING_PARAMETERS);
-                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_SCORING_PARAMETERS));
+                // Initialize for all existing providers if nothing is in storage
+                const initialData = providers.reduce((acc, provider) => {
+                    acc[provider.id] = JSON.parse(JSON.stringify(DEFAULT_SCORING_PARAMETERS));
+                    return acc;
+                }, {} as AllScoringRules);
+                setAllParameters(initialData);
+                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
             }
         } catch (error) {
             console.warn(`Error reading localStorage key “${STORAGE_KEY}”:`, error);
-            setParameters(MOCK_SCORING_PARAMETERS);
+             setAllParameters({});
         }
-    }, []);
+    }, [providers]);
 
-    const saveParameters = useCallback((updatedParameters: ScoringParameter[]) => {
-        setParameters(updatedParameters);
+    const getParametersForProvider = useCallback((providerId: string): ScoringParameter[] => {
+        return allParameters[providerId] || JSON.parse(JSON.stringify(DEFAULT_SCORING_PARAMETERS));
+    }, [allParameters]);
+
+    const saveParametersForProvider = useCallback((providerId: string, updatedParameters: ScoringParameter[]) => {
+        const updatedAllParameters = produce(allParameters, draft => {
+            draft[providerId] = updatedParameters;
+        });
+        setAllParameters(updatedAllParameters);
         try {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedParameters));
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedAllParameters));
         } catch (error) {
             console.warn(`Error setting localStorage key “${STORAGE_KEY}”:`, error);
         }
-    }, []);
+    }, [allParameters]);
 
-    const addParameter = useCallback(() => {
+    const addParameter = useCallback((providerId: string) => {
         const newParam: ScoringParameter = {
             id: `param-${Date.now()}`,
             name: 'New Parameter',
             weight: 10,
-            rules: [],
+            rules: [{ id: `rule-${Date.now()}`, field: 'newField', condition: '>', value: '0', score: 10 }],
         };
-        saveParameters([...parameters, newParam]);
-    }, [parameters, saveParameters]);
+        const currentParams = getParametersForProvider(providerId);
+        saveParametersForProvider(providerId, [...currentParams, newParam]);
+    }, [getParametersForProvider, saveParametersForProvider]);
 
-    const updateParameter = useCallback((paramId: string, updatedParam: ScoringParameter) => {
-        const updated = produce(parameters, draft => {
+    const updateParameter = useCallback((providerId: string, paramId: string, updatedParam: ScoringParameter) => {
+         const currentParams = getParametersForProvider(providerId);
+        const updated = produce(currentParams, draft => {
             const index = draft.findIndex(p => p.id === paramId);
             if (index !== -1) {
                 draft[index] = updatedParam;
             }
         });
-        saveParameters(updated);
-    }, [parameters, saveParameters]);
+        saveParametersForProvider(providerId, updated);
+    }, [getParametersForProvider, saveParametersForProvider]);
 
-    const removeParameter = useCallback((paramId: string) => {
-        saveParameters(parameters.filter(p => p.id !== paramId));
-    }, [parameters, saveParameters]);
+    const removeParameter = useCallback((providerId: string, paramId: string) => {
+         const currentParams = getParametersForProvider(providerId);
+        saveParametersForProvider(providerId, currentParams.filter(p => p.id !== paramId));
+    }, [getParametersForProvider, saveParametersForProvider]);
     
-    const addRule = useCallback((paramId: string) => {
+    const addRule = useCallback((providerId: string, paramId: string) => {
         const newRule: Rule = {
             id: `rule-${Date.now()}`,
             field: '',
@@ -101,17 +129,19 @@ export function useScoringRules() {
             value: '',
             score: 0,
         };
-        const updated = produce(parameters, draft => {
+        const currentParams = getParametersForProvider(providerId);
+        const updated = produce(currentParams, draft => {
             const param = draft.find(p => p.id === paramId);
             if (param) {
                 param.rules.push(newRule);
             }
         });
-        saveParameters(updated);
-    }, [parameters, saveParameters]);
+        saveParametersForProvider(providerId, updated);
+    }, [getParametersForProvider, saveParametersForProvider]);
 
-    const updateRule = useCallback((paramId: string, ruleId: string, updatedRule: Rule) => {
-        const updated = produce(parameters, draft => {
+    const updateRule = useCallback((providerId: string, paramId: string, ruleId: string, updatedRule: Rule) => {
+        const currentParams = getParametersForProvider(providerId);
+        const updated = produce(currentParams, draft => {
             const param = draft.find(p => p.id === paramId);
             if (param) {
                 const ruleIndex = param.rules.findIndex(r => r.id === ruleId);
@@ -120,19 +150,20 @@ export function useScoringRules() {
                 }
             }
         });
-        saveParameters(updated);
-    }, [parameters, saveParameters]);
+        saveParametersForProvider(providerId, updated);
+    }, [getParametersForProvider, saveParametersForProvider]);
 
-    const removeRule = useCallback((paramId: string, ruleId: string) => {
-        const updated = produce(parameters, draft => {
+    const removeRule = useCallback((providerId: string, paramId: string, ruleId: string) => {
+        const currentParams = getParametersForProvider(providerId);
+        const updated = produce(currentParams, draft => {
             const param = draft.find(p => p.id === paramId);
             if (param) {
                 param.rules = param.rules.filter(r => r.id !== ruleId);
             }
         });
-        saveParameters(updated);
-    }, [parameters, saveParameters]);
+        saveParametersForProvider(providerId, updated);
+    }, [getParametersForProvider, saveParametersForProvider]);
 
 
-    return { parameters, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParameters };
+    return { getParametersForProvider, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParametersForProvider };
 }
