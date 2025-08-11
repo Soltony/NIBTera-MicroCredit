@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useMemo, useState } from 'react';
@@ -107,19 +106,25 @@ export default function ScoringEnginePage() {
 
 
   const handleSave = () => {
-    if (totalWeight !== 100) {
+    if (totalWeight > 100) {
         toast({
             title: 'Invalid Configuration',
-            description: 'The total weight of all enabled parameters must be exactly 100%.',
+            description: 'The total weight of all enabled parameters must not exceed 100%.',
             variant: 'destructive',
         });
         return;
     }
-    // Note: The hook already saves on every change, so this is just for validation feedback.
-    toast({
-      title: 'Parameters Saved',
-      description: `Credit scoring parameters for ${providers.find(p => p.id === selectedProviderId)?.name} have been updated.`,
-    });
+    if (totalWeight < 100) {
+        toast({
+            title: 'Configuration Warning',
+            description: 'The total weight is less than 100%. The configuration is saved but may not be optimal.',
+        });
+    } else {
+        toast({
+          title: 'Parameters Saved',
+          description: `Credit scoring parameters for ${providers.find(p => p.id === selectedProviderId)?.name} have been updated.`,
+        });
+    }
   };
 
   const handleAddOccupation = () => {
@@ -163,12 +168,12 @@ export default function ScoringEnginePage() {
         <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-2 mr-4">
                 <span className="text-sm font-medium">Total Weight:</span>
-                <span className={cn("text-lg font-bold", totalWeight === 100 ? 'text-green-600' : 'text-red-600')}>
+                <span className={cn("text-lg font-bold", totalWeight > 100 ? 'text-red-600' : 'text-green-600')}>
                     {totalWeight}%
                 </span>
             </div>
             <Button variant="outline" onClick={() => resetParameters(selectedProviderId)}>Reset to Defaults</Button>
-            <Button onClick={handleSave} disabled={totalWeight !== 100} style={{backgroundColor: themeColor}} className="text-white">Save Configuration</Button>
+            <Button onClick={handleSave} style={{backgroundColor: themeColor}} className="text-white">Save Configuration</Button>
         </div>
       </div>
 
@@ -367,7 +372,7 @@ export default function ScoringEnginePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Employment & Income</CardTitle>
+            <CardTitle>Employment &amp; Income</CardTitle>
             <CardDescription>Weights for employment and salary information.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -435,4 +440,5 @@ export default function ScoringEnginePage() {
       </div>
     </div>
   );
-}
+
+    
