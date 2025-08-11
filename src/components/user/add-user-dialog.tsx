@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { User, UserRole, UserStatus } from '@/lib/types';
+import type { User, UserRole, UserStatus, Role } from '@/lib/types';
 import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 interface AddUserDialogProps {
@@ -23,10 +23,11 @@ interface AddUserDialogProps {
   onClose: () => void;
   onSave: (user: Omit<User, 'id'>) => void;
   user: User | null;
+  roles: Role[];
   primaryColor?: string;
 }
 
-export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#fdb913' }: AddUserDialogProps) {
+export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryColor = '#fdb913' }: AddUserDialogProps) {
   const { providers } = useLoanProviders();
   const [formData, setFormData] = useState({
     fullName: '',
@@ -39,6 +40,8 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#
   });
 
   useEffect(() => {
+    const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
+
     if (user) {
       setFormData({
         fullName: user.fullName,
@@ -54,13 +57,13 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#
         fullName: '',
         email: '',
         phoneNumber: '',
-        role: 'Loan Provider' as UserRole,
+        role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
         providerId: providers.length > 0 ? providers[0].id : '',
         providerName: providers.length > 0 ? providers[0].name : '',
       });
     }
-  }, [user, isOpen, providers]);
+  }, [user, isOpen, providers, roles]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -130,8 +133,9 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, primaryColor = '#
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Loan Provider">Loan Provider</SelectItem>
-                <SelectItem value="Admin">Admin</SelectItem>
+                {roles.map(role => (
+                    <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

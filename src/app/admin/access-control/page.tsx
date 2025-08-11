@@ -23,6 +23,7 @@ const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products']
 
 function UsersTab() {
     const { users, addUser, updateUser } = useUsers();
+    const { roles } = useRoles();
     const { providers } = useLoanProviders();
     const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -136,6 +137,7 @@ function UsersTab() {
                 onClose={handleCloseDialog}
                 onSave={handleSaveUser}
                 user={editingUser}
+                roles={roles}
                 primaryColor={themeColor}
             />
         </>
