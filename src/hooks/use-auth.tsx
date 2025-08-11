@@ -1,79 +1,98 @@
 
 'use client';
 
-import React, { useState, useEffect, createContext, useContext, useMemo, useCallback } from 'react';
-import type { User } from '@/lib/types';
-import { useUsers } from './use-users';
+import React, {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  useMemo,
+  useCallback,
+} from 'react';
+import { getCurrentUser } from '@/lib/session';
+
+// Define a user type that matches the structure returned by getCurrentUser
+export type AuthenticatedUser = Awaited<ReturnType<typeof getCurrentUser>>;
 
 interface AuthContextType {
-    currentUser: User | null;
-    login: (userId: string) => void;
-    logout: () => void;
-    isLoading: boolean;
+  currentUser: AuthenticatedUser | null;
+  login: (phoneNumber: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  isLoading: boolean;
+  refetchUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
-    currentUser: null,
-    login: () => {},
-    logout: () => {},
-    isLoading: true,
+  currentUser: null,
+  login: async () => {},
+  logout: async () => {},
+  isLoading: true,
+  refetchUser: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
-const CURRENT_USER_STORAGE_KEY = 'currentUser';
+export const AuthProvider = ({children}: {children: React.ReactNode}) => {
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const { users, ...userHookRest } = useUsers();
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+  const fetchUser = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+      setCurrentUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    useEffect(() => {
-        try {
-            const storedUserId = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-            if (storedUserId && users.length > 0) {
-                const user = users.find(u => u.id === storedUserId);
-                setCurrentUser(user || null);
-            } else if (users.length > 0) {
-                // Default to admin user if no one is logged in
-                const adminUser = users.find(u => u.role === 'Super Admin');
-                if (adminUser) {
-                    setCurrentUser(adminUser);
-                    window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, adminUser.id);
-                }
-            }
-        } catch (error) {
-            console.warn(`Error handling auth state:`, error);
-        } finally {
-            if (users.length > 0) {
-                setIsLoading(false);
-            }
-        }
-    }, [users]);
-    
-    const login = useCallback((userId: string) => {
-        const user = users.find(u => u.id === userId);
-        if (user) {
-            setCurrentUser(user);
-            window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, userId);
-        }
-    }, [users]);
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
 
-    const logout = useCallback(() => {
+  const login = useCallback(
+    async (phoneNumber: string, password: string) => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phoneNumber, password}),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
+      }
+
+      // After successful login, refetch user data to update context
+      await fetchUser();
+    },
+    [fetchUser]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+        console.error('Logout failed:', error)
+    } finally {
+        // Always clear user from state regardless of API call success
         setCurrentUser(null);
-        window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-    }, []);
+    }
+  }, []);
 
-    const value = useMemo(() => ({
-        currentUser,
-        login,
-        logout,
-        isLoading,
-    }), [currentUser, login, logout, isLoading]);
+  const value = useMemo(
+    () => ({
+      currentUser,
+      login,
+      logout,
+      isLoading,
+      refetchUser: fetchUser,
+    }),
+    [currentUser, login, logout, isLoading, fetchUser]
+  );
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

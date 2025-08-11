@@ -1,9 +1,13 @@
+
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log(`Start seeding ...`);
+
+  const salt = await bcrypt.genSalt(10);
 
   // Seed Roles
   const superAdminRole = await prisma.role.create({
@@ -175,7 +179,7 @@ async function main() {
       fullName: 'Super Admin',
       email: 'superadmin@loanflow.com',
       phoneNumber: '0912345678',
-      password: 'Admin@123', // In a real app, this should be hashed
+      password: await bcrypt.hash('Admin@123', salt),
       status: 'Active',
       roleId: superAdminRole.id,
     },
@@ -186,7 +190,7 @@ async function main() {
       fullName: 'John Provider',
       email: 'john.p@capitalbank.com',
       phoneNumber: '0987654321',
-      password: 'Password123',
+      password: await bcrypt.hash('Password123', salt),
       status: 'Active',
       roleId: loanProviderRole.id,
       providerId: capitalBank.id,
@@ -198,7 +202,7 @@ async function main() {
       fullName: 'Jane Officer',
       email: 'jane.o@providus.com',
       phoneNumber: '5555555555',
-      password: 'Password123',
+      password: await bcrypt.hash('Password123', salt),
       status: 'Inactive',
       roleId: loanProviderRole.id,
       providerId: providusFinancial.id,
