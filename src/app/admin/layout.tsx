@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -71,16 +72,11 @@ const allMenuItems = [
   },
 ];
 
-function AuthWrapper({children}: {children: React.ReactNode}) {
+function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const {providers} = useLoanProviders();
-  const {currentUser, logout, isLoading} = useAuth();
-
-  // If on the login page, don't render the protected layout
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
+  const { providers } = useLoanProviders();
+  const { currentUser, logout, isLoading } = useAuth();
 
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -126,9 +122,9 @@ function AuthWrapper({children}: {children: React.ReactNode}) {
         </div>
     );
   }
-
+  
   return (
-    <SidebarProvider>
+     <SidebarProvider>
       <div className="bg-muted/40 min-h-screen w-full flex">
         <Sidebar>
           <SidebarHeader>
@@ -199,7 +195,17 @@ function AuthWrapper({children}: {children: React.ReactNode}) {
         </div>
       </div>
     </SidebarProvider>
-  );
+  )
+}
+
+function AuthWrapper({children}: {children: React.ReactNode}) {
+  const pathname = usePathname();
+
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
+
+  return <ProtectedLayout>{children}</ProtectedLayout>;
 }
 
 export default function AdminLayout({children}: {children: React.ReactNode}) {
