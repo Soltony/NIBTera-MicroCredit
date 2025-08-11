@@ -193,7 +193,7 @@ async function main() {
       phoneNumber: '0912345678',
       password: await bcrypt.hash('Admin@123', salt),
       status: 'Active',
-      roleId: superAdminRole.id,
+      roleName: superAdminRole.name,
     },
   });
 
@@ -204,7 +204,7 @@ async function main() {
       phoneNumber: '0987654321',
       password: await bcrypt.hash('Password123', salt),
       status: 'Active',
-      roleId: loanProviderRole.id,
+      roleName: loanProviderRole.name,
       providerId: capitalBank.id,
     },
   });
@@ -216,7 +216,7 @@ async function main() {
       phoneNumber: '5555555555',
       password: await bcrypt.hash('Password123', salt),
       status: 'Inactive',
-      roleId: loanProviderRole.id,
+      roleName: loanProviderRole.name,
       providerId: providusFinancial.id,
     },
   });

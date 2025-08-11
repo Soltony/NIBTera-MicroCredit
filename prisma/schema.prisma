@@ -1,3 +1,4 @@
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -13,104 +14,104 @@ model User {
   email       String        @unique
   phoneNumber String        @unique
   password    String
-  status      UserStatus    @default(Active)
-  roleId      String
+  roleName    String
+  status      UserStatus
   providerId  String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-  role        Role          @relation(fields: [roleId], references: [id])
+  role        Role          @relation(fields: [roleName], references: [name])
   provider    LoanProvider? @relation(fields: [providerId], references: [id])
 }
 
 model Role {
-  id          String       @id @default(cuid())
-  name        String       @unique
+  id          String   @id @default(cuid())
+  name        String   @unique
   permissions Json
   users       User[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model LoanProvider {
-  id                String              @id @default(cuid())
-  name              String              @unique
+  id                String             @id @default(cuid())
+  name              String             @unique
   icon              String
   colorHex          String
-  users             User[]
   products          LoanProduct[]
-  loans             LoanDetails[]
+  users             User[]
   scoringParameters ScoringParameter[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  loanDetails       LoanDetails[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model LoanProduct {
   id          String        @id @default(cuid())
+  providerId  String
   name        String
-  description String?
+  description String
   icon        String
   minLoan     Float
   maxLoan     Float
   serviceFee  String
   dailyFee    String
   penaltyFee  String
-  status      ProductStatus @default(Active)
-  providerId  String
+  status      String
   provider    LoanProvider  @relation(fields: [providerId], references: [id])
-  loans       LoanDetails[]
+  loanDetails LoanDetails[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
 
 model LoanDetails {
-  id              String        @id @default(cuid())
+  id              String       @id @default(cuid())
+  providerId      String
+  productId       String
   loanAmount      Float
   serviceFee      Float
   interestRate    Float
   disbursedDate   DateTime
   dueDate         DateTime
   penaltyAmount   Float
-  repaymentStatus RepaymentStatus @default(Unpaid)
+  repaymentStatus String
   repaidAmount    Float?
-  providerId      String
-  productId       String
-  provider        LoanProvider  @relation(fields: [providerId], references: [id])
-  product         LoanProduct   @relation(fields: [productId], references: [id])
+  provider        LoanProvider @relation(fields: [providerId], references: [id])
+  product         LoanProduct  @relation(fields: [productId], references: [id])
   payments        Payment[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 model Payment {
-  id                            String      @id @default(cuid())
-  amount                        Float
-  date                          DateTime
+  id                              String      @id @default(cuid())
+  loanId                          String
+  amount                          Float
+  date                            DateTime
   outstandingBalanceBeforePayment Float?
-  loanId                        String
-  loan                          LoanDetails @relation(fields: [loanId], references: [id])
-  createdAt                     DateTime    @default(now())
-  updatedAt                     DateTime    @updatedAt
+  loan                            LoanDetails @relation(fields: [loanId], references: [id])
+  createdAt                       DateTime    @default(now())
+  updatedAt                       DateTime    @updatedAt
 }
 
 model ScoringParameter {
-  id         String @id @default(cuid())
-  name       String
-  weight     Int
-  providerId String
-  provider   LoanProvider @relation(fields: [providerId], references: [id])
-  rules      Rule[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String                 @id @default(cuid())
+  providerId  String
+  name        String
+  weight      Int
+  rules       ScoringParameterRule[]
+  provider    LoanProvider           @relation(fields: [providerId], references: [id])
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 }
 
-model Rule {
+model ScoringParameterRule {
   id                 String           @id @default(cuid())
+  scoringParameterId String
   field              String
   condition          String
   value              String
   score              Int
-  scoringParameterId String
-  scoringParameter   ScoringParameter @relation(fields: [scoringParameterId], references: [id])
+  scoringParameter   ScoringParameter @relation(fields: [scoringParameterId], references: [id], onDelete: Cascade)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 }
@@ -118,14 +119,4 @@ model Rule {
 enum UserStatus {
   Active
   Inactive
-}
-
-enum ProductStatus {
-  Active
-  Disabled
-}
-
-enum RepaymentStatus {
-  Paid
-  Unpaid
 }
