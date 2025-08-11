@@ -18,7 +18,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Save } from 'lucide-react';
 import { useScoringRules, type Rule } from '@/hooks/use-scoring-rules';
 import {
   AlertDialog,
@@ -32,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { ScorePreview } from '@/components/loan/score-preview';
+import { useToast } from '@/hooks/use-toast';
 
 const RuleRow = ({ rule, onUpdate, onRemove }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; }) => {
     return (
@@ -70,8 +71,36 @@ const RuleRow = ({ rule, onUpdate, onRemove }: { rule: Rule; onUpdate: (updatedR
 
 
 export default function CreditScoreEnginePage() {
-    const { parameters, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule } = useScoringRules();
+    const { parameters, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParameters } = useScoringRules();
     const [deletingParameterId, setDeletingParameterId] = useState<string | null>(null);
+    const { toast } = useToast();
+    
+    const totalWeight = React.useMemo(() => {
+        return parameters.reduce((sum, param) => sum + param.weight, 0);
+    }, [parameters]);
+
+    const handleSave = () => {
+        if (totalWeight > 100) {
+            toast({
+                title: 'Invalid Configuration',
+                description: 'The total weight of all parameters cannot exceed 100%.',
+                variant: 'destructive',
+            });
+            return;
+        }
+        if (totalWeight < 100) {
+            toast({
+                title: 'Configuration Warning',
+                description: `The total weight is ${totalWeight}%, which is less than 100%. The configuration is saved but may not be optimal.`,
+                variant: 'default',
+            });
+        }
+        saveParameters(parameters);
+        toast({
+            title: 'Configuration Saved',
+            description: 'Your credit scoring engine parameters have been successfully saved.',
+        });
+    };
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -82,9 +111,20 @@ export default function CreditScoreEnginePage() {
                         Define the parameters and rules used to calculate customer credit scores.
                     </p>
                 </div>
-                <Button onClick={addParameter}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
-                </Button>
+                 <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium">Total Weight:</span>
+                        <span className={`text-lg font-bold ${totalWeight > 100 ? 'text-red-500' : ''}`}>
+                            {totalWeight}%
+                        </span>
+                    </div>
+                    <Button onClick={handleSave}>
+                        <Save className="mr-2 h-4 w-4" /> Save Configuration
+                    </Button>
+                    <Button onClick={addParameter}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
+                    </Button>
+                </div>
             </div>
 
             <div className="space-y-4">

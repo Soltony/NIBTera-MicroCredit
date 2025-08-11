@@ -134,5 +134,5 @@ export function useScoringRules() {
     }, [parameters, saveParameters]);
 
 
-    return { parameters, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule };
+    return { parameters, addParameter, updateParameter, removeParameter, addRule, updateRule, removeRule, saveParameters };
 }
