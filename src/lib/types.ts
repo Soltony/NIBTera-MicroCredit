@@ -100,35 +100,35 @@ export const parseFee = (feeString: string | undefined): number => {
     return parseFloat(feeString.replace('%', '')) || 0;
 }
 
-// Corrected loan calculation logic based on compounding interest.
+// Corrected loan calculation logic
 export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
-    let balance = loan.loanAmount;
-    
-    // 1. Calculate compounded interest on the principal
     const loanStartDate = startOfDay(new Date(loan.disbursedDate));
     const finalDate = startOfDay(asOfDate);
-    const daysSinceStart = differenceInDays(finalDate, loanStartDate);
-
-    if (daysSinceStart > 0) {
-      balance = loan.loanAmount * Math.pow(1 + (loan.interestRate / 100), daysSinceStart);
-    }
-
-    // 2. Add the one-time service fee
-    balance += loan.serviceFee;
-
-    // 3. Apply penalty if overdue
     const dueDate = startOfDay(new Date(loan.dueDate));
-    if (finalDate > dueDate) {
-       const daysOverdue = differenceInDays(finalDate, dueDate);
-       if (daysOverdue > 0) {
-            const penaltyRate = (loan.penaltyAmount || 0) / 100;
-            const penalty = (loan.loanAmount) * penaltyRate * daysOverdue;
-            balance += penalty;
-       }
+
+    const principal = loan.loanAmount;
+    const dailyInterestRate = loan.interestRate / 100;
+    const penaltyRate = (loan.penaltyAmount || 0) / 100;
+
+    let interest = 0;
+    let penalty = 0;
+
+    // 1. Calculate simple daily interest up to the 'asOfDate'
+    const daysSinceStart = differenceInDays(finalDate, loanStartDate);
+    if (daysSinceStart > 0) {
+        interest = principal * dailyInterestRate * daysSinceStart;
     }
 
-    // This was the bug: The function was returning the balance without considering what was already paid.
-    // It should return the total accumulated debt, which is then used to calculate the remaining balance elsewhere.
-    return balance;
-};
+    // 2. Calculate simple daily penalty if overdue
+    if (finalDate > dueDate) {
+        const daysOverdue = differenceInDays(finalDate, dueDate);
+        if (daysOverdue > 0) {
+            penalty = principal * penaltyRate * daysOverdue;
+        }
+    }
+    
+    // 3. The total debt is principal + service fee + accumulated interest + accumulated penalty
+    const totalDebt = principal + loan.serviceFee + interest + penalty;
 
+    return totalDebt;
+};
