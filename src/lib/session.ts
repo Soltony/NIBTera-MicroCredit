@@ -38,10 +38,10 @@ export async function createSession(userId: string) {
 }
 
 export async function getSession() {
-  const sessionCookie = cookies().get('session')?.value;
-  if (!sessionCookie) return null;
+  const sessionCookieValue = cookies().get('session')?.value;
+  if (!sessionCookieValue) return null;
 
-  const sessionPayload = await decrypt(sessionCookie);
+  const sessionPayload = await decrypt(sessionCookieValue);
   if (!sessionPayload?.userId) return null;
 
   return sessionPayload;
@@ -51,23 +51,28 @@ export async function getCurrentUser() {
     const session = await getSession();
     if (!session?.userId) return null;
     
-    const user = await prisma.user.findUnique({
-        where: { id: session.userId },
-        include: {
-            role: true,
-            provider: true
-        }
-    });
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+            include: {
+                role: true,
+                provider: true
+            }
+        });
 
-    if (!user) return null;
+        if (!user) return null;
 
-    const { password, ...userWithoutPassword } = user;
+        const { password, ...userWithoutPassword } = user;
 
-    return {
-        ...userWithoutPassword,
-        role: user.role.name,
-        providerName: user.provider?.name || '',
-    };
+        return {
+            ...userWithoutPassword,
+            role: user.role.name,
+            providerName: user.provider?.name || '',
+        };
+    } catch (error) {
+        console.error("Database error while fetching user:", error);
+        return null;
+    }
 }
 
 
