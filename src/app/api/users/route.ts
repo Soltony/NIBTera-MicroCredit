@@ -52,7 +52,7 @@ export async function POST(req: Request) {
                 phoneNumber,
                 password: hashedPassword,
                 roleName: role,
-                providerId: providerId ? providerId : null,
+                providerId: providerId || null,
                 status,
             },
         });

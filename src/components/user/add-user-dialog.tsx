@@ -115,7 +115,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         delete submissionData.password; // Don't send empty password for existing users
     }
     
-    // Ensure providerId is not an empty string if the role doesn't require it
+    // Ensure providerId is null if the role doesn't require it
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
         submissionData.providerId = null;
     }
