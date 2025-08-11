@@ -84,8 +84,8 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
             ...prev,
             [field]: value,
             // Reset provider if role is not 'Loan Provider'
-            providerId: newRole === 'Loan Provider' ? prev.providerId : '',
-            providerName: newRole === 'Loan Provider' ? prev.providerName : '',
+            providerId: newRole === 'Loan Provider' || newRole === 'Loan Manager' ? prev.providerId : '',
+            providerName: newRole === 'Loan Provider' || newRole === 'Loan Manager' ? prev.providerName : '',
         }));
     }
   };
@@ -139,7 +139,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
               </SelectContent>
             </Select>
           </div>
-          {formData.role === 'Loan Provider' && (
+          {(formData.role === 'Loan Provider' || formData.role === 'Loan Manager') && (
              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="providerId" className="text-right">
                     Provider
