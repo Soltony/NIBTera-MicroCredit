@@ -98,15 +98,20 @@ export function useScoringParameters() {
   }, []);
 
   const getParametersForProvider = useCallback((providerId: string): ScoringParameters => {
-      const providerParams = parameters[providerId];
-      if (providerParams) {
-          // Ensure all nested properties exist, merging with defaults if necessary
-          return produce(providerParams, draft => {
-              if (!draft.productIds) draft.productIds = [];
-              // Add similar checks for other properties if they might be missing
-          });
-      }
-      return deepClone(DEFAULT_PARAMETERS);
+    const providerParams = parameters[providerId];
+    // Use a deep clone of default parameters to prevent mutation issues.
+    const defaults = deepClone(DEFAULT_PARAMETERS);
+    
+    if (providerParams) {
+        // Merge defaults with existing params to ensure all keys are present.
+        return produce(defaults, draft => {
+            if (providerParams.productIds) draft.productIds = providerParams.productIds;
+            Object.assign(draft.weights, providerParams.weights);
+            Object.assign(draft.genderImpact, providerParams.genderImpact);
+            Object.assign(draft.occupationRisk, providerParams.occupationRisk);
+        });
+    }
+    return defaults;
   }, [parameters]);
   
   const updateParameter = useCallback((providerId: string, key: keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, value: number) => {
