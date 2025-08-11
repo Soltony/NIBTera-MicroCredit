@@ -98,7 +98,15 @@ export function useScoringParameters() {
   }, []);
 
   const getParametersForProvider = useCallback((providerId: string): ScoringParameters => {
-      return parameters[providerId] || deepClone(DEFAULT_PARAMETERS);
+      const providerParams = parameters[providerId];
+      if (providerParams) {
+          // Ensure all nested properties exist, merging with defaults if necessary
+          return produce(providerParams, draft => {
+              if (!draft.productIds) draft.productIds = [];
+              // Add similar checks for other properties if they might be missing
+          });
+      }
+      return deepClone(DEFAULT_PARAMETERS);
   }, [parameters]);
   
   const updateParameter = useCallback((providerId: string, key: keyof Omit<ScoringParameters['weights'], 'transactionHistoryByProduct'>, value: number) => {
@@ -196,5 +204,7 @@ export function useScoringParameters() {
 
   return { parameters, getParametersForProvider, updateParameter, setGenderImpact, setGenderImpactEnabled, setOccupationRisk, addOccupation, removeOccupation, resetParameters, toggleParameterEnabled, setAppliedProducts, setTransactionProductWeight };
 }
+
+    
 
     
