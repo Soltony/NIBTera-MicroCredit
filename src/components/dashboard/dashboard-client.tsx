@@ -38,7 +38,7 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
-    const isCustom = iconName && iconName.startsWith('custom-icon-');
+    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
     const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
 
     useEffect(() => {
