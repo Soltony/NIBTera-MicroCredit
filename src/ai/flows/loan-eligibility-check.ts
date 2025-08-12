@@ -1,43 +1,52 @@
 
 'use server';
 /**
- * @fileOverview Implements a mock loan eligibility check.
+ * @fileOverview Implements a loan eligibility check.
  *
  * - checkLoanEligibility - Checks user's loan eligibility and suggests a loan amount range.
  */
 
 import type { CheckLoanEligibilityInput, CheckLoanEligibilityOutput } from '@/lib/types';
-
-// Mock credit scores for different providers for demonstration
-const mockProviderCreditData: Record<string, { creditScore: number; annualIncome: number }> = {
-    'provider-1': { creditScore: 720, annualIncome: 75000 }, // Capital Bank
-    'provider-2': { creditScore: 680, annualIncome: 55000 }, // Providus Financial
-    'provider-3': { creditScore: 650, annualIncome: 45000 }, // NIb Bank
-};
-
+import { prisma } from '@/lib/prisma';
 
 export async function checkLoanEligibility(input: CheckLoanEligibilityInput): Promise<CheckLoanEligibilityOutput> {
   
   const { providerId } = input;
-  const creditData = mockProviderCreditData[providerId] ?? { creditScore: 600, annualIncome: 30000 };
-  
-  const { creditScore, annualIncome } = creditData;
 
-  if (creditScore < 600) {
-    return {
+  if (!providerId) {
+     return {
       isEligible: false,
-      reason: 'Your credit score is below the minimum requirement.',
-    };
-  }
-  if (annualIncome < 30000) {
-    return {
-      isEligible: false,
-      reason: 'Your annual income is below the minimum requirement.',
+      reason: 'A provider must be selected to check eligibility.',
     };
   }
 
-  const suggestedLoanAmountMin = annualIncome * 0.1;
-  const suggestedLoanAmountMax = annualIncome * 0.5;
+  // In a real application, you would perform a complex credit check here
+  // based on the user's financial history, possibly using AI/ML models.
+  // For this demo, we'll use a simplified logic based on the provider's loan limits.
+  const provider = await prisma.loanProvider.findUnique({
+    where: { id: providerId },
+    include: { products: true }
+  });
+
+  if (!provider) {
+    return {
+      isEligible: false,
+      reason: 'The selected provider could not be found.',
+    };
+  }
+
+  // Simulate a simple eligibility check. For example, everyone is eligible for up to 50% of the provider's max loan amount across all products.
+  const highestMaxLoan = provider.products.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+  const suggestedLoanAmountMax = highestMaxLoan * 2; // Let's give a generous limit for the demo
+  const suggestedLoanAmountMin = provider.products.reduce((min, p) => Math.min(min, p.minLoan || 500), Infinity);
+
+  if (suggestedLoanAmountMax <= 0) {
+      return {
+          isEligible: false,
+          reason: `This provider (${provider.name}) has no active loan products available.`,
+      };
+  }
+
 
   return {
     isEligible: true,

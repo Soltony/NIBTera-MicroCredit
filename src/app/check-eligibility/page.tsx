@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
+import { prisma } from '@/lib/prisma';
 
 export default function CheckEligibilityPage() {
   const router = useRouter();
@@ -16,13 +17,36 @@ export default function CheckEligibilityPage() {
   const providerId = searchParams.get('providerId');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [defaultProviderId, setDefaultProviderId] = useState<string | null>(null);
 
   const nibBankColor = '#fdb913';
+  
+  useEffect(() => {
+    const fetchDefaultProvider = async () => {
+        try {
+            const response = await fetch('/api/providers');
+            if (!response.ok) throw new Error('Failed to fetch providers');
+            const providers = await response.json();
+            if (providers.length > 0) {
+                setDefaultProviderId(providers[0].id);
+            } else {
+                 setError("No loan providers are available at this time.");
+                 setIsLoading(false);
+            }
+        } catch(err) {
+            setError("Failed to load provider information.");
+            setIsLoading(false);
+        }
+    }
+    fetchDefaultProvider();
+  }, [])
 
   useEffect(() => {
     const performCheck = async () => {
-      // Default to NIb Bank if no providerId is present
-      const currentProviderId = providerId || 'provider-3';
+      // Wait until we have a default provider ID
+      if (!defaultProviderId) return;
+
+      const currentProviderId = providerId || defaultProviderId;
 
       setIsLoading(true);
       setError(null);
@@ -55,7 +79,7 @@ export default function CheckEligibilityPage() {
     };
 
     performCheck();
-  }, [providerId, router]);
+  }, [providerId, router, defaultProviderId]);
 
 
   const handleBack = () => {
@@ -79,6 +103,13 @@ export default function CheckEligibilityPage() {
                 <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
                 <p className="text-muted-foreground">Please wait a moment while we check your loan eligibility.</p>
             </div>
+             {error && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
         </div>
       </main>
     </div>
