@@ -33,7 +33,7 @@ const icons: { name: string; component: LucideIcon }[] = [
 export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
   const [productName, setProductName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState(icons[0].component);
+  const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [minLoan, setMinLoan] = useState('');
   const [maxLoan, setMaxLoan] = useState('');
   const [serviceFee, setServiceFee] = useState('');
@@ -47,7 +47,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     onAddProduct({
       name: productName,
       description,
-      icon: selectedIcon,
+      icon: selectedIconName,
       minLoan: parseFloat(minLoan),
       maxLoan: parseFloat(maxLoan),
       serviceFee,
@@ -58,7 +58,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     // Reset form
     setProductName('');
     setDescription('');
-    setSelectedIcon(icons[0].component);
+    setSelectedIconName(icons[0].name);
     setMinLoan('');
     setMaxLoan('');
     setServiceFee('');
@@ -92,8 +92,8 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
                         type="button"
                         variant="outline"
                         size="icon"
-                        onClick={() => setSelectedIcon(() => Icon)}
-                        className={cn('h-12 w-12', selectedIcon === Icon && 'ring-2 ring-primary')}
+                        onClick={() => setSelectedIconName(name)}
+                        className={cn('h-12 w-12', selectedIconName === name && 'ring-2 ring-primary')}
                     >
                         <Icon className="h-6 w-6" />
                     </Button>

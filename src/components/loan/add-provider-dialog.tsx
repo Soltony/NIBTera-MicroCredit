@@ -20,7 +20,7 @@ import type { LoanProvider } from '@/lib/types';
 interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProvider: (provider: Omit<LoanProvider, 'id' | 'products'>) => void;
+  onAddProvider: (provider: { name: string; icon: string; colorHex: string; }) => void;
   primaryColor?: string;
 }
 
@@ -40,7 +40,7 @@ const colors = [
 
 export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor = '#fdb913' }: AddProviderDialogProps) {
   const [providerName, setProviderName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState(icons[0].component);
+  const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -49,11 +49,11 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
 
     onAddProvider({
       name: providerName,
-      icon: selectedIcon,
+      icon: selectedIconName,
       colorHex: selectedColorHex,
     });
     setProviderName('');
-    setSelectedIcon(icons[0].component);
+    setSelectedIconName(icons[0].name);
     setSelectedColorHex(colors[0].hex);
     onClose();
   };
@@ -88,10 +88,10 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setSelectedIcon(() => Icon)}
+                  onClick={() => setSelectedIconName(name)}
                   className={cn(
                     'h-12 w-12',
-                    selectedIcon === Icon && 'ring-2'
+                    selectedIconName === name && 'ring-2'
                   )}
                   style={{'--ring': primaryColor} as React.CSSProperties}
                 >

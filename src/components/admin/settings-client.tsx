@@ -27,8 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2 } from 'lucide-react';
-import type { LoanProvider, LoanProduct, TransactionProduct } from '@/lib/types';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -42,8 +42,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { produce } from 'immer';
 
 // A helper to map string names to actual icon components
 const iconMap: { [key: string]: React.ElementType } = {
@@ -54,8 +56,16 @@ const iconMap: { [key: string]: React.ElementType } = {
   PersonStanding,
 };
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { providerId: string; product: LoanProduct, providerColor?: string, onSave: (providerId: string, product: LoanProduct) => void }) => {
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
+    providerId: string; 
+    product: LoanProduct; 
+    providerColor?: string; 
+    onSave: (providerId: string, product: LoanProduct) => void;
+    onDelete: (providerId: string, productId: string) => void;
+}) => {
     const [formData, setFormData] = useState(product);
+    const [isSaving, setIsSaving] = useState(false);
+    const { toast } = useToast();
 
     useEffect(() => {
         setFormData(product);
@@ -71,14 +81,28 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
         setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSaving(true);
         const updatedProduct: LoanProduct = {
             ...formData,
             minLoan: parseFloat(formData.minLoan as any),
             maxLoan: parseFloat(formData.maxLoan as any),
         };
-        onSave(providerId, updatedProduct);
+        try {
+            const response = await fetch('/api/settings/products', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedProduct),
+            });
+            if (!response.ok) throw new Error('Failed to save product');
+            onSave(providerId, updatedProduct);
+            toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
+        } catch (error) {
+            toast({ title: "Error", description: "Could not save product settings.", variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     return (
@@ -92,16 +116,16 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
                 <Input id={`maxLoan-${product.id}`} type="number" value={formData.maxLoan} onChange={handleChange} />
             </div>
             <div className="space-y-2">
-                <Label htmlFor={`serviceFee-${product.id}`}>Service Fee (%)</Label>
-                <Input id={`serviceFee-${product.id}`} value={formData.serviceFee} onChange={handleChange} />
+                <Label htmlFor={`serviceFee-${product.id}`}>Service Fee</Label>
+                <Input id={`serviceFee-${product.id}`} value={formData.serviceFee} onChange={handleChange} placeholder="e.g. 3%"/>
             </div>
             <div className="space-y-2">
-                <Label htmlFor={`dailyFee-${product.id}`}>Daily Fee (%)</Label>
-                <Input id={`dailyFee-${product.id}`} value={formData.dailyFee} onChange={handleChange} />
+                <Label htmlFor={`dailyFee-${product.id}`}>Daily Fee</Label>
+                <Input id={`dailyFee-${product.id}`} value={formData.dailyFee} onChange={handleChange} placeholder="e.g. 0.2%"/>
             </div>
             <div className="space-y-2">
                 <Label htmlFor={`penaltyFee-${product.id}`}>Penalty Fee After Due Date</Label>
-                <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} />
+                <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} placeholder="e.g. 0.11% daily" />
             </div>
             <div className="flex items-center space-x-2">
                  <Switch 
@@ -114,18 +138,24 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave }: { p
                 <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
             </div>
              <div className="flex items-center space-x-2 md:col-span-2 justify-end">
-                <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white">Save Changes</Button>
+                <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                </Button>
             </div>
         </form>
     )
 }
 
 function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }) {
-    const [providers, setProviders] = useState(initialProviders.map(p => ({...p, icon: iconMap[p.icon] || Building2})));
+    const [providers, setProviders] = useState(initialProviders);
     const { currentUser } = useAuth();
     const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<{ type: 'provider' | 'product'; providerId: string; productId?: string } | null>(null);
+
     const { toast } = useToast();
     
     const themeColor = useMemo(() => {
@@ -135,15 +165,20 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
     
-    const handleAddProvider = (newProvider: Omit<LoanProvider, 'id' | 'products' | 'icon'> & { icon: React.ElementType }) => {
-        // This would be an API call in a real app
-        const providerToAdd = {
-            ...newProvider,
-            id: `provider-${Date.now()}`,
-            products: [],
-        };
-        setProviders(prev => [...prev, providerToAdd]);
-        toast({ title: "Provider Added", description: `${newProvider.name} has been added successfully.` });
+    const handleAddProvider = async (newProviderData: Omit<LoanProvider, 'id' | 'products'>) => {
+        try {
+            const response = await fetch('/api/settings/providers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newProviderData)
+            });
+            if (!response.ok) throw new Error('Failed to add provider');
+            const newProvider = await response.json();
+            setProviders(prev => [...prev, newProvider]);
+            toast({ title: "Provider Added", description: `${newProvider.name} has been added successfully.` });
+        } catch (error) {
+             toast({ title: "Error", description: "Could not add provider.", variant: 'destructive' });
+        }
     };
     
     const handleOpenAddProductDialog = (providerId: string) => {
@@ -151,50 +186,113 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = (newProduct: Omit<LoanProduct, 'id' | 'availableLimit' | 'status' | 'icon'> & { icon: React.ElementType }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status'>) => {
         if (!selectedProviderId) return;
-        
-        const productToAdd = {
-            ...newProduct,
-            id: `product-${Date.now()}`,
-            status: 'Active' as const,
+
+        try {
+             const response = await fetch('/api/settings/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...newProductData, providerId: selectedProviderId })
+            });
+            if (!response.ok) throw new Error('Failed to add product');
+            const newProduct = await response.json();
+
+            setProviders(produce(draft => {
+                const provider = draft.find(p => p.id === selectedProviderId);
+                if (provider) {
+                    provider.products.push(newProduct);
+                }
+            }));
+            toast({ title: "Product Added", description: `${newProduct.name} has been added successfully.` });
+        } catch (error) {
+             toast({ title: "Error", description: "Could not add product.", variant: 'destructive' });
         }
-
-        setProviders(prev => prev.map(p => 
-            p.id === selectedProviderId 
-            ? { ...p, products: [...p.products, productToAdd] }
-            : p
-        ));
-
-        toast({ title: "Product Added", description: `${newProduct.name} has been added successfully.` });
     };
 
-    const handleSaveProduct = (providerId: string, product: LoanProduct) => {
-        setProviders(prev => prev.map(p => 
-            p.id === providerId
-            ? { ...p, products: p.products.map(pr => pr.id === product.id ? product : pr) }
-            : p
-        ));
-        toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
+    const handleSaveProduct = (providerId: string, updatedProduct: LoanProduct) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                if (productIndex !== -1) {
+                    provider.products[productIndex] = updatedProduct;
+                }
+            }
+        }));
     }
+    
+    const confirmDelete = () => {
+        if (!deletingId) return;
+
+        if (deletingId.type === 'provider') {
+            handleDeleteProvider(deletingId.providerId);
+        } else if (deletingId.type === 'product' && deletingId.productId) {
+            handleDeleteProduct(deletingId.providerId, deletingId.productId);
+        }
+        setDeletingId(null);
+    }
+    
+    const handleDeleteProvider = async (providerId: string) => {
+        try {
+            await fetch(`/api/settings/providers?id=${providerId}`, { method: 'DELETE' });
+            setProviders(providers.filter(p => p.id !== providerId));
+            toast({ title: "Provider Deleted" });
+        } catch (error) {
+            toast({ title: "Error", description: "Could not delete provider.", variant: 'destructive' });
+        }
+    }
+    
+    const handleDeleteProduct = async (providerId: string, productId: string) => {
+        try {
+             await fetch(`/api/settings/products?id=${productId}`, { method: 'DELETE' });
+             setProviders(produce(draft => {
+                const provider = draft.find(p => p.id === providerId);
+                if (provider) {
+                    provider.products = provider.products.filter(p => p.id !== productId);
+                }
+            }));
+            toast({ title: "Product Deleted" });
+        } catch (error) {
+             toast({ title: "Error", description: "Could not delete product.", variant: 'destructive' });
+        }
+    }
+
+
+    const visibleProviders = useMemo(() => {
+        if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
+            return providers;
+        }
+        return providers.filter(p => p.id === currentUser.providerId);
+    }, [providers, currentUser]);
+
 
     return <>
         <div className="flex items-center justify-between space-y-2 mb-4">
             <div/>
-            <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: themeColor }} className="text-white">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
-            </Button>
+             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: themeColor }} className="text-white">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+                </Button>
+            )}
         </div>
         <Accordion type="multiple" className="w-full space-y-4">
-            {providers.map((provider) => (
+            {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                     <AccordionTrigger className="p-4 hover:no-underline">
-                        <div className="flex items-center gap-4">
-                            <provider.icon className="h-8 w-8 text-muted-foreground" style={{ color: provider.colorHex }} />
-                            <div>
-                                <h3 className="text-lg font-semibold">{provider.name}</h3>
-                                <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                        <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-4">
+                                {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
+                                <div>
+                                    <h3 className="text-lg font-semibold">{provider.name}</h3>
+                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                                </div>
                             </div>
+                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                                <Button variant="ghost" size="icon" className="mr-4 hover:bg-destructive hover:text-destructive-foreground" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 border-t">
@@ -204,9 +302,10 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                      <h4 className="text-md font-semibold mb-2">{product.name}</h4>
                                      <ProductSettingsForm 
                                         providerId={provider.id}
-                                        product={{...product, icon: iconMap[product.icon] || PersonStanding}} 
+                                        product={{...product, icon: product.icon || 'PersonStanding'}} 
                                         providerColor={provider.colorHex} 
                                         onSave={handleSaveProduct}
+                                        onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                                      />
                                 </div>
                             ))}
@@ -235,6 +334,20 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             onClose={() => setIsAddProductDialogOpen(false)}
             onAddProduct={handleAddProduct as any}
         />
+         <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the selected item and all of its related data.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </>
 }
 
@@ -248,4 +361,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
