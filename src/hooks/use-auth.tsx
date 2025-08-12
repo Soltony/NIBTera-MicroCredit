@@ -57,16 +57,6 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
     }
   }, []);
 
-  useEffect(() => {
-    // Only run fetchUser if there isn't already a user
-    // The user will be passed down from the server-rendered layout
-    if (!currentUser) {
-        fetchUser();
-    } else {
-        setIsLoading(false);
-    }
-  }, [currentUser, fetchUser]);
-
   const login = useCallback(
     async (phoneNumber: string, password: string) => {
       const response = await fetch('/api/auth/login', {

@@ -111,7 +111,7 @@ function ProtectedLayout({ children, initialUser }: { children: React.ReactNode,
     router.push('/admin/login');
   };
 
-  if (isLoading) {
+  if (isLoading && !currentUser) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading user data...</p>
@@ -213,8 +213,27 @@ function AuthWrapper({children, user}: {children: React.ReactNode, user: Authent
   return <ProtectedLayout initialUser={user}>{children}</ProtectedLayout>;
 }
 
-export default async function AdminLayout({children}: {children: React.ReactNode}) {
-  const user = await getUserFromSession();
+export default function AdminLayout({children}: {children: React.ReactNode}) {
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchUser() {
+      const sessionUser = await getUserFromSession();
+      setUser(sessionUser);
+      setLoading(false);
+    }
+    fetchUser();
+  }, []);
+
+  if (loading) {
+    return (
+        <div className="flex items-center justify-center h-screen">
+            <p>Loading...</p>
+        </div>
+    );
+  }
+
   return (
     <AuthProvider>
         <AuthWrapper user={user}>{children}</AuthWrapper>
