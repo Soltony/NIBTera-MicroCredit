@@ -79,7 +79,7 @@ const validateRule = (rule: Rule): string | null => {
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     
     const [min, max] = useMemo(() => {
-        const parts = rule.value?.split('-') || [];
+        const parts = (rule.value || '').split('-');
         return [parts[0] || '', parts[1] || ''];
     }, [rule.value]);
 
@@ -541,7 +541,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
                             <Card key={item.id} className="flex items-center justify-between p-3 bg-muted/50">
                                 <div>
                                     <p className="font-medium">
-                                        Saved on: {format(item.savedAt, 'PPP p')}
+                                        Saved on: {format(new Date(item.savedAt), 'PPP p')}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
                                         Applied to: {item.appliedProducts.map(p => p.name).join(', ') || 'None'}

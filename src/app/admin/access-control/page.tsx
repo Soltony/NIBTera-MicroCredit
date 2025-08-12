@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AddUserDialog } from '@/components/user/add-user-dialog';
 import { AddRoleDialog } from '@/components/user/add-role-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { User, Role, LoanProvider } from '@/lib/types';
+import type { User, Role, LoanProvider, Permissions } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
@@ -373,10 +373,10 @@ function RolesTab() {
                                     {PERMISSION_MODULES.map(module => (
                                         <TableCell key={module} className="text-center">
                                             <div className="flex justify-center items-center space-x-2">
-                                                <span title="Create" className={cn(role.permissions[module.toLowerCase()]?.create ? 'text-green-500' : 'text-muted-foreground/30')}>C</span>
-                                                <span title="Read" className={cn(role.permissions[module.toLowerCase()]?.read ? 'text-green-500' : 'text-muted-foreground/30')}>R</span>
-                                                <span title="Update" className={cn(role.permissions[module.toLowerCase()]?.update ? 'text-green-500' : 'text-muted-foreground/30')}>U</span>
-                                                <span title="Delete" className={cn(role.permissions[module.toLowerCase()]?.delete ? 'text-green-500' : 'text-muted-foreground/30')}>D</span>
+                                                <span title="Create" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.create ? 'text-green-500' : 'text-muted-foreground/30')}>C</span>
+                                                <span title="Read" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.read ? 'text-green-500' : 'text-muted-foreground/30')}>R</span>
+                                                <span title="Update" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.update ? 'text-green-500' : 'text-muted-foreground/30')}>U</span>
+                                                <span title="Delete" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.delete ? 'text-green-500' : 'text-muted-foreground/30')}>D</span>
                                             </div>
                                         </TableCell>
                                     ))}

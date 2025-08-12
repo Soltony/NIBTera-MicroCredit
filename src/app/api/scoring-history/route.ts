@@ -26,12 +26,7 @@ export async function GET(req: Request) {
             },
         });
         
-        const results = history.map(h => ({
-            ...h,
-            parameters: JSON.parse(h.parameters as string)
-        }))
-
-        return NextResponse.json(results);
+        return NextResponse.json(history);
     } catch (error) {
         console.error('Error fetching scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -56,7 +51,7 @@ export async function POST(req: Request) {
         const newHistoryEntry = await prisma.scoringConfigurationHistory.create({
             data: {
                 providerId,
-                parameters: JSON.stringify(parameters),
+                parameters: parameters,
                 appliedProducts: {
                     connect: appliedProductIds.map((id: string) => ({ id })),
                 },
@@ -67,13 +62,8 @@ export async function POST(req: Request) {
                 },
             },
         });
-        
-        const result = {
-            ...newHistoryEntry,
-            parameters: JSON.parse(newHistoryEntry.parameters as string)
-        };
 
-        return NextResponse.json(result, { status: 201 });
+        return NextResponse.json(newHistoryEntry, { status: 201 });
 
     } catch (error) {
         console.error('Error saving scoring history:', error);
