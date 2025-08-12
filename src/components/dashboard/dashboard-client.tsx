@@ -160,7 +160,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }
 
   const handleBack = () => {
-    router.push('/');
+    router.push('/loan');
   }
 
   return (

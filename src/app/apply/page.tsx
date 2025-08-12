@@ -105,7 +105,7 @@ export default function ApplyPage() {
         params.delete('min');
         params.delete('max');
         params.delete('error');
-        router.push(`/dashboard?${params.toString()}`);
+        router.push(`/loan?${params.toString()}`);
     };
 
     const handleReset = () => {
@@ -115,7 +115,7 @@ export default function ApplyPage() {
         params.delete('min');
         params.delete('max');
         params.delete('error');
-        router.push(`/dashboard?${params.toString()}`);
+        router.push(`/loan?${params.toString()}`);
     };
 
     const renderStep = () => {

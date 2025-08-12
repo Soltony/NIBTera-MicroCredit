@@ -66,14 +66,14 @@ export default function CheckEligibilityPage() {
           // Still redirect, but the dashboard will show ineligibility
           params.set('error', eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
         }
-        router.push(`/dashboard?${params.toString()}`);
+        router.push(`/loan?${params.toString()}`);
 
       } catch (error) {
         console.error('Eligibility check failed:', error);
         const params = new URLSearchParams();
         params.set('providerId', currentProviderId);
         params.set('error', 'An unexpected error occurred during the eligibility check.');
-        router.push(`/dashboard?${params.toString()}`);
+        router.push(`/loan?${params.toString()}`);
       } finally {
         // We don't set loading to false because we are navigating away.
       }
