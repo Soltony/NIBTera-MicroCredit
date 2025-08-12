@@ -68,8 +68,8 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
             }
         });
         
-        // Apply weight to the highest score found for the parameter
-        totalScore += maxScoreForParam * (param.weight / 100);
+        // Sum the highest score found for the parameter
+        totalScore += maxScoreForParam;
     });
 
     setCalculatedScore(totalScore);
