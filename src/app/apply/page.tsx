@@ -53,12 +53,15 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   }, [searchParams, selectedProduct]);
 
   useEffect(() => {
-    if (!selectedProvider || !selectedProduct || step === 'details') return;
-    const productFromUrl = selectedProvider.products.find(p => p.id === initialProductId);
-    if (productFromUrl && productFromUrl.id !== selectedProduct.id) {
-      setSelectedProduct(productFromUrl);
+    // This effect ensures that if the product ID changes in the URL,
+    // the component's state updates to reflect that new product.
+    if (selectedProvider && initialProductId) {
+      const productFromUrl = selectedProvider.products.find(p => p.id === initialProductId);
+      if (productFromUrl) {
+          setSelectedProduct(productFromUrl);
+      }
     }
-  }, [initialProductId, selectedProvider, selectedProduct, step]);
+  }, [initialProductId, selectedProvider]);
   
   const handleLoanAccept = (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
     if (selectedProvider && selectedProduct) {
@@ -108,23 +111,19 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
         return <div className="text-center">Provider not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
     }
 
-    if (!selectedProduct) {
-      // Attempt to find the product on first render if it wasn't found during state initialization
-      const product = selectedProvider.products.find(p => p.id === initialProductId);
-      if (product) {
-        // This will trigger a re-render with the selected product
-        setSelectedProduct(product);
-        return <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />;
-      } else {
-        return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
-      }
-    }
-    
     switch (step) {
       case 'calculator':
-        return selectedProduct && <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
+        if (selectedProduct) {
+          return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
+        }
+        // If the product is still loading or not found, show a message.
+        return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>;
       case 'details':
-        return loanDetails && <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={selectedProvider.colorHex} />;
+        if (loanDetails) {
+          return <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={selectedProvider.colorHex} />;
+        }
+        // Fallback if details are not ready yet
+        return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
       default:
          return <div className="text-center">Invalid step.</div>;
     }
