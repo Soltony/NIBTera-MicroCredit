@@ -3,67 +3,63 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { CheckLoanEligibilityOutput } from '@/lib/types';
 import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
+import type { LoanProvider } from '@/lib/types';
+import { prisma } from '@/lib/prisma';
 
 export default function CheckEligibilityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const providerId = searchParams.get('providerId');
+  const providerIdFromUrl = searchParams.get('providerId');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [defaultProviderId, setDefaultProviderId] = useState<string | null>(null);
+  const [providers, setProviders] = useState<LoanProvider[]>([]);
 
   const nibBankColor = '#fdb913';
   
   useEffect(() => {
-    const fetchDefaultProvider = async () => {
+    const fetchProviders = async () => {
         try {
             const response = await fetch('/api/providers');
             if (!response.ok) throw new Error('Failed to fetch providers');
-            const providers = await response.json();
-            const activeProvider = providers.find(p => p.products.some(prod => prod.status === 'Active'));
-
-            if (activeProvider) {
-                setDefaultProviderId(activeProvider.id);
-            } else {
-                 setError("No loan providers with active products are available at this time.");
-                 setIsLoading(false);
-            }
+            const data = await response.json();
+            setProviders(data);
         } catch(err) {
             setError("Failed to load provider information.");
             setIsLoading(false);
         }
     }
-    fetchDefaultProvider();
+    fetchProviders();
   }, [])
 
   useEffect(() => {
     const performCheck = async () => {
-      // Wait until we have a default provider ID
-      if (!defaultProviderId) return;
+      if (providers.length === 0) return;
 
-      const currentProviderId = providerId || defaultProviderId;
+      const providerId = providerIdFromUrl || providers.find(p => p.products.some(prod => prod.status === 'Active'))?.id;
+
+      if (!providerId) {
+        setError("No loan providers with active products are available at this time.");
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
       setError(null);
       try {
-        const eligibilityResult = await checkLoanEligibility({
-            providerId: currentProviderId,
-        });
+        const eligibilityResult = await checkLoanEligibility({ providerId });
         
         const params = new URLSearchParams();
-        params.set('providerId', currentProviderId);
+        params.set('providerId', providerId);
 
         if (eligibilityResult.isEligible) {
           params.set('min', String(eligibilityResult.suggestedLoanAmountMin || 0));
           params.set('max', String(eligibilityResult.suggestedLoanAmountMax || 0));
         } else {
-          // Still redirect, but the dashboard will show ineligibility
           params.set('error', eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
         }
         router.push(`/loan?${params.toString()}`);
@@ -71,16 +67,14 @@ export default function CheckEligibilityPage() {
       } catch (error) {
         console.error('Eligibility check failed:', error);
         const params = new URLSearchParams();
-        params.set('providerId', currentProviderId);
+        params.set('providerId', providerId);
         params.set('error', 'An unexpected error occurred during the eligibility check.');
         router.push(`/loan?${params.toString()}`);
-      } finally {
-        // We don't set loading to false because we are navigating away.
       }
     };
 
     performCheck();
-  }, [providerId, router, defaultProviderId]);
+  }, [providers, providerIdFromUrl, router]);
 
 
   const handleBack = () => {

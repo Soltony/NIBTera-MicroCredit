@@ -1,9 +1,10 @@
+
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { prisma } from '@/lib/prisma';
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, LoanProvider } from '@/lib/types';
 
 
-async function getProviders() {
+async function getProviders(): Promise<LoanProvider[]> {
     const providers = await prisma.loanProvider.findMany({
         include: {
             products: {
@@ -45,7 +46,7 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
 }
 
 
-export default async function DashboardPage() {
+export default async function LoanPage() {
     const providers = await getProviders();
     const loanHistory = await getLoanHistory();
     

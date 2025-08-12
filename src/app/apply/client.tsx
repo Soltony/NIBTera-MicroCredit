@@ -1,0 +1,119 @@
+
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
+import { LoanDetailsView } from '@/components/loan/loan-details-view';
+import { Button } from '@/components/ui/button';
+import { useLoanHistory } from '@/hooks/use-loan-history';
+
+type Step = 'calculator' | 'details';
+
+export function ApplyClient({ provider }: { provider: LoanProvider }) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const { addLoan } = useLoanHistory();
+
+    const productId = searchParams.get('product');
+
+    const selectedProduct = useMemo(() => {
+        if (!provider || !productId) return null;
+        return provider.products.find(p => p.id === productId) || null;
+    }, [provider, productId]);
+
+    const initialStep: Step = searchParams.get('step') as Step || 'calculator';
+    
+    const [step, setStep] = useState<Step>(initialStep);
+    const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
+
+    const eligibilityResult = useMemo(() => {
+        const min = searchParams.get('min');
+        const max = searchParams.get('max');
+
+        return {
+            isEligible: true,
+            suggestedLoanAmountMin: min ? parseFloat(min) : selectedProduct?.minLoan ?? 0,
+            suggestedLoanAmountMax: max ? parseFloat(max) : selectedProduct?.maxLoan ?? 0,
+            reason: 'You are eligible for a loan.',
+        };
+    }, [searchParams, selectedProduct]);
+
+    const handleLoanAccept = (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
+        if (provider && selectedProduct) {
+            const finalDetails: Omit<LoanDetails, 'id'> = {
+                ...details,
+                providerName: provider.name,
+                productName: selectedProduct.name,
+                payments: [],
+            };
+            addLoan(finalDetails);
+            const displayLoan: LoanDetails = {
+                ...finalDetails,
+                id: `temp-${Date.now()}`,
+                repaidAmount: 0,
+                payments: [],
+            }
+            setLoanDetails(displayLoan);
+            setStep('details');
+        }
+    };
+
+    const handleBack = () => {
+        const params = new URLSearchParams(searchParams);
+        params.delete('product');
+        params.delete('step');
+        router.push(`/loan?${params.toString()}`);
+    };
+
+    const handleReset = () => {
+        const params = new URLSearchParams(searchParams);
+        params.delete('product');
+        params.delete('step');
+        router.push(`/loan?${params.toString()}`);
+    };
+
+    const renderStep = () => {
+        switch (step) {
+            case 'calculator':
+                if (selectedProduct) {
+                    return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
+                }
+                if (productId && !selectedProduct) {
+                     return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;
+                }
+                return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+            case 'details':
+                if (loanDetails) {
+                    return <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={provider.colorHex} />;
+                }
+                return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+            default:
+                return <div className="text-center">Invalid step.</div>;
+        }
+    };
+
+    return (
+        <div className="flex flex-col min-h-screen bg-background">
+            <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: provider?.colorHex || 'hsl(var(--primary))' }}>
+                <div className="container flex h-16 items-center">
+                    <div className="flex items-center">
+                        <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">
+                            <ArrowLeft className="h-6 w-6" />
+                        </Button>
+                        <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
+                    </div>
+                </div>
+            </header>
+            <main className="flex-1">
+                <div className="container py-8 md:py-12">
+                    {renderStep()}
+                </div>
+            </main>
+        </div>
+    );
+}
+

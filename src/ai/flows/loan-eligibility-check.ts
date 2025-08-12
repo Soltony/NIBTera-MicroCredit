@@ -20,12 +20,9 @@ export async function checkLoanEligibility(input: CheckLoanEligibilityInput): Pr
     };
   }
 
-  // In a real application, you would perform a complex credit check here
-  // based on the user's financial history, possibly using AI/ML models.
-  // For this demo, we'll use a simplified logic based on the provider's loan limits.
   const provider = await prisma.loanProvider.findUnique({
     where: { id: providerId },
-    include: { products: true }
+    include: { products: { where: { status: 'Active' } } }
   });
 
   if (!provider) {
@@ -35,14 +32,13 @@ export async function checkLoanEligibility(input: CheckLoanEligibilityInput): Pr
     };
   }
 
-  const activeProducts = provider.products.filter(p => p.status === 'Active');
+  const activeProducts = provider.products;
   if (activeProducts.length === 0) {
      return {
       isEligible: false,
       reason: `This provider (${provider.name}) has no active loan products available.`,
     };
   }
-
 
   // Simulate a simple eligibility check. For example, everyone is eligible for up to 50% of the provider's max loan amount across all products.
   const highestMaxLoan = activeProducts.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);

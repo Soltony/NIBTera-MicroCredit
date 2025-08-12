@@ -82,19 +82,14 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   useEffect(() => {
     if (providerId) {
       setSelectedProviderId(providerId);
+    } else if (providers.length > 0) {
+      setSelectedProviderId(providers[0].id);
     }
-  }, [providerId]);
+  }, [providerId, providers]);
   
-  const providersWithIcons = useMemo(() => {
-    return providers.map(provider => ({
-      ...provider,
-      icon: iconMap[provider.icon] || Building2
-    }));
-  }, [providers]);
-
-  const { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct, providersWithLimits } = useMemo(() => {
+  const { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct } = useMemo(() => {
     const max = searchParams.get('max');
-    const maxLoanLimit = max ? parseFloat(max) : 0; // Default to 0 if not eligible
+    const maxLoanLimit = max ? parseFloat(max) : 0; 
 
     const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
     
@@ -108,25 +103,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         return acc;
     }, {} as Record<string, LoanDetails>);
 
-    const providersWithLimits = providers.map(provider => ({
-      ...provider,
-      products: provider.products.map(product => {
-          const productMax = product.maxLoan ?? 0;
-          const available = Math.min(productMax, availableToBorrow);
-          return {
-              ...product,
-              availableLimit: available,
-              icon: iconMap[product.icon] || PersonStanding,
-          }
-      })
-    }));
-
-    return { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct, providersWithLimits };
-  }, [searchParams, loanHistory, providers]);
+    return { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct };
+  }, [searchParams, loanHistory]);
 
   const selectedProvider = useMemo(() => {
-    return providersWithLimits.find(p => p.id === selectedProviderId) || providersWithLimits[0] || null;
-  }, [selectedProviderId, providersWithLimits]);
+    return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
+  }, [selectedProviderId, providers]);
 
   const handleApply = (productId: string) => {
     const params = new URLSearchParams(searchParams);
@@ -135,9 +117,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     router.push(`/apply?${params.toString()}`);
   }
 
-  const handleProviderSelect = (provider: LoanProvider) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('providerId', provider.id);
+  const handleProviderSelect = (providerId: string) => {
+    const params = new URLSearchParams();
+    params.set('providerId', providerId);
     router.push(`/check-eligibility?${params.toString()}`);
   }
   
@@ -148,12 +130,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
   const handleConfirmRepayment = (amount: number) => {
     if (repayingLoan) {
-      // Optimistically update the UI while the backend processes
       const updatedLoan = addPayment(repayingLoan, amount);
       const updatedHistory = loanHistory.map(l => l.id === updatedLoan.id ? updatedLoan : l);
       setLoanHistory(updatedHistory);
-      // Here you would also make an API call to your backend to record the payment
-      // e.g., fetch('/api/repay', { method: 'POST', body: JSON.stringify({ loanId: repayingLoan.id, amount }) });
     }
     setIsRepayDialogOpen(false);
     setRepayingLoan(null);
@@ -184,7 +163,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                   <div>
                       <div className="flex justify-center space-x-4 overflow-x-auto pb-4">
                           {providers.map((provider) => (
-                              <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
+                              <div key={provider.id} onClick={() => handleProviderSelect(provider.id)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
                                   <div 
                                       className={cn(
                                           "h-20 w-20 rounded-full flex items-center justify-center border-2 transition-all",
@@ -315,7 +294,10 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                     .map((product) => (
                                       <ProductCard 
                                           key={product.id}
-                                          product={product}
+                                          product={{
+                                            ...product,
+                                            availableLimit: Math.min(product.maxLoan || 0, availableToBorrow)
+                                          }}
                                           providerColor={selectedProvider.colorHex}
                                           activeLoan={activeLoansByProduct[product.name]}
                                           onApply={() => handleApply(product.id)}
