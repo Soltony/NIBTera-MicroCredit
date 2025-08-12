@@ -1,74 +1,65 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
-}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
 model LoanProvider {
-  id        String        @id @default(uuid())
-  name      String        @unique
-  icon      String
-  colorHex  String?
-  products  LoanProduct[]
-  users     User[]
+  id       String        @id @default(uuid())
+  name     String        @unique
+  icon     String
+  colorHex String
+  products LoanProduct[]
+  users    User[]
+  loans    LoanDetails[]
   scoringParameters ScoringParameter[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
 }
 
 model LoanProduct {
-  id          String        @id @default(uuid())
-  provider    LoanProvider  @relation(fields: [providerId], references: [id])
-  providerId  String
-  name        String
-  description String
-  icon        String
-  minLoan     Float
-  maxLoan     Float
-  serviceFee  String
-  dailyFee    String
-  penaltyFee  String
-  status      String        @default("Active")
-  loans       LoanDetails[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String        @id @default(uuid())
+  name         String
+  description  String
+  icon         String
+  minLoan      Float
+  maxLoan      Float
+  serviceFee   String
+  dailyFee     String
+  penaltyFee   String
+  status       String
+  provider     LoanProvider  @relation(fields: [providerId], references: [id])
+  providerId   String
+  loans        LoanDetails[]
 }
 
 model LoanDetails {
-  id              String    @id @default(uuid())
-  provider        LoanProvider @relation(fields: [providerId], references: [id])
-  providerId      String
-  product         LoanProduct @relation(fields: [productId], references: [id])
-  productId       String
-  loanAmount      Float
-  serviceFee      Float
-  interestRate    Float
-  disbursedDate   DateTime
-  dueDate         DateTime
-  penaltyAmount   Float
-  repaymentStatus String
-  repaidAmount    Float?
-  payments        Payment[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  provider         LoanProvider @relation(fields: [providerId], references: [id])
+  providerId       String
+  product          LoanProduct  @relation(fields: [productId], references: [id])
+  productId        String
+  loanAmount       Float
+  serviceFee       Float
+  interestRate     Float
+  disbursedDate    DateTime
+  dueDate          DateTime
+  penaltyAmount    Float
+  repaymentStatus  String
+  repaidAmount     Float?
+  payments         Payment[]
 }
 
 model Payment {
-  id                             String      @id @default(uuid())
-  loan                           LoanDetails @relation(fields: [loanId], references: [id])
-  loanId                         String
-  amount                         Float
-  date                           DateTime
+  id                            String      @id @default(uuid())
+  loan                          LoanDetails @relation(fields: [loanId], references: [id])
+  loanId                        String
+  amount                        Float
+  date                          DateTime
   outstandingBalanceBeforePayment Float
-  createdAt                      DateTime    @default(now())
-  updatedAt                      DateTime    @updatedAt
 }
 
 model User {
@@ -77,13 +68,11 @@ model User {
   email       String        @unique
   phoneNumber String        @unique
   password    String
-  role        Role          @relation(fields: [roleName], references: [name])
+  status      String
   roleName    String
+  role        Role          @relation(fields: [roleName], references: [name])
   provider    LoanProvider? @relation(fields: [providerId], references: [id])
   providerId  String?
-  status      String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
 }
 
 model Role {
@@ -91,29 +80,23 @@ model Role {
   name        String   @unique
   permissions Json
   users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 model ScoringParameter {
-  id         String                 @id @default(uuid())
-  provider   LoanProvider           @relation(fields: [providerId], references: [id])
+  id         String                  @id @default(uuid())
+  provider   LoanProvider            @relation(fields: [providerId], references: [id])
   providerId String
   name       String
   weight     Int
   rules      ScoringParameterRule[]
-  createdAt  DateTime               @default(now())
-  updatedAt  DateTime               @updatedAt
 }
 
 model ScoringParameterRule {
-  id                 String           @id @default(uuid())
-  scoringParameter   ScoringParameter @relation(fields: [scoringParameterId], references: [id], onDelete: Cascade)
-  scoringParameterId String
-  field              String
-  condition          String
-  value              String
-  score              Int
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id          String            @id @default(uuid())
+  parameter   ScoringParameter  @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  parameterId String
+  field       String
+  condition   String
+  value       String
+  score       Int
 }
