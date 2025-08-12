@@ -13,7 +13,6 @@ import {
   Accordion,
   AccordionContent,
   AccordionItem,
-  AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2, ChevronDown } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2, Edit } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -47,6 +46,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { getCustomIcon } from '@/lib/types';
+import { AccordionTrigger } from '../ui/accordion';
 
 
 // A helper to map string names to actual icon components
@@ -59,7 +59,7 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 const IconDisplay = ({ iconName }: { iconName: string }) => {
-    const isCustom = iconName.startsWith('custom-icon-');
+    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
     const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
 
     useEffect(() => {
@@ -173,7 +173,8 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
 function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }) {
     const [providers, setProviders] = useState(initialProviders);
     const { currentUser } = useAuth();
-    const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
+    const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+    const [editingProvider, setEditingProvider] = useState<LoanProvider | null>(null);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<{ type: 'provider' | 'product'; providerId: string; productId?: string } | null>(null);
@@ -187,19 +188,42 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
     
-    const handleAddProvider = async (newProviderData: Omit<LoanProvider, 'id' | 'products'>) => {
+    const handleOpenProviderDialog = (provider: LoanProvider | null = null) => {
+        setEditingProvider(provider);
+        setIsProviderDialogOpen(true);
+    };
+
+    const handleSaveProvider = async (providerData: Omit<LoanProvider, 'id' | 'products'> & { id?: string }) => {
+        const isEditing = !!providerData.id;
+        const method = isEditing ? 'PUT' : 'POST';
+        const endpoint = '/api/settings/providers';
+
         try {
-            const response = await fetch('/api/settings/providers', {
-                method: 'POST',
+            const response = await fetch(endpoint, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newProviderData)
+                body: JSON.stringify(providerData)
             });
-            if (!response.ok) throw new Error('Failed to add provider');
-            const newProvider = await response.json();
-            setProviders(prev => [...prev, newProvider]);
-            toast({ title: "Provider Added", description: `${newProvider.name} has been added successfully.` });
+            if (!response.ok) throw new Error(`Failed to ${isEditing ? 'update' : 'add'} provider`);
+            
+            const savedProvider = await response.json();
+            
+            if (isEditing) {
+                setProviders(produce(draft => {
+                    const index = draft.findIndex(p => p.id === savedProvider.id);
+                    if (index !== -1) {
+                        // Preserve products array from original client-side state
+                        savedProvider.products = draft[index].products;
+                        draft[index] = savedProvider;
+                    }
+                }));
+            } else {
+                 setProviders(prev => [...prev, savedProvider]);
+            }
+
+            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProvider.name} has been successfully saved.` });
         } catch (error) {
-             toast({ title: "Error", description: "Could not add provider.", variant: 'destructive' });
+             toast({ title: "Error", description: `Could not ${isEditing ? 'update' : 'add'} provider.`, variant: 'destructive' });
         }
     };
     
@@ -293,7 +317,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <div className="flex items-center justify-between space-y-2 mb-4">
             <div/>
              {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                <Button onClick={() => setIsAddProviderDialogOpen(true)} style={{ backgroundColor: themeColor }} className="text-white">
+                <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
                 </Button>
             )}
@@ -313,9 +337,14 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                         </AccordionTrigger>
                          <div className="flex items-center gap-2 ml-4">
                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                                <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <>
+                                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </>
                             )}
                         </div>
                     </AccordionPrimitive.Header>
@@ -348,9 +377,10 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             ))}
         </Accordion>
         <AddProviderDialog
-            isOpen={isAddProviderDialogOpen}
-            onClose={() => setIsAddProviderDialogOpen(false)}
-            onAddProvider={handleAddProvider as any}
+            isOpen={isProviderDialogOpen}
+            onClose={() => setIsProviderDialogOpen(false)}
+            onSave={handleSaveProvider}
+            provider={editingProvider}
             primaryColor={themeColor}
         />
         <AddProductDialog

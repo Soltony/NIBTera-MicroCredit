@@ -9,6 +9,10 @@ const providerSchema = z.object({
     colorHex: z.string().min(1, 'Color is required'),
 });
 
+const updateProviderSchema = providerSchema.extend({
+    id: z.string(),
+});
+
 // POST a new provider
 export async function POST(req: Request) {
     try {
@@ -29,6 +33,30 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Failed to create provider' }, { status: 500 });
     }
 }
+
+// PUT (update) a provider
+export async function PUT(req: Request) {
+    try {
+        const body = await req.json();
+        const validation = updateProviderSchema.safeParse(body);
+        if (!validation.success) {
+            return NextResponse.json({ error: validation.error.format() }, { status: 400 });
+        }
+        
+        const { id, ...updateData } = validation.data;
+
+        const updatedProvider = await prisma.loanProvider.update({
+            where: { id },
+            data: updateData,
+        });
+
+        return NextResponse.json(updatedProvider);
+    } catch (error) {
+        console.error('Error updating provider:', error);
+        return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
+    }
+}
+
 
 // DELETE a provider
 export async function DELETE(req: Request) {

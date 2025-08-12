@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,8 @@ import { saveCustomIcon } from '@/lib/types';
 interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProvider: (provider: { name: string; icon: string; colorHex: string; }) => void;
+  onSave: (provider: Omit<LoanProvider, 'products'>) => void;
+  provider: LoanProvider | null;
   primaryColor?: string;
 }
 
@@ -39,13 +40,32 @@ const colors = [
   { name: 'Purple', hex: '#7c3aed' },
 ];
 
-export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor = '#fdb913' }: AddProviderDialogProps) {
+export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryColor = '#fdb913' }: AddProviderDialogProps) {
   const [providerName, setProviderName] = useState('');
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
   const [customIconPreview, setCustomIconPreview] = useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (provider) {
+        setProviderName(provider.name);
+        setSelectedIconName(provider.icon);
+        setSelectedColorHex(provider.colorHex || colors[0].hex);
+        if (provider.icon.startsWith('custom-icon-')) {
+            // Assuming getCustomIcon is available to get the preview
+            // You might need to adjust how you get the preview URL
+            // For now, let's clear it if it's custom, user can re-upload
+            setCustomIconPreview(null); 
+        }
+    } else {
+        setProviderName('');
+        setSelectedIconName(icons[0].name);
+        setSelectedColorHex(colors[0].hex);
+        setCustomIconPreview(null);
+    }
+  }, [provider, isOpen]);
 
   const handleCustomIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -73,15 +93,12 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
     e.preventDefault();
     if (providerName.trim() === '') return;
 
-    onAddProvider({
+    onSave({
+      id: provider?.id,
       name: providerName,
       icon: selectedIconName,
       colorHex: selectedColorHex,
     });
-    setProviderName('');
-    setSelectedIconName(icons[0].name);
-    setSelectedColorHex(colors[0].hex);
-    setCustomIconPreview(null);
     onClose();
   };
 
@@ -89,7 +106,7 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add New Loan Provider</DialogTitle>
+          <DialogTitle>{provider ? 'Edit Provider' : 'Add New Loan Provider'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-6 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
@@ -175,7 +192,7 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">Add Provider</Button>
+            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">{provider ? 'Save Changes' : 'Add Provider'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
