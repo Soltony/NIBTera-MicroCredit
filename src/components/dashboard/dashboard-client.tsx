@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp } from 'lucide-react';
@@ -37,9 +37,10 @@ const iconMap: { [key: string]: React.ElementType } = {
 
 interface DashboardClientProps {
   providers: LoanProvider[];
+  initialLoanHistory: LoanDetails[];
 }
 
-export function DashboardClient({ providers }: DashboardClientProps) {
+export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerId = searchParams.get('providerId');
@@ -48,8 +49,13 @@ export function DashboardClient({ providers }: DashboardClientProps) {
   const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const { loans: loanHistory, addPayment } = useLoanHistory();
+  const { addPayment } = useLoanHistory(); // Keep addPayment to optimistically update UI
+  const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoanHistory(initialLoanHistory);
+  }, [initialLoanHistory]);
 
   useEffect(() => {
     if (providerId) {
@@ -125,7 +131,12 @@ export function DashboardClient({ providers }: DashboardClientProps) {
 
   const handleConfirmRepayment = (amount: number) => {
     if (repayingLoan) {
-      addPayment(repayingLoan, amount);
+      // Optimistically update the UI while the backend processes
+      const updatedLoan = addPayment(repayingLoan, amount);
+      const updatedHistory = loanHistory.map(l => l.id === updatedLoan.id ? updatedLoan : l);
+      setLoanHistory(updatedHistory);
+      // Here you would also make an API call to your backend to record the payment
+      // e.g., fetch('/api/repay', { method: 'POST', body: JSON.stringify({ loanId: repayingLoan.id, amount }) });
     }
     setIsRepayDialogOpen(false);
     setRepayingLoan(null);
@@ -226,8 +237,8 @@ export function DashboardClient({ providers }: DashboardClientProps) {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
-                                                            <TableCell className="py-3 px-4">{format(loan.disbursedDate, 'yyyy-MM-dd')}</TableCell>
-                                                            <TableCell className="py-3 px-4">{format(loan.dueDate, 'yyyy-MM-dd')}</TableCell>
+                                                            <TableCell className="py-3 px-4">{format(new Date(loan.disbursedDate), 'yyyy-MM-dd')}</TableCell>
+                                                            <TableCell className="py-3 px-4">{format(new Date(loan.dueDate), 'yyyy-MM-dd')}</TableCell>
                                                             <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
                                                             <TableCell className="text-right py-3 px-4">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
                                                             <TableCell className="text-center py-3 px-4">
@@ -254,7 +265,7 @@ export function DashboardClient({ providers }: DashboardClientProps) {
                                                                               {loan.payments.map((payment, pIndex) => (
                                                                                   <TableRow key={pIndex}>
                                                                                       <TableCell>#{pIndex + 1}</TableCell>
-                                                                                      <TableCell>{format(payment.date, 'yyyy-MM-dd')}</TableCell>
+                                                                                      <TableCell>{format(new Date(payment.date), 'yyyy-MM-dd')}</TableCell>
                                                                                       <TableCell className="text-right">{formatCurrency(payment.outstandingBalanceBeforePayment ?? 0)}</TableCell>
                                                                                       <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
                                                                                   </TableRow>
@@ -315,4 +326,3 @@ export function DashboardClient({ providers }: DashboardClientProps) {
     </>
   );
 }
-

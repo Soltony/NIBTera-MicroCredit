@@ -1,7 +1,7 @@
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { prisma } from '@/lib/prisma';
 import type { LoanDetails } from '@/lib/types';
-import { getCurrentUser } from '@/lib/session';
+
 
 async function getProviders() {
     const providers = await prisma.loanProvider.findMany({
@@ -19,11 +19,33 @@ async function getProviders() {
     }));
 }
 
+async function getLoanHistory(): Promise<LoanDetails[]> {
+    const loans = await prisma.loanDetails.findMany({
+        include: {
+            provider: true,
+            product: true,
+            payments: {
+                orderBy: {
+                    date: 'asc',
+                },
+            },
+        },
+        orderBy: {
+            disbursedDate: 'desc',
+        },
+    });
+
+    return loans.map(loan => ({
+        ...loan,
+        providerName: loan.provider.name,
+        productName: loan.product.name,
+    }));
+}
+
 
 export default async function DashboardPage() {
     const providers = await getProviders();
+    const loanHistory = await getLoanHistory();
     
-    // The rest of the data like loan history and eligibility is handled client-side
-    // for now, so we just need to pass the providers.
-    return <DashboardClient providers={providers} />;
+    return <DashboardClient providers={providers} initialLoanHistory={loanHistory} />;
 }
