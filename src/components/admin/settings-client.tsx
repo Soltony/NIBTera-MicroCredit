@@ -285,8 +285,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                             <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
                                 <div>
-                                    <h3 className="text-lg font-semibold">{provider.name}</h3>
-                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                                    <div className="text-lg font-semibold text-left">{provider.name}</div>
+                                    <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
                                 </div>
                             </div>
                         </AccordionTrigger>
