@@ -42,10 +42,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
+import * as AccordionPrimitive from "@radix-ui/react-accordion"
+
 
 // A helper to map string names to actual icon components
 const iconMap: { [key: string]: React.ElementType } = {
@@ -279,8 +280,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <AccordionTrigger className="p-4 hover:no-underline">
-                        <div className="flex items-center justify-between w-full">
+                    <AccordionPrimitive.Header className="flex items-center w-full">
+                        <AccordionTrigger className="p-4 hover:no-underline flex-1">
                             <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
                                 <div>
@@ -288,13 +289,15 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                     <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
                                 </div>
                             </div>
-                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                                <Button variant="ghost" size="icon" className="mr-4 hover:bg-destructive hover:text-destructive-foreground" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
+                        </AccordionTrigger>
+                        {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                            <div className="p-4 pl-0">
+                                <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
-                            )}
-                        </div>
-                    </AccordionTrigger>
+                            </div>
+                        )}
+                    </AccordionPrimitive.Header>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
