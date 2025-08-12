@@ -85,7 +85,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
     const error = validateRule(rule);
     
     return (
-        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md border border-transparent data-[invalid]:border-destructive" data-invalid={error ? 'true' : 'false'}>
+        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md">
             <div className="flex items-center gap-2">
                 <Input
                     placeholder="e.g., age"
