@@ -38,7 +38,7 @@ import {Logo} from '@/components/icons';
 import {useLoanProviders} from '@/hooks/use-loan-providers';
 import {AuthProvider, useAuth} from '@/hooks/use-auth';
 import type { AuthenticatedUser } from '@/hooks/use-auth';
-import { getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 
 const allMenuItems = [
   {

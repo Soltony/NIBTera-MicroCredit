@@ -1,7 +1,7 @@
 
 import { ReportsClient } from '@/components/admin/reports-client';
 import { prisma } from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 import type { LoanDetails as PrismaLoanDetails, Payment } from '@prisma/client';
 
 export interface ReportLoan extends Omit<PrismaLoanDetails, 'payments'> {

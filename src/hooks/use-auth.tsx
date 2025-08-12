@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { getUserFromSession } from '@/lib/session';
+import type { getUserFromSession } from '@/lib/user';
 
 // Define a user type that matches the structure returned by getUserFromSession
 export type AuthenticatedUser = Awaited<ReturnType<typeof getUserFromSession>>;
@@ -41,8 +41,14 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
   const fetchUser = useCallback(async () => {
     try {
       setIsLoading(true);
-      const user = await getUserFromSession();
-      setCurrentUser(user);
+      // This needs to be a fetch call to an API route to be used on the client
+      const res = await fetch('/api/auth/user');
+      if (res.ok) {
+        const user = await res.json();
+        setCurrentUser(user);
+      } else {
+         setCurrentUser(null);
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       setCurrentUser(null);

@@ -1,7 +1,7 @@
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import { prisma } from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 async function getDashboardData() {
