@@ -5,28 +5,23 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
 
-import { Building2, Landmark, Briefcase, Home, PersonStanding, ArrowLeft } from 'lucide-react';
-import { Logo } from '@/components/icons';
-import { ProductSelection } from '@/components/loan/product-selection';
+import { ArrowLeft } from 'lucide-react';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
 import { useLoanHistory } from '@/hooks/use-loan-history';
-import { useLoanProviders } from '@/hooks/use-loan-providers';
 
 type Step = 'calculator' | 'details';
 
-export default function ApplyPage() {
+function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { addLoan } = useLoanHistory();
-  const { providers: mockProviders } = useLoanProviders();
   
   const providerId = searchParams.get('providerId');
-  const selectedProvider = mockProviders.find(p => p.id === providerId) || null;
+  const selectedProvider = providers.find(p => p.id === providerId) || null;
 
-  // State restoration from URL
   const initialStep: Step = searchParams.get('step') as Step || 'calculator';
   const initialProductId = searchParams.get('product');
 
@@ -47,26 +42,12 @@ export default function ApplyPage() {
   }, [searchParams, selectedProduct]);
 
   useEffect(() => {
-    // If the product is not selected, or the step is already details, do nothing.
     if (!selectedProduct || step === 'details') return;
-
-    // This handles the case where the component is rendered on the server with one product
-    // and then the client hydrates with a different product from the URL.
     const productFromUrl = selectedProvider?.products.find(p => p.id === initialProductId);
     if (productFromUrl && productFromUrl.id !== selectedProduct.id) {
       setSelectedProduct(productFromUrl);
     }
   }, [initialProductId, selectedProvider, selectedProduct, step]);
-
-  const updateUrl = (newStep: Step, params: Record<string, string> = {}) => {
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set('step', newStep);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) newParams.set(key, value);
-      else newParams.delete(key);
-    });
-    router.push(`${pathname}?${newParams.toString()}`);
-  }
   
   const handleLoanAccept = (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
     if (selectedProvider && selectedProduct) {
@@ -77,7 +58,6 @@ export default function ApplyPage() {
         payments: [],
       };
       addLoan(finalDetails);
-      // We don't have the full loan details with ID yet from addLoan, so we create a temporary one for display
       const displayLoan: LoanDetails = {
           ...finalDetails,
           id: `temp-${Date.now()}`,
@@ -88,7 +68,6 @@ export default function ApplyPage() {
       setStep('details');
       const newParams = new URLSearchParams(searchParams);
       newParams.set('step', 'details');
-      // Use replace instead of push to prevent going back to the calculator
       router.replace(`${pathname}?${newParams.toString()}`);
     }
   };
@@ -97,13 +76,7 @@ export default function ApplyPage() {
     const params = new URLSearchParams(searchParams);
     params.delete('product');
     params.delete('step');
-
-    if (step === 'details') {
-      // From the success page, back should always go to the dashboard
-      router.push(`/dashboard?${params.toString()}`);
-    } else {
-       router.push(`/dashboard?${params.toString()}`);
-    }
+    router.push(`/dashboard?${params.toString()}`);
   };
 
   const handleReset = () => {
@@ -118,7 +91,6 @@ export default function ApplyPage() {
         return <div className="text-center">Provider not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
     }
 
-    // Set product on initial render
     if (!selectedProduct) {
       const product = selectedProvider.products.find(p => p.id === initialProductId);
       if (product) {
@@ -148,8 +120,6 @@ export default function ApplyPage() {
             </Button>
             <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Loan Application</h1>
           </div>
-          <div className="flex flex-1 items-center justify-end space-x-4">
-          </div>
         </div>
       </header>
       <main className="flex-1">
@@ -159,4 +129,10 @@ export default function ApplyPage() {
       </main>
     </div>
   );
+}
+
+
+// This wrapper allows us to pass server-fetched data to the client component
+export default function ApplyPageWrapper({ providers }: { providers: LoanProvider[] }) {
+    return <ApplyClient providers={providers} />;
 }
