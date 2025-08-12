@@ -37,10 +37,18 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct, LoanProvider } from '@/lib/types';
-import { useScoringHistory, type ScoringHistoryItem } from '@/hooks/use-scoring-history';
 import { format } from 'date-fns';
 import { produce } from 'immer';
 import { cn } from '@/lib/utils';
+
+
+export interface ScoringHistoryItem {
+    id: string;
+    savedAt: Date;
+    parameters: ScoringParameter[];
+    appliedProducts: { name: string }[];
+}
+
 
 const validateRule = (rule: Rule): string | null => {
     if (!rule.field.trim()) {
@@ -114,14 +122,14 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                             placeholder="Min"
                             value={min}
                             onChange={handleRangeChange('min')}
-                            className={cn((!min.trim() || parseFloat(min) >= parseFloat(max)) && 'border-destructive')}
+                            className={cn((!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                         <span>-</span>
                         <Input
                             placeholder="Max"
                             value={max}
                             onChange={handleRangeChange('max')}
-                            className={cn((!max.trim() || parseFloat(min) >= parseFloat(max)) && 'border-destructive')}
+                            className={cn((!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                     </div>
                 ) : (
@@ -152,32 +160,46 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
 interface CreditScoreEngineClientProps {
     providers: LoanProvider[];
     initialScoringParameters: ScoringParameter[];
+    initialHistory: ScoringHistoryItem[];
 }
 
-export function CreditScoreEngineClient({ providers, initialScoringParameters }: CreditScoreEngineClientProps) {
+export function CreditScoreEngineClient({ providers, initialScoringParameters, initialHistory }: CreditScoreEngineClientProps) {
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
     const [parameters, setParameters] = useState<ScoringParameter[]>(initialScoringParameters);
     const [isLoading, setIsLoading] = useState(false);
-    
-    const { getHistoryForProvider, addHistoryItem } = useScoringHistory();
-
     const [deletingParameterId, setDeletingParameterId] = useState<string | null>(null);
     const { toast } = useToast();
+    const [appliedProductIds, setAppliedProductIds] = useState<string[]>([]);
+    const [history, setHistory] = useState<ScoringHistoryItem[]>(initialHistory);
 
     useEffect(() => {
         if (providers.length > 0 && !selectedProviderId) {
             setSelectedProviderId(providers[0].id);
         }
     }, [providers, selectedProviderId]);
-    
+
     const currentParametersForProvider = useMemo(() => {
         return parameters.filter(p => p.providerId === selectedProviderId);
     }, [parameters, selectedProviderId]);
 
     const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
     const themeColor = selectedProvider?.colorHex || '#fdb913';
-    const configurationHistory = useMemo(() => selectedProviderId ? getHistoryForProvider(selectedProviderId) : [], [selectedProviderId, getHistoryForProvider]);
-
+    
+    useEffect(() => {
+        // When provider changes, fetch its history
+        const fetchHistory = async () => {
+            if (!selectedProviderId) return;
+            try {
+                const response = await fetch(`/api/scoring-history?providerId=${selectedProviderId}`);
+                if (!response.ok) throw new Error('Failed to fetch history');
+                const data = await response.json();
+                setHistory(data.map((item: any) => ({ ...item, savedAt: new Date(item.savedAt) })));
+            } catch (error) {
+                toast({ title: "Error", description: "Could not fetch configuration history.", variant: "destructive" });
+            }
+        };
+        fetchHistory();
+    }, [selectedProviderId, toast]);
 
     const totalWeight = React.useMemo(() => {
         if (!currentParametersForProvider) return 0;
@@ -187,7 +209,6 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
     const handleSave = async () => {
         if (!selectedProviderId || !currentParametersForProvider) return;
 
-        // Validation check before saving
         for (const param of currentParametersForProvider) {
             for (const rule of param.rules) {
                 const error = validateRule(rule);
@@ -213,25 +234,45 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
         
         setIsLoading(true);
         try {
-            const response = await fetch('/api/scoring-rules', {
+            const saveParamsPromise = fetch('/api/scoring-rules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ providerId: selectedProviderId, parameters: currentParametersForProvider }),
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
+            const saveHistoryPromise = fetch('/api/scoring-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    providerId: selectedProviderId,
+                    parameters: currentParametersForProvider,
+                    appliedProductIds: appliedProductIds
+                }),
+            });
+
+            const [paramsResponse, historyResponse] = await Promise.all([saveParamsPromise, saveHistoryPromise]);
+
+            if (!paramsResponse.ok) {
+                const errorData = await paramsResponse.json();
                 throw new Error(errorData.error || 'Failed to save parameters.');
             }
+             if (!historyResponse.ok) {
+                const errorData = await historyResponse.json();
+                throw new Error(errorData.error || 'Failed to save history.');
+            }
 
-            const savedParameters = await response.json();
+            const savedParameters = await paramsResponse.json();
+            const newHistoryItem = await historyResponse.json();
             
             setParameters(produce(parameters, draft => {
                 const otherProviderParams = draft.filter(p => p.providerId !== selectedProviderId);
                 return [...otherProviderParams, ...savedParameters];
             }));
             
-            addHistoryItem(selectedProviderId, savedParameters);
+            setHistory(prev => [
+                { ...newHistoryItem, savedAt: new Date(newHistoryItem.savedAt) }, 
+                ...prev
+            ].slice(0, 5));
             
             if (totalWeight < 100) {
                 toast({
@@ -331,10 +372,9 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
     };
 
     const handleProductSelectionChange = (productId: string, isChecked: boolean) => {
-        if (!selectedProviderId) return;
-        // This is a placeholder for product selection logic.
-        // In a real app, this would likely update a field on the scoring configuration itself.
-        console.log(`Product ${productId} selection changed to ${isChecked} for provider ${selectedProviderId}`);
+        setAppliedProductIds(prev =>
+            isChecked ? [...prev, productId] : prev.filter(id => id !== productId)
+        );
     };
 
     if (providers.length === 0) {
@@ -496,15 +536,15 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    {configurationHistory.length > 0 ? (
-                        configurationHistory.map((item) => (
+                    {history.length > 0 ? (
+                        history.map((item) => (
                             <Card key={item.id} className="flex items-center justify-between p-3 bg-muted/50">
                                 <div>
                                     <p className="font-medium">
                                         Saved on: {format(item.savedAt, 'PPP p')}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                        {item.parameters.length} parameters, Total Weight: {item.parameters.reduce((s, p) => s + p.weight, 0)}%
+                                        Applied to: {item.appliedProducts.map(p => p.name).join(', ') || 'None'}
                                     </p>
                                 </div>
                                 <Button
