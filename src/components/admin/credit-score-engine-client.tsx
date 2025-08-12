@@ -40,6 +40,33 @@ import type { LoanProduct, LoanProvider } from '@/lib/types';
 import { useScoringHistory, type ScoringHistoryItem } from '@/hooks/use-scoring-history';
 import { format } from 'date-fns';
 import { produce } from 'immer';
+import { cn } from '@/lib/utils';
+
+const validateRule = (rule: Rule): string | null => {
+    if (!rule.field.trim()) {
+        return 'The "Field" name cannot be empty.';
+    }
+    if (rule.condition === 'between') {
+        const parts = rule.value?.split('-') || [];
+        const min = parts[0]?.trim();
+        const max = parts[1]?.trim();
+        if (!min || !max) {
+            return 'For the "between" condition, both a minimum and maximum value are required.';
+        }
+        if (isNaN(parseFloat(min)) || isNaN(parseFloat(max))) {
+             return 'The "between" condition requires numeric min/max values.';
+        }
+         if (parseFloat(min) >= parseFloat(max)) {
+            return 'The minimum value must be less than the maximum value.';
+        }
+    } else {
+        if (!rule.value.trim()) {
+            return 'The "Value" cannot be empty.';
+        }
+    }
+    return null;
+}
+
 
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     
@@ -55,62 +82,69 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
         onUpdate({ ...rule, value: `${currentMin}-${currentMax}` });
     }
     
+    const error = validateRule(rule);
+    
     return (
-        <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-            <Input
-                placeholder="e.g., age"
-                value={rule.field || ''}
-                onChange={(e) => onUpdate({ ...rule, field: e.target.value })}
-                className="w-1/4"
-            />
-            <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                <SelectTrigger className="w-1/4">
-                    <SelectValue placeholder="Condition" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value=">">&gt;</SelectItem>
-                    <SelectItem value="<">&lt;</SelectItem>
-                    <SelectItem value=">=">&gt;=</SelectItem>
-                    <SelectItem value="<=">&lt;=</SelectItem>
-                    <SelectItem value="==">==</SelectItem>
-                    <SelectItem value="!=">!=</SelectItem>
-                    <SelectItem value="between">Between</SelectItem>
-                </SelectContent>
-            </Select>
-
-            {rule.condition === 'between' ? (
-                <div className="flex items-center gap-2 w-1/4">
-                    <Input
-                        placeholder="Min"
-                        value={min}
-                        onChange={handleRangeChange('min')}
-                    />
-                    <span>-</span>
-                    <Input
-                        placeholder="Max"
-                        value={max}
-                        onChange={handleRangeChange('max')}
-                    />
-                </div>
-            ) : (
+        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md border border-transparent data-[invalid]:border-destructive" data-invalid={error ? 'true' : 'false'}>
+            <div className="flex items-center gap-2">
                 <Input
-                    placeholder="e.g., 30"
-                    value={rule.value || ''}
-                    onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
+                    placeholder="e.g., age"
+                    value={rule.field || ''}
+                    onChange={(e) => onUpdate({ ...rule, field: e.target.value })}
+                    className={cn("w-1/4", !rule.field.trim() && 'border-destructive')}
+                />
+                <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
+                    <SelectTrigger className="w-1/4">
+                        <SelectValue placeholder="Condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value=">">&gt;</SelectItem>
+                        <SelectItem value="<">&lt;</SelectItem>
+                        <SelectItem value=">=">&gt;=</SelectItem>
+                        <SelectItem value="<=">&lt;=</SelectItem>
+                        <SelectItem value="==">==</SelectItem>
+                        <SelectItem value="!=">!=</SelectItem>
+                        <SelectItem value="between">Between</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {rule.condition === 'between' ? (
+                    <div className="flex items-center gap-2 w-1/4">
+                        <Input
+                            placeholder="Min"
+                            value={min}
+                            onChange={handleRangeChange('min')}
+                            className={cn((!min.trim() || parseFloat(min) >= parseFloat(max)) && 'border-destructive')}
+                        />
+                        <span>-</span>
+                        <Input
+                            placeholder="Max"
+                            value={max}
+                            onChange={handleRangeChange('max')}
+                            className={cn((!max.trim() || parseFloat(min) >= parseFloat(max)) && 'border-destructive')}
+                        />
+                    </div>
+                ) : (
+                    <Input
+                        placeholder="e.g., 30"
+                        value={rule.value || ''}
+                        onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
+                        className={cn("w-1/4", !rule.value.trim() && 'border-destructive')}
+                    />
+                )}
+                
+                <Input
+                    type="number"
+                    placeholder="Score"
+                    value={rule.score}
+                    onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
                     className="w-1/4"
                 />
-            )}
-            
-            <Input
-                type="number"
-                placeholder="Score"
-                value={rule.score}
-                onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
-                 className="w-1/4"
-            />
-            <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white hover:bg-destructive">
-                <Trash2 className="h-4 w-4" />
-            </Button>
+                <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white hover:bg-destructive">
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </div>
+             {error && <p className="text-xs text-destructive px-1">{error}</p>}
         </div>
     );
 };
@@ -152,6 +186,22 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
 
     const handleSave = async () => {
         if (!selectedProviderId || !currentParametersForProvider) return;
+
+        // Validation check before saving
+        for (const param of currentParametersForProvider) {
+            for (const rule of param.rules) {
+                const error = validateRule(rule);
+                if (error) {
+                    toast({
+                        title: 'Invalid Rule',
+                        description: `Cannot save. Please fix the error in the "${param.name}" parameter: ${error}`,
+                        variant: 'destructive',
+                    });
+                    return;
+                }
+            }
+        }
+        
         if (totalWeight > 100) {
             toast({
                 title: 'Invalid Configuration',
@@ -223,7 +273,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
             providerId: selectedProviderId,
             name: 'New Parameter',
             weight: 10,
-            rules: [{ id: `rule-${Date.now()}`, field: 'newField', condition: '>', value: '0', score: 10 }],
+            rules: [{ id: `rule-${Date.now()}`, field: '', condition: '>', value: '', score: 10 }],
         };
         setParameters([...parameters, newParam]);
     };
