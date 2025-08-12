@@ -71,7 +71,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const { addPayment } = useLoanHistory(); // Keep addPayment to optimistically update UI
+  const { addPayment } = useLoanHistory(initialLoanHistory);
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
 
@@ -128,10 +128,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     return providersWithLimits.find(p => p.id === selectedProviderId) || providersWithLimits[0] || null;
   }, [selectedProviderId, providersWithLimits]);
 
-  const handleApply = (productId: string, productName: string) => {
-    if (activeLoansByProduct[productName]) {
-      return;
-    }
+  const handleApply = (productId: string) => {
     const params = new URLSearchParams(searchParams);
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
@@ -139,11 +136,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }
 
   const handleProviderSelect = (provider: LoanProvider) => {
-    router.push(`/check-eligibility?providerId=${provider.id}`);
-  }
-
-  const handleProductSelect = (product: LoanProduct) => {
-    handleApply(product.id, product.name);
+    const params = new URLSearchParams(searchParams);
+    params.set('providerId', provider.id);
+    router.push(`/check-eligibility?${params.toString()}`);
   }
   
   const handleRepay = (loan: LoanDetails) => {
@@ -323,7 +318,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                           product={product}
                                           providerColor={selectedProvider.colorHex}
                                           activeLoan={activeLoansByProduct[product.name]}
-                                          onApply={() => handleProductSelect(product)}
+                                          onApply={() => handleApply(product.id)}
                                           onRepay={handleRepay}
                                       />
                                   ))}
@@ -348,3 +343,5 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
+
+    
