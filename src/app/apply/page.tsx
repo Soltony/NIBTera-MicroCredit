@@ -19,17 +19,6 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   const searchParams = useSearchParams();
   const { addLoan } = useLoanHistory();
 
-  if (!providers || providers.length === 0) {
-    return (
-        <div className="flex flex-col min-h-screen bg-background items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <h2 className="text-xl font-semibold">Loading Providers...</h2>
-          </div>
-        </div>
-    );
-  }
-  
   const providerId = searchParams.get('providerId');
   const selectedProvider = providers.find(p => p.id === providerId) || null;
 
@@ -37,8 +26,26 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   const initialProductId = searchParams.get('product');
 
   const [step, setStep] = useState<Step>(initialStep);
-  const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(() => selectedProvider?.products.find(p => p.id === initialProductId) || null);
+  const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(() => {
+    if (!selectedProvider || !initialProductId) return null;
+    return selectedProvider.products.find(p => p.id === initialProductId) || null;
+  });
   const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
+
+  useEffect(() => {
+    // This effect ensures that if the product ID changes in the URL (e.g. via navigation),
+    // the component's state updates to reflect that new product.
+    if (selectedProvider && initialProductId) {
+      const productFromUrl = selectedProvider.products.find(p => p.id === initialProductId);
+      if (productFromUrl) {
+          setSelectedProduct(productFromUrl);
+      } else {
+          setSelectedProduct(null);
+      }
+    } else {
+        setSelectedProduct(null);
+    }
+  }, [initialProductId, selectedProvider]);
 
   const eligibilityResult = useMemo(() => {
     const min = searchParams.get('min');
@@ -51,17 +58,6 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
       reason: 'You are eligible for a loan.',
     };
   }, [searchParams, selectedProduct]);
-
-  useEffect(() => {
-    // This effect ensures that if the product ID changes in the URL,
-    // the component's state updates to reflect that new product.
-    if (selectedProvider && initialProductId) {
-      const productFromUrl = selectedProvider.products.find(p => p.id === initialProductId);
-      if (productFromUrl) {
-          setSelectedProduct(productFromUrl);
-      }
-    }
-  }, [initialProductId, selectedProvider]);
   
   const handleLoanAccept = (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
     if (selectedProvider && selectedProduct) {
@@ -107,6 +103,17 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   };
   
   const renderStep = () => {
+    if (!providers || providers.length === 0) {
+      return (
+          <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <h2 className="text-xl font-semibold">Loading Providers...</h2>
+            </div>
+          </div>
+      );
+    }
+      
     if (!selectedProvider) {
         return <div className="text-center">Provider not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
     }
@@ -116,8 +123,13 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
         if (selectedProduct) {
           return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
         }
-        // If the product is still loading or not found, show a message.
-        return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>;
+        // If there's a product ID in the URL but we couldn't find the product
+        if(initialProductId && !selectedProduct) {
+             return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>;
+        }
+        // If we are still waiting for the effect to run
+        return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
       case 'details':
         if (loanDetails) {
           return <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={selectedProvider.colorHex} />;
@@ -153,5 +165,15 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
 
 // This wrapper allows us to pass server-fetched data to the client component
 export default function ApplyPageWrapper({ providers }: { providers: LoanProvider[] }) {
+    if (!providers) {
+        return (
+            <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <h2 className="text-xl font-semibold">Loading Providers...</h2>
+              </div>
+            </div>
+        );
+    }
     return <ApplyClient providers={providers} />;
 }
