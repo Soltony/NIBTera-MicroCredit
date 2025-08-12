@@ -3,6 +3,7 @@
 
 import {SignJWT, jwtVerify} from 'jose';
 import {cookies} from 'next/headers';
+import { prisma } from '@/lib/prisma';
 
 const secretKey =
   process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
@@ -37,13 +38,10 @@ export async function createSession(userId: string) {
 }
 
 export async function getSession() {
-  const sessionCookieValue = cookies().get('session')?.value;
-  if (!sessionCookieValue) return null;
+  const sessionCookie = cookies().get('session')?.value;
+  if (!sessionCookie) return null;
 
-  const sessionPayload = await decrypt(sessionCookieValue);
-  if (!sessionPayload?.userId) return null;
-
-  return sessionPayload;
+  return await decrypt(sessionCookie);
 }
 
 export async function getCurrentUser() {
