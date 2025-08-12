@@ -281,23 +281,23 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
-                        <AccordionTrigger className="hover:no-underline flex-1 p-0">
-                            <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center gap-4">
-                                    {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
-                                    <div>
-                                        <div className="text-lg font-semibold text-left">{provider.name}</div>
-                                        <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
-                                    </div>
+                        <AccordionTrigger className="hover:no-underline flex-1 p-0 text-left">
+                           <div className="flex items-center gap-4">
+                                {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
+                                <div>
+                                    <div className="text-lg font-semibold">{provider.name}</div>
+                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
                                 </div>
-                                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
                             </div>
                         </AccordionTrigger>
-                         {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                            <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground ml-4 shrink-0" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-2 ml-4">
+                            <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200 text-muted-foreground group-data-[state=open]:rotate-180" />
+                            {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                                <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
                     </AccordionPrimitive.Header>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
@@ -365,5 +365,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
