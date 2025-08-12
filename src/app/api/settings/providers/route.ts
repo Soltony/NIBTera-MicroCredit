@@ -7,6 +7,7 @@ const providerSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     icon: z.string().min(1, 'Icon is required'),
     colorHex: z.string().min(1, 'Color is required'),
+    displayOrder: z.number().int(),
 });
 
 const updateProviderSchema = providerSchema.extend({

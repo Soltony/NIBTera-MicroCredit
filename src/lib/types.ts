@@ -11,6 +11,7 @@ export interface LoanProvider {
   products: LoanProduct[];
   color?: string;
   colorHex?: string;
+  displayOrder: number;
 }
 
 export interface LoanProduct {

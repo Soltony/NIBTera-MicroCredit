@@ -44,6 +44,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   const [providerName, setProviderName] = useState('');
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
+  const [displayOrder, setDisplayOrder] = useState(0);
   const [customIconPreview, setCustomIconPreview] = useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -53,6 +54,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setProviderName(provider.name);
         setSelectedIconName(provider.icon);
         setSelectedColorHex(provider.colorHex || colors[0].hex);
+        setDisplayOrder(provider.displayOrder || 0);
         if (provider.icon.startsWith('custom-icon-')) {
             // Assuming getCustomIcon is available to get the preview
             // You might need to adjust how you get the preview URL
@@ -63,6 +65,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setProviderName('');
         setSelectedIconName(icons[0].name);
         setSelectedColorHex(colors[0].hex);
+        setDisplayOrder(0);
         setCustomIconPreview(null);
     }
   }, [provider, isOpen]);
@@ -98,6 +101,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       name: providerName,
       icon: selectedIconName,
       colorHex: selectedColorHex,
+      displayOrder: Number(displayOrder),
     });
     onClose();
   };
@@ -118,6 +122,20 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               value={providerName}
               onChange={(e) => setProviderName(e.target.value)}
               placeholder="e.g., Acme Financial"
+              required
+              className="col-span-3"
+              style={{'--ring': primaryColor} as React.CSSProperties}
+            />
+          </div>
+           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="display-order" className="text-right">
+              Display Order
+            </Label>
+            <Input
+              id="display-order"
+              type="number"
+              value={displayOrder}
+              onChange={(e) => setDisplayOrder(Number(e.target.value))}
               required
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}

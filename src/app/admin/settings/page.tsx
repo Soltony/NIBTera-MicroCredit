@@ -24,7 +24,7 @@ async function getProviders(): Promise<LoanProvider[]> {
             },
         },
         orderBy: {
-            name: 'asc'
+            displayOrder: 'asc'
         }
     });
 

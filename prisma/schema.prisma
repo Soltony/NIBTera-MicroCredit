@@ -1,130 +1,121 @@
+
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
-  id            String    @id @default(uuid())
-  fullName      String
-  email         String    @unique
-  phoneNumber   String    @unique
-  password      String
-  roleName      String
-  role          Role      @relation(fields: [roleName], references: [name], onDelete: Cascade)
-  status        String
-  providerId    String?
-  provider      LoanProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  fullName     String
+  email        String    @unique
+  phoneNumber  String    @unique
+  password     String
+  status       String
+  roleName     String
+  role         Role      @relation(fields: [roleName], references: [name])
+  providerId   String?
+  provider     LoanProvider? @relation(fields: [providerId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Role {
-  id          String   @id @default(uuid())
+  id          String   @id @default(cuid())
   name        String   @unique
   permissions Json
   users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
+
 model LoanProvider {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  icon        String
-  colorHex    String
-  products    LoanProduct[]
-  users       User[]
+  id        String   @id @default(cuid())
+  name      String
+  icon      String
+  colorHex  String
+  displayOrder Int      @default(0)
+  products  LoanProduct[]
+  users     User[]
   scoringParameters ScoringParameter[]
   scoringHistory    ScoringConfigurationHistory[]
-  loans             LoanDetails[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 model LoanProduct {
-  id          String   @id @default(uuid())
-  name        String
-  description String
-  icon        String
-  minLoan     Float
-  maxLoan     Float
-  serviceFee  String
-  dailyFee    String
-  penaltyFee  String
-  status      String
-  providerId  String
-  provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  loans       LoanDetails[]
-  scoringHistory ScoringConfigurationHistory[] @relation("AppliedProductsForHistory")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  providerId    String
+  provider      LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  name          String
+  description   String
+  icon          String
+  minLoan       Float
+  maxLoan       Float
+  serviceFee    String
+  dailyFee      String
+  penaltyFee    String
+  status        String
+  loans         LoanDetails[]
+  scoringHistory ScoringConfigurationHistory[] @relation("AppliedProductsToHistory")
 }
 
 model LoanDetails {
-  id            String   @id @default(uuid())
-  loanAmount    Float
-  serviceFee    Float
-  interestRate  Float
-  disbursedDate DateTime
-  dueDate       DateTime
-  penaltyAmount Float
-  repaymentStatus String
-  repaidAmount  Float?
-  providerId    String
-  provider      LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  productId     String
-  product       LoanProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  payments      Payment[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(cuid())
+  providerId       String
+  provider         LoanProvider @relation(fields: [providerId], references: [id])
+  productId        String
+  product          LoanProduct @relation(fields: [productId], references: [id])
+  loanAmount       Float
+  serviceFee       Float
+  interestRate     Float
+  disbursedDate    DateTime
+  dueDate          DateTime
+  penaltyAmount    Float
+  repaymentStatus  String
+  repaidAmount     Float?
+  payments         Payment[]
 }
 
 model Payment {
-  id          String   @id @default(uuid())
-  amount      Float
-  date        DateTime
-  loanId      String
-  loan        LoanDetails @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  outstandingBalanceBeforePayment Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  loanId        String
+  loan          LoanDetails @relation(fields: [loanId], references: [id])
+  amount        Float
+  date          DateTime
+  outstandingBalanceBeforePayment Float?
 }
 
 model ScoringParameter {
-  id         String   @id @default(uuid())
-  providerId String
-  provider   LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  name       String
-  weight     Int
-  rules      ScoringParameterRule[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String  @id @default(cuid())
+  providerId  String
+  provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  name        String
+  weight      Int
+  rules       ScoringParameterRule[]
 }
 
 model ScoringParameterRule {
-  id          String   @id @default(uuid())
+  id          String   @id @default(cuid())
   parameterId String
   parameter   ScoringParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
   field       String
   condition   String
   value       String
   score       Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 model ScoringConfigurationHistory {
-  id              String        @id @default(uuid())
+  id              String        @id @default(cuid())
   providerId      String
   provider        LoanProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   parameters      Json
-  appliedProducts LoanProduct[] @relation("AppliedProductsForHistory")
   savedAt         DateTime      @default(now())
+  appliedProducts LoanProduct[] @relation("AppliedProductsToHistory")
 }

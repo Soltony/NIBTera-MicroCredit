@@ -83,6 +83,7 @@ async function main() {
       name: 'NIb Bank',
       icon: 'Building2',
       colorHex: '#fdb913',
+      displayOrder: 1,
       products: {
         create: [
           {
@@ -120,6 +121,7 @@ async function main() {
       name: 'Capital Bank',
       icon: 'Building2',
       colorHex: '#2563eb',
+      displayOrder: 2,
       products: {
         create: [
           {
@@ -154,6 +156,7 @@ async function main() {
       name: 'Providus Financial',
       icon: 'Landmark',
       colorHex: '#16a34a',
+      displayOrder: 3,
       products: {
         create: [
           {
