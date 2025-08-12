@@ -36,16 +36,18 @@ export const useAuth = () => useContext(AuthContext);
 
 interface AuthProviderProps {
     children: React.ReactNode;
-    initialUser: AuthenticatedUser | null;
+    initialUser?: AuthenticatedUser | null;
 }
 
-export const AuthProvider = ({ children, initialUser }: AuthProviderProps) => {
+export const AuthProvider = ({ children, initialUser = null }: AuthProviderProps) => {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(initialUser);
   const [isLoading, setIsLoading] = useState(initialUser === undefined);
 
   useEffect(() => {
-    setCurrentUser(initialUser);
-    setIsLoading(false);
+    if(initialUser !== undefined) {
+      setCurrentUser(initialUser);
+      setIsLoading(false);
+    }
   }, [initialUser]);
 
 
@@ -65,8 +67,11 @@ export const AuthProvider = ({ children, initialUser }: AuthProviderProps) => {
       }
 
       // After successful login, refetch user data to update context
-      const user = await (await fetch('/api/auth/user')).json();
-      setCurrentUser(user);
+      const userRes = await fetch('/api/auth/user');
+      if(userRes.ok) {
+        const user = await userRes.json();
+        setCurrentUser(user);
+      }
       setIsLoading(false);
     },
     []
@@ -85,8 +90,13 @@ export const AuthProvider = ({ children, initialUser }: AuthProviderProps) => {
   const refetchUser = useCallback(async () => {
     try {
       setIsLoading(true);
-      const user = await (await fetch('/api/auth/user')).json();
-      setCurrentUser(user);
+      const userRes = await fetch('/api/auth/user');
+      if (userRes.ok) {
+        const user = await userRes.json();
+        setCurrentUser(user);
+      } else {
+        setCurrentUser(null);
+      }
     } catch (error) {
       console.error('Failed to refetch user:', error);
       setCurrentUser(null);
@@ -99,13 +109,13 @@ export const AuthProvider = ({ children, initialUser }: AuthProviderProps) => {
   const value = useMemo(
     () => ({
       currentUser,
-      setCurrentUser: handleSetCurrentUser,
+      setCurrentUser,
       login,
       logout,
       isLoading,
       refetchUser,
     }),
-    [currentUser, login, logout, isLoading, refetchUser]
+    [currentUser, login, logout, isLoading, refetchUser, setCurrentUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

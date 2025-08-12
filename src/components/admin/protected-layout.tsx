@@ -35,8 +35,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Logo } from '@/components/icons';
-import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { useAuth } from '@/hooks/use-auth';
+import type { LoanProvider } from '@/lib/types';
 
 const allMenuItems = [
   {
@@ -71,10 +71,14 @@ const allMenuItems = [
   },
 ];
 
-export function ProtectedLayout({ children }: { children: React.ReactNode }) {
+interface ProtectedLayoutProps {
+  children: React.ReactNode;
+  providers: LoanProvider[];
+}
+
+export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { providers } = useLoanProviders();
   const { currentUser, logout, isLoading } = useAuth();
 
   React.useEffect(() => {
@@ -115,16 +119,12 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (isLoading) {
+  if (isLoading || !currentUser) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading user data...</p>
       </div>
     );
-  }
-  
-  if (!currentUser) {
-    return null; // The useEffect above will handle the redirect.
   }
 
   return (
