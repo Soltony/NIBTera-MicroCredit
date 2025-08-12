@@ -37,10 +37,10 @@ export async function createSession(userId: string) {
 }
 
 export async function getSession() {
-  const sessionCookie = cookies().get('session');
-  if (!sessionCookie) return null;
+  const sessionCookieValue = cookies().get('session')?.value;
+  if (!sessionCookieValue) return null;
 
-  const sessionPayload = await decrypt(sessionCookie.value);
+  const sessionPayload = await decrypt(sessionCookieValue);
   if (!sessionPayload?.userId) return null;
 
   return sessionPayload;
