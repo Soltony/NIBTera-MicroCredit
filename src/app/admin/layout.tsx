@@ -35,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {Logo} from '@/components/icons';
-import {LoanProvider as LoanProviderContext, useLoanProviders} from '@/hooks/use-loan-providers';
+import { LoanProvider as LoanProviderContext, useLoanProviders } from '@/hooks/use-loan-providers';
 import {AuthProvider, useAuth} from '@/hooks/use-auth';
 import type { AuthenticatedUser } from '@/hooks/use-auth';
 import { getUserFromSession } from '@/lib/user';
