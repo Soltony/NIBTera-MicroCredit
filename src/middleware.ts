@@ -30,5 +30,4 @@ export default async function middleware(req: NextRequest) {
 // Configure the matcher to run on all admin routes
 export const config = {
   matcher: ['/admin/:path*'],
-  runtime: 'nodejs',
 };
