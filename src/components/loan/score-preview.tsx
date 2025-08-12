@@ -123,7 +123,7 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
                     <SelectValue placeholder={`Select ${field.name}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    {field.options.map(option => (
+                    {field.options.filter(Boolean).map(option => (
                       <SelectItem key={option} value={option}>{option}</SelectItem>
                     ))}
                   </SelectContent>
