@@ -215,6 +215,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                         const originalProvider = draft[index];
                         // Create a new object with updated properties, but preserve the products array.
                         draft[index] = {
+                            ...originalProvider,
                             ...savedProviderResponse,
                             products: originalProvider.products,
                         };
@@ -329,7 +330,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
-                        <AccordionTrigger className="hover:no-underline flex-1 p-0">
+                        <AccordionTrigger hideIcon className="hover:no-underline flex-1 p-0">
                            <div className="flex items-center gap-4">
                                 <IconDisplay iconName={provider.icon} />
                                 <div>
@@ -418,3 +419,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
