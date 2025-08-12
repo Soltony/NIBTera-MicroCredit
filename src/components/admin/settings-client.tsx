@@ -281,12 +281,12 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
-                        <AccordionTrigger className="hover:no-underline flex-1 p-0 text-left">
+                        <AccordionTrigger className="hover:no-underline flex-1 p-0" hideIcon>
                            <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
                                 <div>
-                                    <div className="text-lg font-semibold">{provider.name}</div>
-                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                                    <div className="text-lg font-semibold text-left">{provider.name}</div>
+                                    <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
                                 </div>
                             </div>
                         </AccordionTrigger>
