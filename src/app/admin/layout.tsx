@@ -8,6 +8,9 @@ async function getProviders() {
     const providers = await prisma.loanProvider.findMany({
         include: {
             products: true,
+        },
+        orderBy: {
+            displayOrder: 'asc'
         }
     });
     return providers.map(p => ({
