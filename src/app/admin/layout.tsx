@@ -35,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {Logo} from '@/components/icons';
-import {useLoanProviders} from '@/hooks/use-loan-providers';
+import {LoanProvider as LoanProviderContext, useLoanProviders} from '@/hooks/use-loan-providers';
 import {AuthProvider, useAuth} from '@/hooks/use-auth';
 import type { AuthenticatedUser } from '@/hooks/use-auth';
 import { getUserFromSession } from '@/lib/user';
@@ -219,7 +219,9 @@ export default async function AdminLayout({children}: {children: React.ReactNode
   const user = await getUserFromSession();
   return (
     <AuthProvider>
-      <AuthWrapper user={user}>{children}</AuthWrapper>
+      <LoanProviderContext>
+        <AuthWrapper user={user}>{children}</AuthWrapper>
+      </LoanProviderContext>
     </AuthProvider>
   );
 }
