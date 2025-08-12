@@ -72,16 +72,16 @@ const allMenuItems = [
   },
 ];
 
-function ProtectedLayout({ children, initialUser }: { children: React.ReactNode, initialUser: AuthenticatedUser | null }) {
+function ProtectedLayout({ children, user }: { children: React.ReactNode, user: AuthenticatedUser | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, setCurrentUser, logout, isLoading } = useAuth();
 
   useEffect(() => {
-    if (initialUser) {
-      setCurrentUser(initialUser);
+    if (user) {
+      setCurrentUser(user);
     }
-  }, [initialUser, setCurrentUser]);
+  }, [user, setCurrentUser]);
 
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -210,7 +210,7 @@ function AuthWrapper({children, user}: {children: React.ReactNode, user: Authent
     return <>{children}</>;
   }
 
-  return <ProtectedLayout initialUser={user}>{children}</ProtectedLayout>;
+  return <ProtectedLayout user={user}>{children}</ProtectedLayout>;
 }
 
 export default function AdminLayout({children}: {children: React.ReactNode}) {

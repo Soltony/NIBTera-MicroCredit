@@ -41,7 +41,6 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
   const fetchUser = useCallback(async () => {
     try {
       setIsLoading(true);
-      // This needs to be a fetch call to an API route to be used on the client
       const res = await fetch('/api/auth/user');
       if (res.ok) {
         const user = await res.json();
@@ -56,6 +55,10 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
 
   const login = useCallback(
     async (phoneNumber: string, password: string) => {
@@ -84,8 +87,10 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
     } finally {
         // Always clear user from state regardless of API call success
         setCurrentUser(null);
+        // We can also trigger a refetch to be sure
+        await fetchUser();
     }
-  }, []);
+  }, [fetchUser]);
 
   const value = useMemo(
     () => ({
