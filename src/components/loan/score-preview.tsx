@@ -6,30 +6,43 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ScoringParameter } from '@/lib/types';
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
 }
 
-const evaluateCondition = (inputValue: number, condition: string, ruleValue: string): boolean => {
-    if (condition === 'between') {
-        const [min, max] = ruleValue.split('-').map(parseFloat);
-        if (isNaN(min) || isNaN(max)) return false;
-        return inputValue >= min && inputValue <= max;
-    }
+const evaluateCondition = (inputValue: string | number, condition: string, ruleValue: string): boolean => {
+    const numericInputValue = typeof inputValue === 'string' ? parseFloat(inputValue) : inputValue;
+    const isNumericComparison = !isNaN(numericInputValue) && !isNaN(parseFloat(ruleValue));
+    
+    if (isNumericComparison) {
+        if (condition === 'between') {
+            const [min, max] = ruleValue.split('-').map(parseFloat);
+            if (isNaN(min) || isNaN(max)) return false;
+            return numericInputValue >= min && numericInputValue <= max;
+        }
 
-    const numericRuleValue = parseFloat(ruleValue);
-    if (isNaN(numericRuleValue)) return false;
+        const numericRuleValue = parseFloat(ruleValue);
+        if (isNaN(numericRuleValue)) return false;
 
-    switch (condition) {
-        case '>': return inputValue > numericRuleValue;
-        case '<': return inputValue < numericRuleValue;
-        case '>=': return inputValue >= numericRuleValue;
-        case '<=': return inputValue <= numericRuleValue;
-        case '==': return inputValue === numericRuleValue;
-        case '!=': return inputValue !== numericRuleValue;
-        default: return false;
+        switch (condition) {
+            case '>': return numericInputValue > numericRuleValue;
+            case '<': return numericInputValue < numericRuleValue;
+            case '>=': return numericInputValue >= numericRuleValue;
+            case '<=': return numericInputValue <= numericRuleValue;
+            case '==': return numericInputValue == numericRuleValue;
+            case '!=': return numericInputValue != numericRuleValue;
+            default: return false;
+        }
+    } else {
+        // Fallback to string comparison for non-numeric values
+         switch (condition) {
+            case '==': return inputValue == ruleValue;
+            case '!=': return inputValue != ruleValue;
+            default: return false; // Other operators are not supported for strings
+        }
     }
 };
 
@@ -38,13 +51,29 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
   const [calculatedScore, setCalculatedScore] = useState<number | null>(null);
 
   const uniqueFields = useMemo(() => {
-    const fields = new Set<string>();
+    const fields = new Map<string, { type: 'number' | 'select', options: Set<string> }>();
     parameters.forEach(param => {
       param.rules.forEach(rule => {
-        if(rule.field) fields.add(rule.field);
+        if (rule.field) {
+            if (!fields.has(rule.field)) {
+                 fields.set(rule.field, { type: 'number', options: new Set() });
+            }
+            
+            const fieldInfo = fields.get(rule.field)!;
+            const isNumericValue = !isNaN(parseFloat(rule.value.split('-')[0]));
+            
+            if (!isNumericValue) {
+                fieldInfo.type = 'select';
+                fieldInfo.options.add(rule.value);
+            }
+        }
       });
     });
-    return Array.from(fields);
+    return Array.from(fields.entries()).map(([name, info]) => ({ 
+        name, 
+        type: info.type,
+        options: Array.from(info.options) 
+    }));
   }, [parameters]);
 
   const handleInputChange = (field: string, value: string) => {
@@ -57,8 +86,8 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
     parameters.forEach(param => {
         let maxScoreForParam = 0;
         param.rules.forEach(rule => {
-            const inputValue = parseFloat(applicantData[rule.field]);
-            if (!isNaN(inputValue)) {
+            const inputValue = applicantData[rule.field];
+            if (inputValue !== undefined) {
                  if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                     // Find the highest score among matching rules for this parameter
                     if (rule.score > maxScoreForParam) {
@@ -86,15 +115,28 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {uniqueFields.map(field => (
-            <div key={field} className="space-y-2">
-              <Label htmlFor={`preview-${field}`} className="capitalize">{field.replace(/([A-Z])/g, ' $1')}</Label>
-              <Input
-                id={`preview-${field}`}
-                type="number"
-                value={applicantData[field] || ''}
-                onChange={(e) => handleInputChange(field, e.target.value)}
-                placeholder={`Enter ${field}`}
-              />
+            <div key={field.name} className="space-y-2">
+              <Label htmlFor={`preview-${field.name}`} className="capitalize">{field.name.replace(/([A-Z])/g, ' $1')}</Label>
+              {field.type === 'select' ? (
+                <Select onValueChange={(value) => handleInputChange(field.name, value)} value={applicantData[field.name] || ''}>
+                  <SelectTrigger id={`preview-${field.name}`}>
+                    <SelectValue placeholder={`Select ${field.name}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.options.map(option => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id={`preview-${field.name}`}
+                  type="number"
+                  value={applicantData[field.name] || ''}
+                  onChange={(e) => handleInputChange(field.name, e.target.value)}
+                  placeholder={`Enter ${field.name}`}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -103,7 +145,7 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
             {calculatedScore !== null && (
                 <div className="text-right">
                     <p className="text-sm text-muted-foreground">Calculated Credit Score</p>
-                    <p className="text-3xl font-bold">{calculatedScore.toFixed(2)}</p>
+                    <p className="text-3xl font-bold">{calculatedScore.toFixed(0)}</p>
                 </div>
             )}
         </div>
