@@ -6,16 +6,18 @@ import type { LoanDetails } from '@/lib/types';
 async function getProviders() {
     const providers = await prisma.loanProvider.findMany({
         include: {
-            products: true,
+            products: {
+                 where: { status: 'Active' },
+                 orderBy: { name: 'asc' }
+            },
+        },
+        orderBy: {
+            displayOrder: 'asc'
         }
     });
 
-    // We need to provide the icon component itself, not just the name.
-    // This is a temporary solution until the icon mapping is more robust.
     return providers.map(p => ({
         ...p,
-        // The 'icon' field in the DB stores a string name, which we can't use directly
-        // We'll replace it with a placeholder or a mapped component if needed. For now, this is okay.
     }));
 }
 
