@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2, Edit } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2, Edit, ChevronDown } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -206,22 +206,25 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             });
             if (!response.ok) throw new Error(`Failed to ${isEditing ? 'update' : 'add'} provider`);
             
-            const savedProvider = await response.json();
+            const savedProviderResponse = await response.json();
             
             if (isEditing) {
                 setProviders(produce(draft => {
-                    const index = draft.findIndex(p => p.id === savedProvider.id);
+                    const index = draft.findIndex(p => p.id === savedProviderResponse.id);
                     if (index !== -1) {
-                        // Preserve products array from original client-side state
-                        savedProvider.products = draft[index].products;
-                        draft[index] = savedProvider;
+                        const originalProvider = draft[index];
+                        // Create a new object with updated properties, but preserve the products array.
+                        draft[index] = {
+                            ...savedProviderResponse,
+                            products: originalProvider.products,
+                        };
                     }
                 }));
             } else {
-                 setProviders(prev => [...prev, savedProvider]);
+                 setProviders(prev => [...prev, savedProviderResponse]);
             }
 
-            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProvider.name} has been successfully saved.` });
+            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProviderResponse.name} has been successfully saved.` });
         } catch (error) {
              toast({ title: "Error", description: `Could not ${isEditing ? 'update' : 'add'} provider.`, variant: 'destructive' });
         }
@@ -326,7 +329,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
-                        <AccordionTrigger className="hover:no-underline flex-1 p-0" hideIcon>
+                        <AccordionTrigger className="hover:no-underline flex-1 p-0" hideIcon={false}>
                            <div className="flex items-center gap-4">
                                 <IconDisplay iconName={provider.icon} />
                                 <div>
@@ -415,3 +418,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
