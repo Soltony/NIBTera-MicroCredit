@@ -3,7 +3,6 @@
 
 import {SignJWT, jwtVerify} from 'jose';
 import {cookies} from 'next/headers';
-import { prisma } from '@/lib/prisma';
 
 const secretKey =
   process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
@@ -43,35 +42,6 @@ export async function getSession() {
 
   return await decrypt(sessionCookie);
 }
-
-export async function getCurrentUser() {
-    const session = await getSession();
-    if (!session?.userId) return null;
-    
-    try {
-        const user = await prisma.user.findUnique({
-            where: { id: session.userId },
-            include: {
-                role: true,
-                provider: true
-            }
-        });
-
-        if (!user) return null;
-
-        const { password, ...userWithoutPassword } = user;
-
-        return {
-            ...userWithoutPassword,
-            role: user.role.name,
-            providerName: user.provider?.name || '',
-        };
-    } catch (error) {
-        console.error("Database error while fetching user:", error);
-        return null;
-    }
-}
-
 
 export async function deleteSession() {
   cookies().set('session', '', {expires: new Date(0)});

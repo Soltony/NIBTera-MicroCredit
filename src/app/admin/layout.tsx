@@ -1,6 +1,6 @@
 
 import { AuthProvider } from '@/hooks/use-auth';
-import { getCurrentUser } from '@/lib/session';
+import { getUserFromSession as getCurrentUser } from '@/lib/user';
 import { ProtectedLayout } from '@/components/admin/protected-layout';
 import { prisma } from '@/lib/prisma';
 
