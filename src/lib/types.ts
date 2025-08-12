@@ -133,3 +133,20 @@ export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new 
 
     return totalDebt;
 };
+
+// Types for Scoring Engine
+export interface Rule {
+  id: string;
+  field: string;
+  condition: string;
+  value: string;
+  score: number;
+}
+
+export interface ScoringParameter {
+  id: string;
+  providerId: string;
+  name: string;
+  weight: number;
+  rules: Rule[];
+}

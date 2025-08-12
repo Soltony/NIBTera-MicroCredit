@@ -1,6 +1,7 @@
 
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
 import { prisma } from '@/lib/prisma';
+import type { ScoringParameter, Rule } from '@/lib/types';
 
 async function getProviders() {
     const providers = await prisma.loanProvider.findMany({
@@ -11,7 +12,32 @@ async function getProviders() {
     return providers;
 }
 
+async function getScoringParameters() {
+    const params = await prisma.scoringParameter.findMany({
+        include: {
+            rules: true,
+        },
+    });
+    // Map to a serializable format that matches our client-side type
+    return params.map(p => ({
+        id: p.id,
+        providerId: p.providerId,
+        name: p.name,
+        weight: p.weight,
+        rules: p.rules.map(r => ({
+            id: r.id,
+            field: r.field,
+            condition: r.condition,
+            value: r.value,
+            score: r.score,
+        })),
+    }));
+}
+
+
 export default async function CreditScoreEnginePage() {
     const providers = await getProviders();
-    return <CreditScoreEngineClient providers={providers} />;
+    const scoringParameters = await getScoringParameters();
+
+    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters} />;
 }
