@@ -218,12 +218,15 @@ function AuthWrapper({children, user}: {children: React.ReactNode, user: Authent
   return <ProtectedLayout>{children}</ProtectedLayout>;
 }
 
-export default async function AdminLayout({children}: {children: React.ReactNode}) {
-  const user = await getUserFromSession();
-  
+async function AdminLayoutContent({children}: {children: React.ReactNode}) {
+    const user = await getUserFromSession();
+    return <AuthWrapper user={user}>{children}</AuthWrapper>
+}
+
+export default function AdminLayout({children}: {children: React.ReactNode}) {
   return (
     <AuthProvider>
-        <AuthWrapper user={user}>{children}</AuthWrapper>
+        <AdminLayoutContent>{children}</AdminLayoutContent>
     </AuthProvider>
   );
 }
