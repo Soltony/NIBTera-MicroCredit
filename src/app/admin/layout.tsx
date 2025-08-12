@@ -35,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {Logo} from '@/components/icons';
-import { LoanProvider as LoanProviderContext, useLoanProviders } from '@/hooks/use-loan-providers';
 import {AuthProvider, useAuth} from '@/hooks/use-auth';
 import type { AuthenticatedUser } from '@/hooks/use-auth';
 import { getUserFromSession } from '@/lib/user';
@@ -76,7 +75,6 @@ const allMenuItems = [
 function ProtectedLayout({ children, initialUser }: { children: React.ReactNode, initialUser: AuthenticatedUser | null }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { providers } = useLoanProviders();
   const { currentUser, setCurrentUser, logout, isLoading } = useAuth();
 
   useEffect(() => {
@@ -87,13 +85,13 @@ function ProtectedLayout({ children, initialUser }: { children: React.ReactNode,
 
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
-      return providers.find((p) => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+      return '#fdb913';
     }
     return (
-      providers.find((p) => p.name === currentUser?.providerName)?.colorHex ||
+      currentUser?.provider?.colorHex ||
       '#fdb913'
     );
-  }, [currentUser, providers]);
+  }, [currentUser]);
 
   const getInitials = (name: string = '') =>
     name
@@ -219,9 +217,7 @@ export default async function AdminLayout({children}: {children: React.ReactNode
   const user = await getUserFromSession();
   return (
     <AuthProvider>
-      <LoanProviderContext>
         <AuthWrapper user={user}>{children}</AuthWrapper>
-      </LoanProviderContext>
     </AuthProvider>
   );
 }

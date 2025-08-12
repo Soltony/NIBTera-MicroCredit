@@ -18,7 +18,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { useAuth } from '@/hooks/use-auth';
 import {
   BarChart,
@@ -35,6 +34,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import type { LoanProvider } from '@/lib/types';
 
 interface DashboardData {
     totalLoans: number;
@@ -47,6 +47,7 @@ interface DashboardData {
     loanStatusData: { name: string; value: number }[];
     recentActivity: { id: string; customer: string; product: string; status: string; amount: number }[];
     productOverview: { name: string; provider: string; active: number; defaulted: number; total: number, defaultRate: number }[];
+    providers: LoanProvider[];
 }
 
 interface DashboardClientProps {
@@ -58,15 +59,14 @@ const formatCurrency = (amount: number) => {
 };
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
-  const { providers } = useLoanProviders();
   const { currentUser } = useAuth();
   
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
-        return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+        return initialData.providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
     }
-    return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
-  }, [currentUser, providers]);
+    return initialData.providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+  }, [currentUser, initialData.providers]);
 
   const {
     totalLoans,

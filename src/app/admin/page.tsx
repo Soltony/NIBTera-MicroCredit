@@ -112,6 +112,7 @@ async function getDashboardData() {
         };
     }));
 
+    const providers = await prisma.loanProvider.findMany();
 
     return {
         totalLoans,
@@ -130,6 +131,7 @@ async function getDashboardData() {
             amount: loan.loanAmount
         })),
         productOverview: productsWithDetails,
+        providers,
     };
 }
 
