@@ -281,8 +281,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
-                        <AccordionTrigger className="hover:no-underline flex-1 p-0">
-                           <div className="flex items-center gap-4 text-left">
+                        <AccordionTrigger className="hover:no-underline flex-1 p-0 text-left">
+                           <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
                                 <div>
                                     <div className="text-lg font-semibold">{provider.name}</div>
@@ -290,7 +290,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                 </div>
                             </div>
                         </AccordionTrigger>
-                        <div className="flex items-center gap-2 ml-auto">
+                         <div className="flex items-center gap-2 ml-4">
                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                                 <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
                                     <Trash2 className="h-4 w-4" />
