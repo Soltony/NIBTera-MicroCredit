@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
-import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AddUserDialog } from '@/components/user/add-user-dialog';
 import { AddRoleDialog } from '@/components/user/add-role-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { User, Role } from '@/lib/types';
+import type { User, Role, LoanProvider } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
@@ -26,7 +25,7 @@ function UsersTab() {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [roles, setRoles] = useState<Role[]>([]);
-    const { providers } = useLoanProviders();
+    const [providers, setProviders] = useState<LoanProvider[]>([]);
     const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -39,21 +38,25 @@ function UsersTab() {
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
 
-    const fetchUsersAndRoles = async () => {
+    const fetchInitialData = async () => {
         try {
             setIsLoading(true);
-            const [usersResponse, rolesResponse] = await Promise.all([
+            const [usersResponse, rolesResponse, providersResponse] = await Promise.all([
                 fetch('/api/users'),
-                fetch('/api/roles')
+                fetch('/api/roles'),
+                fetch('/api/providers')
             ]);
             if (!usersResponse.ok) throw new Error('Failed to fetch users');
             if (!rolesResponse.ok) throw new Error('Failed to fetch roles');
+            if (!providersResponse.ok) throw new Error('Failed to fetch providers');
             
             const usersData = await usersResponse.json();
             const rolesData = await rolesResponse.json();
+            const providersData = await providersResponse.json();
 
             setUsers(usersData);
             setRoles(rolesData);
+            setProviders(providersData);
         } catch (error) {
             toast({
                 title: 'Error',
@@ -66,7 +69,7 @@ function UsersTab() {
     };
 
     useEffect(() => {
-        fetchUsersAndRoles();
+        fetchInitialData();
     }, []);
 
     const handleOpenDialog = (user: User | null = null) => {
@@ -100,7 +103,7 @@ function UsersTab() {
                 title: `User ${editingUser ? 'Updated' : 'Added'}`,
                 description: `${userData.fullName} has been successfully ${editingUser ? 'updated' : 'added'}.`,
             });
-            fetchUsersAndRoles();
+            fetchInitialData();
         } catch (error: any) {
             toast({
                 title: 'Error',
@@ -128,7 +131,7 @@ function UsersTab() {
                 title: `User ${newStatus === 'Active' ? 'Activated' : 'Deactivated'}`,
                 description: `${user.fullName}'s status has been changed to ${newStatus}.`,
             });
-            fetchUsersAndRoles();
+            fetchInitialData();
         } catch (error: any) {
              toast({
                 title: 'Error',
@@ -212,6 +215,7 @@ function UsersTab() {
                 onSave={handleSaveUser}
                 user={editingUser}
                 roles={roles}
+                providers={providers}
                 primaryColor={themeColor}
             />
         </>
@@ -221,7 +225,7 @@ function UsersTab() {
 function RolesTab() {
     const [roles, setRoles] = useState<Role[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const { providers } = useLoanProviders();
+    const [providers, setProviders] = useState<LoanProvider[]>([]);
     const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
@@ -235,13 +239,19 @@ function RolesTab() {
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }, [currentUser, providers]);
 
-    const fetchRoles = async () => {
+    const fetchRolesAndProviders = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/roles');
-            if (!response.ok) throw new Error('Failed to fetch roles');
-            const data = await response.json();
-            setRoles(data);
+            const [rolesResponse, providersResponse] = await Promise.all([
+                fetch('/api/roles'),
+                fetch('/api/providers')
+            ]);
+            if (!rolesResponse.ok) throw new Error('Failed to fetch roles');
+            if (!providersResponse.ok) throw new Error('Failed to fetch providers');
+            const rolesData = await rolesResponse.json();
+            const providersData = await providersResponse.json();
+            setRoles(rolesData);
+            setProviders(providersData);
         } catch (error) {
             toast({
                 title: 'Error',
@@ -254,7 +264,7 @@ function RolesTab() {
     };
 
     useEffect(() => {
-        fetchRoles();
+        fetchRolesAndProviders();
     }, []);
 
     const handleOpenDialog = (role: Role | null = null) => {
@@ -288,7 +298,7 @@ function RolesTab() {
                 title: `Role ${editingRole ? 'Updated' : 'Added'}`,
                 description: `${roleData.name} has been successfully ${editingRole ? 'updated' : 'added'}.`,
             });
-            fetchRoles();
+            fetchRolesAndProviders();
         } catch (error: any) {
             toast({
                 title: 'Error',
@@ -316,7 +326,7 @@ function RolesTab() {
                 title: 'Role Deleted',
                 description: 'The role has been successfully deleted.',
             });
-            fetchRoles();
+            fetchRolesAndProviders();
         } catch (error: any) {
             toast({
                 title: 'Error',

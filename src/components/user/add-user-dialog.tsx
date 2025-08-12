@@ -15,8 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { User, UserRole, UserStatus, Role } from '@/lib/types';
-import { useLoanProviders } from '@/hooks/use-loan-providers';
+import type { User, UserRole, UserStatus, Role, LoanProvider } from '@/lib/types';
 
 interface AddUserDialogProps {
   isOpen: boolean;
@@ -24,11 +23,11 @@ interface AddUserDialogProps {
   onSave: (user: Omit<User, 'id'> & { password?: string }) => void;
   user: User | null;
   roles: Role[];
+  providers: LoanProvider[];
   primaryColor?: string;
 }
 
-export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryColor = '#fdb913' }: AddUserDialogProps) {
-  const { providers } = useLoanProviders();
+export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers, primaryColor = '#fdb913' }: AddUserDialogProps) {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -37,7 +36,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
     role: 'Loan Provider' as UserRole,
     status: 'Active' as UserStatus,
     providerId: '' as string | null,
-    providerName: '',
   });
 
   useEffect(() => {
@@ -53,7 +51,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         role: user.role,
         status: user.status,
         providerId: user.providerId || null,
-        providerName: user.providerName || '',
       });
     } else {
       setFormData({
@@ -64,7 +61,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
         providerId: defaultProvider?.id || null,
-        providerName: defaultProvider?.name || '',
       });
     }
   }, [user, isOpen, providers, roles]);
@@ -83,18 +79,12 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         
         if (field === 'role') {
             if (!isProviderSpecificRole) {
-                updatedState.providerId = null; // Correctly set to null
-                updatedState.providerName = '';
+                updatedState.providerId = null;
             } else {
                 if (!prev.providerId && providers.length > 0) {
                     updatedState.providerId = providers[0].id;
-                    updatedState.providerName = providers[0].name;
                 }
             }
-        }
-        
-        if (field === 'providerId') {
-            updatedState.providerName = providers.find(p => p.id === value)?.name || '';
         }
         
         return updatedState;
@@ -117,7 +107,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
         submissionData.providerId = null;
     } else if (!submissionData.providerId) {
-        // If it's a provider role, ensure a provider is selected.
         if (providers.length > 0) {
             submissionData.providerId = providers[0].id;
         } else {

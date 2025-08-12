@@ -1,11 +1,76 @@
 
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model LoanProvider {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  icon      String
+  colorHex  String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  products  LoanProduct[]
+  users     User[]
+  scoringParameters ScoringParameter[]
+  loanDetails LoanDetails[]
+}
+
+model LoanProduct {
+  id           String      @id @default(cuid())
+  name         String
+  description  String
+  icon         String
+  minLoan      Float
+  maxLoan      Float
+  serviceFee   String
+  dailyFee     String
+  penaltyFee   String
+  status       String
+  provider     LoanProvider @relation(fields: [providerId], references: [id])
+  providerId   String
+  loanDetails  LoanDetails[]
+
+  @@index([providerId])
+}
+
+model LoanDetails {
+  id               String       @id @default(cuid())
+  provider         LoanProvider @relation(fields: [providerId], references: [id])
+  providerId       String
+  product          LoanProduct  @relation(fields: [productId], references: [id])
+  productId        String
+  loanAmount       Float
+  serviceFee       Float
+  interestRate     Float
+  disbursedDate    DateTime
+  dueDate          DateTime
+  penaltyAmount    Float
+  repaymentStatus  String
+  repaidAmount     Float?
+  payments         Payment[]
+
+  @@index([providerId])
+  @@index([productId])
+}
+
+model Payment {
+  id                             String   @id @default(cuid())
+  loan                           LoanDetails @relation(fields: [loanId], references: [id])
+  loanId                         String
+  amount                         Float
+  date                           DateTime
+  outstandingBalanceBeforePayment Float
+
+  @@index([loanId])
 }
 
 model User {
@@ -14,109 +79,42 @@ model User {
   email       String        @unique
   phoneNumber String        @unique
   password    String
-  roleName    String
-  status      UserStatus
-  providerId  String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  status      String
   role        Role          @relation(fields: [roleName], references: [name])
+  roleName    String
   provider    LoanProvider? @relation(fields: [providerId], references: [id])
+  providerId  String?
+
+  @@index([providerId])
+  @@index([roleName])
 }
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String      @id @default(cuid())
+  name        String      @unique
   permissions Json
   users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model LoanProvider {
-  id                String             @id @default(cuid())
-  name              String             @unique
-  icon              String
-  colorHex          String
-  products          LoanProduct[]
-  users             User[]
-  scoringParameters ScoringParameter[]
-  loanDetails       LoanDetails[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-}
-
-model LoanProduct {
-  id          String        @id @default(cuid())
-  providerId  String
-  name        String
-  description String
-  icon        String
-  minLoan     Float
-  maxLoan     Float
-  serviceFee  String
-  dailyFee    String
-  penaltyFee  String
-  status      String
-  provider    LoanProvider  @relation(fields: [providerId], references: [id])
-  loanDetails LoanDetails[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-}
-
-model LoanDetails {
-  id              String       @id @default(cuid())
-  providerId      String
-  productId       String
-  loanAmount      Float
-  serviceFee      Float
-  interestRate    Float
-  disbursedDate   DateTime
-  dueDate         DateTime
-  penaltyAmount   Float
-  repaymentStatus String
-  repaidAmount    Float?
-  provider        LoanProvider @relation(fields: [providerId], references: [id])
-  product         LoanProduct  @relation(fields: [productId], references: [id])
-  payments        Payment[]
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-}
-
-model Payment {
-  id                              String      @id @default(cuid())
-  loanId                          String
-  amount                          Float
-  date                            DateTime
-  outstandingBalanceBeforePayment Float?
-  loan                            LoanDetails @relation(fields: [loanId], references: [id])
-  createdAt                       DateTime    @default(now())
-  updatedAt                       DateTime    @updatedAt
 }
 
 model ScoringParameter {
-  id          String                 @id @default(cuid())
-  providerId  String
-  name        String
-  weight      Int
-  rules       ScoringParameterRule[]
-  provider    LoanProvider           @relation(fields: [providerId], references: [id])
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  id         String                 @id @default(cuid())
+  provider   LoanProvider           @relation(fields: [providerId], references: [id])
+  providerId String
+  name       String
+  weight     Int
+  rules      ScoringParameterRule[]
+
+  @@index([providerId])
 }
 
 model ScoringParameterRule {
   id                 String           @id @default(cuid())
-  scoringParameterId String
+  parameter          ScoringParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  parameterId        String
   field              String
   condition          String
   value              String
   score              Int
-  scoringParameter   ScoringParameter @relation(fields: [scoringParameterId], references: [id], onDelete: Cascade)
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-}
 
-enum UserStatus {
-  Active
-  Inactive
+  @@index([parameterId])
 }

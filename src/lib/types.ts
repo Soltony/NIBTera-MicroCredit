@@ -2,11 +2,12 @@
 
 import { z } from 'zod';
 import { differenceInDays, startOfDay, subDays } from 'date-fns';
+import type { LucideIcon } from 'lucide-react';
 
 export interface LoanProvider {
   id: string;
   name: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: string;
   products: LoanProduct[];
   color?: string;
   colorHex?: string;
@@ -16,7 +17,7 @@ export interface LoanProduct {
   id:string;
   name: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: string;
   minLoan?: number;
   maxLoan?: number;
   serviceFee?: string;
@@ -71,7 +72,7 @@ export interface User {
     phoneNumber: string;
     role: UserRole;
     status: UserStatus;
-    providerId?: string;
+    providerId?: string | null;
     providerName?: string;
 }
 
