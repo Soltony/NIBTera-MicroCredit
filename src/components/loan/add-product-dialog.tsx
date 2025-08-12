@@ -46,7 +46,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
 
   const handleCustomIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type === 'image/svg+xml') {
+    if (file && (file.type === 'image/svg+xml' || file.type === 'image/png')) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
@@ -57,7 +57,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       };
       reader.readAsDataURL(file);
     } else {
-      alert('Please select an SVG file.');
+      alert('Please select an SVG or PNG file.');
     }
   };
 
@@ -145,7 +145,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
                         type="file"
                         ref={fileInputRef}
                         className="hidden"
-                        accept="image/svg+xml"
+                        accept="image/svg+xml,image/png"
                         onChange={handleCustomIconUpload}
                     />
                 </div>
