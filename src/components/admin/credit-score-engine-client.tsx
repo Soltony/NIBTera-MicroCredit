@@ -37,7 +37,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct, LoanProvider } from '@/lib/types';
-import { useScoringParameters } from '@/hooks/use-scoring-parameters';
 import { useScoringHistory, type ScoringHistoryItem } from '@/hooks/use-scoring-history';
 import { format } from 'date-fns';
 import { produce } from 'immer';
@@ -87,7 +86,6 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
     const [parameters, setParameters] = useState<ScoringParameter[]>(initialScoringParameters);
     const [isLoading, setIsLoading] = useState(false);
     
-    const { getParametersForProvider: getScoringParams, setAppliedProducts } = useScoringParameters();
     const { getHistoryForProvider, addHistoryItem } = useScoringHistory();
 
     const [deletingParameterId, setDeletingParameterId] = useState<string | null>(null);
@@ -105,7 +103,6 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
 
     const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
     const themeColor = selectedProvider?.colorHex || '#fdb913';
-    const currentScoringParams = useMemo(() => getScoringParams(selectedProviderId), [getScoringParams, selectedProviderId]);
     const configurationHistory = useMemo(() => selectedProviderId ? getHistoryForProvider(selectedProviderId) : [], [selectedProviderId, getHistoryForProvider]);
 
 
@@ -140,9 +137,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
 
             const savedParameters = await response.json();
             
-            // Update the local state with the data returned from the server (which includes new IDs)
             setParameters(produce(parameters, draft => {
-                // Remove old params for this provider and add the new ones
                 const otherProviderParams = draft.filter(p => p.providerId !== selectedProviderId);
                 return [...otherProviderParams, ...savedParameters];
             }));
@@ -248,12 +243,10 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
 
     const handleProductSelectionChange = (productId: string, isChecked: boolean) => {
         if (!selectedProviderId) return;
-        const currentSelected = currentScoringParams.productIds || [];
-        const newSelected = isChecked
-          ? [...currentSelected, productId]
-          : currentSelected.filter(id => id !== productId);
-        setAppliedProducts(selectedProviderId, newSelected);
-      };
+        // This is a placeholder for product selection logic.
+        // In a real app, this would likely update a field on the scoring configuration itself.
+        console.log(`Product ${productId} selection changed to ${isChecked} for provider ${selectedProviderId}`);
+    };
 
     if (providers.length === 0) {
         return (
@@ -313,7 +306,6 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
                             <div key={product.id} className="flex items-center space-x-2">
                                 <Checkbox
                                     id={`product-${product.id}`}
-                                    checked={currentScoringParams.productIds?.includes(product.id)}
                                     onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
                                     style={{'--primary': themeColor} as React.CSSProperties}
                                     className="border-[--primary] data-[state=checked]:bg-[--primary] data-[state=checked]:border-[--primary]"
