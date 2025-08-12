@@ -2,7 +2,7 @@
 import { ReportsClient } from '@/components/admin/reports-client';
 import { prisma } from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
-import type { LoanDetails as PrismaLoanDetails, Payment } from '@prisma/client';
+import type { LoanDetails as PrismaLoanDetails, Payment, LoanProvider } from '@prisma/client';
 
 export interface ReportLoan extends Omit<PrismaLoanDetails, 'payments'> {
     providerName: string;
@@ -10,7 +10,7 @@ export interface ReportLoan extends Omit<PrismaLoanDetails, 'payments'> {
     paymentsCount: number;
 }
 
-async function getLoanReportData(): Promise<ReportLoan[]> {
+async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProvider[] }> {
     const currentUser = await getUserFromSession();
 
     const whereClause: any = {};
@@ -36,12 +36,14 @@ async function getLoanReportData(): Promise<ReportLoan[]> {
         productName: loan.product.name,
         paymentsCount: loan.payments.length,
     }));
+
+    const providers = await prisma.loanProvider.findMany();
     
-    return loansToReturn;
+    return { loans: loansToReturn, providers };
 }
 
 
 export default async function AdminReportsPage() {
-    const loans = await getLoanReportData();
-    return <ReportsClient initialLoans={loans} />;
+    const { loans, providers } = await getLoanReportData();
+    return <ReportsClient initialLoans={loans} providers={providers} />;
 }

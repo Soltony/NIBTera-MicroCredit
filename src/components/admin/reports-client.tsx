@@ -4,7 +4,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { useLoanProviders } from '@/hooks/use-loan-providers';
 import { useAuth } from '@/hooks/use-auth';
 import {
   Card,
@@ -26,6 +25,8 @@ import { Badge } from '@/components/ui/badge';
 import { Download, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { ReportLoan } from '@/app/admin/reports/page';
+import type { LoanProvider } from '@/lib/types';
+
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -33,12 +34,12 @@ const formatCurrency = (amount: number) => {
 
 interface ReportsClientProps {
     initialLoans: ReportLoan[];
+    providers: LoanProvider[];
 }
 
-export function ReportsClient({ initialLoans }: ReportsClientProps) {
+export function ReportsClient({ initialLoans, providers }: ReportsClientProps) {
   const [loans] = useState<ReportLoan[]>(initialLoans);
   const [isExporting, setIsExporting] = useState(false);
-  const { providers } = useLoanProviders();
   const { currentUser } = useAuth();
 
   const themeColor = useMemo(() => {
