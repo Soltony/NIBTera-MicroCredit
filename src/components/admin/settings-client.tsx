@@ -280,7 +280,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <AccordionPrimitive.Header className="flex items-center w-full">
+                    <div className="flex items-center w-full">
                         <AccordionTrigger className="p-4 hover:no-underline flex-1">
                             <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
@@ -297,7 +297,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                 </Button>
                             </div>
                         )}
-                    </AccordionPrimitive.Header>
+                    </div>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
