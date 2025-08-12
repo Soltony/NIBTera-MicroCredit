@@ -280,8 +280,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <AccordionTrigger className="p-4 hover:no-underline w-full">
-                        <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center w-full p-4">
+                        <AccordionTrigger className="hover:no-underline flex-1">
                             <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
                                 <div>
@@ -289,13 +289,13 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                     <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
                                 </div>
                             </div>
-                            {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                                <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
-                    </AccordionTrigger>
+                        </AccordionTrigger>
+                         {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                            <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground ml-4" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        )}
+                    </div>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
@@ -362,5 +362,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
