@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
-import { prisma } from '@/lib/prisma';
 
 export default function CheckEligibilityPage() {
   const router = useRouter();
@@ -27,10 +26,12 @@ export default function CheckEligibilityPage() {
             const response = await fetch('/api/providers');
             if (!response.ok) throw new Error('Failed to fetch providers');
             const providers = await response.json();
-            if (providers.length > 0) {
-                setDefaultProviderId(providers[0].id);
+            const activeProvider = providers.find(p => p.products.some(prod => prod.status === 'Active'));
+
+            if (activeProvider) {
+                setDefaultProviderId(activeProvider.id);
             } else {
-                 setError("No loan providers are available at this time.");
+                 setError("No loan providers with active products are available at this time.");
                  setIsLoading(false);
             }
         } catch(err) {
@@ -74,7 +75,7 @@ export default function CheckEligibilityPage() {
         params.set('error', 'An unexpected error occurred during the eligibility check.');
         router.push(`/dashboard?${params.toString()}`);
       } finally {
-        setIsLoading(false);
+        // We don't set loading to false because we are navigating away.
       }
     };
 
