@@ -25,7 +25,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {Button} from '@/components/ui/button';
-import {Avatar, AvatarFallback, AvatarImage} from '@/components/ui/avatar';
+import {Avatar, AvatarImage, AvatarFallback} from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,13 +75,7 @@ const allMenuItems = [
 function ProtectedLayout({ children, user }: { children: React.ReactNode, user: AuthenticatedUser | null }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, setCurrentUser, logout, isLoading } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      setCurrentUser(user);
-    }
-  }, [user, setCurrentUser]);
+  const { currentUser, logout, isLoading } = useAuth();
 
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -111,7 +105,7 @@ function ProtectedLayout({ children, user }: { children: React.ReactNode, user: 
     router.push('/admin/login');
   };
 
-  if (isLoading && !currentUser) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading user data...</p>
@@ -205,6 +199,11 @@ function ProtectedLayout({ children, user }: { children: React.ReactNode, user: 
 
 function AuthWrapper({children, user}: {children: React.ReactNode, user: AuthenticatedUser | null}) {
   const pathname = usePathname();
+  const { setCurrentUser } = useAuth();
+  
+  useEffect(() => {
+      setCurrentUser(user);
+  }, [user, setCurrentUser]);
 
   if (pathname === '/admin/login') {
     return <>{children}</>;
@@ -213,27 +212,9 @@ function AuthWrapper({children, user}: {children: React.ReactNode, user: Authent
   return <ProtectedLayout user={user}>{children}</ProtectedLayout>;
 }
 
-export default function AdminLayout({children}: {children: React.ReactNode}) {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchUser() {
-      const sessionUser = await getUserFromSession();
-      setUser(sessionUser);
-      setLoading(false);
-    }
-    fetchUser();
-  }, []);
-
-  if (loading) {
-    return (
-        <div className="flex items-center justify-center h-screen">
-            <p>Loading...</p>
-        </div>
-    );
-  }
-
+export default async function AdminLayout({children}: {children: React.ReactNode}) {
+  const user = await getUserFromSession();
+  
   return (
     <AuthProvider>
         <AuthWrapper user={user}>{children}</AuthWrapper>

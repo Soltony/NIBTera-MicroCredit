@@ -56,9 +56,10 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+  const handleSetCurrentUser = useCallback((user: AuthenticatedUser | null) => {
+    setCurrentUser(user);
+    setIsLoading(false);
+  }, []);
 
   const login = useCallback(
     async (phoneNumber: string, password: string) => {
@@ -73,7 +74,6 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
         throw new Error(errorData.error || 'Login failed');
       }
 
-      // After successful login, refetch user data to update context
       await fetchUser();
     },
     [fetchUser]
@@ -85,23 +85,20 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
     } catch (error) {
         console.error('Logout failed:', error)
     } finally {
-        // Always clear user from state regardless of API call success
         setCurrentUser(null);
-        // We can also trigger a refetch to be sure
-        await fetchUser();
     }
-  }, [fetchUser]);
+  }, []);
 
   const value = useMemo(
     () => ({
       currentUser,
-      setCurrentUser,
+      setCurrentUser: handleSetCurrentUser,
       login,
       logout,
       isLoading,
       refetchUser: fetchUser,
     }),
-    [currentUser, login, logout, isLoading, fetchUser]
+    [currentUser, handleSetCurrentUser, login, logout, isLoading, fetchUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
