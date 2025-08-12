@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
-
+import { prisma } from '@/lib/prisma';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
@@ -33,8 +33,6 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
 
   useEffect(() => {
-    // This effect ensures that if the product ID changes in the URL (e.g. via navigation),
-    // the component's state updates to reflect that new product.
     if (selectedProvider && initialProductId) {
       const productFromUrl = selectedProvider.products.find(p => p.id === initialProductId);
       if (productFromUrl) {
@@ -123,18 +121,15 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
         if (selectedProduct) {
           return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={selectedProvider.colorHex} />;
         }
-        // If there's a product ID in the URL but we couldn't find the product
         if(initialProductId && !selectedProduct) {
              return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>;
         }
-        // If we are still waiting for the effect to run
         return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
       case 'details':
         if (loanDetails) {
           return <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={selectedProvider.colorHex} />;
         }
-        // Fallback if details are not ready yet
         return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
       default:
          return <div className="text-center">Invalid step.</div>;
@@ -162,9 +157,22 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   );
 }
 
+async function getProviders(): Promise<LoanProvider[]> {
+    const providers = await prisma.loanProvider.findMany({
+        include: {
+            products: true,
+        },
+        orderBy: {
+            displayOrder: 'asc'
+        }
+    });
+    return providers;
+}
 
-// This wrapper allows us to pass server-fetched data to the client component
-export default function ApplyPageWrapper({ providers }: { providers: LoanProvider[] }) {
+
+export default async function ApplyPage() {
+    const providers = await getProviders();
+    
     if (!providers) {
         return (
             <div className="flex flex-col min-h-screen bg-background items-center justify-center">
