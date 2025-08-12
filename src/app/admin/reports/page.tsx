@@ -1,7 +1,7 @@
 
 import { ReportsClient } from '@/components/admin/reports-client';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/session';
+import { getUserFromSession } from '@/lib/session';
 import type { LoanDetails as PrismaLoanDetails, Payment } from '@prisma/client';
 
 export interface ReportLoan extends Omit<PrismaLoanDetails, 'payments'> {
@@ -11,7 +11,7 @@ export interface ReportLoan extends Omit<PrismaLoanDetails, 'payments'> {
 }
 
 async function getLoanReportData(): Promise<ReportLoan[]> {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getUserFromSession();
 
     const whereClause: any = {};
     if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {

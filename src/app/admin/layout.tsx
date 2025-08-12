@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {usePathname, useRouter} from 'next/navigation';
 import {
@@ -38,6 +38,7 @@ import {Logo} from '@/components/icons';
 import {useLoanProviders} from '@/hooks/use-loan-providers';
 import {AuthProvider, useAuth} from '@/hooks/use-auth';
 import type { AuthenticatedUser } from '@/hooks/use-auth';
+import { getUserFromSession } from '@/lib/session';
 
 const allMenuItems = [
   {
@@ -72,11 +73,17 @@ const allMenuItems = [
   },
 ];
 
-function ProtectedLayout({ children }: { children: React.ReactNode }) {
+function ProtectedLayout({ children, initialUser }: { children: React.ReactNode, initialUser: AuthenticatedUser | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const { providers } = useLoanProviders();
-  const { currentUser, logout, isLoading } = useAuth();
+  const { currentUser, setCurrentUser, logout, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (initialUser) {
+      setCurrentUser(initialUser);
+    }
+  }, [initialUser, setCurrentUser]);
 
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -198,20 +205,21 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
   )
 }
 
-function AuthWrapper({children}: {children: React.ReactNode}) {
+function AuthWrapper({children, user}: {children: React.ReactNode, user: AuthenticatedUser | null}) {
   const pathname = usePathname();
 
   if (pathname === '/admin/login') {
     return <>{children}</>;
   }
 
-  return <ProtectedLayout>{children}</ProtectedLayout>;
+  return <ProtectedLayout initialUser={user}>{children}</ProtectedLayout>;
 }
 
-export default function AdminLayout({children}: {children: React.ReactNode}) {
+export default async function AdminLayout({children}: {children: React.ReactNode}) {
+  const user = await getUserFromSession();
   return (
     <AuthProvider>
-      <AuthWrapper>{children}</AuthWrapper>
+      <AuthWrapper user={user}>{children}</AuthWrapper>
     </AuthProvider>
   );
 }

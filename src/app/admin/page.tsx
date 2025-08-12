@@ -1,11 +1,11 @@
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/session';
+import { getUserFromSession } from '@/lib/session';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 async function getDashboardData() {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getUserFromSession();
     
     const whereClause: any = {};
     if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {

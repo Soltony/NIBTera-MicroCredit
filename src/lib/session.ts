@@ -1,9 +1,11 @@
+
 'use server';
 
 import {SignJWT, jwtVerify} from 'jose';
 import {cookies} from 'next/headers';
-import {NextRequest, NextResponse} from 'next/server';
 import {prisma} from './prisma';
+import type { User } from './types';
+
 
 const secretKey = process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
 const key = new TextEncoder().encode(secretKey);
@@ -46,7 +48,7 @@ export async function getSession() {
   return sessionPayload;
 }
 
-export async function getCurrentUser() {
+export async function getUserFromSession() {
     const session = await getSession();
     if (!session?.userId) return null;
     
@@ -77,4 +79,11 @@ export async function getCurrentUser() {
 
 export async function deleteSession() {
   cookies().set('session', '', {expires: new Date(0)});
+}
+
+// This function is safe to call from middleware as it does not access the database
+export async function getCurrentUser() {
+    const session = await getSession();
+    if (!session?.userId) return null;
+    return session;
 }

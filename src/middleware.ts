@@ -1,6 +1,6 @@
 
 import {NextRequest, NextResponse} from 'next/server';
-import {getSession} from '@/lib/session';
+import {getCurrentUser} from '@/lib/session';
 
 const protectedAdminRoutes = ['/admin'];
 const publicRoutes = ['/admin/login'];
@@ -17,7 +17,7 @@ export default async function middleware(req: NextRequest) {
   const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
 
   if (isProtected) {
-    const session = await getSession();
+    const session = await getCurrentUser();
     if (!session?.userId) {
       // If no session, redirect to the login page
       return NextResponse.redirect(new URL('/admin/login', req.nextUrl));

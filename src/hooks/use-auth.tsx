@@ -9,13 +9,14 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { getCurrentUser } from '@/lib/session';
+import { getUserFromSession } from '@/lib/session';
 
-// Define a user type that matches the structure returned by getCurrentUser
-export type AuthenticatedUser = Awaited<ReturnType<typeof getCurrentUser>>;
+// Define a user type that matches the structure returned by getUserFromSession
+export type AuthenticatedUser = Awaited<ReturnType<typeof getUserFromSession>>;
 
 interface AuthContextType {
   currentUser: AuthenticatedUser | null;
+  setCurrentUser: (user: AuthenticatedUser | null) => void;
   login: (phoneNumber: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
@@ -24,6 +25,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
+  setCurrentUser: () => {},
   login: async () => {},
   logout: async () => {},
   isLoading: true,
@@ -39,7 +41,7 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
   const fetchUser = useCallback(async () => {
     try {
       setIsLoading(true);
-      const user = await getCurrentUser();
+      const user = await getUserFromSession();
       setCurrentUser(user);
     } catch (error) {
       console.error('Failed to fetch user:', error);
@@ -50,8 +52,14 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
   }, []);
 
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    // Only run fetchUser if there isn't already a user
+    // The user will be passed down from the server-rendered layout
+    if (!currentUser) {
+        fetchUser();
+    } else {
+        setIsLoading(false);
+    }
+  }, [currentUser, fetchUser]);
 
   const login = useCallback(
     async (phoneNumber: string, password: string) => {
@@ -86,6 +94,7 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
   const value = useMemo(
     () => ({
       currentUser,
+      setCurrentUser,
       login,
       logout,
       isLoading,
