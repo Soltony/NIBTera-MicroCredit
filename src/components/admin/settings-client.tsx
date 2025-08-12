@@ -280,24 +280,22 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <div className="flex items-center w-full">
-                        <AccordionTrigger className="p-4 hover:no-underline flex-1">
+                    <AccordionTrigger className="p-4 hover:no-underline w-full">
+                        <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-4">
                                 {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
                                 <div>
-                                    <div className="text-lg font-semibold text-left">{provider.name}</div>
+                                    <h3 className="text-lg font-semibold text-left">{provider.name}</h3>
                                     <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
                                 </div>
                             </div>
-                        </AccordionTrigger>
-                        {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                            <div className="p-4 pl-0">
+                            {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                                 <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    </AccordionTrigger>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
@@ -364,3 +362,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
