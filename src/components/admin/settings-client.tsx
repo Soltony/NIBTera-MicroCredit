@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2, ChevronDown } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -282,12 +282,15 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
                         <AccordionTrigger className="hover:no-underline flex-1 p-0">
-                            <div className="flex items-center gap-4">
-                                {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
-                                <div>
-                                    <div className="text-lg font-semibold text-left">{provider.name}</div>
-                                    <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
+                            <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-4">
+                                    {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
+                                    <div>
+                                        <div className="text-lg font-semibold text-left">{provider.name}</div>
+                                        <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
+                                    </div>
                                 </div>
+                                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
                             </div>
                         </AccordionTrigger>
                          {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
@@ -362,3 +365,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
