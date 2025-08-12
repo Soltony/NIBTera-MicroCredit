@@ -87,6 +87,9 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
     const params = new URLSearchParams(searchParams);
     params.delete('product');
     params.delete('step');
+    params.delete('min');
+    params.delete('max');
+    params.delete('error');
     router.push(`/dashboard?${params.toString()}`);
   };
 
@@ -94,6 +97,9 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
     const params = new URLSearchParams(searchParams);
     params.delete('product');
     params.delete('step');
+    params.delete('min');
+    params.delete('max');
+    params.delete('error');
     router.push(`/dashboard?${params.toString()}`);
   };
   
@@ -103,9 +109,12 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
     }
 
     if (!selectedProduct) {
+      // Attempt to find the product on first render if it wasn't found during state initialization
       const product = selectedProvider.products.find(p => p.id === initialProductId);
       if (product) {
+        // This will trigger a re-render with the selected product
         setSelectedProduct(product);
+        return <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />;
       } else {
         return <div className="text-center">Product not found. Please <a href="/" className="underline" style={{color: 'hsl(var(--primary))'}}>start over</a>.</div>
       }
