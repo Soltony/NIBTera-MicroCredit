@@ -42,8 +42,8 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   }, [searchParams, selectedProduct]);
 
   useEffect(() => {
-    if (!selectedProduct || step === 'details') return;
-    const productFromUrl = selectedProvider?.products.find(p => p.id === initialProductId);
+    if (!selectedProvider || !selectedProduct || step === 'details') return;
+    const productFromUrl = selectedProvider.products.find(p => p.id === initialProductId);
     if (productFromUrl && productFromUrl.id !== selectedProduct.id) {
       setSelectedProduct(productFromUrl);
     }
