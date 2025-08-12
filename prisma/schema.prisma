@@ -1,98 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
+// User and Auth Models
 model User {
-  id            String   @id @default(uuid())
-  fullName      String
-  email         String   @unique
-  phoneNumber   String   @unique
-  password      String
-  roleName      String
-  role          Role     @relation(fields: [roleName], references: [name], onDelete: Cascade)
-  status        String
-  providerId    String?
-  provider      LoanProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(uuid())
+  fullName    String
+  email       String   @unique
+  phoneNumber String   @unique
+  password    String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roleName    String
+  role        Role     @relation(fields: [roleName], references: [name])
+  providerId  String?
+  provider    LoanProvider? @relation(fields: [providerId], references: [id])
 }
 
 model Role {
   id          String   @id @default(uuid())
   name        String   @unique
-  permissions Json
+  permissions String // Changed from Json to String
   users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
+// Loan Models
 model LoanProvider {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  icon      String
-  colorHex  String
-  users     User[]
-  products  LoanProduct[]
+  id          String   @id @default(uuid())
+  name        String   @unique
+  icon        String
+  colorHex    String
+  products    LoanProduct[]
+  users       User[]
   scoringParameters ScoringParameter[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  scoringHistory    ScoringConfigurationHistory[]
+  loans       LoanDetails[] // Added back-relation
 }
 
 model LoanProduct {
-  id          String    @id @default(uuid())
-  providerId  String
-  provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  name        String
-  description String
-  icon        String
-  minLoan     Float
-  maxLoan     Float
-  serviceFee  String
-  dailyFee    String
-  penaltyFee  String
-  status      String
-  loanDetails LoanDetails[]
-  scoringHistory ScoringConfigurationHistory[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String   @id @default(uuid())
+  name          String
+  description   String
+  icon          String
+  minLoan       Float
+  maxLoan       Float
+  serviceFee    String
+  dailyFee      String
+  penaltyFee    String
+  status        String
+  providerId    String
+  provider      LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  loanDetails   LoanDetails[]
+  scoringHistory ScoringConfigurationHistory[] @relation("LoanProductToScoringHistory")
 }
 
 model LoanDetails {
-  id               String   @id @default(uuid())
+  id            String   @id @default(uuid())
+  loanAmount    Float
+  serviceFee    Float
+  interestRate  Float
+  disbursedDate DateTime
+  dueDate       DateTime
+  penaltyAmount Float
+  repaymentStatus String
+  repaidAmount  Float?
   providerId       String
   provider         LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   productId        String
   product          LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  loanAmount       Float
-  serviceFee       Float
-  interestRate     Float
-  disbursedDate    DateTime
-  dueDate          DateTime
-  penaltyAmount    Float
-  repaymentStatus  String
-  repaidAmount     Float?
   payments         Payment[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
 }
 
 model Payment {
-  id                           String   @id @default(uuid())
-  loanId                       String
-  loan                         LoanDetails @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  amount                       Float
-  date                         DateTime
-  outstandingBalanceBeforePayment Float?
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
+  id          String   @id @default(uuid())
+  amount      Float
+  date        DateTime
+  outstandingBalanceBeforePayment Float
+  loanId      String
+  loan        LoanDetails @relation(fields: [loanId], references: [id], onDelete: Cascade)
 }
 
+// Scoring Engine Models
 model ScoringParameter {
   id          String   @id @default(uuid())
   providerId  String
@@ -100,8 +98,6 @@ model ScoringParameter {
   name        String
   weight      Int
   rules       ScoringParameterRule[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 model ScoringParameterRule {
@@ -112,14 +108,13 @@ model ScoringParameterRule {
   condition   String
   value       String
   score       Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 model ScoringConfigurationHistory {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   providerId      String
-  parameters      Json
-  appliedProducts LoanProduct[]
-  savedAt         DateTime @default(now())
+  provider        LoanProvider  @relation(fields: [providerId], references: [id])
+  parameters      String // Changed from Json to String
+  appliedProducts LoanProduct[] @relation("LoanProductToScoringHistory")
+  savedAt         DateTime      @default(now())
 }

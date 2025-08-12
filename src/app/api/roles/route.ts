@@ -6,7 +6,11 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
     try {
         const roles = await prisma.role.findMany();
-        return NextResponse.json(roles);
+        const rolesWithParsedPermissions = roles.map(role => ({
+            ...role,
+            permissions: JSON.parse(role.permissions as string)
+        }));
+        return NextResponse.json(rolesWithParsedPermissions);
     } catch (error) {
         console.error('Error fetching roles:', error);
         return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
@@ -33,11 +37,11 @@ export async function POST(req: Request) {
         const newRole = await prisma.role.create({
             data: {
                 name,
-                permissions,
+                permissions: JSON.stringify(permissions),
             },
         });
 
-        return NextResponse.json(newRole, { status: 201 });
+        return NextResponse.json({ ...newRole, permissions: JSON.parse(newRole.permissions) }, { status: 201 });
     } catch (error) {
         console.error('Error creating role:', error);
         return NextResponse.json({ error: 'Failed to create role' }, { status: 500 });
@@ -47,18 +51,23 @@ export async function POST(req: Request) {
 // PUT (update) a role
 export async function PUT(req: Request) {
      try {
-        const { id, ...updateData } = await req.json();
+        const { id, permissions, ...updateData } = await req.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
         
+        const dataToUpdate = {
+            ...updateData,
+            ...(permissions && { permissions: JSON.stringify(permissions) }),
+        };
+
         const updatedRole = await prisma.role.update({
             where: { id },
-            data: updateData,
+            data: dataToUpdate,
         });
 
-        return NextResponse.json(updatedRole);
+        return NextResponse.json({ ...updatedRole, permissions: JSON.parse(updatedRole.permissions) });
     } catch (error) {
         console.error('Error updating role:', error);
         return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
@@ -73,6 +82,16 @@ export async function DELETE(req: Request) {
         if (!id) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
+
+        // Check if any users are assigned to this role
+        const usersInRole = await prisma.user.count({
+            where: { role: { id } },
+        });
+
+        if (usersInRole > 0) {
+            return NextResponse.json({ error: 'Cannot delete role. It is currently assigned to one or more users.' }, { status: 400 });
+        }
+
 
         await prisma.role.delete({
             where: { id },
