@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
 
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,17 @@ function ApplyClient({ providers }: { providers: LoanProvider[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { addLoan } = useLoanHistory();
+
+  if (!providers || providers.length === 0) {
+    return (
+        <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <h2 className="text-xl font-semibold">Loading Providers...</h2>
+          </div>
+        </div>
+    );
+  }
   
   const providerId = searchParams.get('providerId');
   const selectedProvider = providers.find(p => p.id === providerId) || null;
