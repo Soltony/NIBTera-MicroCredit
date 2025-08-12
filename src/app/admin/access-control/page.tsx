@@ -19,7 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
-const PERMISSION_MODULES = ['Users', 'Roles', 'Reports', 'Settings', 'Products'];
+const PERMISSION_MODULES = ['users', 'roles', 'reports', 'settings', 'products'];
 
 function UsersTab() {
     const [users, setUsers] = useState<User[]>([]);
