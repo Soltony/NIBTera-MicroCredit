@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import type { getUserFromSession } from '@/lib/user';
+import type { getCurrentUser } from '@/lib/session';
 
 // Define a user type that matches the structure returned by getUserFromSession
 export type AuthenticatedUser = Awaited<ReturnType<typeof getUserFromSession>>;
@@ -34,36 +34,24 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider = ({children}: {children: React.ReactNode}) => {
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+interface AuthProviderProps {
+    children: React.ReactNode;
+    initialUser: AuthenticatedUser | null;
+}
 
-  const fetchUser = useCallback(async () => {
-    // This function is now only for explicit refetching, not initial load.
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/user');
-      if (res.ok) {
-        const user = await res.json();
-        setCurrentUser(user);
-      } else {
-         setCurrentUser(null);
-      }
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-      setCurrentUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+export const AuthProvider = ({ children, initialUser }: AuthProviderProps) => {
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(initialUser);
+  const [isLoading, setIsLoading] = useState(initialUser === undefined);
 
-  const handleSetCurrentUser = useCallback((user: AuthenticatedUser | null) => {
-    setCurrentUser(user);
+  useEffect(() => {
+    setCurrentUser(initialUser);
     setIsLoading(false);
-  }, []);
+  }, [initialUser]);
+
 
   const login = useCallback(
     async (phoneNumber: string, password: string) => {
+      setIsLoading(true);
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -71,13 +59,17 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
       });
 
       if (!response.ok) {
+        setIsLoading(false);
         const errorData = await response.json();
         throw new Error(errorData.error || 'Login failed');
       }
 
-      await fetchUser();
+      // After successful login, refetch user data to update context
+      const user = await (await fetch('/api/auth/user')).json();
+      setCurrentUser(user);
+      setIsLoading(false);
     },
-    [fetchUser]
+    []
   );
 
   const logout = useCallback(async () => {
@@ -89,6 +81,20 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
         setCurrentUser(null);
     }
   }, []);
+  
+  const refetchUser = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const user = await (await fetch('/api/auth/user')).json();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Failed to refetch user:', error);
+      setCurrentUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
 
   const value = useMemo(
     () => ({
@@ -97,9 +103,9 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
       login,
       logout,
       isLoading,
-      refetchUser: fetchUser,
+      refetchUser,
     }),
-    [currentUser, handleSetCurrentUser, login, logout, isLoading, fetchUser]
+    [currentUser, login, logout, isLoading, refetchUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
