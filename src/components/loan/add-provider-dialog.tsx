@@ -13,9 +13,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Landmark, Briefcase, type LucideIcon } from 'lucide-react';
+import { Building2, Landmark, Briefcase, type LucideIcon, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LoanProvider } from '@/lib/types';
+import { saveCustomIcon } from '@/lib/types';
 
 interface AddProviderDialogProps {
   isOpen: boolean;
@@ -42,6 +43,31 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
   const [providerName, setProviderName] = useState('');
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
+  const [customIconPreview, setCustomIconPreview] = useState<string | null>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleCustomIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'image/svg+xml') {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        const iconKey = `custom-icon-${file.name}-${Date.now()}`;
+        saveCustomIcon(iconKey, result);
+        setSelectedIconName(iconKey);
+        setCustomIconPreview(result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      alert('Please select an SVG file.');
+    }
+  };
+
+  const handleSelectIcon = (name: string) => {
+    setSelectedIconName(name);
+    setCustomIconPreview(null);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +81,7 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
     setProviderName('');
     setSelectedIconName(icons[0].name);
     setSelectedColorHex(colors[0].hex);
+    setCustomIconPreview(null);
     onClose();
   };
 
@@ -88,7 +115,7 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setSelectedIconName(name)}
+                  onClick={() => handleSelectIcon(name)}
                   className={cn(
                     'h-12 w-12',
                     selectedIconName === name && 'ring-2'
@@ -98,6 +125,30 @@ export function AddProviderDialog({ isOpen, onClose, onAddProvider, primaryColor
                   <Icon className="h-6 w-6" />
                 </Button>
               ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                        'h-12 w-12',
+                        customIconPreview && selectedIconName.startsWith('custom-icon-') && 'ring-2'
+                    )}
+                    style={{'--ring': primaryColor} as React.CSSProperties}
+                >
+                    {customIconPreview ? (
+                        <img src={customIconPreview} alt="Custom Icon" className="h-6 w-6" />
+                    ) : (
+                        <Upload className="h-6 w-6" />
+                    )}
+                </Button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/svg+xml"
+                    onChange={handleCustomIconUpload}
+                />
             </div>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">

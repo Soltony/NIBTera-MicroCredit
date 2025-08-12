@@ -46,6 +46,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
+import { getCustomIcon } from '@/lib/types';
 
 
 // A helper to map string names to actual icon components
@@ -56,6 +57,26 @@ const iconMap: { [key: string]: React.ElementType } = {
   Home,
   PersonStanding,
 };
+
+const IconDisplay = ({ iconName }: { iconName: string }) => {
+    const isCustom = iconName.startsWith('custom-icon-');
+    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (isCustom) {
+            const src = getCustomIcon(iconName);
+            setCustomIconSrc(src);
+        }
+    }, [iconName, isCustom]);
+
+    if (isCustom) {
+        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className="h-6 w-6" /> : <div className="h-6 w-6" />;
+    }
+
+    const IconComponent = iconMap[iconName] || Building2;
+    return <IconComponent className="h-6 w-6" />;
+};
+
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
     providerId: string; 
@@ -283,7 +304,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                      <AccordionPrimitive.Header className="flex items-center w-full p-4">
                         <AccordionTrigger className="hover:no-underline flex-1 p-0" hideIcon>
                            <div className="flex items-center gap-4">
-                                {React.createElement(iconMap[provider.icon] || Building2, { className: "h-8 w-8 text-muted-foreground", style: { color: provider.colorHex } })}
+                                <IconDisplay iconName={provider.icon} />
                                 <div>
                                     <div className="text-lg font-semibold text-left">{provider.name}</div>
                                     <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>

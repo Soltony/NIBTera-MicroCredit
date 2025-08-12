@@ -150,3 +150,30 @@ export interface ScoringParameter {
   weight: number;
   rules: Rule[];
 }
+
+const CUSTOM_ICON_STORAGE_KEY = 'customIcons';
+
+export function saveCustomIcon(key: string, dataUri: string) {
+    if (typeof window !== 'undefined') {
+        try {
+            const existingIcons = JSON.parse(localStorage.getItem(CUSTOM_ICON_STORAGE_KEY) || '{}');
+            existingIcons[key] = dataUri;
+            localStorage.setItem(CUSTOM_ICON_STORAGE_KEY, JSON.stringify(existingIcons));
+        } catch (error) {
+            console.error("Failed to save custom icon to local storage", error);
+        }
+    }
+}
+
+export function getCustomIcon(key: string): string | null {
+    if (typeof window !== 'undefined') {
+        try {
+            const existingIcons = JSON.parse(localStorage.getItem(CUSTOM_ICON_STORAGE_KEY) || '{}');
+            return existingIcons[key] || null;
+        } catch (error) {
+            console.error("Failed to get custom icon from local storage", error);
+            return null;
+        }
+    }
+    return null;
+}
