@@ -39,8 +39,9 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
+    // This function is now only for explicit refetching, not initial load.
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       const res = await fetch('/api/auth/user');
       if (res.ok) {
         const user = await res.json();

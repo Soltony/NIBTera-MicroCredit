@@ -72,7 +72,7 @@ const allMenuItems = [
   },
 ];
 
-function ProtectedLayout({ children, user }: { children: React.ReactNode, user: AuthenticatedUser | null }) {
+function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, logout, isLoading } = useAuth();
@@ -104,6 +104,12 @@ function ProtectedLayout({ children, user }: { children: React.ReactNode, user: 
     await logout();
     router.push('/admin/login');
   };
+
+  useEffect(() => {
+    if (!isLoading && !currentUser && pathname !== '/admin/login') {
+      router.push('/admin/login');
+    }
+  }, [isLoading, currentUser, router, pathname]);
 
   if (isLoading) {
     return (
@@ -209,7 +215,7 @@ function AuthWrapper({children, user}: {children: React.ReactNode, user: Authent
     return <>{children}</>;
   }
 
-  return <ProtectedLayout user={user}>{children}</ProtectedLayout>;
+  return <ProtectedLayout>{children}</ProtectedLayout>;
 }
 
 export default async function AdminLayout({children}: {children: React.ReactNode}) {
