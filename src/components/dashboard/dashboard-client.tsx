@@ -19,6 +19,8 @@ import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useLoanHistory } from '@/hooks/use-loan-history';
+import { getCustomIcon } from '@/lib/types';
+
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -34,6 +36,26 @@ const iconMap: { [key: string]: React.ElementType } = {
   CreditCard,
   Wallet,
 };
+
+const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
+    const isCustom = iconName && iconName.startsWith('custom-icon-');
+    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (isCustom) {
+            const src = getCustomIcon(iconName);
+            setCustomIconSrc(src);
+        }
+    }, [iconName, isCustom]);
+
+    if (isCustom) {
+        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-8 w-8", className)} /> : <div className={cn("h-8 w-8", className)} />;
+    }
+
+    const IconComponent = iconMap[iconName] || Building2;
+    return <IconComponent className={cn("h-8 w-8 text-muted-foreground", className)} />;
+};
+
 
 interface DashboardClientProps {
   providers: LoanProvider[];
@@ -86,7 +108,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         return acc;
     }, {} as Record<string, LoanDetails>);
 
-    const providersWithLimits = providersWithIcons.map(provider => ({
+    const providersWithLimits = providers.map(provider => ({
       ...provider,
       products: provider.products.map(product => {
           const productMax = product.maxLoan ?? 0;
@@ -100,7 +122,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     }));
 
     return { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct, providersWithLimits };
-  }, [searchParams, loanHistory, providersWithIcons]);
+  }, [searchParams, loanHistory, providers]);
 
   const selectedProvider = useMemo(() => {
     return providersWithLimits.find(p => p.id === selectedProviderId) || providersWithLimits[0] || null;
@@ -166,7 +188,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
               <div className="flex flex-col space-y-8">
                   <div>
                       <div className="flex justify-center space-x-4 overflow-x-auto pb-4">
-                          {providersWithIcons.map((provider) => (
+                          {providers.map((provider) => (
                               <div key={provider.id} onClick={() => handleProviderSelect(provider)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
                                   <div 
                                       className={cn(
@@ -176,7 +198,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                       style={{ color: selectedProviderId === provider.id ? provider.colorHex : 'transparent' }}
                                   >
                                       <div className={cn("h-16 w-16 rounded-full bg-card flex items-center justify-center transition-all shadow-md hover:shadow-lg", selectedProviderId === provider.id ? 'shadow-lg' : '')}>
-                                          <provider.icon className="h-8 w-8 text-muted-foreground" />
+                                          <IconDisplay iconName={provider.icon} />
                                       </div>
                                   </div>
                                   <span className={cn(
