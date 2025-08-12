@@ -42,6 +42,18 @@ import { format } from 'date-fns';
 import { produce } from 'immer';
 
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
+    
+    const [min, max] = useMemo(() => rule.value.split('-'), [rule.value]);
+
+    const handleRangeChange = (part: 'min' | 'max') => (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        if (part === 'min') {
+            onUpdate({ ...rule, value: `${value}-${max}` });
+        } else {
+            onUpdate({ ...rule, value: `${min}-${value}` });
+        }
+    }
+    
     return (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
             <Input
@@ -50,18 +62,44 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                 onChange={(e) => onUpdate({ ...rule, field: e.target.value })}
                 className="w-1/4"
             />
-             <Input
-                placeholder="e.g., >"
-                value={rule.condition}
-                onChange={(e) => onUpdate({ ...rule, condition: e.target.value })}
-                className="w-1/4"
-            />
-            <Input
-                placeholder="e.g., 30"
-                value={rule.value}
-                onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                 className="w-1/4"
-            />
+            <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
+                <SelectTrigger className="w-1/4">
+                    <SelectValue placeholder="Condition" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value=">">&gt;</SelectItem>
+                    <SelectItem value="<">&lt;</SelectItem>
+                    <SelectItem value=">=">&gt;=</SelectItem>
+                    <SelectItem value="<=">&lt;=</SelectItem>
+                    <SelectItem value="==">==</SelectItem>
+                    <SelectItem value="!=">!=</SelectItem>
+                    <SelectItem value="between">Between</SelectItem>
+                </SelectContent>
+            </Select>
+
+            {rule.condition === 'between' ? (
+                <div className="flex items-center gap-2 w-1/4">
+                    <Input
+                        placeholder="Min"
+                        value={min}
+                        onChange={handleRangeChange('min')}
+                    />
+                    <span>-</span>
+                    <Input
+                        placeholder="Max"
+                        value={max}
+                        onChange={handleRangeChange('max')}
+                    />
+                </div>
+            ) : (
+                <Input
+                    placeholder="e.g., 30"
+                    value={rule.value}
+                    onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
+                    className="w-1/4"
+                />
+            )}
+            
             <Input
                 type="number"
                 placeholder="Score"
@@ -198,7 +236,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters }:
          const newRule: Rule = {
             id: `rule-${Date.now()}`,
             field: '',
-            condition: '',
+            condition: '>',
             value: '',
             score: 0,
         };

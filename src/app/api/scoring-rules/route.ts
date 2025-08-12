@@ -68,19 +68,21 @@ export async function POST(req: Request) {
 
                 for (const rule of rules) {
                     const isNewRule = rule.id.startsWith('rule-');
+                    const valueToSave = rule.condition === 'between' ? rule.value : String(parseFloat(rule.value));
+
                     await tx.scoringParameterRule.upsert({
                         where: { id: isNewRule ? `_new_${rule.id}` : rule.id },
                         update: {
                             field: rule.field,
                             condition: rule.condition,
-                            value: rule.value,
+                            value: valueToSave,
                             score: rule.score,
                         },
                         create: {
                             parameterId: upsertedParam.id,
                             field: rule.field,
                             condition: rule.condition,
-                            value: rule.value,
+                            value: valueToSave,
                             score: rule.score,
                         },
                     });

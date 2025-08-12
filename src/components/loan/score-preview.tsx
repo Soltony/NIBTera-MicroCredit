@@ -6,13 +6,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { ScoringParameter, Rule } from '@/hooks/use-scoring-rules';
+import type { ScoringParameter } from '@/lib/types';
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
 }
 
 const evaluateCondition = (inputValue: number, condition: string, ruleValue: string): boolean => {
+    if (condition === 'between') {
+        const [min, max] = ruleValue.split('-').map(parseFloat);
+        if (isNaN(min) || isNaN(max)) return false;
+        return inputValue >= min && inputValue <= max;
+    }
+
     const numericRuleValue = parseFloat(ruleValue);
     if (isNaN(numericRuleValue)) return false;
 
