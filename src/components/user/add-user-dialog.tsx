@@ -36,7 +36,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
     password: '',
     role: 'Loan Provider' as UserRole,
     status: 'Active' as UserStatus,
-    providerId: '',
+    providerId: '' as string | null,
     providerName: '',
   });
 
@@ -52,7 +52,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         password: '', // Password is not edited
         role: user.role,
         status: user.status,
-        providerId: user.providerId || '',
+        providerId: user.providerId || null,
         providerName: user.providerName || '',
       });
     } else {
@@ -63,7 +63,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         password: '',
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
-        providerId: defaultProvider?.id || '',
+        providerId: defaultProvider?.id || null,
         providerName: defaultProvider?.name || '',
       });
     }
@@ -83,10 +83,9 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
         
         if (field === 'role') {
             if (!isProviderSpecificRole) {
-                updatedState.providerId = '';
+                updatedState.providerId = null; // Correctly set to null
                 updatedState.providerName = '';
             } else {
-                // If switching to a provider role, set a default provider if none is selected
                 if (!prev.providerId && providers.length > 0) {
                     updatedState.providerId = providers[0].id;
                     updatedState.providerName = providers[0].name;
@@ -106,18 +105,25 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { // Only send password for new users
+    if (!user) { 
         if (!submissionData.password) {
             alert('Password is required for new users.');
             return;
         }
     } else {
-        delete submissionData.password; // Don't send empty password for existing users
+        delete submissionData.password; 
     }
     
-    // Ensure providerId is null if the role doesn't require it
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
         submissionData.providerId = null;
+    } else if (!submissionData.providerId) {
+        // If it's a provider role, ensure a provider is selected.
+        if (providers.length > 0) {
+            submissionData.providerId = providers[0].id;
+        } else {
+            alert('A loan provider must be selected for this role.');
+            return;
+        }
     }
 
     onSave(submissionData);
@@ -182,7 +188,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, primaryCol
                 <Label htmlFor="providerId" className="text-right">
                     Provider
                 </Label>
-                <Select onValueChange={handleSelectChange('providerId')} value={formData.providerId}>
+                <Select onValueChange={handleSelectChange('providerId')} value={formData.providerId || ''}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a provider" />
                     </SelectTrigger>
