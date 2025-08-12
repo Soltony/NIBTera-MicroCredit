@@ -43,22 +43,23 @@ import { produce } from 'immer';
 
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     
-    const [min, max] = useMemo(() => rule.value.split('-'), [rule.value]);
+    const [min, max] = useMemo(() => {
+        const parts = rule.value?.split('-') || [];
+        return [parts[0] || '', parts[1] || ''];
+    }, [rule.value]);
 
     const handleRangeChange = (part: 'min' | 'max') => (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        if (part === 'min') {
-            onUpdate({ ...rule, value: `${value}-${max}` });
-        } else {
-            onUpdate({ ...rule, value: `${min}-${value}` });
-        }
+        const currentMin = part === 'min' ? value : min;
+        const currentMax = part === 'max' ? value : max;
+        onUpdate({ ...rule, value: `${currentMin}-${currentMax}` });
     }
     
     return (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
             <Input
                 placeholder="e.g., age"
-                value={rule.field}
+                value={rule.field || ''}
                 onChange={(e) => onUpdate({ ...rule, field: e.target.value })}
                 className="w-1/4"
             />
@@ -94,7 +95,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
             ) : (
                 <Input
                     placeholder="e.g., 30"
-                    value={rule.value}
+                    value={rule.value || ''}
                     onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
                     className="w-1/4"
                 />
