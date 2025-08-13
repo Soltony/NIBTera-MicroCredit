@@ -90,12 +90,12 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
                 }
             }
         });
-        totalScore += maxScoreForParam;
+        totalScore += maxScoreForParam * (param.weight / 100);
     });
 
     const maxPossibleScore = scoringParameters.reduce((sum, param) => {
         const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
-        return sum + maxRuleScore;
+        return sum + (maxRuleScore * (param.weight / 100));
     }, 0);
     
     const scorePercentage = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
