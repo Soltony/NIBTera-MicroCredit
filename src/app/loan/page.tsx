@@ -24,16 +24,26 @@ async function getProviders(): Promise<LoanProvider[]> {
         }
     });
 
-    // Convert to plain objects for client component
+    // Manually map to plain objects to avoid passing class instances to client components.
     return providers.map(p => ({
-        ...p,
         id: String(p.id),
+        name: p.name,
+        icon: p.icon,
+        colorHex: p.colorHex,
+        displayOrder: p.displayOrder,
         products: p.products.map(prod => ({
-            ...prod,
             id: String(prod.id),
-            status: prod.status as 'Active' | 'Disabled'
+            name: prod.name,
+            description: prod.description,
+            icon: prod.icon,
+            minLoan: prod.minLoan,
+            maxLoan: prod.maxLoan,
+            serviceFee: prod.serviceFee,
+            dailyFee: prod.dailyFee,
+            penaltyFee: prod.penaltyFee,
+            status: prod.status as 'Active' | 'Disabled',
         }))
-    })) as any[];
+    })) as LoanProvider[];
 }
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
@@ -49,14 +59,25 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
         },
     });
 
-    // Convert to plain objects for client component
+    // Manually map to plain objects to avoid passing class instances to client components.
     return loans.map(loan => ({
-        ...loan,
         id: String(loan.id),
         providerName: loan.provider.name,
         productName: loan.product.name,
-        payments: loan.payments.map(p => ({...p}))
-    })) as any[];
+        loanAmount: loan.loanAmount,
+        serviceFee: loan.serviceFee,
+        interestRate: loan.interestRate,
+        disbursedDate: loan.disbursedDate,
+        dueDate: loan.dueDate,
+        penaltyAmount: loan.penaltyAmount,
+        repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
+        repaidAmount: loan.repaidAmount || 0,
+        payments: loan.payments.map(p => ({
+            amount: p.amount,
+            date: p.date,
+            outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
+        }))
+    })) as LoanDetails[];
 }
 
 
