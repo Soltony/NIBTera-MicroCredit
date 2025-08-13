@@ -33,7 +33,7 @@ export class User {
   @Length(10, 20)
   phoneNumber!: string;
 
-  @Column({ type: 'varchar2', length: 255 })
+  @Column({ type: 'varchar2', length: 255, nullable: true })
   password?: string;
 
   @Column({ type: 'varchar2', length: 50 })
