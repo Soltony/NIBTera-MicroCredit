@@ -12,7 +12,11 @@ async function getProviders() {
     const providers = await providerRepo.find({
         relations: ['products'],
     });
-    return providers;
+    return providers.map(p => ({
+        ...p,
+        id: String(p.id),
+        products: p.products.map(prod => ({...prod, id: String(prod.id)}))
+    })) as any[];
 }
 
 async function getScoringParameters() {
@@ -50,5 +54,5 @@ export default async function CreditScoreEnginePage() {
     const scoringParameters = await getScoringParameters() as ScoringParameterType[];
     const history = await getHistory();
 
-    return <CreditScoreEngineClient providers={providers as any} initialScoringParameters={scoringParameters} initialHistory={history as any} />;
+    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters} initialHistory={history as any} />;
 }

@@ -3,7 +3,6 @@ import { SettingsClient } from '@/components/admin/settings-client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
-import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -30,19 +29,26 @@ async function getProviders(): Promise<LoanProviderType[]> {
         }
     });
 
-    // Map the icon string to a name that can be looked up on the client
-    const providersWithIconNames = providers.map(p => ({
-        ...p,
+    // Map to plain objects for serialization
+    return providers.map(p => ({
         id: String(p.id),
+        name: p.name,
         icon: iconNameMap[p.icon] || 'Building2',
+        colorHex: p.colorHex,
+        displayOrder: p.displayOrder,
         products: p.products.map(prod => ({
-            ...prod,
             id: String(prod.id),
-            icon: iconNameMap[prod.icon] || 'PersonStanding'
+            name: prod.name,
+            description: prod.description,
+            icon: iconNameMap[prod.icon] || 'PersonStanding',
+            minLoan: prod.minLoan,
+            maxLoan: prod.maxLoan,
+            serviceFee: prod.serviceFee,
+            dailyFee: prod.dailyFee,
+            penaltyFee: prod.penaltyFee,
+            status: prod.status as 'Active' | 'Disabled',
         }))
-    }));
-
-    return providersWithIconNames as LoanProviderType[];
+    })) as LoanProviderType[];
 }
 
 

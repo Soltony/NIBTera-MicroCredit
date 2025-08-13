@@ -8,8 +8,16 @@ import type { LoanProvider } from '@/lib/types';
 import type { FindOptionsWhere } from 'typeorm';
 
 
-export interface ReportLoan extends Omit<LoanDetails, 'payments' | 'provider' | 'product' | 'id' | 'providerId' | 'productId' | 'createdAt' | 'updatedAt' > {
+export interface ReportLoan {
     id: string;
+    loanAmount: number;
+    serviceFee: number;
+    interestRate: number;
+    disbursedDate: Date;
+    dueDate: Date;
+    penaltyAmount: number;
+    repaymentStatus: string;
+    repaidAmount: number | null;
     providerName: string;
     productName: string;
     paymentsCount: number;
@@ -52,7 +60,7 @@ async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: Lo
 
     const providers = await providerRepo.find();
     
-    return { loans: loansToReturn, providers: providers.map(p => ({ ...p, id: String(p.id) })) as any };
+    return { loans: loansToReturn, providers: providers.map(p => ({ ...p, id: String(p.id), products: [] })) as any };
 }
 
 

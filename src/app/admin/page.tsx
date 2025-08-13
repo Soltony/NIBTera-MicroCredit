@@ -19,7 +19,7 @@ async function getDashboardData() {
     const productRepo = AppDataSource.getRepository(LoanProduct);
     const providerRepo = AppDataSource.getRepository(LoanProvider);
     
-    const whereClause: FindOptionsWhere<LoanDetails> | FindOptionsWhere<LoanDetails>[] = {};
+    const whereClause: FindOptionsWhere<LoanDetails> = {};
     if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
         whereClause.providerId = Number(currentUser.providerId);
     }
@@ -153,5 +153,5 @@ async function getDashboardData() {
 export default async function AdminDashboard() {
     const data = await getDashboardData();
 
-    return <DashboardClient initialData={data as any} />;
+    return <DashboardClient initialData={data} />;
 }

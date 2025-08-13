@@ -6,28 +6,34 @@ import { ApplyClient } from './client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 
-async function getProviders(): Promise<LoanProvider[]> {
+async function getProvider(providerId: string): Promise<LoanProvider | null> {
+    if (!providerId) return null;
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const providerRepo = AppDataSource.getRepository(LoanProviderEntity);
-    const providers = await providerRepo.find({
+    
+    const provider = await providerRepo.findOne({
+        where: { id: Number(providerId) },
         relations: ['products'],
-        order: {
-            displayOrder: 'ASC'
-        }
     });
-    return providers.map(p => ({
-        ...p,
-        id: String(p.id),
-        products: p.products.map(prod => ({...prod, id: String(prod.id)}))
-    })) as any[];
+
+    if (!provider) return null;
+
+    // Convert to plain object for client component
+    return {
+        ...provider,
+        id: String(provider.id),
+        products: provider.products.map(prod => ({
+            ...prod,
+            id: String(prod.id),
+            status: prod.status as 'Active' | 'Disabled'
+        }))
+    } as any;
 }
 
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const providers = await getProviders();
     const providerId = searchParams.providerId as string;
-    
-    const selectedProvider = providers.find(p => p.id === providerId);
+    const selectedProvider = await getProvider(providerId);
 
     if (!selectedProvider) {
         return (
