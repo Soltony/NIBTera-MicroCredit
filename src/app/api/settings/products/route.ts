@@ -83,8 +83,7 @@ export async function DELETE(req: Request) {
         if (!AppDataSource.isInitialized) await AppDataSource.initialize();
         const productRepo = AppDataSource.getRepository(LoanProduct);
 
-        const { searchParams } = new URL(req.url);
-        const id = searchParams.get('id');
+        const { id } = await req.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });

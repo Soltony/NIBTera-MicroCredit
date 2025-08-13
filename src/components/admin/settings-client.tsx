@@ -295,7 +295,11 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
     
     const handleDeleteProduct = async (providerId: string, productId: string) => {
         try {
-             await fetch(`/api/settings/products?id=${productId}`, { method: 'DELETE' });
+             await fetch('/api/settings/products', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: productId }),
+             });
              setProviders(produce(draft => {
                 const provider = draft.find(p => p.id === providerId);
                 if (provider) {
@@ -419,5 +423,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
