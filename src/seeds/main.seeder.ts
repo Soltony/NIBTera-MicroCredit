@@ -301,6 +301,14 @@ class MainSeeder {
           loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
           educationLevel: "Master's Degree",
         },
+        {
+          age: 19,
+          monthlyIncome: 1000,
+          transactionHistory: JSON.stringify({ transactions: 20, averageBalance: 300 }),
+          gender: 'Male',
+          loanHistory: JSON.stringify({ totalLoans: 0, onTimeRepayments: 0 }),
+          educationLevel: "Student",
+        },
       ]);
       console.log('Seeded customers');
 
