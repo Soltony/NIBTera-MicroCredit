@@ -65,6 +65,8 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan]);
 
+    const canApply = (product.availableLimit ?? 0) > 0 && !activeLoan;
+
     return (
         <Card className="hover:shadow-lg transition-all duration-300">
             <CardHeader>
@@ -87,7 +89,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                 onClick={onApply} 
                                 style={{ color: providerColor, borderColor: providerColor }} 
                                 className="hover:bg-primary/10"
-                                disabled={!!activeLoan}
+                                disabled={!canApply}
                             >
                                 Apply
                             </Button>
