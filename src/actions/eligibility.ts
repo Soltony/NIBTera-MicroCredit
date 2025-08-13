@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Implements a loan eligibility check based on customer data.
@@ -18,19 +19,23 @@ export async function checkLoanEligibility(customerId: number): Promise<{isEligi
     if (!customer) {
       return { isEligible: false, reason: 'Customer profile not found.', score: 0 };
     }
-
-    let score = 0;
-    // Basic scoring logic
-    if (customer.age >= 25 && customer.age <= 55) score += 20;
-    if (customer.monthlySalary > 4000) score += 30;
     
+    // First, check if age is greater than 20.
+    if (customer.age <= 20) {
+      return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0 };
+    }
+    
+    // If age check passes, calculate a simple credit score.
+    // For now, we'll assign a base score if they pass the age check.
+    let score = 0;
+    if (customer.monthlySalary > 4000) score += 30;
     try {
         const loanHistory = JSON.parse(customer.loanHistory);
         if (loanHistory.onTimeRepayments > 3) score += 25;
-        if (loanHistory.totalLoans > 0 && loanHistory.onTimeRepayments / loanHistory.totalLoans > 0.8) score += 10;
     } catch (e) {
-        console.error("Could not parse loan history", e);
+        // Ignore if loan history is not available or invalid
     }
+    score += 25; // Base score for passing age check
 
     if (score >= 50) {
       return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score };
