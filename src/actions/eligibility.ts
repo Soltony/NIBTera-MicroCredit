@@ -72,7 +72,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         throw new Error('Provider or products not found for score calculation.');
     }
     
-    let totalScore = 0;
+    let totalWeightedScore = 0;
     const customerLoanHistory = JSON.parse(customer.loanHistory);
     const customerDataForScoring = {
         age: customer.age,
@@ -90,23 +90,22 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
                 }
             }
         });
-        totalScore += maxScoreForParam * (param.weight / 100);
+        totalWeightedScore += maxScoreForParam * (param.weight / 100);
     });
 
-    const maxPossibleScore = scoringParameters.reduce((sum, param) => {
+    const maxPossibleWeightedScore = scoringParameters.reduce((sum, param) => {
         const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
         return sum + (maxRuleScore * (param.weight / 100));
     }, 0);
     
-    const scorePercentage = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
+    const scorePercentage = maxPossibleWeightedScore > 0 ? totalWeightedScore / maxPossibleWeightedScore : 0;
     
     const highestMaxLoanProduct = provider.products
         .filter(p => p.status === 'Active')
         .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
         
-    // Calculate loan amount based on score percentage, but don't just give the max.
-    // Let's say a perfect score gets 100% of the max loan, and 0 score gets 20% (as a base).
-    const baseLoanPercentage = 0.20; // Everyone eligible gets at least 20% of the max loan.
+    // Calculate loan amount based on score percentage.
+    const baseLoanPercentage = 0.20; // Eligible users get at least 20% of the max loan.
     const scoreBasedPercentage = (1 - baseLoanPercentage) * scorePercentage;
     const finalLoanPercentage = baseLoanPercentage + scoreBasedPercentage;
 
@@ -115,7 +114,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     // Ensure the calculated amount doesn't exceed the product's hard limit.
     const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
         
-    return { score: Math.round(totalScore), maxLoanAmount: suggestedLoanAmountMax };
+    return { score: Math.round(totalWeightedScore), maxLoanAmount: suggestedLoanAmountMax };
 }
 
 
