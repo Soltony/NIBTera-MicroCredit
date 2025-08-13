@@ -8,40 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { LoanProvider } from '@/lib/types';
-import { AppDataSource } from '@/data-source';
-import { Customer as CustomerEntity } from '@/entities/Customer';
-
-
-async function checkLoanEligibility(customerId: number): Promise<{isEligible: boolean; reason: string; score: number}> {
-  if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-  const customerRepo = AppDataSource.getRepository(CustomerEntity);
-
-  const customer = await customerRepo.findOneBy({ id: customerId });
-  
-  if (!customer) {
-    return { isEligible: false, reason: 'Customer profile not found.', score: 0 };
-  }
-
-  let score = 0;
-  // Basic scoring logic
-  if (customer.age >= 25 && customer.age <= 55) score += 20;
-  if (customer.monthlySalary > 4000) score += 30;
-  
-  try {
-      const loanHistory = JSON.parse(customer.loanHistory);
-      if (loanHistory.onTimeRepayments > 3) score += 25;
-      if (loanHistory.totalLoans > 0 && loanHistory.onTimeRepayments / loanHistory.totalLoans > 0.8) score += 10;
-  } catch (e) {
-      console.error("Could not parse loan history", e);
-  }
-
-
-  if (score >= 50) {
-    return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score };
-  } else {
-    return { isEligible: false, reason: 'Based on your profile, you are not currently eligible for a loan.', score };
-  }
-}
+import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
 
 
 export default function CheckEligibilityPage() {
@@ -153,4 +120,3 @@ export default function CheckEligibilityPage() {
     </div>
   );
 }
-
