@@ -19,303 +19,319 @@ class MainSeeder {
       await AppDataSource.initialize();
       console.log('Database connection initialized.');
       
-      const manager = AppDataSource.manager;
+      const queryRunner = AppDataSource.createQueryRunner();
 
-      // Repositories
-      const paymentRepository = manager.getRepository(Payment);
-      const loanDetailsRepository = manager.getRepository(LoanDetails);
-      const scoringRuleRepository = manager.getRepository(ScoringParameterRule);
-      const scoringParamRepository = manager.getRepository(ScoringParameter);
-      const userRepository = manager.getRepository(User);
-      const scoringHistoryRepository = manager.getRepository(ScoringConfigurationHistory);
-      const productRepository = manager.getRepository(LoanProduct);
-      const providerRepository = manager.getRepository(LoanProvider);
-      const roleRepository = manager.getRepository(Role);
-      const customerRepository = manager.getRepository(Customer);
-      
-      console.log('Starting seeding...');
-      
-      // Clean up existing data to ensure idempotency.
-      await paymentRepository.clear();
-      await loanDetailsRepository.clear();
-      await scoringRuleRepository.clear();
-      await scoringParamRepository.clear();
-      
-      const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
-      for (const history of histories) {
-        history.appliedProducts = [];
-        await scoringHistoryRepository.save(history);
+      // Get repositories from the query runner to run them in a transaction
+      const paymentRepository = queryRunner.manager.getRepository(Payment);
+      const loanDetailsRepository = queryRunner.manager.getRepository(LoanDetails);
+      const scoringRuleRepository = queryRunner.manager.getRepository(ScoringParameterRule);
+      const scoringParamRepository = queryRunner.manager.getRepository(ScoringParameter);
+      const userRepository = queryRunner.manager.getRepository(User);
+      const scoringHistoryRepository = queryRunner.manager.getRepository(ScoringConfigurationHistory);
+      const productRepository = queryRunner.manager.getRepository(LoanProduct);
+      const providerRepository = queryRunner.manager.getRepository(LoanProvider);
+      const roleRepository = queryRunner.manager.getRepository(Role);
+      const customerRepository = queryRunner.manager.getRepository(Customer);
+
+      await queryRunner.startTransaction();
+
+      try {
+        console.log('Starting seeding...');
+        
+        // Disable foreign key constraints if possible (Oracle specific command might be needed, but TypeORM handles this usually)
+        // For Oracle, TRUNCATE is often faster and ignores FKs if set up correctly, but DELETE is safer for this ordered approach.
+
+        // Clean up existing data in the correct order to respect foreign key constraints.
+        await paymentRepository.delete({});
+        await scoringRuleRepository.delete({});
+        await scoringParamRepository.delete({});
+        
+        // Handle ManyToMany relationship for ScoringConfigurationHistory
+        const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
+        for (const history of histories) {
+          history.appliedProducts = [];
+          await scoringHistoryRepository.save(history);
+        }
+        await scoringHistoryRepository.delete({});
+
+        await loanDetailsRepository.delete({});
+        await userRepository.delete({});
+        await productRepository.delete({});
+        await providerRepository.delete({});
+        await roleRepository.delete({});
+        await customerRepository.delete({});
+
+        console.log('Deleted existing data.');
+        
+        const salt = await bcrypt.genSalt(10);
+
+        // 1. Seed Roles
+        const superAdminRole = roleRepository.create({
+          name: 'Super Admin',
+          permissions: JSON.stringify({
+            users: { create: true, read: true, update: true, delete: true },
+            roles: { create: true, read: true, update: true, delete: true },
+            reports: { create: true, read: true, update: true, delete: true },
+            settings: { create: true, read: true, update: true, delete: true },
+            products: { create: true, read: true, update: true, delete: true },
+          }),
+        });
+
+        const loanManagerRole = roleRepository.create({
+          name: 'Loan Manager',
+          permissions: JSON.stringify({
+            users: { create: false, read: true, update: true, delete: false },
+            roles: { create: false, read: false, update: false, delete: false },
+            reports: { create: true, read: true, update: true, delete: true },
+            settings: { create: true, read: true, update: true, delete: true },
+            products: { create: true, read: true, update: true, delete: true },
+          }),
+        });
+
+        const auditorRole = roleRepository.create({
+          name: 'Auditor',
+          permissions: JSON.stringify({
+            users: { create: false, read: true, update: false, delete: false },
+            roles: { create: false, read: true, update: false, delete: false },
+            reports: { create: true, read: true, update: false, delete: false },
+            settings: { create: false, read: true, update: false, delete: false },
+            products: { create: false, read: true, update: false, delete: false },
+          }),
+        });
+        
+        const loanProviderRole = roleRepository.create({
+          name: 'Loan Provider',
+          permissions: JSON.stringify({
+             users: { create: false, read: false, update: false, delete: false },
+             roles: { create: false, read: false, update: false, delete: false },
+             reports: { create: true, read: true, update: false, delete: false },
+             settings: { create: false, read: true, update: true, delete: false },
+             products: { create: true, read: true, update: true, delete: true },
+          }),
+        });
+        
+        await roleRepository.save([superAdminRole, loanManagerRole, auditorRole, loanProviderRole]);
+        console.log('Seeded roles');
+
+        // 2. Seed Loan Providers and Products
+        const nibBank = await providerRepository.save({
+          name: 'NIb Bank',
+          icon: 'Building2',
+          colorHex: '#fdb913',
+          displayOrder: 1,
+        });
+
+        const quickCashLoan = await productRepository.save({
+          provider: nibBank,
+          name: 'Quick Cash Loan',
+          description: 'Instant cash for emergencies.',
+          icon: 'PersonStanding',
+          minLoan: 500,
+          maxLoan: 2500,
+          serviceFee: '3%',
+          dailyFee: '0.2%',
+          penaltyFee: '0.11% daily',
+          status: 'Active',
+        });
+        await productRepository.save({
+          provider: nibBank,
+          name: 'Gadget Financing',
+          description: 'Upgrade your devices with easy financing.',
+          icon: 'Home',
+          minLoan: 300,
+          maxLoan: 1500,
+          serviceFee: '3%',
+          dailyFee: '0.2%',
+          penaltyFee: '0.11% daily',
+          status: 'Active',
+        });
+
+        const capitalBank = await providerRepository.save({
+          name: 'Capital Bank',
+          icon: 'Building2',
+          colorHex: '#2563eb',
+          displayOrder: 2,
+        });
+        await productRepository.save({
+          provider: capitalBank,
+          name: 'Personal Loan',
+          description: 'Flexible personal loans for your needs.',
+          icon: 'PersonStanding',
+          minLoan: 400,
+          maxLoan: 2000,
+          serviceFee: '3%',
+          dailyFee: '0.2%',
+          penaltyFee: '0.11% daily',
+          status: 'Active',
+        });
+         await productRepository.save({
+          provider: capitalBank,
+          name: 'Home Improvement Loan',
+          description: 'Finance your home renovation projects.',
+          icon: 'Home',
+          minLoan: 10000,
+          maxLoan: 50000,
+          serviceFee: '3%',
+          dailyFee: '0.2%',
+          penaltyFee: '0.11% daily',
+          status: 'Disabled',
+        });
+
+        const providusFinancial = await providerRepository.save({
+          name: 'Providus Financial',
+          icon: 'Landmark',
+          colorHex: '#16a34a',
+          displayOrder: 3,
+        });
+         await productRepository.save({
+          provider: providusFinancial,
+          name: 'Startup Business Loan',
+          description: 'Kickstart your new business venture.',
+          icon: 'Briefcase',
+          minLoan: 5000,
+          maxLoan: 100000,
+          serviceFee: '3%',
+          dailyFee: '0.2%',
+          penaltyFee: '0.11% daily',
+          status: 'Active',
+        });
+        await productRepository.save({
+          provider: providusFinancial,
+          name: 'Personal Auto Loan',
+          description: 'Get behind the wheel of your new car.',
+          icon: 'PersonStanding',
+          minLoan: 2000,
+          maxLoan: 30000,
+          serviceFee: '3%',
+          dailyFee: '0.2%',
+          penaltyFee: '0.11% daily',
+          status: 'Active',
+        });
+        console.log('Seeded loan providers and products');
+
+        // 3. Seed Users
+        await userRepository.save({
+          fullName: 'Super Admin',
+          email: 'superadmin@loanflow.com',
+          phoneNumber: '0912345678',
+          password: await bcrypt.hash('Admin@123', salt),
+          status: 'Active',
+          role: superAdminRole,
+        });
+        await userRepository.save({
+          fullName: 'John Provider',
+          email: 'john.p@capitalbank.com',
+          phoneNumber: '0987654321',
+          password: await bcrypt.hash('Password123', salt),
+          status: 'Active',
+          role: loanProviderRole,
+          provider: capitalBank,
+        });
+         await userRepository.save({
+          fullName: 'Jane Officer',
+          email: 'jane.o@providus.com',
+          phoneNumber: '5555555555',
+          password: await bcrypt.hash('Password123', salt),
+          status: 'Inactive',
+          role: loanProviderRole,
+          provider: providusFinancial,
+        });
+        console.log('Seeded users');
+
+        // 4. Seed Loan History
+        const loan = await loanDetailsRepository.save({
+          provider: nibBank,
+          product: quickCashLoan,
+          loanAmount: 500,
+          serviceFee: 15,
+          interestRate: 0.2,
+          disbursedDate: new Date('2024-06-25'),
+          dueDate: new Date('2024-07-25'),
+          penaltyAmount: 0.11,
+          repaymentStatus: 'Paid',
+          repaidAmount: 545.96,
+        });
+        await paymentRepository.save({
+          loan: loan,
+          amount: 545.96,
+          date: new Date('2024-07-20'),
+          outstandingBalanceBeforePayment: 545.96,
+        });
+        console.log('Seeded loan history');
+
+        // 5. Seed Scoring Parameters
+        const ageParam = await scoringParamRepository.save({
+          provider: nibBank, name: 'Age', weight: 20,
+        });
+        await scoringRuleRepository.save([
+          { parameter: ageParam, field: 'age', condition: '>=', value: '35', score: 20 },
+          { parameter: ageParam, field: 'age', condition: '<', value: '25', score: 5 },
+        ]);
+        const historyParam = await scoringParamRepository.save({
+          provider: nibBank, name: 'Loan History', weight: 30,
+        });
+        await scoringRuleRepository.save([
+          { parameter: historyParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
+          { parameter: historyParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
+        ]);
+        const incomeParam = await scoringParamRepository.save({
+          provider: nibBank, name: 'Income Level', weight: 50,
+        });
+         await scoringRuleRepository.save([
+          { parameter: incomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
+          { parameter: incomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
+        ]);
+        console.log('Seeded scoring parameters');
+
+        // 6. Seed Customers
+        await customerRepository.save([
+          {
+            age: 30,
+            monthlyIncome: 5500,
+            transactionHistory: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
+            gender: 'Male',
+            loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
+            educationLevel: "Bachelor's Degree",
+          },
+          {
+            age: 22,
+            monthlyIncome: 2500,
+            transactionHistory: JSON.stringify({ transactions: 50, averageBalance: 500 }),
+            gender: 'Female',
+            loanHistory: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
+            educationLevel: 'High School',
+          },
+          {
+            age: 45,
+            monthlyIncome: 15000,
+            transactionHistory: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
+            gender: 'Female',
+            loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
+            educationLevel: "Master's Degree",
+          },
+          {
+            age: 19,
+            monthlyIncome: 1000,
+            transactionHistory: JSON.stringify({ transactions: 20, averageBalance: 300 }),
+            gender: 'Male',
+            loanHistory: JSON.stringify({ totalLoans: 0, onTimeRepayments: 0 }),
+            educationLevel: "Student",
+          },
+        ]);
+        console.log('Seeded customers');
+        
+        await queryRunner.commitTransaction();
+        console.log('Seeding finished successfully.');
+
+      } catch (err) {
+        console.error('Error during seeding transaction, rolling back:', err);
+        await queryRunner.rollbackTransaction();
+      } finally {
+        await queryRunner.release();
       }
-      await scoringHistoryRepository.clear();
-      
-      await userRepository.clear();
-      await productRepository.clear();
-      await providerRepository.clear();
-      await roleRepository.clear();
-      await customerRepository.clear();
-      console.log('Deleted existing data.');
 
-      const salt = await bcrypt.genSalt(10);
-
-      // 1. Seed Roles
-      const superAdminRole = roleRepository.create({
-        name: 'Super Admin',
-        permissions: JSON.stringify({
-          users: { create: true, read: true, update: true, delete: true },
-          roles: { create: true, read: true, update: true, delete: true },
-          reports: { create: true, read: true, update: true, delete: true },
-          settings: { create: true, read: true, update: true, delete: true },
-          products: { create: true, read: true, update: true, delete: true },
-        }),
-      });
-
-      const loanManagerRole = roleRepository.create({
-        name: 'Loan Manager',
-        permissions: JSON.stringify({
-          users: { create: false, read: true, update: true, delete: false },
-          roles: { create: false, read: false, update: false, delete: false },
-          reports: { create: true, read: true, update: true, delete: true },
-          settings: { create: true, read: true, update: true, delete: true },
-          products: { create: true, read: true, update: true, delete: true },
-        }),
-      });
-
-      const auditorRole = roleRepository.create({
-        name: 'Auditor',
-        permissions: JSON.stringify({
-          users: { create: false, read: true, update: false, delete: false },
-          roles: { create: false, read: true, update: false, delete: false },
-          reports: { create: true, read: true, update: false, delete: false },
-          settings: { create: false, read: true, update: false, delete: false },
-          products: { create: false, read: true, update: false, delete: false },
-        }),
-      });
-      
-      const loanProviderRole = roleRepository.create({
-        name: 'Loan Provider',
-        permissions: JSON.stringify({
-           users: { create: false, read: false, update: false, delete: false },
-           roles: { create: false, read: false, update: false, delete: false },
-           reports: { create: true, read: true, update: false, delete: false },
-           settings: { create: false, read: true, update: true, delete: false },
-           products: { create: true, read: true, update: true, delete: true },
-        }),
-      });
-      
-      await roleRepository.save([superAdminRole, loanManagerRole, auditorRole, loanProviderRole]);
-      console.log('Seeded roles');
-
-      // 2. Seed Loan Providers and Products
-      const nibBank = await providerRepository.save({
-        name: 'NIb Bank',
-        icon: 'Building2',
-        colorHex: '#fdb913',
-        displayOrder: 1,
-      });
-
-      const quickCashLoan = await productRepository.save({
-        provider: nibBank,
-        name: 'Quick Cash Loan',
-        description: 'Instant cash for emergencies.',
-        icon: 'PersonStanding',
-        minLoan: 500,
-        maxLoan: 2500,
-        serviceFee: '3%',
-        dailyFee: '0.2%',
-        penaltyFee: '0.11% daily',
-        status: 'Active',
-      });
-      await productRepository.save({
-        provider: nibBank,
-        name: 'Gadget Financing',
-        description: 'Upgrade your devices with easy financing.',
-        icon: 'Home',
-        minLoan: 300,
-        maxLoan: 1500,
-        serviceFee: '3%',
-        dailyFee: '0.2%',
-        penaltyFee: '0.11% daily',
-        status: 'Active',
-      });
-
-      const capitalBank = await providerRepository.save({
-        name: 'Capital Bank',
-        icon: 'Building2',
-        colorHex: '#2563eb',
-        displayOrder: 2,
-      });
-      await productRepository.save({
-        provider: capitalBank,
-        name: 'Personal Loan',
-        description: 'Flexible personal loans for your needs.',
-        icon: 'PersonStanding',
-        minLoan: 400,
-        maxLoan: 2000,
-        serviceFee: '3%',
-        dailyFee: '0.2%',
-        penaltyFee: '0.11% daily',
-        status: 'Active',
-      });
-       await productRepository.save({
-        provider: capitalBank,
-        name: 'Home Improvement Loan',
-        description: 'Finance your home renovation projects.',
-        icon: 'Home',
-        minLoan: 10000,
-        maxLoan: 50000,
-        serviceFee: '3%',
-        dailyFee: '0.2%',
-        penaltyFee: '0.11% daily',
-        status: 'Disabled',
-      });
-
-      const providusFinancial = await providerRepository.save({
-        name: 'Providus Financial',
-        icon: 'Landmark',
-        colorHex: '#16a34a',
-        displayOrder: 3,
-      });
-       await productRepository.save({
-        provider: providusFinancial,
-        name: 'Startup Business Loan',
-        description: 'Kickstart your new business venture.',
-        icon: 'Briefcase',
-        minLoan: 5000,
-        maxLoan: 100000,
-        serviceFee: '3%',
-        dailyFee: '0.2%',
-        penaltyFee: '0.11% daily',
-        status: 'Active',
-      });
-      await productRepository.save({
-        provider: providusFinancial,
-        name: 'Personal Auto Loan',
-        description: 'Get behind the wheel of your new car.',
-        icon: 'PersonStanding',
-        minLoan: 2000,
-        maxLoan: 30000,
-        serviceFee: '3%',
-        dailyFee: '0.2%',
-        penaltyFee: '0.11% daily',
-        status: 'Active',
-      });
-      console.log('Seeded loan providers and products');
-
-      // 3. Seed Users
-      await userRepository.save({
-        fullName: 'Super Admin',
-        email: 'superadmin@loanflow.com',
-        phoneNumber: '0912345678',
-        password: await bcrypt.hash('Admin@123', salt),
-        status: 'Active',
-        role: superAdminRole,
-      });
-      await userRepository.save({
-        fullName: 'John Provider',
-        email: 'john.p@capitalbank.com',
-        phoneNumber: '0987654321',
-        password: await bcrypt.hash('Password123', salt),
-        status: 'Active',
-        role: loanProviderRole,
-        provider: capitalBank,
-      });
-       await userRepository.save({
-        fullName: 'Jane Officer',
-        email: 'jane.o@providus.com',
-        phoneNumber: '5555555555',
-        password: await bcrypt.hash('Password123', salt),
-        status: 'Inactive',
-        role: loanProviderRole,
-        provider: providusFinancial,
-      });
-      console.log('Seeded users');
-
-      // 4. Seed Loan History
-      const loan = await loanDetailsRepository.save({
-        provider: nibBank,
-        product: quickCashLoan,
-        loanAmount: 500,
-        serviceFee: 15,
-        interestRate: 0.2,
-        disbursedDate: new Date('2024-06-25'),
-        dueDate: new Date('2024-07-25'),
-        penaltyAmount: 0.11,
-        repaymentStatus: 'Paid',
-        repaidAmount: 545.96,
-      });
-      await paymentRepository.save({
-        loan: loan,
-        amount: 545.96,
-        date: new Date('2024-07-20'),
-        outstandingBalanceBeforePayment: 545.96,
-      });
-      console.log('Seeded loan history');
-
-      // 5. Seed Scoring Parameters
-      const ageParam = await scoringParamRepository.save({
-        provider: nibBank, name: 'Age', weight: 20,
-      });
-      await scoringRuleRepository.save([
-        { parameter: ageParam, field: 'age', condition: '>=', value: '35', score: 20 },
-        { parameter: ageParam, field: 'age', condition: '<', value: '25', score: 5 },
-      ]);
-      const historyParam = await scoringParamRepository.save({
-        provider: nibBank, name: 'Loan History', weight: 30,
-      });
-      await scoringRuleRepository.save([
-        { parameter: historyParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
-        { parameter: historyParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
-      ]);
-      const incomeParam = await scoringParamRepository.save({
-        provider: nibBank, name: 'Income Level', weight: 50,
-      });
-       await scoringRuleRepository.save([
-        { parameter: incomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
-        { parameter: incomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
-      ]);
-      console.log('Seeded scoring parameters');
-
-      // 6. Seed Customers
-      await customerRepository.save([
-        {
-          age: 30,
-          monthlyIncome: 5500,
-          transactionHistory: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
-          gender: 'Male',
-          loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
-          educationLevel: "Bachelor's Degree",
-        },
-        {
-          age: 22,
-          monthlyIncome: 2500,
-          transactionHistory: JSON.stringify({ transactions: 50, averageBalance: 500 }),
-          gender: 'Female',
-          loanHistory: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
-          educationLevel: 'High School',
-        },
-        {
-          age: 45,
-          monthlyIncome: 15000,
-          transactionHistory: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
-          gender: 'Female',
-          loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
-          educationLevel: "Master's Degree",
-        },
-        {
-          age: 19,
-          monthlyIncome: 1000,
-          transactionHistory: JSON.stringify({ transactions: 20, averageBalance: 300 }),
-          gender: 'Male',
-          loanHistory: JSON.stringify({ totalLoans: 0, onTimeRepayments: 0 }),
-          educationLevel: "Student",
-        },
-      ]);
-      console.log('Seeded customers');
-
-
-      console.log('Seeding finished successfully.');
     } catch (err) {
-      console.error('Error during seeding:', err);
+      console.error('Error establishing database connection for seeding:', err);
     } finally {
       if (AppDataSource.isInitialized) {
         await AppDataSource.destroy();
