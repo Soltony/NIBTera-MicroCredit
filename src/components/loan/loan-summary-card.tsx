@@ -2,19 +2,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Skeleton } from '../ui/skeleton';
 
 interface LoanSummaryCardProps {
   maxLoanLimit: number;
   availableToBorrow: number;
   color?: string;
+  isLoading?: boolean;
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb913' }: LoanSummaryCardProps) {
+export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb913', isLoading = false }: LoanSummaryCardProps) {
     const [isMaxLimitVisible, setIsMaxLimitVisible] = useState(true);
     const [isAvailableVisible, setIsAvailableVisible] = useState(true);
 
@@ -57,7 +59,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
                     {isMaxLimitVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
                 </button>
             </div>
-            <p className="text-2xl font-semibold tracking-tight">{renderAmount(maxLoanLimit, isMaxLimitVisible)}</p>
+             {isLoading ? <Skeleton className="h-8 w-48 bg-white/20" /> : <p className="text-2xl font-semibold tracking-tight">{renderAmount(maxLoanLimit, isMaxLimitVisible)}</p>}
         </div>
         <div className="text-right">
             <div className="flex items-center gap-2 justify-end">
@@ -66,7 +68,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
                     {isAvailableVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
                 </button>
             </div>
-            <p className="text-4xl font-bold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>
+             {isLoading ? <Skeleton className="h-10 w-56 bg-white/20 ml-auto" /> : <p className="text-4xl font-bold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>}
         </div>
       </div>
     </div>

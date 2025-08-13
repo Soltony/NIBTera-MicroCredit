@@ -4,6 +4,7 @@
  * @fileOverview Implements a loan eligibility check and credit scoring.
  *
  * - checkLoanEligibility - First checks for basic eligibility (age > 20), then calculates a credit score to determine the maximum loan amount.
+ * - recalculateScoreAndLoanLimit - Calculates a credit score for a given provider and returns the max loan amount.
  */
 
 import { AppDataSource } from '@/data-source';
@@ -46,28 +47,17 @@ const evaluateCondition = (inputValue: string | number | undefined, condition: s
     }
 };
 
-
-export async function checkLoanEligibility(customerId: number, providerId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
-  try {
+async function calculateScoreForProvider(customerId: number, providerId: number): Promise<{score: number; maxLoanAmount: number}> {
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const customerRepo = AppDataSource.getRepository(Customer);
     const providerRepo = AppDataSource.getRepository(LoanProvider);
     const scoringParamRepo = AppDataSource.getRepository(ScoringParameter);
 
     const customer = await customerRepo.findOneBy({ id: customerId });
-    
     if (!customer) {
-      return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
+        throw new Error('Customer not found for score calculation.');
     }
     
-    // STEP 1: Basic Eligibility Check
-    if (customer.age <= 20) {
-      return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
-    }
-
-    // If eligible, proceed to calculate credit score and max loan amount
-    
-    // STEP 2: Credit Score Calculation
     const scoringParameters = await scoringParamRepo.find({
         where: { providerId: providerId },
         relations: ['rules']
@@ -79,7 +69,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     });
 
     if (!provider || provider.products.length === 0) {
-        return { isEligible: false, reason: 'Provider or products not found.', score: 0, maxLoanAmount: 0 };
+        throw new Error('Provider or products not found for score calculation.');
     }
     
     let totalScore = 0;
@@ -103,7 +93,6 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
         totalScore += maxScoreForParam;
     });
 
-    // STEP 3: Determine Max Loan Amount based on Score
     const maxPossibleScore = scoringParameters.reduce((sum, param) => {
         const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
         return sum + maxRuleScore;
@@ -112,14 +101,46 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     const scorePercentage = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
     
     const highestMaxLoanProduct = provider.products.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
-    // Scale loan amount based on score. If score is 100%, they get 1.5x the base max loan.
     const scoreMultiplier = 1 + (scorePercentage * 0.5); 
     const suggestedLoanAmountMax = Math.round((highestMaxLoanProduct * scoreMultiplier) / 100) * 100;
         
-    return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score: totalScore, maxLoanAmount: suggestedLoanAmountMax };
+    return { score: totalScore, maxLoanAmount: suggestedLoanAmountMax };
+}
+
+
+export async function checkLoanEligibility(customerId: number, providerId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
+  try {
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const customerRepo = AppDataSource.getRepository(Customer);
+
+    const customer = await customerRepo.findOneBy({ id: customerId });
+    
+    if (!customer) {
+      return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
+    }
+    
+    // STEP 1: Basic Eligibility Check
+    if (customer.age <= 20) {
+      return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
+    }
+    
+    // STEP 2: Credit Score Calculation (if eligible)
+    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId);
+        
+    return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score, maxLoanAmount };
 
   } catch (error) {
     console.error('Error in checkLoanEligibility:', error);
     return { isEligible: false, reason: 'An unexpected server error occurred.', score: 0, maxLoanAmount: 0 };
   }
+}
+
+
+export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number): Promise<{score: number, maxLoanAmount: number}> {
+    try {
+        return await calculateScoreForProvider(customerId, providerId);
+    } catch (error) {
+        console.error('Error in recalculateScoreAndLoanLimit:', error);
+        return { score: 0, maxLoanAmount: 0 };
+    }
 }

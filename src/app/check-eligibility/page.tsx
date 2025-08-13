@@ -57,6 +57,7 @@ export default function CheckEligibilityPage() {
 
       const params = new URLSearchParams();
       params.set('providerId', String(providerId));
+      params.set('customerId', customerId);
 
       if (isEligible) {
           const productWithLowestMin = nibProvider.products

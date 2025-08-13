@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
 import { Logo } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp } from 'lucide-react';
+import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2 } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +20,7 @@ import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useLoanHistory } from '@/hooks/use-loan-history';
 import { getCustomIcon } from '@/lib/types';
+import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
 
 
 const formatCurrency = (amount: number) => {
@@ -67,6 +68,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const searchParams = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId');
   const eligibilityError = searchParams.get('error');
+  const customerId = searchParams.get('customerId');
 
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
@@ -74,9 +76,16 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const { addPayment } = useLoanHistory(initialLoanHistory);
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
+  const [isRecalculating, setIsRecalculating] = useState(false);
   
-  // This is the fix: determine eligibility based on the presence of the 'error' param.
   const isEligible = !eligibilityError;
+
+  const initialMaxLoan = useMemo(() => {
+    return searchParams.has('max') ? parseFloat(searchParams.get('max')!) : 0;
+  }, [searchParams]);
+
+  const [currentMaxLoanLimit, setCurrentMaxLoanLimit] = useState(initialMaxLoan);
+
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
@@ -90,24 +99,25 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     }
   }, [providerIdFromUrl, providers]);
   
-  const { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct } = useMemo(() => {
-    const max = searchParams.get('max');
-    const maxLoanLimit = max ? parseFloat(max) : 0; 
-
+  const { totalBorrowed, availableToBorrow } = useMemo(() => {
     const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
     
     const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const availableToBorrow = Math.max(0, maxLoanLimit - totalBorrowed);
+    const availableToBorrow = Math.max(0, currentMaxLoanLimit - totalBorrowed);
 
-    const activeLoansByProduct = unpaidLoans.reduce((acc, loan) => {
-        if (!acc[loan.productName] || new Date(loan.dueDate) > new Date(acc[loan.productName].dueDate)) {
-            acc[loan.productName] = loan;
-        }
-        return acc;
-    }, {} as Record<string, LoanDetails>);
+    return { totalBorrowed, availableToBorrow };
+  }, [currentMaxLoanLimit, loanHistory]);
 
-    return { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct };
-  }, [searchParams, loanHistory]);
+  const activeLoansByProduct = useMemo(() => {
+      const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
+      return unpaidLoans.reduce((acc, loan) => {
+          if (!acc[loan.productName] || new Date(loan.dueDate) > new Date(acc[loan.productName].dueDate)) {
+              acc[loan.productName] = loan;
+          }
+          return acc;
+      }, {} as Record<string, LoanDetails>);
+  }, [loanHistory]);
+
 
   const selectedProvider = useMemo(() => {
     return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
@@ -117,14 +127,24 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     const params = new URLSearchParams(searchParams);
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
+    // Pass the currently calculated max loan for this provider
+    params.set('max', String(currentMaxLoanLimit));
     router.push(`/apply?${params.toString()}`);
   }
 
-  const handleProviderSelect = (providerId: string) => {
+  const handleProviderSelect = async (providerId: string) => {
     setSelectedProviderId(providerId);
+    setIsRecalculating(true);
+    
+    if (customerId) {
+        const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(providerId));
+        setCurrentMaxLoanLimit(maxLoanAmount);
+    }
+
+    setIsRecalculating(false);
+
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', providerId);
-    // We only change the providerId, keeping the original eligibility params (min/max/error)
     router.push(`/loan?${params.toString()}`, { scroll: false });
   }
   
@@ -177,7 +197,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                       style={{ color: selectedProviderId === provider.id ? provider.colorHex : 'transparent' }}
                                   >
                                       <div className={cn("h-16 w-16 rounded-full bg-card flex items-center justify-center transition-all shadow-md hover:shadow-lg", selectedProviderId === provider.id ? 'shadow-lg' : '')}>
-                                          <IconDisplay iconName={provider.icon} />
+                                          {isRecalculating && selectedProviderId === provider.id ? <Loader2 className="h-8 w-8 animate-spin" /> : <IconDisplay iconName={provider.icon} />}
                                       </div>
                                   </div>
                                   <span className={cn(
@@ -192,16 +212,17 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                   {!isEligible && (
                      <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Eligibility Check Failed</AlertTitle>
+                      <AlertTitle>Not Eligible for a Loan</AlertTitle>
                       <AlertDescription>{eligibilityError}</AlertDescription>
                     </Alert>
                   )}
 
                   {isEligible && (
                     <LoanSummaryCard
-                        maxLoanLimit={maxLoanLimit}
+                        maxLoanLimit={currentMaxLoanLimit}
                         availableToBorrow={availableToBorrow}
                         color={selectedProvider?.colorHex}
+                        isLoading={isRecalculating}
                     />
                   )}
               
