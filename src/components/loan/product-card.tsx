@@ -85,10 +85,9 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                      <div className="flex items-center">
                         {!activeLoan && (
                             <Button 
-                                variant="outline" 
                                 onClick={onApply} 
-                                style={{ color: providerColor, borderColor: providerColor }} 
-                                className="hover:bg-primary/10"
+                                style={{ backgroundColor: providerColor }} 
+                                className="text-white"
                                 disabled={!canApply}
                             >
                                 Apply
