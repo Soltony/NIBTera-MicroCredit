@@ -40,8 +40,8 @@ const evaluateCondition = (inputValue: string | number | undefined, condition: s
     } else {
         // Fallback to string comparison for non-numeric values
          switch (condition) {
-            case '==': return String(inputValue) == ruleValue;
-            case '!=': return String(inputValue) != ruleValue;
+            case '==': return String(inputValue).toLowerCase() == ruleValue.toLowerCase();
+            case '!=': return String(inputValue).toLowerCase() != ruleValue.toLowerCase();
             default: return false; // Other operators are not supported for strings
         }
     }

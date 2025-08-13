@@ -19,8 +19,7 @@ export default function CheckEligibilityPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<LoanProvider[]>([]);
-
-  const nibBankColor = '#fdb913';
+  const [checkingProvider, setCheckingProvider] = useState<LoanProvider | null>(null);
   
   useEffect(() => {
     const fetchProviders = async () => {
@@ -41,32 +40,28 @@ export default function CheckEligibilityPage() {
     const performCheck = async () => {
       if (providers.length === 0 || !customerId) return;
 
-      const nibProvider = providers.find(p => p.name === 'NIb Bank');
-      if (!nibProvider) {
-        setError("Default provider (NIb Bank) not found.");
+      const providerIdFromUrl = searchParams.get('providerId');
+      const targetProvider = providers.find(p => p.id === providerIdFromUrl) || providers[0];
+
+      if (!targetProvider) {
+        setError("Could not find any available loan providers.");
         setIsLoading(false);
         return;
       }
       
-      const providerId = Number(nibProvider.id);
+      setCheckingProvider(targetProvider);
+      const providerId = Number(targetProvider.id);
 
       setIsLoading(true);
       setError(null);
       
-      const { isEligible, reason, score, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId);
+      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId);
 
       const params = new URLSearchParams();
       params.set('providerId', String(providerId));
       params.set('customerId', customerId);
 
       if (isEligible) {
-          const productWithLowestMin = nibProvider.products
-            .filter(p => p.status === 'Active')
-            .reduce((prev, curr) => ((prev.minLoan ?? Infinity) < (curr.minLoan ?? Infinity) ? prev : curr), { minLoan: Infinity });
-          
-          const suggestedLoanAmountMin = productWithLowestMin.minLoan || 500;
-
-          params.set('min', String(suggestedLoanAmountMin));
           params.set('max', String(maxLoanAmount));
       } else {
         params.set('error', reason);
@@ -78,12 +73,12 @@ export default function CheckEligibilityPage() {
     if(providers.length > 0 && customerId) {
         performCheck();
     }
-  }, [providers, router, customerId]);
+  }, [providers, router, customerId, searchParams]);
 
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-       <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: nibBankColor }}>
+       <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: checkingProvider?.colorHex || '#fde047' }}>
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex items-center">
             <Logo className="h-6 w-6 mr-4" />
@@ -94,9 +89,11 @@ export default function CheckEligibilityPage() {
        <main className="flex-1 flex items-center justify-center">
         <div className="max-w-md mx-auto text-center">
             <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-12 w-12 animate-spin" style={{ color: nibBankColor }} />
+                <Loader2 className="h-12 w-12 animate-spin" style={{ color: checkingProvider?.colorHex || '#fde047' }} />
                 <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
-                <p className="text-muted-foreground">Please wait a moment while we check your loan eligibility with NIb Bank.</p>
+                <p className="text-muted-foreground">
+                  Please wait a moment while we check your loan eligibility with {checkingProvider?.name || 'our providers'}.
+                </p>
             </div>
              {error && (
               <Alert variant="destructive" className="mt-4">
