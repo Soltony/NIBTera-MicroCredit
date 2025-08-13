@@ -16,8 +16,6 @@ export async function POST(req: Request) {
         if (!AppDataSource.isInitialized) {
             await AppDataSource.initialize();
         }
-        const loanRepo = AppDataSource.getRepository(LoanDetails);
-        const paymentRepo = AppDataSource.getRepository(Payment);
         const manager = AppDataSource.manager;
 
         const body = await req.json();
@@ -31,9 +29,12 @@ export async function POST(req: Request) {
         const numericLoanId = Number(loanId);
 
         return await manager.transaction(async (transactionalEntityManager) => {
-            const loan = await transactionalEntityManager.findOne(LoanDetails, {
+            const loanRepo = transactionalEntityManager.getRepository(LoanDetails);
+            const paymentRepo = transactionalEntityManager.getRepository(Payment);
+
+            const loan = await loanRepo.findOne({
                 where: { id: numericLoanId },
-                relations: ['payments', 'provider', 'product'],
+                relations: ['provider', 'product'],
             });
 
             if (!loan) {
@@ -42,24 +43,24 @@ export async function POST(req: Request) {
 
             // Calculate current total repayable amount
             const totalRepayable = calculateTotalRepayable(loan, new Date());
-            const outstandingBalance = totalRepayable - (loan.repaidAmount || 0);
+            const alreadyPaid = loan.repaidAmount || 0;
+            const outstandingBalance = totalRepayable - alreadyPaid;
 
             if (amount > outstandingBalance + 0.01) { // Add tolerance for floating point
                 return NextResponse.json({ error: 'Payment amount exceeds outstanding balance.' }, { status: 400 });
             }
 
-            // Create and save new payment record
-            const newPayment = transactionalEntityManager.create(Payment, {
-                loan: loan, // Explicitly set the relationship
+            // Create and save new payment record first
+            const newPayment = paymentRepo.create({
                 loanId: numericLoanId,
                 amount: amount,
                 date: new Date(),
                 outstandingBalanceBeforePayment: outstandingBalance,
             });
-            await transactionalEntityManager.save(newPayment);
+            await paymentRepo.save(newPayment);
 
             // Update loan details
-            const totalRepaid = (loan.repaidAmount || 0) + amount;
+            const totalRepaid = alreadyPaid + amount;
             loan.repaidAmount = totalRepaid;
 
             // Check if loan is fully paid
@@ -67,11 +68,12 @@ export async function POST(req: Request) {
                 loan.repaymentStatus = 'Paid';
             }
 
-            const updatedLoan = await transactionalEntityManager.save(loan);
+            // Save the updated loan object
+            await loanRepo.save(loan);
             
-            // Reload relations to return the full object
-            const finalLoan = await transactionalEntityManager.findOne(LoanDetails, {
-                where: { id: updatedLoan.id },
+            // Reload the loan with all its relations to return the full, updated object
+            const finalLoan = await loanRepo.findOne({
+                where: { id: loan.id },
                 relations: ['payments', 'provider', 'product'],
             });
 
