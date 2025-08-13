@@ -104,8 +104,15 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         .filter(p => p.status === 'Active')
         .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
         
-    const scoreMultiplier = 1 + (scorePercentage * 0.5); 
-    const calculatedLoanAmount = Math.round((highestMaxLoanProduct * scoreMultiplier) / 100) * 100;
+    // Calculate loan amount based on score percentage, but don't just give the max.
+    // Let's say a perfect score gets 100% of the max loan, and 0 score gets 20% (as a base).
+    const baseLoanPercentage = 0.20; // Everyone eligible gets at least 20% of the max loan.
+    const scoreBasedPercentage = (1 - baseLoanPercentage) * scorePercentage;
+    const finalLoanPercentage = baseLoanPercentage + scoreBasedPercentage;
+
+    const calculatedLoanAmount = Math.round((highestMaxLoanProduct * finalLoanPercentage) / 100) * 100;
+    
+    // Ensure the calculated amount doesn't exceed the product's hard limit.
     const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
         
     return { score: totalScore, maxLoanAmount: suggestedLoanAmountMax };
