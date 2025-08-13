@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview Implements a loan eligibility check based on customer data and dynamic scoring rules.
+ * @fileOverview Implements a loan eligibility check and credit scoring.
  *
- * - checkLoanEligibility - Checks user's loan eligibility based on their profile and provider-specific scoring rules.
+ * - checkLoanEligibility - First checks for basic eligibility (age > 20), then calculates a credit score to determine the maximum loan amount.
  */
 
 import { AppDataSource } from '@/data-source';
@@ -60,12 +60,14 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
       return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    // Basic hardcoded check
+    // STEP 1: Basic Eligibility Check
     if (customer.age <= 20) {
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
 
-    // Fetch scoring parameters for the provider
+    // If eligible, proceed to calculate credit score and max loan amount
+    
+    // STEP 2: Credit Score Calculation
     const scoringParameters = await scoringParamRepo.find({
         where: { providerId: providerId },
         relations: ['rules']
@@ -84,7 +86,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     const customerLoanHistory = JSON.parse(customer.loanHistory);
     const customerDataForScoring = {
         age: customer.age,
-        monthlyIncome: customer.monthlySalary, // This is the corrected line
+        monthlyIncome: customer.monthlyIncome,
         ...customerLoanHistory
     };
 
@@ -101,7 +103,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
         totalScore += maxScoreForParam;
     });
 
-    // Determine max possible score from rules
+    // STEP 3: Determine Max Loan Amount based on Score
     const maxPossibleScore = scoringParameters.reduce((sum, param) => {
         const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
         return sum + maxRuleScore;
@@ -109,19 +111,13 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     
     const scorePercentage = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
     
-    // A score of at least 50% of the max possible score is required to be eligible
-    const eligibilityThreshold = 0.5; 
-
-    if (scorePercentage >= eligibilityThreshold) {
-        const highestMaxLoanProduct = provider.products.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
-        // Scale loan amount based on score. If score is 100%, they get 1.5x the base max loan.
-        const scoreMultiplier = 1 + (scorePercentage * 0.5); 
-        const suggestedLoanAmountMax = Math.round((highestMaxLoanProduct * scoreMultiplier) / 100) * 100;
+    const highestMaxLoanProduct = provider.products.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+    // Scale loan amount based on score. If score is 100%, they get 1.5x the base max loan.
+    const scoreMultiplier = 1 + (scorePercentage * 0.5); 
+    const suggestedLoanAmountMax = Math.round((highestMaxLoanProduct * scoreMultiplier) / 100) * 100;
         
-      return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score: totalScore, maxLoanAmount: suggestedLoanAmountMax };
-    } else {
-      return { isEligible: false, reason: 'Based on your profile, you are not currently eligible for a loan.', score: totalScore, maxLoanAmount: 0 };
-    }
+    return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score: totalScore, maxLoanAmount: suggestedLoanAmountMax };
+
   } catch (error) {
     console.error('Error in checkLoanEligibility:', error);
     return { isEligible: false, reason: 'An unexpected server error occurred.', score: 0, maxLoanAmount: 0 };
