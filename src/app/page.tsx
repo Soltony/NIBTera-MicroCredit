@@ -9,8 +9,7 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Always redirect to the eligibility check, which will handle the default provider
-    router.replace('/check-eligibility');
+    router.replace('/check-eligibility/select-customer');
   }, [router]);
 
   return (
