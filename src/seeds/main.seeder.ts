@@ -40,12 +40,12 @@ class MainSeeder {
         
         // Clean up existing data in the correct order to respect foreign key constraints.
         await paymentRepository.clear();
+        await loanDetailsRepository.clear();
         await scoringRuleRepository.clear();
         await scoringParamRepository.clear();
+        await userRepository.clear();
         
         // Handle ManyToMany relationship for ScoringConfigurationHistory
-        // We need to clear the join table first. This is typically done via raw query or by updating relations to be empty.
-        // A simpler approach for seeding is to just delete the records which cascades.
         const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
         for (const history of histories) {
           history.appliedProducts = [];
@@ -53,8 +53,6 @@ class MainSeeder {
         }
         await scoringHistoryRepository.clear();
 
-        await loanDetailsRepository.clear();
-        await userRepository.clear();
         await productRepository.clear();
         await providerRepository.clear();
         await roleRepository.clear();
@@ -259,32 +257,53 @@ class MainSeeder {
         console.log('Seeded loan history');
 
         // 5. Seed Scoring Parameters
-        const ageParam = await scoringParamRepository.save({
+        // -- NIb Bank Parameters --
+        const nibAgeParam = await scoringParamRepository.save({
           provider: nibBank, name: 'Age', weight: 20,
         });
         await scoringRuleRepository.save([
-          { parameter: ageParam, field: 'age', condition: '>=', value: '35', score: 20 },
-          { parameter: ageParam, field: 'age', condition: '<', value: '25', score: 5 },
+          { parameter: nibAgeParam, field: 'age', condition: '>=', value: '35', score: 20 },
+          { parameter: nibAgeParam, field: 'age', condition: '<', value: '25', score: 5 },
         ]);
-        const historyParam = await scoringParamRepository.save({
+        const nibHistoryParam = await scoringParamRepository.save({
           provider: nibBank, name: 'Loan History', weight: 30,
         });
         await scoringRuleRepository.save([
-          { parameter: historyParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
-          { parameter: historyParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
+          { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
+          { parameter: nibHistoryParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
         ]);
-        const incomeParam = await scoringParamRepository.save({
+        const nibIncomeParam = await scoringParamRepository.save({
           provider: nibBank, name: 'Income Level', weight: 50,
         });
          await scoringRuleRepository.save([
-          { parameter: incomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
-          { parameter: incomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
+          { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
+          { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
         ]);
+        
+        // -- Capital Bank Parameters --
+        const capIncomeParam = await scoringParamRepository.save({
+          provider: capitalBank, name: 'Monthly Income', weight: 60,
+        });
+        await scoringRuleRepository.save([
+          { parameter: capIncomeParam, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
+          { parameter: capIncomeParam, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
+          { parameter: capIncomeParam, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
+        ]);
+        const capEducationParam = await scoringParamRepository.save({
+          provider: capitalBank, name: 'Education Level', weight: 40,
+        });
+        await scoringRuleRepository.save([
+          { parameter: capEducationParam, field: 'educationLevel', condition: '==', value: "Master's Degree", score: 40 },
+          { parameter: capEducationParam, field: 'educationLevel', condition: '==', value: "Bachelor's Degree", score: 25 },
+          { parameter: capEducationParam, field: 'educationLevel', condition: '==', value: 'High School', score: 10 },
+        ]);
+        
         console.log('Seeded scoring parameters');
 
         // 6. Seed Customers
         await customerRepository.save([
           {
+            id: 8,
             age: 30,
             monthlyIncome: 5500,
             transactionHistory: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
@@ -293,6 +312,7 @@ class MainSeeder {
             educationLevel: "Bachelor's Degree",
           },
           {
+            id: 9,
             age: 22,
             monthlyIncome: 2500,
             transactionHistory: JSON.stringify({ transactions: 50, averageBalance: 500 }),
@@ -301,6 +321,7 @@ class MainSeeder {
             educationLevel: 'High School',
           },
           {
+            id: 10,
             age: 45,
             monthlyIncome: 15000,
             transactionHistory: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
@@ -309,6 +330,7 @@ class MainSeeder {
             educationLevel: "Master's Degree",
           },
           {
+            id: 11,
             age: 19,
             monthlyIncome: 1000,
             transactionHistory: JSON.stringify({ transactions: 20, averageBalance: 300 }),
