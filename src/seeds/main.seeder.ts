@@ -1,14 +1,14 @@
 
 import 'reflect-metadata';
-import { AppDataSource } from '../data-source.ts';
-import { Role } from '../entities/Role';
-import { User } from '../entities/User';
-import { LoanProvider } from '../entities/LoanProvider';
-import { LoanProduct } from '../entities/LoanProduct';
-import { LoanDetails } from '../entities/LoanDetails';
-import { Payment } from '../entities/Payment';
-import { ScoringParameter } from '../entities/ScoringParameter';
-import { ScoringParameterRule } from '../entities/ScoringParameterRule';
+import { AppDataSource } from '@/data-source';
+import { Role } from '@/entities/Role';
+import { User } from '@/entities/User';
+import { LoanProvider } from '@/entities/LoanProvider';
+import { LoanProduct } from '@/entities/LoanProduct';
+import { LoanDetails } from '@/entities/LoanDetails';
+import { Payment } from '@/entities/Payment';
+import { ScoringParameter } from '@/entities/ScoringParameter';
+import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import bcrypt from 'bcryptjs';
 
 class MainSeeder {
@@ -31,6 +31,8 @@ class MainSeeder {
       await queryRunner.manager.query('DELETE FROM scoring_parameter_rules');
       await queryRunner.manager.query('DELETE FROM scoring_parameters');
       await queryRunner.manager.query('DELETE FROM users');
+      await queryRunner.manager.query('DELETE FROM _scoring_config_history_to_products');
+      await queryRunner.manager.query('DELETE FROM scoring_configuration_history');
       await queryRunner.manager.query('DELETE FROM loan_products');
       await queryRunner.manager.query('DELETE FROM loan_providers');
       await queryRunner.manager.query('DELETE FROM roles');

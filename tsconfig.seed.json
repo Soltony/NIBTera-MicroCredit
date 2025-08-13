@@ -8,7 +8,14 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "types": ["node"]
   },
-  "include": ["prisma/seed.ts"],
+  "include": ["src/seeds/**/*.ts", "src/entities/**/*.ts", "src/data-source.ts"],
+  "exclude": ["node_modules"]
 }
