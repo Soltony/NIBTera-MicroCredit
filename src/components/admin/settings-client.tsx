@@ -213,7 +213,6 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                     const index = draft.findIndex(p => p.id === savedProviderResponse.id);
                     if (index !== -1) {
                         const originalProvider = draft[index];
-                        // Create a new object with updated properties, but preserve the products array.
                         draft[index] = {
                             ...originalProvider,
                             ...savedProviderResponse,
@@ -223,6 +222,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 }));
             } else {
                  setProviders(prev => [...prev, savedProviderResponse]);
+                 setSelectedProviderId(savedProviderResponse.id);
             }
 
             toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProviderResponse.name} has been successfully saved.` });
