@@ -73,8 +73,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const { addPayment } = useLoanHistory(initialLoanHistory);
-  const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
+  const { loans: loanHistory, setLoans: setLoanHistory, addPayment } = useLoanHistory(initialLoanHistory);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   
@@ -89,7 +88,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
-  }, [initialLoanHistory]);
+  }, [initialLoanHistory, setLoanHistory]);
 
   useEffect(() => {
     if (providerIdFromUrl) {

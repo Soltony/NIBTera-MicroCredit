@@ -8,14 +8,15 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
-import { useLoanHistory } from '@/hooks/use-loan-history';
+import { useToast } from '@/hooks/use-toast';
+
 
 type Step = 'calculator' | 'details';
 
 export function ApplyClient({ provider }: { provider: LoanProvider }) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { addLoan } = useLoanHistory();
+    const { toast } = useToast();
 
     const productId = searchParams.get('product');
 
@@ -41,23 +42,51 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         };
     }, [searchParams, selectedProduct]);
 
-    const handleLoanAccept = (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
+    const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
         if (provider && selectedProduct) {
-            const finalDetails: Omit<LoanDetails, 'id'> = {
+            
+             const finalDetails: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'repaidAmount' | 'payments' > & { providerId: string; productId: string } = {
                 ...details,
-                providerName: provider.name,
-                productName: selectedProduct.name,
-                payments: [],
+                providerId: provider.id,
+                productId: selectedProduct.id,
             };
-            addLoan(finalDetails);
-            const displayLoan: LoanDetails = {
-                ...finalDetails,
-                id: `temp-${Date.now()}`,
-                repaidAmount: 0,
-                payments: [],
+
+            try {
+                const response = await fetch('/api/loans', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(finalDetails),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save the loan.');
+                }
+                
+                const savedLoan = await response.json();
+
+                const displayLoan: LoanDetails = {
+                    ...savedLoan,
+                    providerName: provider.name,
+                    productName: selectedProduct.name,
+                    disbursedDate: new Date(savedLoan.disbursedDate),
+                    dueDate: new Date(savedLoan.dueDate),
+                    payments: [],
+                }
+                setLoanDetails(displayLoan);
+                setStep('details');
+                 toast({
+                    title: 'Success!',
+                    description: 'Your loan has been successfully disbursed.',
+                });
+
+            } catch (error: any) {
+                toast({
+                    title: 'Error',
+                    description: error.message,
+                    variant: 'destructive',
+                });
             }
-            setLoanDetails(displayLoan);
-            setStep('details');
         }
     };
 
