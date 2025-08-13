@@ -261,7 +261,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                   <AccordionTrigger className="text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: selectedProvider ? `${selectedProvider.colorHex}1A` : '#fef3c7' }}>
                                       <div className="flex items-center justify-between w-full" style={{ color: selectedProvider?.colorHex }}>
                                           <span>Loan History</span>
-                                          <ChevronDown className="h-6 w-6 transition-transform duration-200" />
                                       </div>
                                   </AccordionTrigger>
                                   <AccordionContent>
