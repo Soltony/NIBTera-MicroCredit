@@ -51,6 +51,8 @@ export interface LoanDetails {
 
 export const CheckLoanEligibilityInputSchema = z.object({
   providerId: z.string().describe("The ID of the loan provider."),
+  // Add other user data fields here as needed for a real check
+  // e.g., age: z.number(), monthlyIncome: z.number(), etc.
 });
 export type CheckLoanEligibilityInput = z.infer<typeof CheckLoanEligibilityInputSchema>;
 

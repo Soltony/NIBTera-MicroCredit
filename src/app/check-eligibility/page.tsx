@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
@@ -46,34 +45,41 @@ export default function CheckEligibilityPage() {
         setIsLoading(false);
         return;
       }
+      
+      const provider = providers.find(p => p.id === providerId);
+      if (!provider) {
+        setError("Selected provider not found.");
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
       setError(null);
-      try {
-        const eligibilityResult = await checkLoanEligibility({ providerId });
+      
+      const activeProducts = provider.products.filter(p => p.status === 'Active');
+      
+      const params = new URLSearchParams();
+      params.set('providerId', providerId);
+
+      if (activeProducts.length > 0) {
+        const highestMaxLoan = activeProducts.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+        const suggestedLoanAmountMax = highestMaxLoan * 2;
+        const suggestedLoanAmountMin = activeProducts.reduce((min, p) => Math.min(min, p.minLoan || 500), Infinity);
         
-        const params = new URLSearchParams();
-        params.set('providerId', providerId);
-
-        if (eligibilityResult.isEligible) {
-          params.set('min', String(eligibilityResult.suggestedLoanAmountMin || 0));
-          params.set('max', String(eligibilityResult.suggestedLoanAmountMax || 0));
-        } else {
-          params.set('error', eligibilityResult.reason || "We're sorry, but you are not eligible for a loan at this time.");
-        }
-        router.push(`/loan?${params.toString()}`);
-
-      } catch (error) {
-        console.error('Eligibility check failed:', error);
-        const params = new URLSearchParams();
-        params.set('providerId', providerId);
-        params.set('error', 'An unexpected error occurred during the eligibility check.');
-        router.push(`/loan?${params.toString()}`);
+        params.set('min', String(suggestedLoanAmountMin || 0));
+        params.set('max', String(suggestedLoanAmountMax || 0));
+      } else {
+        params.set('error', `This provider (${provider.name}) has no active loan products available.`);
       }
+      
+      router.push(`/loan?${params.toString()}`);
     };
 
-    performCheck();
-  }, [providers, providerIdFromUrl, router]);
+    if(!isLoading) {
+        performCheck();
+    }
+  // The dependency on isLoading ensures this effect runs after providers are fetched.
+  }, [providers, providerIdFromUrl, router, isLoading]);
 
 
   const handleBack = () => {
