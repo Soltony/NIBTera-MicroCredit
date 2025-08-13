@@ -1,6 +1,6 @@
 
 import 'reflect-metadata';
-import { AppDataSource } from '../data-source';
+import { AppDataSource } from '../data-source.ts';
 import { Role } from '../entities/Role';
 import { User } from '../entities/User';
 import { LoanProvider } from '../entities/LoanProvider';
