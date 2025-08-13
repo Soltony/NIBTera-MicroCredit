@@ -14,7 +14,6 @@ export default function CheckEligibilityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId');
-  const providerIdFromUrl = searchParams.get('providerId');
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +40,8 @@ export default function CheckEligibilityPage() {
     const performCheck = async () => {
       if (providers.length === 0 || !customerId) return;
 
-      const providerId = providerIdFromUrl || providers.find(p => p.products.some(prod => prod.status === 'Active'))?.id;
+      const nibProvider = providers.find(p => p.name === 'NIb Bank');
+      const providerId = nibProvider?.id || providers[0]?.id;
 
       if (!providerId) {
         setError("No loan providers with active products are available at this time.");
@@ -67,8 +67,11 @@ export default function CheckEligibilityPage() {
       if (isEligible) {
         const activeProducts = provider.products.filter(p => p.status === 'Active');
         if (activeProducts.length > 0) {
-          const scoreMultiplier = Math.min(1.5, 1 + (score - 50) / 100);
+          // Calculate suggested loan amount based on score
+          // A score of 50 gives the base max loan. A score of 100 gives 1.5x the base max loan.
+          const scoreMultiplier = Math.min(1.5, 1 + (score - 50) / 100); 
           const highestMaxLoan = activeProducts.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+          
           const suggestedLoanAmountMax = Math.round((highestMaxLoan * scoreMultiplier) / 100) * 100;
           const suggestedLoanAmountMin = activeProducts.reduce((min, p) => Math.min(min, p.minLoan || 500), Infinity);
           
@@ -87,7 +90,7 @@ export default function CheckEligibilityPage() {
     if(providers.length > 0 && customerId) {
         performCheck();
     }
-  }, [providers, providerIdFromUrl, router, customerId]);
+  }, [providers, router, customerId]);
 
 
   return (
@@ -105,7 +108,7 @@ export default function CheckEligibilityPage() {
             <div className="flex flex-col items-center gap-4">
                 <Loader2 className="h-12 w-12 animate-spin" style={{ color: nibBankColor }} />
                 <h2 className="text-xl font-semibold">Checking your eligibility...</h2>
-                <p className="text-muted-foreground">Please wait a moment while we check your loan eligibility.</p>
+                <p className="text-muted-foreground">Please wait a moment while we check your loan eligibility with NIb Bank.</p>
             </div>
              {error && (
               <Alert variant="destructive" className="mt-4">

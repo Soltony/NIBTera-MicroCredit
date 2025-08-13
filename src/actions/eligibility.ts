@@ -26,7 +26,6 @@ export async function checkLoanEligibility(customerId: number): Promise<{isEligi
     }
     
     // If age check passes, calculate a simple credit score.
-    // For now, we'll assign a base score if they pass the age check.
     let score = 0;
     if (customer.monthlySalary > 4000) score += 30;
     try {

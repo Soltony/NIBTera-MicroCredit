@@ -65,10 +65,10 @@ interface DashboardClientProps {
 export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const providerId = searchParams.get('providerId');
+  const providerIdFromUrl = searchParams.get('providerId');
   const eligibilityError = searchParams.get('error');
 
-  const [selectedProviderId, setSelectedProviderId] = useState(providerId ?? providers[0]?.id);
+  const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
   const { addPayment } = useLoanHistory(initialLoanHistory);
@@ -80,12 +80,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }, [initialLoanHistory]);
 
   useEffect(() => {
-    if (providerId) {
-      setSelectedProviderId(providerId);
+    if (providerIdFromUrl) {
+      setSelectedProviderId(providerIdFromUrl);
     } else if (providers.length > 0) {
       setSelectedProviderId(providers[0].id);
     }
-  }, [providerId, providers]);
+  }, [providerIdFromUrl, providers]);
   
   const { totalBorrowed, availableToBorrow, maxLoanLimit, activeLoansByProduct } = useMemo(() => {
     const max = searchParams.get('max');
@@ -118,9 +118,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }
 
   const handleProviderSelect = (providerId: string) => {
-    const params = new URLSearchParams();
+    setSelectedProviderId(providerId);
+    const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', providerId);
-    router.push(`/check-eligibility?${params.toString()}`);
+    // We only change the providerId, keeping the original eligibility params (min/max/error)
+    router.push(`/loan?${params.toString()}`, { scroll: false });
   }
   
   const handleRepay = (loan: LoanDetails) => {
@@ -139,7 +141,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }
 
   const handleBack = () => {
-    router.push('/loan');
+    router.push('/check-eligibility/select-customer');
   }
 
   return (
