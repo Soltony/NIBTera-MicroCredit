@@ -8,44 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ScoringParameter } from '@/lib/types';
+import { evaluateCondition } from '@/lib/types';
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
 }
-
-const evaluateCondition = (inputValue: string | number, condition: string, ruleValue: string): boolean => {
-    if (inputValue === undefined) return false;
-    
-    const numericInputValue = typeof inputValue === 'string' ? parseFloat(inputValue) : inputValue;
-    const isNumericComparison = !isNaN(numericInputValue) && !isNaN(parseFloat(ruleValue.split('-')[0]));
-    
-    if (isNumericComparison) {
-        if (condition === 'between') {
-            const [min, max] = ruleValue.split('-').map(parseFloat);
-            if (isNaN(min) || isNaN(max)) return false;
-            return numericInputValue >= min && numericInputValue <= max;
-        }
-
-        const numericRuleValue = parseFloat(ruleValue);
-        if (isNaN(numericRuleValue)) return false;
-
-        switch (condition) {
-            case '>': return numericInputValue > numericRuleValue;
-            case '<': return numericInputValue < numericRuleValue;
-            case '>=': return numericInputValue >= numericRuleValue;
-            case '<=': return numericInputValue <= numericRuleValue;
-            case '==': return numericInputValue == numericRuleValue;
-            case '!=': return numericInputValue != numericRuleValue;
-            default: return false;
-        }
-    } else {
-         switch (condition) {
-            case '==': return String(inputValue).toLowerCase() == ruleValue.toLowerCase();
-            case '!=': return String(inputValue).toLowerCase() != ruleValue.toLowerCase();
-            default: return false;
-        }
-    }
-};
 
 export function ScorePreview({ parameters }: ScorePreviewProps) {
   const [applicantData, setApplicantData] = useState<Record<string, string>>({});
