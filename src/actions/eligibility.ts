@@ -84,7 +84,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     const customerLoanHistory = JSON.parse(customer.loanHistory);
     const customerDataForScoring = {
         age: customer.age,
-        monthlyIncome: customer.monthlySalary,
+        monthlyIncome: customer.monthlySalary, // This is the corrected line
         ...customerLoanHistory
     };
 
