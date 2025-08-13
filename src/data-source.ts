@@ -1,3 +1,4 @@
+
 import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
@@ -10,6 +11,7 @@ import { Payment } from './entities/Payment';
 import { ScoringParameter } from './entities/ScoringParameter';
 import { ScoringParameterRule } from './entities/ScoringParameterRule';
 import { ScoringConfigurationHistory } from './entities/ScoringConfigurationHistory';
+import { Customer } from './entities/Customer';
 
 export const AppDataSource = new DataSource({
   type: 'oracle',
@@ -27,7 +29,8 @@ export const AppDataSource = new DataSource({
     Payment,
     ScoringParameter,
     ScoringParameterRule,
-    ScoringConfigurationHistory
+    ScoringConfigurationHistory,
+    Customer,
   ],
   migrations: [],
   subscribers: [],

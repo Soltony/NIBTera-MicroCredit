@@ -10,6 +10,7 @@ import { Payment } from '@/entities/Payment';
 import { ScoringParameter } from '@/entities/ScoringParameter';
 import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
+import { Customer } from '@/entities/Customer';
 import bcrypt from 'bcryptjs';
 
 class MainSeeder {
@@ -26,24 +27,21 @@ class MainSeeder {
       const scoringRuleRepository = manager.getRepository(ScoringParameterRule);
       const scoringParamRepository = manager.getRepository(ScoringParameter);
       const userRepository = manager.getRepository(User);
-      // Prisma join table was named `_scoring_config_history_to_products`, TypeORM manages this.
       const scoringHistoryRepository = manager.getRepository(ScoringConfigurationHistory);
       const productRepository = manager.getRepository(LoanProduct);
       const providerRepository = manager.getRepository(LoanProvider);
       const roleRepository = manager.getRepository(Role);
+      const customerRepository = manager.getRepository(Customer);
       
       console.log('Starting seeding...');
       
       // Clean up existing data to ensure idempotency.
-      // Order is important due to foreign key constraints.
       await paymentRepository.clear();
       await loanDetailsRepository.clear();
       await scoringRuleRepository.clear();
       await scoringParamRepository.clear();
       
-      // For Many-to-Many, TypeORM needs a bit more help to clear the join table.
-      // Easiest way is to delete the entities that own the relation.
-      const histories = await scoringHistoryRepository.find();
+      const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
       for (const history of histories) {
         history.appliedProducts = [];
         await scoringHistoryRepository.save(history);
@@ -54,6 +52,7 @@ class MainSeeder {
       await productRepository.clear();
       await providerRepository.clear();
       await roleRepository.clear();
+      await customerRepository.clear();
       console.log('Deleted existing data.');
 
       const salt = await bcrypt.genSalt(10);
@@ -275,6 +274,36 @@ class MainSeeder {
         { parameter: incomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
       ]);
       console.log('Seeded scoring parameters');
+
+      // 6. Seed Customers
+      await customerRepository.save([
+        {
+          age: 30,
+          monthlySalary: 5500,
+          transactionHistory: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
+          gender: 'Male',
+          loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
+          educationLevel: "Bachelor's Degree",
+        },
+        {
+          age: 22,
+          monthlySalary: 2500,
+          transactionHistory: JSON.stringify({ transactions: 50, averageBalance: 500 }),
+          gender: 'Female',
+          loanHistory: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
+          educationLevel: 'High School',
+        },
+        {
+          age: 45,
+          monthlySalary: 15000,
+          transactionHistory: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
+          gender: 'Female',
+          loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
+          educationLevel: "Master's Degree",
+        },
+      ]);
+      console.log('Seeded customers');
+
 
       console.log('Seeding finished successfully.');
     } catch (err) {
