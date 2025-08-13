@@ -74,6 +74,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const { addPayment } = useLoanHistory(initialLoanHistory);
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
+  
+  // This is the fix: determine eligibility based on the presence of the 'error' param.
+  const isEligible = !eligibilityError;
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
@@ -186,7 +189,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                       </div>
                   </div>
 
-                  {eligibilityError && (
+                  {!isEligible && (
                      <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Eligibility Check Failed</AlertTitle>
@@ -194,11 +197,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     </Alert>
                   )}
 
-                  <LoanSummaryCard
-                      maxLoanLimit={maxLoanLimit}
-                      availableToBorrow={availableToBorrow}
-                      color={selectedProvider?.colorHex}
-                  />
+                  {isEligible && (
+                    <LoanSummaryCard
+                        maxLoanLimit={maxLoanLimit}
+                        availableToBorrow={availableToBorrow}
+                        color={selectedProvider?.colorHex}
+                    />
+                  )}
               
                   <div className="grid gap-8 grid-cols-1">
                       <div>
@@ -285,7 +290,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                           </Accordion>
                       </div>
                       <div>
-                      {selectedProvider && !eligibilityError && (
+                      {selectedProvider && isEligible && (
                           <Card>
                               <CardHeader>
                                   <CardTitle>Available Loan Products</CardTitle>
