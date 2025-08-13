@@ -17,9 +17,9 @@ export class Customer {
   @IsNumber()
   age!: number;
 
-  @Column({ type: 'number', name: 'monthly_salary', precision: 10, scale: 2 })
+  @Column({ type: 'number', name: 'monthly_income', precision: 10, scale: 2 })
   @IsNumber()
-  monthlySalary!: number;
+  monthlyIncome!: number;
 
   @Column({ type: 'clob', name: 'transaction_history' })
   @IsNotEmpty()

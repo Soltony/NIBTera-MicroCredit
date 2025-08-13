@@ -279,7 +279,7 @@ class MainSeeder {
       await customerRepository.save([
         {
           age: 30,
-          monthlySalary: 5500,
+          monthlyIncome: 5500,
           transactionHistory: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
           gender: 'Male',
           loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
@@ -287,7 +287,7 @@ class MainSeeder {
         },
         {
           age: 22,
-          monthlySalary: 2500,
+          monthlyIncome: 2500,
           transactionHistory: JSON.stringify({ transactions: 50, averageBalance: 500 }),
           gender: 'Female',
           loanHistory: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
@@ -295,7 +295,7 @@ class MainSeeder {
         },
         {
           age: 45,
-          monthlySalary: 15000,
+          monthlyIncome: 15000,
           transactionHistory: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
           gender: 'Female',
           loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),

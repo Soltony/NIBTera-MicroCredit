@@ -12,7 +12,7 @@ async function getCustomers() {
     return customers.map(c => ({
         id: String(c.id),
         age: c.age,
-        monthlySalary: c.monthlySalary,
+        monthlyIncome: c.monthlyIncome,
         gender: c.gender,
         educationLevel: c.educationLevel,
         loanHistory: JSON.parse(c.loanHistory),

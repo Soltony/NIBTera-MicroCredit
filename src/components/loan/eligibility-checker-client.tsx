@@ -26,7 +26,7 @@ import { Logo } from '../icons';
 interface CustomerData {
   id: string;
   age: number;
-  monthlySalary: number;
+  monthlyIncome: number;
   gender: string;
   educationLevel: string;
   loanHistory: { totalLoans: number; onTimeRepayments: number };
@@ -85,7 +85,7 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
                                         <TableHead>Gender</TableHead>
                                         <TableHead>Education</TableHead>
                                         <TableHead>Loan History</TableHead>
-                                        <TableHead className="text-right">Monthly Salary</TableHead>
+                                        <TableHead className="text-right">Monthly Income</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -101,7 +101,7 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
                                             <TableCell>{customer.gender}</TableCell>
                                             <TableCell>{customer.educationLevel}</TableCell>
                                             <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} loans paid on time`}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(customer.monthlySalary)}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(customer.monthlyIncome)}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -125,4 +125,3 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
     </div>
   );
 }
-
