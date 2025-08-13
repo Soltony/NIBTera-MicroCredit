@@ -25,12 +25,10 @@ export class User {
   @Length(2, 255)
   fullName!: string;
 
-  @Index({ unique: true })
   @Column({ type: 'varchar2', length: 255, unique: true })
   @IsEmail()
   email!: string;
 
-  @Index({ unique: true })
   @Column({ type: 'varchar2', length: 255, unique: true, name: 'phone_number' })
   @Length(10, 20)
   phoneNumber!: string;

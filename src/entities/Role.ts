@@ -16,7 +16,6 @@ export class Role {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
   id!: number;
 
-  @Index({ unique: true })
   @Column({ type: 'varchar2', length: 255, unique: true })
   @IsNotEmpty()
   @Length(2, 255)
