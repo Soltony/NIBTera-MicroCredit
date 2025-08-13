@@ -9,46 +9,54 @@ import { LoanDetails } from '@/entities/LoanDetails';
 import { Payment } from '@/entities/Payment';
 import { ScoringParameter } from '@/entities/ScoringParameter';
 import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
+import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import bcrypt from 'bcryptjs';
 
 class MainSeeder {
   public async run(): Promise<void> {
-    await AppDataSource.initialize();
-    console.log('Database connection initialized.');
-
-    // Use a query runner for transaction
-    const queryRunner = AppDataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     try {
-      console.log('Starting seeding...');
+      await AppDataSource.initialize();
+      console.log('Database connection initialized.');
+      
+      const manager = AppDataSource.manager;
 
-      // Clean up existing data to ensure idempotency
-      // Note: Order is important due to foreign key constraints
-      await queryRunner.manager.query('DELETE FROM payments');
-      await queryRunner.manager.query('DELETE FROM loan_details');
-      await queryRunner.manager.query('DELETE FROM scoring_parameter_rules');
-      await queryRunner.manager.query('DELETE FROM scoring_parameters');
-      await queryRunner.manager.query('DELETE FROM users');
-      await queryRunner.manager.query('DELETE FROM _scoring_config_history_to_products');
-      await queryRunner.manager.query('DELETE FROM scoring_configuration_history');
-      await queryRunner.manager.query('DELETE FROM loan_products');
-      await queryRunner.manager.query('DELETE FROM loan_providers');
-      await queryRunner.manager.query('DELETE FROM roles');
+      // Repositories
+      const paymentRepository = manager.getRepository(Payment);
+      const loanDetailsRepository = manager.getRepository(LoanDetails);
+      const scoringRuleRepository = manager.getRepository(ScoringParameterRule);
+      const scoringParamRepository = manager.getRepository(ScoringParameter);
+      const userRepository = manager.getRepository(User);
+      // Prisma join table was named `_scoring_config_history_to_products`, TypeORM manages this.
+      const scoringHistoryRepository = manager.getRepository(ScoringConfigurationHistory);
+      const productRepository = manager.getRepository(LoanProduct);
+      const providerRepository = manager.getRepository(LoanProvider);
+      const roleRepository = manager.getRepository(Role);
+      
+      console.log('Starting seeding...');
+      
+      // Clean up existing data to ensure idempotency.
+      // Order is important due to foreign key constraints.
+      await paymentRepository.clear();
+      await loanDetailsRepository.clear();
+      await scoringRuleRepository.clear();
+      await scoringParamRepository.clear();
+      
+      // For Many-to-Many, TypeORM needs a bit more help to clear the join table.
+      // Easiest way is to delete the entities that own the relation.
+      const histories = await scoringHistoryRepository.find();
+      for (const history of histories) {
+        history.appliedProducts = [];
+        await scoringHistoryRepository.save(history);
+      }
+      await scoringHistoryRepository.clear();
+      
+      await userRepository.clear();
+      await productRepository.clear();
+      await providerRepository.clear();
+      await roleRepository.clear();
       console.log('Deleted existing data.');
 
       const salt = await bcrypt.genSalt(10);
-
-      // Repositories
-      const roleRepository = queryRunner.manager.getRepository(Role);
-      const userRepository = queryRunner.manager.getRepository(User);
-      const providerRepository = queryRunner.manager.getRepository(LoanProvider);
-      const productRepository = queryRunner.manager.getRepository(LoanProduct);
-      const loanDetailsRepository = queryRunner.manager.getRepository(LoanDetails);
-      const paymentRepository = queryRunner.manager.getRepository(Payment);
-      const scoringParamRepository = queryRunner.manager.getRepository(ScoringParameter);
-      const scoringRuleRepository = queryRunner.manager.getRepository(ScoringParameterRule);
 
       // 1. Seed Roles
       const superAdminRole = roleRepository.create({
@@ -268,15 +276,14 @@ class MainSeeder {
       ]);
       console.log('Seeded scoring parameters');
 
-      await queryRunner.commitTransaction();
       console.log('Seeding finished successfully.');
     } catch (err) {
       console.error('Error during seeding:', err);
-      await queryRunner.rollbackTransaction();
     } finally {
-      await queryRunner.release();
-      await AppDataSource.destroy();
-      console.log('Database connection closed.');
+      if (AppDataSource.isInitialized) {
+        await AppDataSource.destroy();
+        console.log('Database connection closed.');
+      }
     }
   }
 }
@@ -284,4 +291,5 @@ class MainSeeder {
 const seeder = new MainSeeder();
 seeder.run().catch((err) => {
   console.error('Failed to run seeder', err);
+  process.exit(1);
 });
