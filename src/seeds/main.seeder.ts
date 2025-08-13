@@ -256,30 +256,50 @@ class MainSeeder {
         });
         console.log('Seeded loan history');
 
-        // 5. Seed Scoring Parameters for NIb Bank only
-        const nibAgeParam = await scoringParamRepository.save({
-          provider: nibBank, name: 'Age', weight: 20,
-        });
+        // 5. Seed Scoring Parameters for all providers
+        
+        // NIb Bank
+        const nibAgeParam = await scoringParamRepository.save({ provider: nibBank, name: 'Age', weight: 20 });
         await scoringRuleRepository.save([
           { parameter: nibAgeParam, field: 'age', condition: '>=', value: '35', score: 20 },
           { parameter: nibAgeParam, field: 'age', condition: '<', value: '25', score: 5 },
         ]);
-        const nibHistoryParam = await scoringParamRepository.save({
-          provider: nibBank, name: 'Loan History', weight: 30,
-        });
+        const nibHistoryParam = await scoringParamRepository.save({ provider: nibBank, name: 'Loan History', weight: 30 });
         await scoringRuleRepository.save([
           { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
           { parameter: nibHistoryParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
         ]);
-        const nibIncomeParam = await scoringParamRepository.save({
-          provider: nibBank, name: 'Income Level', weight: 50,
-        });
+        const nibIncomeParam = await scoringParamRepository.save({ provider: nibBank, name: 'Income Level', weight: 50 });
          await scoringRuleRepository.save([
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
         ]);
+
+        // Capital Bank
+        const capIncomeParam = await scoringParamRepository.save({ provider: capitalBank, name: 'Income Level', weight: 70 });
+        await scoringRuleRepository.save([
+            { parameter: capIncomeParam, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
+            { parameter: capIncomeParam, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
+            { parameter: capIncomeParam, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
+        ]);
+        const capEduParam = await scoringParamRepository.save({ provider: capitalBank, name: 'Education Level', weight: 30 });
+        await scoringRuleRepository.save([
+            { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Master\'s Degree', score: 40 },
+            { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Bachelor\'s Degree', score: 25 },
+        ]);
         
-        console.log('Seeded scoring parameters');
+        // Providus Financial
+        const provGenderParam = await scoringParamRepository.save({ provider: providusFinancial, name: 'Gender', weight: 10 });
+        await scoringRuleRepository.save([
+            { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Female', score: 10 },
+        ]);
+        const provLoanHistoryParam = await scoringParamRepository.save({ provider: providusFinancial, name: 'Loan History', weight: 90 });
+         await scoringRuleRepository.save([
+            { parameter: provLoanHistoryParam, field: 'onTimeRepayments', condition: '>=', value: '10', score: 100 },
+            { parameter: provLoanHistoryParam, field: 'totalLoans', condition: '>', value: '5', score: 60 },
+        ]);
+
+        console.log('Seeded scoring parameters for all providers.');
 
         // 6. Seed Customers
         await customerRepository.save([
