@@ -90,10 +90,11 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                 <DialogHeader className="p-6 pb-2 flex-row justify-between items-center">
                     <DialogTitle className="text-center text-xl flex-1">Set Amount</DialogTitle>
                     <DialogClose asChild>
-                        <Button
+                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-full"
+                            className="h-8 w-8 rounded-full hover:bg-primary/10"
+                            style={{'--primary': providerColor} as React.CSSProperties}
                         >
                             <X className="h-5 w-5" style={{ color: providerColor }}/>
                         </Button>
@@ -108,7 +109,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                             placeholder="0.00"
                             className={cn(
                                 "w-full text-center text-4xl font-bold border-b-2 py-2 bg-transparent outline-none",
-                                error ? "border-destructive" : ""
+                                error ? "border-destructive ring-destructive ring-2" : ""
                             )}
                             style={{ borderColor: error ? 'hsl(var(--destructive))' : providerColor }}
                         />
