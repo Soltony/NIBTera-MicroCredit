@@ -168,6 +168,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
 
 export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number): Promise<{score: number, maxLoanAmount: number}> {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
         const customer = await AppDataSource.getRepository(Customer).findOneBy({ id: customerId });
         if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
