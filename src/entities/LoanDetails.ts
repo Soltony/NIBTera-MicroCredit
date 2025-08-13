@@ -17,59 +17,59 @@ import { Payment } from './Payment';
 @Entity({ name: 'loan_details' })
 export class LoanDetails {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'provider_id' })
-  providerId: number;
+  providerId!: number;
 
   @ManyToOne(() => LoanProvider, (provider) => provider.loans)
   @JoinColumn({ name: 'provider_id' })
-  provider: LoanProvider;
+  provider!: LoanProvider;
 
   @Column({ name: 'product_id' })
-  productId: number;
+  productId!: number;
 
   @ManyToOne(() => LoanProduct, (product) => product.loans)
   @JoinColumn({ name: 'product_id' })
-  product: LoanProduct;
+  product!: LoanProduct;
 
   @Column({ type: 'number', name: 'loan_amount', precision: 10, scale: 2 })
   @IsNumber()
-  loanAmount: number;
+  loanAmount!: number;
 
   @Column({ type: 'number', name: 'service_fee', precision: 10, scale: 2 })
   @IsNumber()
-  serviceFee: number;
+  serviceFee!: number;
 
   @Column({ type: 'number', name: 'interest_rate', precision: 10, scale: 4 })
   @IsNumber()
-  interestRate: number;
+  interestRate!: number;
 
   @Column({ type: 'date', name: 'disbursed_date' })
   @IsDate()
-  disbursedDate: Date;
+  disbursedDate!: Date;
 
   @Column({ type: 'date', name: 'due_date' })
   @IsDate()
-  dueDate: Date;
+  dueDate!: Date;
 
   @Column({ type: 'number', name: 'penalty_amount', precision: 10, scale: 2 })
   @IsNumber()
-  penaltyAmount: number;
+  penaltyAmount!: number;
 
   @Column({ type: 'varchar2', length: 50, name: 'repayment_status' })
   @IsNotEmpty()
-  repaymentStatus: string;
+  repaymentStatus!: string;
 
   @Column({ type: 'number', name: 'repaid_amount', precision: 10, scale: 2, nullable: true })
-  repaidAmount: number | null;
+  repaidAmount!: number | null;
 
   @OneToMany(() => Payment, (payment) => payment.loan)
-  payments: Payment[];
+  payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ type: 'timestamp', name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

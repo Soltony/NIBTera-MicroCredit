@@ -16,17 +16,17 @@ import { LoanProduct } from './LoanProduct';
 @Entity({ name: 'scoring_configuration_history' })
 export class ScoringConfigurationHistory {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'provider_id' })
-  providerId: number;
+  providerId!: number;
 
   @ManyToOne(() => LoanProvider, (provider) => provider.scoringConfigurationHistory)
   @JoinColumn({ name: 'provider_id' })
-  provider: LoanProvider;
+  provider!: LoanProvider;
 
   @Column({ type: 'clob' })
-  parameters: string; // Stored as a JSON string
+  parameters!: string; // Stored as a JSON string
 
   @ManyToMany(() => LoanProduct)
   @JoinTable({
@@ -40,8 +40,8 @@ export class ScoringConfigurationHistory {
       referencedColumnName: 'id',
     },
   })
-  appliedProducts: LoanProduct[];
+  appliedProducts!: LoanProduct[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'saved_at' })
-  savedAt: Date;
+  savedAt!: Date;
 }

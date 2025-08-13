@@ -14,30 +14,30 @@ import { LoanDetails } from './LoanDetails';
 @Entity({ name: 'payments' })
 export class Payment {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'loan_id' })
-  loanId: number;
+  loanId!: number;
 
   @ManyToOne(() => LoanDetails, (loan) => loan.payments)
   @JoinColumn({ name: 'loan_id' })
-  loan: LoanDetails;
+  loan!: LoanDetails;
 
   @Column({ type: 'number', precision: 10, scale: 2 })
   @IsNumber()
-  amount: number;
+  amount!: number;
 
   @Column({ type: 'date' })
   @IsDate()
-  date: Date;
+  date!: Date;
 
   @Column({ type: 'number', name: 'outstanding_balance_before_payment', precision: 10, scale: 2 })
   @IsNumber()
-  outstandingBalanceBeforePayment: number;
+  outstandingBalanceBeforePayment!: number;
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ type: 'timestamp', name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

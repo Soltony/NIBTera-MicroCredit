@@ -16,29 +16,29 @@ import { ScoringParameterRule } from './ScoringParameterRule';
 @Entity({ name: 'scoring_parameters' })
 export class ScoringParameter {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'provider_id' })
-  providerId: number;
+  providerId!: number;
 
   @ManyToOne(() => LoanProvider, (provider) => provider.scoringParameters)
   @JoinColumn({ name: 'provider_id' })
-  provider: LoanProvider;
+  provider!: LoanProvider;
 
   @Column({ type: 'varchar2', length: 255 })
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @Column({ type: 'number' })
   @IsNumber()
-  weight: number;
+  weight!: number;
 
   @OneToMany(() => ScoringParameterRule, (rule) => rule.parameter)
-  rules: ScoringParameterRule[];
+  rules!: ScoringParameterRule[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ type: 'timestamp', name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }
