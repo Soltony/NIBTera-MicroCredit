@@ -1,12 +1,17 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { AppDataSource } from '@/data-source';
+import { Role } from '@/entities/Role';
+import { User } from '@/entities/User';
+import { In } from 'typeorm';
 
 // GET all roles
 export async function GET() {
     try {
-        const roles = await prisma.role.findMany();
-        return NextResponse.json(roles);
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const roleRepo = AppDataSource.getRepository(Role);
+        const roles = await roleRepo.find();
+        return NextResponse.json(roles.map(r => ({...r, id: String(r.id), permissions: JSON.parse(r.permissions) })));
     } catch (error) {
         console.error('Error fetching roles:', error);
         return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
@@ -16,13 +21,15 @@ export async function GET() {
 // POST a new role
 export async function POST(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const roleRepo = AppDataSource.getRepository(Role);
         const { name, permissions } = await req.json();
 
         if (!name || !permissions) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
         
-        const existingRole = await prisma.role.findUnique({
+        const existingRole = await roleRepo.findOne({
             where: { name },
         });
 
@@ -30,12 +37,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Role with this name already exists.' }, { status: 409 });
         }
 
-        const newRole = await prisma.role.create({
-            data: {
-                name,
-                permissions,
-            },
+        const newRole = roleRepo.create({
+            name,
+            permissions: JSON.stringify(permissions),
         });
+        await roleRepo.save(newRole);
 
         return NextResponse.json(newRole, { status: 201 });
     } catch (error) {
@@ -47,16 +53,21 @@ export async function POST(req: Request) {
 // PUT (update) a role
 export async function PUT(req: Request) {
      try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const roleRepo = AppDataSource.getRepository(Role);
         const { id, ...updateData } = await req.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
+        
+        if (updateData.permissions) {
+            updateData.permissions = JSON.stringify(updateData.permissions);
+        }
 
-        const updatedRole = await prisma.role.update({
-            where: { id },
-            data: updateData,
-        });
+        await roleRepo.update(id, updateData);
+        const updatedRole = await roleRepo.findOneBy({id: Number(id)});
+
 
         return NextResponse.json(updatedRole);
     } catch (error) {
@@ -68,15 +79,23 @@ export async function PUT(req: Request) {
 // DELETE a role
 export async function DELETE(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const roleRepo = AppDataSource.getRepository(Role);
+        const userRepo = AppDataSource.getRepository(User);
         const { id } = await req.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
+        
+        const roleToDelete = await roleRepo.findOneBy({id: Number(id)});
+        if (!roleToDelete) {
+             return NextResponse.json({ error: 'Role not found' }, { status: 404 });
+        }
 
         // Check if any users are assigned to this role
-        const usersInRole = await prisma.user.count({
-            where: { role: { id } },
+        const usersInRole = await userRepo.count({
+            where: { roleName: roleToDelete.name },
         });
 
         if (usersInRole > 0) {
@@ -84,9 +103,7 @@ export async function DELETE(req: Request) {
         }
 
 
-        await prisma.role.delete({
-            where: { id },
-        });
+        await roleRepo.delete(id);
 
         return NextResponse.json({ message: 'Role deleted successfully' }, { status: 200 });
     } catch (error) {

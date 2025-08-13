@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { AppDataSource } from '@/data-source';
+import { LoanProduct } from '@/entities/LoanProduct';
 import { z } from 'zod';
 
 const productSchema = z.object({
@@ -26,6 +27,9 @@ const updateProductSchema = productSchema.extend({
 // POST a new product
 export async function POST(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const productRepo = AppDataSource.getRepository(LoanProduct);
+
         const body = await req.json();
         const validation = createProductSchema.safeParse(body);
         if (!validation.success) {
@@ -34,15 +38,12 @@ export async function POST(req: Request) {
         
         const { providerId, ...productData } = validation.data;
 
-        const newProduct = await prisma.loanProduct.create({
-            data: {
-                ...productData,
-                status: 'Active',
-                provider: {
-                    connect: { id: providerId }
-                }
-            },
+        const newProduct = productRepo.create({
+            ...productData,
+            providerId: Number(providerId),
+            status: 'Active',
         });
+        await productRepo.save(newProduct);
 
         return NextResponse.json(newProduct, { status: 201 });
     } catch (error) {
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
 // PUT (update) a product
 export async function PUT(req: Request) {
      try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const productRepo = AppDataSource.getRepository(LoanProduct);
+
         const body = await req.json();
         const validation = updateProductSchema.safeParse(body);
          if (!validation.success) {
@@ -62,10 +66,9 @@ export async function PUT(req: Request) {
         
         const { id, ...updateData } = validation.data;
 
-        const updatedProduct = await prisma.loanProduct.update({
-            where: { id },
-            data: updateData,
-        });
+        await productRepo.update(id, updateData);
+        const updatedProduct = await productRepo.findOneBy({ id: Number(id) });
+
 
         return NextResponse.json(updatedProduct);
     } catch (error) {
@@ -77,6 +80,9 @@ export async function PUT(req: Request) {
 // DELETE a product
 export async function DELETE(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const productRepo = AppDataSource.getRepository(LoanProduct);
+
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
 
@@ -84,9 +90,7 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
         }
 
-        await prisma.loanProduct.delete({
-            where: { id },
-        });
+        await productRepo.delete(id);
 
         return NextResponse.json({ message: 'Product deleted successfully' }, { status: 200 });
     } catch (error) {

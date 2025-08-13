@@ -1,11 +1,17 @@
 
 import {NextResponse} from 'next/server';
-import {prisma} from '@/lib/prisma';
+import {AppDataSource} from '@/data-source';
+import {User} from '@/entities/User';
 import bcrypt from 'bcryptjs';
 import {createSession} from '@/lib/session';
 
 export async function POST(req: Request) {
   try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const userRepo = AppDataSource.getRepository(User);
+
     const {phoneNumber, password} = await req.json();
 
     if (!phoneNumber || !password) {
@@ -15,11 +21,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await userRepo.findOne({
       where: {phoneNumber},
     });
 
-    if (!user) {
+    if (!user || !user.password) {
       return NextResponse.json(
         {error: 'Invalid phone number or password.'},
         {status: 401}
@@ -35,7 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await createSession(user.id);
+    await createSession(String(user.id));
 
     return NextResponse.json({message: 'Login successful'}, {status: 200});
   } catch (error) {

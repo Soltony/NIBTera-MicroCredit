@@ -1,26 +1,34 @@
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
-import { prisma } from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
+import { AppDataSource } from '@/data-source';
+import { LoanDetails } from '@/entities/LoanDetails';
+import { User } from '@/entities/User';
+import { LoanProduct } from '@/entities/LoanProduct';
+import { LoanProvider } from '@/entities/LoanProvider';
+import { MoreThanOrEqual, LessThan, LessThanOrEqual, MoreThan, FindOptionsWhere, In } from 'typeorm';
 
 async function getDashboardData() {
     const currentUser = await getUserFromSession();
+    if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+    }
+    const loanRepo = AppDataSource.getRepository(LoanDetails);
+    const userRepo = AppDataSource.getRepository(User);
+    const productRepo = AppDataSource.getRepository(LoanProduct);
+    const providerRepo = AppDataSource.getRepository(LoanProvider);
     
-    const whereClause: any = {};
+    const whereClause: FindOptionsWhere<LoanDetails> | FindOptionsWhere<LoanDetails>[] = {};
     if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
-        whereClause.providerId = currentUser.providerId;
+        whereClause.providerId = Number(currentUser.providerId);
     }
 
-    const allLoans = await prisma.loanDetails.findMany({
+    const allLoans = await loanRepo.find({
         where: whereClause,
-        include: {
-            payments: true,
-            provider: true,
-            product: true,
-        },
-        orderBy: {
-            disbursedDate: 'desc',
+        relations: ['payments', 'provider', 'product'],
+        order: {
+            disbursedDate: 'DESC',
         },
     });
 
@@ -42,7 +50,11 @@ async function getDashboardData() {
         (loan) => loan.repaymentStatus === 'Unpaid' && new Date() > new Date(loan.dueDate)
     ).length;
 
-    const users = await prisma.user.findMany({ where: whereClause.providerId ? { providerId: whereClause.providerId } : {} });
+    const userWhere: FindOptionsWhere<User> = {};
+    if (whereClause.providerId) {
+        userWhere.providerId = whereClause.providerId;
+    }
+    const users = await userRepo.find({ where: userWhere });
     const totalUsers = users.length;
     
     // Loan Disbursement Chart Data
@@ -52,13 +64,10 @@ async function getDashboardData() {
     for (const date of dateRange) {
         const start = startOfDay(date);
         const end = endOfDay(date);
-        const dailyLoans = await prisma.loanDetails.findMany({
+        const dailyLoans = await loanRepo.find({
             where: {
                 ...whereClause,
-                disbursedDate: {
-                    gte: start,
-                    lt: end,
-                }
+                disbursedDate: MoreThanOrEqual(start) && LessThan(end),
             }
         });
         const dailyTotal = dailyLoans.reduce((sum, loan) => sum + loan.loanAmount, 0);
@@ -79,27 +88,32 @@ async function getDashboardData() {
     ];
 
     // Loan Products Overview
-    const productOverview = await prisma.loanProduct.groupBy({
-        by: ['name', 'providerId'],
-        _count: { id: true },
-        where: whereClause.providerId ? { providerId: whereClause.providerId } : {},
-    });
+    const productStats = await productRepo.createQueryBuilder("product")
+        .leftJoin("product.loans", "loan")
+        .select("product.name", "name")
+        .addSelect("product.providerId", "providerId")
+        .addSelect("COUNT(loan.id)", "total")
+        .groupBy("product.name")
+        .addGroupBy("product.providerId")
+        .where(whereClause.providerId ? `product.providerId = ${whereClause.providerId}`: '1=1')
+        .getRawMany();
 
-    const productsWithDetails = await Promise.all(productOverview.map(async (p) => {
-        const provider = await prisma.loanProvider.findUnique({ where: { id: p.providerId } });
-        const activeLoans = await prisma.loanDetails.count({
+
+    const productsWithDetails = await Promise.all(productStats.map(async (p) => {
+        const provider = await providerRepo.findOne({ where: { id: p.providerId } });
+        const activeLoans = await loanRepo.count({
             where: {
-                ...whereClause,
+                providerId: whereClause.providerId,
                 product: { name: p.name },
                 repaymentStatus: 'Unpaid',
             }
         });
-        const defaultedLoans = await prisma.loanDetails.count({
+        const defaultedLoans = await loanRepo.count({
             where: {
-                ...whereClause,
+                providerId: whereClause.providerId,
                 product: { name: p.name },
                 repaymentStatus: 'Unpaid',
-                dueDate: { lt: new Date() }
+                dueDate: LessThan(new Date())
             }
         });
         return {
@@ -107,12 +121,12 @@ async function getDashboardData() {
             provider: provider?.name || 'N/A',
             active: activeLoans,
             defaulted: defaultedLoans,
-            total: p._count.id,
-            defaultRate: p._count.id > 0 ? (defaultedLoans / p._count.id) * 100 : 0
+            total: p.total,
+            defaultRate: p.total > 0 ? (defaultedLoans / p.total) * 100 : 0
         };
     }));
 
-    const providers = await prisma.loanProvider.findMany();
+    const providers = await providerRepo.find();
 
     return {
         totalLoans,
@@ -124,14 +138,14 @@ async function getDashboardData() {
         loanDisbursementData,
         loanStatusData,
         recentActivity: allLoans.slice(0, 5).map(loan => ({
-            id: loan.id,
+            id: String(loan.id),
             customer: loan.provider.name,
             product: loan.product.name,
             status: loan.repaymentStatus,
             amount: loan.loanAmount
         })),
         productOverview: productsWithDetails,
-        providers,
+        providers: providers.map(p => ({...p, id: String(p.id)})),
     };
 }
 
@@ -139,5 +153,5 @@ async function getDashboardData() {
 export default async function AdminDashboard() {
     const data = await getDashboardData();
 
-    return <DashboardClient initialData={data} />;
+    return <DashboardClient initialData={data as any} />;
 }

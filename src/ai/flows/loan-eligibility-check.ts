@@ -7,7 +7,9 @@
  */
 
 import type { CheckLoanEligibilityInput, CheckLoanEligibilityOutput } from '@/lib/types';
-import { prisma } from '@/lib/prisma';
+import { AppDataSource } from '@/data-source';
+import { LoanProvider } from '@/entities/LoanProvider';
+import { In } from 'typeorm';
 
 export async function checkLoanEligibility(input: CheckLoanEligibilityInput): Promise<CheckLoanEligibilityOutput> {
   
@@ -19,10 +21,13 @@ export async function checkLoanEligibility(input: CheckLoanEligibilityInput): Pr
       reason: 'A provider must be selected to check eligibility.',
     };
   }
+  
+  if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+  const providerRepo = AppDataSource.getRepository(LoanProvider);
 
-  const provider = await prisma.loanProvider.findUnique({
-    where: { id: providerId },
-    include: { products: { where: { status: 'Active' } } }
+  const provider = await providerRepo.findOne({
+    where: { id: Number(providerId) },
+    relations: ['products']
   });
 
   if (!provider) {
@@ -32,7 +37,7 @@ export async function checkLoanEligibility(input: CheckLoanEligibilityInput): Pr
     };
   }
 
-  const activeProducts = provider.products;
+  const activeProducts = provider.products.filter(p => p.status === 'Active');
   if (activeProducts.length === 0) {
      return {
       isEligible: false,

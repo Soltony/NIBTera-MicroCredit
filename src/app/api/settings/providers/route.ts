@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { AppDataSource } from '@/data-source';
+import { LoanProvider } from '@/entities/LoanProvider';
 import { z } from 'zod';
 
 const providerSchema = z.object({
@@ -17,18 +18,18 @@ const updateProviderSchema = providerSchema.extend({
 // POST a new provider
 export async function POST(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const providerRepo = AppDataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
 
-        const newProvider = await prisma.loanProvider.create({
-            data: validation.data,
-            include: { products: true }
-        });
-
-        return NextResponse.json(newProvider, { status: 201 });
+        const newProvider = providerRepo.create(validation.data);
+        await providerRepo.save(newProvider);
+        
+        return NextResponse.json({ ...newProvider, products: [] }, { status: 201 });
     } catch (error) {
         console.error('Error creating provider:', error);
         return NextResponse.json({ error: 'Failed to create provider' }, { status: 500 });
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
 // PUT (update) a provider
 export async function PUT(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const providerRepo = AppDataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = updateProviderSchema.safeParse(body);
         if (!validation.success) {
@@ -46,10 +49,8 @@ export async function PUT(req: Request) {
         
         const { id, ...updateData } = validation.data;
 
-        const updatedProvider = await prisma.loanProvider.update({
-            where: { id },
-            data: updateData,
-        });
+        await providerRepo.update(id, updateData);
+        const updatedProvider = await providerRepo.findOneBy({id: Number(id)});
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
@@ -62,6 +63,8 @@ export async function PUT(req: Request) {
 // DELETE a provider
 export async function DELETE(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const providerRepo = AppDataSource.getRepository(LoanProvider);
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
         
@@ -69,9 +72,7 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
         }
 
-        await prisma.loanProvider.delete({
-            where: { id },
-        });
+        await providerRepo.delete(id);
 
         return NextResponse.json({ message: 'Provider deleted successfully' }, { status: 200 });
     } catch (error) {

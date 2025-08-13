@@ -1,8 +1,8 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { AppDataSource } from '@/data-source';
+import { LoanProvider } from '@/entities/LoanProvider';
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
-import type { LoanProvider } from '@/lib/types';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -16,25 +16,28 @@ const iconNameMap: { [key: string]: string } = {
 // GET all providers
 export async function GET() {
     try {
-        const providers = await prisma.loanProvider.findMany({
-            include: {
+        if (!AppDataSource.isInitialized) {
+            await AppDataSource.initialize();
+        }
+        const providerRepo = AppDataSource.getRepository(LoanProvider);
+        const providers = await providerRepo.find({
+            relations: ['products'],
+            order: {
+                displayOrder: 'ASC',
                 products: {
-                    orderBy: {
-                        name: 'asc'
-                    }
-                },
-            },
-            orderBy: {
-                displayOrder: 'asc'
+                    name: 'ASC'
+                }
             }
         });
         
         // Map the icon string to a name that can be looked up on the client
         const providersWithIconNames = providers.map(p => ({
             ...p,
+            id: String(p.id),
             icon: iconNameMap[p.icon] || 'Building2',
             products: p.products.map(prod => ({
                 ...prod,
+                id: String(prod.id),
                 icon: iconNameMap[prod.icon] || 'PersonStanding'
             }))
         }));

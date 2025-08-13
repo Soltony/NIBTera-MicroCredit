@@ -1,11 +1,17 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { AppDataSource } from '@/data-source';
+import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
+import { LoanProduct } from '@/entities/LoanProduct';
 import { getUserFromSession } from '@/lib/user';
+import { In } from 'typeorm';
 
 // GET history for a provider
 export async function GET(req: Request) {
     try {
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const historyRepo = AppDataSource.getRepository(ScoringConfigurationHistory);
+
         const { searchParams } = new URL(req.url);
         const providerId = searchParams.get('providerId');
 
@@ -13,20 +19,16 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
         }
 
-        const history = await prisma.scoringConfigurationHistory.findMany({
-            where: { providerId },
+        const history = await historyRepo.find({
+            where: { providerId: Number(providerId) },
             take: 5,
-            orderBy: {
-                savedAt: 'desc',
+            order: {
+                savedAt: 'DESC',
             },
-            include: {
-                appliedProducts: {
-                    select: { name: true },
-                },
-            },
+            relations: ['appliedProducts'],
         });
         
-        return NextResponse.json(history);
+        return NextResponse.json(history.map(h => ({...h, parameters: JSON.parse(h.parameters)})));
     } catch (error) {
         console.error('Error fetching scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -42,28 +44,31 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const historyRepo = AppDataSource.getRepository(ScoringConfigurationHistory);
+        const productRepo = AppDataSource.getRepository(LoanProduct);
+
         const { providerId, parameters, appliedProductIds } = await req.json();
 
         if (!providerId || !parameters || !appliedProductIds) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
         
-        const newHistoryEntry = await prisma.scoringConfigurationHistory.create({
-            data: {
-                providerId,
-                parameters: parameters,
-                appliedProducts: {
-                    connect: appliedProductIds.map((id: string) => ({ id })),
-                },
-            },
-             include: {
-                appliedProducts: {
-                    select: { name: true },
-                },
-            },
+        const appliedProducts = await productRepo.findBy({ id: In(appliedProductIds.map(Number)) });
+
+        const newHistoryEntry = historyRepo.create({
+            providerId: Number(providerId),
+            parameters: JSON.stringify(parameters),
+            appliedProducts: appliedProducts,
         });
 
-        return NextResponse.json(newHistoryEntry, { status: 201 });
+        const savedEntry = await historyRepo.save(newHistoryEntry);
+
+        return NextResponse.json({
+            ...savedEntry,
+            parameters: JSON.parse(savedEntry.parameters),
+            appliedProducts: savedEntry.appliedProducts.map(p => ({name: p.name}))
+        }, { status: 201 });
 
     } catch (error) {
         console.error('Error saving scoring history:', error);

@@ -1,26 +1,25 @@
 
-import { LoanDetailsView } from '@/components/loan/loan-details-view';
-import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { useLoanHistory } from '@/hooks/use-loan-history';
-import { prisma } from '@/lib/prisma';
-import type { LoanDetails, LoanProvider, LoanProduct } from '@/lib/types';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import type { LoanProvider } from '@/lib/types';
 import { ApplyClient } from './client';
+import { AppDataSource } from '@/data-source';
+import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 
 async function getProviders(): Promise<LoanProvider[]> {
-    const providers = await prisma.loanProvider.findMany({
-        include: {
-            products: true,
-        },
-        orderBy: {
-            displayOrder: 'asc'
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const providerRepo = AppDataSource.getRepository(LoanProviderEntity);
+    const providers = await providerRepo.find({
+        relations: ['products'],
+        order: {
+            displayOrder: 'ASC'
         }
     });
     return providers.map(p => ({
         ...p,
-    }));
+        id: String(p.id),
+        products: p.products.map(prod => ({...prod, id: String(prod.id)}))
+    })) as any[];
 }
 
 

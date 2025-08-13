@@ -1,31 +1,32 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/session';
+import { AppDataSource } from '@/data-source';
+import { LoanDetails } from '@/entities/LoanDetails';
+import { getUserFromSession } from '@/lib/user';
+import type { FindOptionsWhere } from 'typeorm';
 
 export async function GET() {
     try {
-        const currentUser = await getCurrentUser();
+        const currentUser = await getUserFromSession();
+        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+        const loanRepo = AppDataSource.getRepository(LoanDetails);
 
-        const whereClause: any = {};
+        const whereClause: FindOptionsWhere<LoanDetails> = {};
         if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
-            whereClause.providerId = currentUser.providerId;
+            whereClause.providerId = Number(currentUser.providerId);
         }
 
-        const loans = await prisma.loanDetails.findMany({
+        const loans = await loanRepo.find({
             where: whereClause,
-            include: {
-                provider: true,
-                product: true,
-                payments: true,
-            },
-            orderBy: {
-                disbursedDate: 'desc',
+            relations: ['provider', 'product', 'payments'],
+            order: {
+                disbursedDate: 'DESC',
             },
         });
 
         const loansToReturn = loans.map(loan => ({
             ...loan,
+            id: String(loan.id),
             providerName: loan.provider.name,
             productName: loan.product.name,
             paymentsCount: loan.payments.length,

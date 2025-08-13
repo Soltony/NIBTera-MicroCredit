@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { LoanProvider } from '@/lib/types';
-import { prisma } from '@/lib/prisma';
 
 export default function CheckEligibilityPage() {
   const router = useRouter();

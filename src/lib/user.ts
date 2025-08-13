@@ -1,20 +1,23 @@
 
 'use server';
 
-import {prisma} from './prisma';
-import {getSession} from './session';
+import { AppDataSource } from '@/data-source';
+import { User } from '@/entities/User';
+import { getSession } from './session';
 
 export async function getUserFromSession() {
   const session = await getSession();
   if (!session?.userId) return null;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: {id: session.userId},
-      include: {
-        role: true,
-        provider: true,
-      },
+    if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+    }
+    const userRepo = AppDataSource.getRepository(User);
+    
+    const user = await userRepo.findOne({
+      where: {id: Number(session.userId)},
+      relations: ['role', 'provider'],
     });
 
     if (!user) return null;
@@ -23,6 +26,8 @@ export async function getUserFromSession() {
 
     return {
       ...userWithoutPassword,
+      id: String(user.id),
+      providerId: user.providerId ? String(user.providerId) : undefined,
       role: user.role.name,
       providerName: user.provider?.name || '',
     };
