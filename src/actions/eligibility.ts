@@ -115,7 +115,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     // Ensure the calculated amount doesn't exceed the product's hard limit.
     const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
         
-    return { score: totalScore, maxLoanAmount: suggestedLoanAmountMax };
+    return { score: Math.round(totalScore), maxLoanAmount: suggestedLoanAmountMax };
 }
 
 
