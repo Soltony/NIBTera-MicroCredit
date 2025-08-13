@@ -4,7 +4,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import type { LoanDetails } from '@/lib/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Delete } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
@@ -87,8 +87,17 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-md p-0" onPointerDownOutside={(e) => e.preventDefault()}>
-                <DialogHeader className="p-6 pb-2">
-                    <DialogTitle className="text-center text-xl">Set Amount</DialogTitle>
+                <DialogHeader className="p-6 pb-2 flex-row justify-between items-center">
+                    <DialogTitle className="text-center text-xl flex-1">Set Amount</DialogTitle>
+                    <DialogClose asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full"
+                        >
+                            <X className="h-5 w-5" style={{ color: providerColor }}/>
+                        </Button>
+                    </DialogClose>
                 </DialogHeader>
                 <div className="px-6 space-y-4">
                     <div className="relative">
