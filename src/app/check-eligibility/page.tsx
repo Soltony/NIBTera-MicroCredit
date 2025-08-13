@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -41,45 +42,31 @@ export default function CheckEligibilityPage() {
       if (providers.length === 0 || !customerId) return;
 
       const nibProvider = providers.find(p => p.name === 'NIb Bank');
-      const providerId = nibProvider?.id || providers[0]?.id;
-
-      if (!providerId) {
-        setError("No loan providers with active products are available at this time.");
+      if (!nibProvider) {
+        setError("Default provider (NIb Bank) not found.");
         setIsLoading(false);
         return;
       }
       
-      const provider = providers.find(p => p.id === providerId);
-      if (!provider) {
-        setError("Selected provider not found.");
-        setIsLoading(false);
-        return;
-      }
+      const providerId = Number(nibProvider.id);
 
       setIsLoading(true);
       setError(null);
       
-      const { isEligible, reason, score } = await checkLoanEligibility(Number(customerId));
+      const { isEligible, reason, score, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId);
 
       const params = new URLSearchParams();
-      params.set('providerId', providerId);
+      params.set('providerId', String(providerId));
 
       if (isEligible) {
-        const activeProducts = provider.products.filter(p => p.status === 'Active');
-        if (activeProducts.length > 0) {
-          // Calculate suggested loan amount based on score
-          // A score of 50 gives the base max loan. A score of 100 gives 1.5x the base max loan.
-          const scoreMultiplier = Math.min(1.5, 1 + (score - 50) / 100); 
-          const highestMaxLoan = activeProducts.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+          const productWithLowestMin = nibProvider.products
+            .filter(p => p.status === 'Active')
+            .reduce((prev, curr) => ((prev.minLoan ?? Infinity) < (curr.minLoan ?? Infinity) ? prev : curr), { minLoan: Infinity });
           
-          const suggestedLoanAmountMax = Math.round((highestMaxLoan * scoreMultiplier) / 100) * 100;
-          const suggestedLoanAmountMin = activeProducts.reduce((min, p) => Math.min(min, p.minLoan || 500), Infinity);
-          
-          params.set('min', String(suggestedLoanAmountMin || 0));
-          params.set('max', String(suggestedLoanAmountMax || 0));
-        } else {
-           params.set('error', `This provider (${provider.name}) has no active loan products available.`);
-        }
+          const suggestedLoanAmountMin = productWithLowestMin.minLoan || 500;
+
+          params.set('min', String(suggestedLoanAmountMin));
+          params.set('max', String(maxLoanAmount));
       } else {
         params.set('error', reason);
       }
