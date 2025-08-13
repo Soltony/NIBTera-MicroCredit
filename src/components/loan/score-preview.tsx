@@ -14,8 +14,10 @@ interface ScorePreviewProps {
 }
 
 const evaluateCondition = (inputValue: string | number, condition: string, ruleValue: string): boolean => {
+    if (inputValue === undefined) return false;
+    
     const numericInputValue = typeof inputValue === 'string' ? parseFloat(inputValue) : inputValue;
-    const isNumericComparison = !isNaN(numericInputValue) && !isNaN(parseFloat(ruleValue));
+    const isNumericComparison = !isNaN(numericInputValue) && !isNaN(parseFloat(ruleValue.split('-')[0]));
     
     if (isNumericComparison) {
         if (condition === 'between') {
@@ -37,11 +39,10 @@ const evaluateCondition = (inputValue: string | number, condition: string, ruleV
             default: return false;
         }
     } else {
-        // Fallback to string comparison for non-numeric values
          switch (condition) {
-            case '==': return inputValue == ruleValue;
-            case '!=': return inputValue != ruleValue;
-            default: return false; // Other operators are not supported for strings
+            case '==': return String(inputValue).toLowerCase() == ruleValue.toLowerCase();
+            case '!=': return String(inputValue).toLowerCase() != ruleValue.toLowerCase();
+            default: return false;
         }
     }
 };
@@ -60,11 +61,15 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
             }
             
             const fieldInfo = fields.get(rule.field)!;
-            const isNumericValue = !isNaN(parseFloat(rule.value.split('-')[0]));
+            const isRuleValueNumeric = !isNaN(parseFloat(rule.value.split('-')[0]));
             
-            if (!isNumericValue) {
+            // If the rule value is not a number, it must be a dropdown option
+            if (!isRuleValueNumeric) {
                 fieldInfo.type = 'select';
-                fieldInfo.options.add(rule.value);
+                // Add all non-numeric values to the dropdown options
+                if (rule.condition === '==' || rule.condition === '!=') {
+                    fieldInfo.options.add(rule.value);
+                }
             }
         }
       });
@@ -78,10 +83,11 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
 
   const handleInputChange = (field: string, value: string) => {
     setApplicantData(prev => ({ ...prev, [field]: value }));
+    setCalculatedScore(null); // Reset score when data changes
   };
 
   const handleCalculateScore = () => {
-    let totalScore = 0;
+    let totalWeightedScore = 0;
     
     parameters.forEach(param => {
         let maxScoreForParam = 0;
@@ -89,19 +95,16 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
             const inputValue = applicantData[rule.field];
             if (inputValue !== undefined) {
                  if (evaluateCondition(inputValue, rule.condition, rule.value)) {
-                    // Find the highest score among matching rules for this parameter
                     if (rule.score > maxScoreForParam) {
                         maxScoreForParam = rule.score;
                     }
                 }
             }
         });
-        
-        // Sum the highest score found for the parameter
-        totalScore += maxScoreForParam;
+        totalWeightedScore += maxScoreForParam * (param.weight / 100);
     });
 
-    setCalculatedScore(totalScore);
+    setCalculatedScore(totalWeightedScore);
   };
 
   return (
@@ -144,7 +147,7 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
             <Button onClick={handleCalculateScore}>Calculate Score</Button>
             {calculatedScore !== null && (
                 <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Calculated Credit Score</p>
+                    <p className="text-sm text-muted-foreground">Calculated Weighted Score</p>
                     <p className="text-3xl font-bold">{calculatedScore.toFixed(0)}</p>
                 </div>
             )}

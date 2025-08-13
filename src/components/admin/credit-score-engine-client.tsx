@@ -75,6 +75,15 @@ const validateRule = (rule: Rule): string | null => {
     return null;
 }
 
+const AVAILABLE_FIELDS = [
+    { value: 'age', label: 'Age' },
+    { value: 'monthlyIncome', label: 'Monthly Income' },
+    { value: 'gender', label: 'Gender' },
+    { value: 'educationLevel', label: 'Education Level' },
+    { value: 'totalLoans', label: 'Total Loans' },
+    { value: 'onTimeRepayments', label: 'On-Time Repayments' },
+];
+
 
 const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
     
@@ -95,12 +104,16 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
     return (
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md">
             <div className="flex items-center gap-2">
-                <Input
-                    placeholder="e.g., age"
-                    value={rule.field || ''}
-                    onChange={(e) => onUpdate({ ...rule, field: e.target.value })}
-                    className={cn("w-1/4", !rule.field.trim() && 'border-destructive')}
-                />
+                <Select value={rule.field} onValueChange={(value) => onUpdate({ ...rule, field: value })}>
+                    <SelectTrigger className={cn("w-1/4", !rule.field.trim() && 'border-destructive')}>
+                        <SelectValue placeholder="Select Field" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {AVAILABLE_FIELDS.map(field => (
+                            <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
                     <SelectTrigger className="w-1/4">
                         <SelectValue placeholder="Condition" />
