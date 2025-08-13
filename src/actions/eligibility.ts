@@ -101,24 +101,22 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         totalWeightedScore += maxScoreForParam * (param.weight / 100);
     });
 
+    // Calculate the maximum possible score for this provider's configuration
     const maxPossibleWeightedScore = scoringParameters.reduce((sum, param) => {
         const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
         return sum + (maxRuleScore * (param.weight / 100));
     }, 0);
     
+    // Calculate the score as a percentage of the maximum possible score
     const scorePercentage = maxPossibleWeightedScore > 0 ? totalWeightedScore / maxPossibleWeightedScore : 0;
     
+    // Find the highest loan amount available from any of the provider's ACTIVE products
     const highestMaxLoanProduct = provider.products
         .filter(p => p.status === 'Active')
         .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
         
-    // Eligible users get at least 20% of the max loan.
-    // The rest is determined by their score.
-    const baseLoanPercentage = 0.20; 
-    const scoreBasedPercentage = (1 - baseLoanPercentage) * scorePercentage;
-    const finalLoanPercentage = baseLoanPercentage + scoreBasedPercentage;
-
-    const calculatedLoanAmount = Math.round((highestMaxLoanProduct * finalLoanPercentage) / 100) * 100;
+    // Calculate the loan amount based on the score percentage
+    const calculatedLoanAmount = Math.round((highestMaxLoanProduct * scorePercentage) / 100) * 100;
     
     // Ensure the calculated amount doesn't exceed the product's hard limit.
     const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
