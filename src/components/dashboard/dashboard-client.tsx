@@ -18,9 +18,9 @@ import { cn } from '@/lib/utils';
 import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useLoanHistory } from '@/hooks/use-loan-history';
 import { getCustomIcon } from '@/lib/types';
 import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
+import { useToast } from '@/hooks/use-toast';
 
 
 const formatCurrency = (amount: number) => {
@@ -69,11 +69,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const providerIdFromUrl = searchParams.get('providerId');
   const eligibilityError = searchParams.get('error');
   const customerId = searchParams.get('customerId');
+  const { toast } = useToast();
 
+  const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const { loans: loanHistory, setLoans: setLoanHistory, addPayment } = useLoanHistory(initialLoanHistory);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   
@@ -88,7 +89,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
-  }, [initialLoanHistory, setLoanHistory]);
+  }, [initialLoanHistory]);
 
   useEffect(() => {
     if (providerIdFromUrl) {
@@ -152,14 +153,42 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     setIsRepayDialogOpen(true);
   }
 
-  const handleConfirmRepayment = (amount: number) => {
-    if (repayingLoan) {
-      const updatedLoan = addPayment(repayingLoan, amount);
-      const updatedHistory = loanHistory.map(l => l.id === updatedLoan.id ? updatedLoan : l);
-      setLoanHistory(updatedHistory);
+  const handleConfirmRepayment = async (amount: number) => {
+    if (!repayingLoan) return;
+    try {
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanId: repayingLoan.id, amount }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process payment.');
+      }
+      
+      const updatedLoan = await response.json();
+
+      // Update the loan history state with the updated loan
+      setLoanHistory(prevHistory => 
+        prevHistory.map(l => l.id === updatedLoan.id ? updatedLoan : l)
+      );
+
+      toast({
+        title: 'Payment Successful',
+        description: `${formatCurrency(amount)} has been paid towards your loan.`,
+      });
+
+    } catch (error: any) {
+       toast({
+        title: 'Payment Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRepayDialogOpen(false);
+      setRepayingLoan(null);
     }
-    setIsRepayDialogOpen(false);
-    setRepayingLoan(null);
   }
 
   const handleBack = () => {
