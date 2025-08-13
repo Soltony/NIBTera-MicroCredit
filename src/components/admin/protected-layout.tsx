@@ -37,6 +37,7 @@ import {
 import { Logo } from '@/components/icons';
 import { useAuth } from '@/hooks/use-auth';
 import type { LoanProvider } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 
 // Function to convert hex to HSL
@@ -161,8 +162,8 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
   return (
     <SidebarProvider>
       <div className="bg-muted/40 min-h-screen w-full flex" style={{
-         '--provider-color-hsl': providerColorHsl,
-         '--provider-color-foreground-hsl': luminance(providerColorHsl) > 50 ? '0 0% 0%' : '0 0% 100%',
+         '--sidebar-accent': providerColorHsl,
+         '--sidebar-accent-foreground': luminance(providerColorHsl) > 50 ? '0 0% 0%' : '0 0% 100%',
       } as React.CSSProperties}>
         <Sidebar>
           <SidebarHeader>
@@ -217,7 +218,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{currentUser?.fullName}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
+                <DropdownMenuItem onClick={handleLogout} className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground">
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Logout</span>
                 </DropdownMenuItem>
