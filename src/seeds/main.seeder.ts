@@ -38,28 +38,27 @@ class MainSeeder {
       try {
         console.log('Starting seeding...');
         
-        // Disable foreign key constraints if possible (Oracle specific command might be needed, but TypeORM handles this usually)
-        // For Oracle, TRUNCATE is often faster and ignores FKs if set up correctly, but DELETE is safer for this ordered approach.
-
         // Clean up existing data in the correct order to respect foreign key constraints.
-        await paymentRepository.delete({});
-        await scoringRuleRepository.delete({});
-        await scoringParamRepository.delete({});
+        await paymentRepository.clear();
+        await scoringRuleRepository.clear();
+        await scoringParamRepository.clear();
         
         // Handle ManyToMany relationship for ScoringConfigurationHistory
+        // We need to clear the join table first. This is typically done via raw query or by updating relations to be empty.
+        // A simpler approach for seeding is to just delete the records which cascades.
         const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
         for (const history of histories) {
           history.appliedProducts = [];
           await scoringHistoryRepository.save(history);
         }
-        await scoringHistoryRepository.delete({});
+        await scoringHistoryRepository.clear();
 
-        await loanDetailsRepository.delete({});
-        await userRepository.delete({});
-        await productRepository.delete({});
-        await providerRepository.delete({});
-        await roleRepository.delete({});
-        await customerRepository.delete({});
+        await loanDetailsRepository.clear();
+        await userRepository.clear();
+        await productRepository.clear();
+        await providerRepository.clear();
+        await roleRepository.clear();
+        await customerRepository.clear();
 
         console.log('Deleted existing data.');
         
