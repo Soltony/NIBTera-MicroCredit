@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { LoanProvider } from '@/lib/types';
-import { checkLoanEligibility } from '@/ai/flows/loan-eligibility-check';
+import { checkLoanEligibility } from '@/actions/eligibility';
 
 
 export default function CheckEligibilityPage() {
