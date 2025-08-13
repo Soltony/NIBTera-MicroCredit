@@ -16,7 +16,7 @@ const evaluateCondition = (inputValue: string | number | undefined, condition: s
     if (inputValue === undefined) return false;
 
     const numericInputValue = typeof inputValue === 'string' ? parseFloat(inputValue) : inputValue;
-    const isNumericComparison = !isNaN(numericInputValue);
+    const isNumericComparison = !isNaN(numericInputValue) && !isNaN(parseFloat(ruleValue.split('-')[0]));
     
     if (isNumericComparison) {
         if (condition === 'between') {
@@ -40,8 +40,8 @@ const evaluateCondition = (inputValue: string | number | undefined, condition: s
     } else {
         // Fallback to string comparison for non-numeric values
          switch (condition) {
-            case '==': return inputValue == ruleValue;
-            case '!=': return inputValue != ruleValue;
+            case '==': return String(inputValue) == ruleValue;
+            case '!=': return String(inputValue) != ruleValue;
             default: return false; // Other operators are not supported for strings
         }
     }
@@ -69,7 +69,13 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     });
 
     if (!provider || provider.products.length === 0) {
-        throw new Error('Provider or products not found for score calculation.');
+        // If no provider or products, return 0 as no loan is possible.
+        return { score: 0, maxLoanAmount: 0 };
+    }
+    
+    // If a provider has no scoring rules, they are not eligible for a loan from them.
+    if (scoringParameters.length === 0) {
+        return { score: 0, maxLoanAmount: 0 };
     }
     
     let totalWeightedScore = 0;
@@ -77,6 +83,8 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     const customerDataForScoring = {
         age: customer.age,
         monthlyIncome: customer.monthlyIncome,
+        gender: customer.gender,
+        educationLevel: customer.educationLevel,
         ...customerLoanHistory
     };
 
@@ -104,8 +112,9 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         .filter(p => p.status === 'Active')
         .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
         
-    // Calculate loan amount based on score percentage.
-    const baseLoanPercentage = 0.20; // Eligible users get at least 20% of the max loan.
+    // Eligible users get at least 20% of the max loan.
+    // The rest is determined by their score.
+    const baseLoanPercentage = 0.20; 
     const scoreBasedPercentage = (1 - baseLoanPercentage) * scorePercentage;
     const finalLoanPercentage = baseLoanPercentage + scoreBasedPercentage;
 
@@ -136,6 +145,17 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     
     // STEP 2: Credit Score Calculation (if eligible)
     const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId);
+    
+    // Check if the provider has any scoring rules defined at all. If not, they are not eligible.
+    const scoringParamRepo = AppDataSource.getRepository(ScoringParameter);
+    const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
+    if (scoringParameterCount === 0) {
+        return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
+    }
+
+    if (maxLoanAmount <= 0) {
+        return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
+    }
         
     return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score, maxLoanAmount };
 
@@ -148,6 +168,10 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
 
 export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number): Promise<{score: number, maxLoanAmount: number}> {
     try {
+        const customer = await AppDataSource.getRepository(Customer).findOneBy({ id: customerId });
+        if (!customer || customer.age <= 20) {
+            return { score: 0, maxLoanAmount: 0 };
+        }
         return await calculateScoreForProvider(customerId, providerId);
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);

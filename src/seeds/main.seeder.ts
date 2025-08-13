@@ -256,8 +256,7 @@ class MainSeeder {
         });
         console.log('Seeded loan history');
 
-        // 5. Seed Scoring Parameters
-        // -- NIb Bank Parameters --
+        // 5. Seed Scoring Parameters for NIb Bank only
         const nibAgeParam = await scoringParamRepository.save({
           provider: nibBank, name: 'Age', weight: 20,
         });
@@ -278,24 +277,6 @@ class MainSeeder {
          await scoringRuleRepository.save([
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
-        ]);
-        
-        // -- Capital Bank Parameters --
-        const capIncomeParam = await scoringParamRepository.save({
-          provider: capitalBank, name: 'Monthly Income', weight: 60,
-        });
-        await scoringRuleRepository.save([
-          { parameter: capIncomeParam, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
-          { parameter: capIncomeParam, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
-          { parameter: capIncomeParam, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
-        ]);
-        const capEducationParam = await scoringParamRepository.save({
-          provider: capitalBank, name: 'Education Level', weight: 40,
-        });
-        await scoringRuleRepository.save([
-          { parameter: capEducationParam, field: 'educationLevel', condition: '==', value: "Master's Degree", score: 40 },
-          { parameter: capEducationParam, field: 'educationLevel', condition: '==', value: "Bachelor's Degree", score: 25 },
-          { parameter: capEducationParam, field: 'educationLevel', condition: '==', value: 'High School', score: 10 },
         ]);
         
         console.log('Seeded scoring parameters');
