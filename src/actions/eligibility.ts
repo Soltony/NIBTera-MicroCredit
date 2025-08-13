@@ -100,7 +100,10 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     
     const scorePercentage = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
     
-    const highestMaxLoanProduct = provider.products.reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+    const highestMaxLoanProduct = provider.products
+        .filter(p => p.status === 'Active')
+        .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+        
     const scoreMultiplier = 1 + (scorePercentage * 0.5); 
     const suggestedLoanAmountMax = Math.round((highestMaxLoanProduct * scoreMultiplier) / 100) * 100;
         
