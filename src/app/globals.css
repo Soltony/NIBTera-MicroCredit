@@ -37,8 +37,8 @@ body {
     --sidebar-foreground: 222.2 84% 4.9%;
     --sidebar-primary: 210 40% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 100% 45%;
-    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-accent: hsl(var(--provider-color-hsl, 25 100% 45%));
+    --sidebar-accent-foreground: hsl(var(--provider-color-foreground-hsl, 0 0% 100%));
     --sidebar-border: 214.3 31.8% 91.4%;
     --sidebar-ring: 210 40% 60%;
   }
@@ -71,8 +71,8 @@ body {
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 40% 60%;
     --sidebar-primary-foreground: 222.2 47.4% 11.2%;
-    --sidebar-accent: 30 100% 45%;
-    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-accent: hsl(var(--provider-color-hsl, 25 100% 45%));
+    --sidebar-accent-foreground: hsl(var(--provider-color-foreground-hsl, 0 0% 100%));
     --sidebar-border: 217.2 32.6% 17.5%;
     --sidebar-ring: 210 40% 60%;
   }

@@ -38,6 +38,32 @@ import { Logo } from '@/components/icons';
 import { useAuth } from '@/hooks/use-auth';
 import type { LoanProvider } from '@/lib/types';
 
+
+// Function to convert hex to HSL
+const hexToHsl = (hex: string): string => {
+  hex = hex.replace(/^#/, '');
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  return `${(h * 360).toFixed(0)} ${(s * 100).toFixed(0)}% ${(l * 100).toFixed(0)}%`;
+}
+
 const allMenuItems = [
   {
     path: '/admin',
@@ -87,14 +113,14 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
     }
   }, [currentUser, isLoading, pathname, router]);
 
-  const themeColor = React.useMemo(() => {
+  const providerColorHsl = React.useMemo(() => {
+    let colorHex = '#fdb913'; // Default color
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
-      return providers.find((p) => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+      colorHex = providers.find((p) => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    } else {
+       colorHex = providers.find((p) => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
     }
-    return (
-      providers.find((p) => p.name === currentUser?.providerName)?.colorHex ||
-      '#fdb913'
-    );
+    return hexToHsl(colorHex);
   }, [currentUser, providers]);
 
   const getInitials = (name: string = '') =>
@@ -126,10 +152,18 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
       </div>
     );
   }
+  
+  const luminance = (hsl: string) => {
+    const l = parseFloat(hsl.split(' ')[2]);
+    return l;
+  }
 
   return (
     <SidebarProvider>
-      <div className="bg-muted/40 min-h-screen w-full flex">
+      <div className="bg-muted/40 min-h-screen w-full flex" style={{
+         '--provider-color-hsl': providerColorHsl,
+         '--provider-color-foreground-hsl': luminance(providerColorHsl) > 50 ? '0 0% 0%' : '0 0% 100%',
+      } as React.CSSProperties}>
         <Sidebar>
           <SidebarHeader>
             <SidebarTrigger>
@@ -192,7 +226,6 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
           </header>
           <main
             className="flex-1"
-            style={{ '--provider-color': themeColor } as React.CSSProperties}
           >
             {children}
           </main>
