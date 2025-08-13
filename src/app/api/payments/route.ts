@@ -50,6 +50,7 @@ export async function POST(req: Request) {
 
             // Create and save new payment record
             const newPayment = transactionalEntityManager.create(Payment, {
+                loan: loan, // Explicitly set the relationship
                 loanId: numericLoanId,
                 amount: amount,
                 date: new Date(),
