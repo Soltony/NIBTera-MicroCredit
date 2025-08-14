@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -140,5 +139,3 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         </Card>
     );
 }
-
-    

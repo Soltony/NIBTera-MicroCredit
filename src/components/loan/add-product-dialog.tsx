@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -181,5 +180,3 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     </Dialog>
   );
 }
-
-    
