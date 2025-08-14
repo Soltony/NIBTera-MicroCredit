@@ -335,13 +335,13 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <AccordionPrimitive.Header className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline">
+                    <div className="flex items-center w-full p-4">
+                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left">
                             <div className="flex items-center gap-4">
                                 <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                                 <div>
-                                    <div className="text-lg font-semibold text-left">{provider.name}</div>
-                                    <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
+                                    <div className="text-lg font-semibold">{provider.name}</div>
+                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
                                 </div>
                             </div>
                         </AccordionTrigger>
@@ -356,9 +356,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                     </Button>
                                 </>
                             )}
-                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
                         </div>
-                    </AccordionPrimitive.Header>
+                    </div>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
@@ -424,6 +423,8 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
 
     
 
