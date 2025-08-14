@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
+import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { getCustomIcon } from '@/lib/types';
 import { AccordionTrigger } from '../ui/accordion';
 

@@ -189,32 +189,22 @@ export const evaluateCondition = (inputValue: string | number | undefined, condi
     }
 };
 
-// In-memory store for custom icons to avoid localStorage quota issues.
-// This will persist for the duration of the user session.
-let customIconStore: Map<string, string> | null = null;
-
-function getIconStore(): Map<string, string> {
-    if (typeof window === 'undefined') {
-        // Return a dummy map for server-side rendering
-        return new Map<string, string>();
-    }
-    if (!customIconStore) {
-        customIconStore = new Map<string, string>();
-    }
-    return customIconStore;
-}
-
 export function saveCustomIcon(key: string, dataUri: string) {
     if (typeof window !== 'undefined') {
-        const store = getIconStore();
-        store.set(key, dataUri);
+        try {
+            const existingIcons = JSON.parse(localStorage.getItem('customIcons') || '{}');
+            existingIcons[key] = dataUri;
+            localStorage.setItem('customIcons', JSON.stringify(existingIcons));
+        } catch (error) {
+            console.error("Error saving custom icon to localStorage:", error);
+        }
     }
 }
 
 export function getCustomIcon(key: string): string | null {
     if (typeof window !== 'undefined') {
-        const store = getIconStore();
-        return store.get(key) || null;
+        const existingIcons = JSON.parse(localStorage.getItem('customIcons') || '{}');
+        return existingIcons[key] || null;
     }
     return null;
 }
