@@ -45,37 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
-import { getCustomIcon } from '@/lib/types';
-
-const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
-    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
-    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isCustom) {
-            const src = getCustomIcon(iconName);
-            setCustomIconSrc(src);
-        }
-    }, [iconName, isCustom]);
-
-    if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6 bg-muted rounded-full", className)} />;
-    }
-    
-    // Dynamically import lucide-react icons
-    const [IconComponent, setIconComponent] = useState<React.ElementType | null>(null);
-    useEffect(() => {
-        import('lucide-react').then(icons => {
-            const LucideIcon = (icons as any)[iconName] || icons.Building2;
-            setIconComponent(() => LucideIcon);
-        });
-    }, [iconName]);
-
-    if (!IconComponent) return <div className={cn("h-6 w-6 bg-muted rounded-full animate-pulse", className)} />;
-
-    return <IconComponent className={cn("h-6 w-6", className)} />;
-};
-
+import { IconDisplay } from '@/components/icons';
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
     providerId: string; 
