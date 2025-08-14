@@ -189,29 +189,32 @@ export const evaluateCondition = (inputValue: string | number | undefined, condi
     }
 };
 
-const CUSTOM_ICON_STORAGE_KEY = 'customIcons';
+// In-memory store for custom icons to avoid localStorage quota issues.
+// This will persist for the duration of the user session.
+let customIconStore: Map<string, string> | null = null;
+
+function getIconStore(): Map<string, string> {
+    if (typeof window === 'undefined') {
+        // Return a dummy map for server-side rendering
+        return new Map<string, string>();
+    }
+    if (!customIconStore) {
+        customIconStore = new Map<string, string>();
+    }
+    return customIconStore;
+}
 
 export function saveCustomIcon(key: string, dataUri: string) {
     if (typeof window !== 'undefined') {
-        try {
-            const existingIcons = JSON.parse(localStorage.getItem(CUSTOM_ICON_STORAGE_KEY) || '{}');
-            existingIcons[key] = dataUri;
-            localStorage.setItem(CUSTOM_ICON_STORAGE_KEY, JSON.stringify(existingIcons));
-        } catch (error) {
-            console.error("Failed to save custom icon to local storage", error);
-        }
+        const store = getIconStore();
+        store.set(key, dataUri);
     }
 }
 
 export function getCustomIcon(key: string): string | null {
     if (typeof window !== 'undefined') {
-        try {
-            const existingIcons = JSON.parse(localStorage.getItem(CUSTOM_ICON_STORAGE_KEY) || '{}');
-            return existingIcons[key] || null;
-        } catch (error) {
-            console.error("Failed to get custom icon from local storage", error);
-            return null;
-        }
+        const store = getIconStore();
+        return store.get(key) || null;
     }
     return null;
 }
