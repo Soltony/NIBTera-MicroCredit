@@ -1,11 +1,5 @@
 
-'use client';
-
-import { SVGProps, useEffect, useState } from 'react';
-import { getCustomIcon } from '@/lib/types';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
+import { SVGProps } from 'react';
 
 export function Logo(props: SVGProps<SVGSVGElement>) {
   return (
@@ -26,32 +20,4 @@ export function Logo(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-// A helper to map string names to actual icon components
-const iconMap: { [key: string]: React.ElementType } = {
-  Building2,
-  Landmark,
-  Briefcase,
-  Home,
-  PersonStanding,
-  CreditCard,
-  Wallet,
-};
-
-export const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
-    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
-    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isCustom) {
-            const src = getCustomIcon(iconName);
-            setCustomIconSrc(src);
-        }
-    }, [iconName, isCustom]);
-
-    if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6", className)} />;
-    }
-
-    const IconComponent = iconMap[iconName] || Building2;
-    return <IconComponent className={cn("h-6 w-6", className)} />;
-};
+    

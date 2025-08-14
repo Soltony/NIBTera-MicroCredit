@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -10,7 +9,6 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/types';
-import { IconDisplay } from '@/components/icons';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -54,7 +52,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
                         <div className="p-3 rounded-full" style={{ backgroundColor: providerColor }}>
-                            <IconDisplay iconName={product.icon} className="h-6 w-6 text-primary-foreground" />
+                            <IconDisplayComponent iconName={product.icon} className="h-6 w-6 text-primary-foreground" />
                         </div>
                         <div>
                             <CardTitle className="text-lg">{product.name}</CardTitle>
@@ -142,3 +140,5 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         </Card>
     );
 }
+
+    
