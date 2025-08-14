@@ -12,9 +12,10 @@ import { evaluateCondition } from '@/lib/types';
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
+  providerColor?: string;
 }
 
-export function ScorePreview({ parameters }: ScorePreviewProps) {
+export function ScorePreview({ parameters, providerColor = '#fdb913' }: ScorePreviewProps) {
   const [applicantData, setApplicantData] = useState<Record<string, string>>({});
   const [calculatedScore, setCalculatedScore] = useState<number | null>(null);
 
@@ -111,7 +112,7 @@ export function ScorePreview({ parameters }: ScorePreviewProps) {
           ))}
         </div>
         <div className="flex items-center justify-between">
-            <Button onClick={handleCalculateScore}>Calculate Score</Button>
+            <Button onClick={handleCalculateScore} style={{ backgroundColor: providerColor }} className="text-white">Calculate Score</Button>
             {calculatedScore !== null && (
                 <div className="text-right">
                     <p className="text-sm text-muted-foreground">Calculated Weighted Score</p>

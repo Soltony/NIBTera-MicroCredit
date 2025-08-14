@@ -578,7 +578,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
                 </CardContent>
              </Card>
 
-             <ScorePreview parameters={currentParametersForProvider} />
+             <ScorePreview parameters={currentParametersForProvider} providerColor={themeColor} />
         </div>
     );
 }
