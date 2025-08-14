@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct, LoanProvider, TransactionProduct } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { produce,-v } from 'immer';
+import { produce } from 'immer';
 import type { ScoringParameters } from '@/app/api/scoring-configs/route';
 import { Loader2 } from 'lucide-react';
 import { deepClone } from 'fast-json-patch';
@@ -519,3 +519,4 @@ export function ScoringEngineClient({ providers, transactionProducts, initialSco
   );
 }
 
+    
