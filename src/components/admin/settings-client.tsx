@@ -305,7 +305,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <div className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left">
+                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
                            <div className="flex items-center gap-4">
                                 <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                                 <div>
@@ -325,8 +325,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                     </Button>
                                 </>
                             )}
-                             <AccordionTrigger className="p-2" hideChevron>
-                               <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                             <AccordionTrigger className="p-2">
+                               <span className="sr-only">Toggle</span>
                             </AccordionTrigger>
                         </div>
                     </div>
