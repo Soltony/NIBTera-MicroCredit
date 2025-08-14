@@ -335,9 +335,9 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                      <div className="flex items-center w-full p-4">
-                        <AccordionTrigger hideIcon className="hover:no-underline flex-1 p-0">
+                        <AccordionTrigger className="flex-1 p-0 hover:no-underline">
                            <div className="flex items-center gap-4">
-                                <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                                <IconDisplay iconName={provider.icon} />
                                 <div>
                                     <div className="text-lg font-semibold text-left">{provider.name}</div>
                                     <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
@@ -393,7 +393,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <AddProductDialog
             isOpen={isAddProductDialogOpen}
             onClose={() => setIsAddProductDialogOpen(false)}
-            onAddProduct={handleAddProduct as any}
+            onAddProduct={handleAddProduct}
         />
          <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
             <AlertDialogContent>
