@@ -13,6 +13,7 @@ import {
   Accordion,
   AccordionContent,
   AccordionItem,
+  AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, PlusCircle, Trash2, Loader2, Edit, ChevronDown } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -44,37 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
-import { getCustomIcon } from '@/lib/types';
-import { AccordionTrigger } from '../ui/accordion';
-
-
-// A helper to map string names to actual icon components
-const iconMap: { [key: string]: React.ElementType } = {
-  Building2,
-  Landmark,
-  Briefcase,
-  Home,
-  PersonStanding,
-};
-
-const IconDisplay = ({ iconName, className }: { iconName: string; className?: string; }) => {
-    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
-    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isCustom) {
-            const src = getCustomIcon(iconName);
-            setCustomIconSrc(src);
-        }
-    }, [iconName, isCustom]);
-
-    if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6", className)} />;
-    }
-
-    const IconComponent = iconMap[iconName] || Building2;
-    return <IconComponent className={cn("h-6 w-6", className)} />;
-};
+import { IconDisplay } from '@/components/icons';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -334,9 +305,9 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <div className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideIcon>
-                            <div className="flex items-center gap-4">
+                     <div className="flex items-center w-full p-4">
+                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left">
+                           <div className="flex items-center gap-4">
                                 <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                                 <div>
                                     <div className="text-lg font-semibold">{provider.name}</div>
@@ -344,7 +315,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                 </div>
                             </div>
                         </AccordionTrigger>
-                        <div className="flex items-center gap-2 ml-auto pl-4">
+                         <div className="flex items-center gap-2 ml-auto pl-4">
                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                                 <>
                                     <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>

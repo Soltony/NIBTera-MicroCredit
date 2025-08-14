@@ -8,9 +8,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
-import { Logo } from '@/components/icons';
+import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2 } from 'lucide-react';
+import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2 } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,7 +18,6 @@ import { cn } from '@/lib/utils';
 import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getCustomIcon } from '@/lib/types';
 import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
 import { useToast } from '@/hooks/use-toast';
 
@@ -26,37 +25,6 @@ import { useToast } from '@/hooks/use-toast';
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
-
-// A helper to map string names to actual icon components
-const iconMap: { [key: string]: React.ElementType } = {
-  Building2,
-  Landmark,
-  Briefcase,
-  Home,
-  PersonStanding,
-  CreditCard,
-  Wallet,
-};
-
-const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
-    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
-    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isCustom) {
-            const src = getCustomIcon(iconName);
-            setCustomIconSrc(src);
-        }
-    }, [iconName, isCustom]);
-
-    if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-8 w-8", className)} /> : <div className={cn("h-8 w-8", className)} />;
-    }
-
-    const IconComponent = iconMap[iconName] || Building2;
-    return <IconComponent className={cn("h-8 w-8 text-muted-foreground", className)} />;
-};
-
 
 interface DashboardClientProps {
   providers: LoanProvider[];
@@ -225,7 +193,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                       style={{ color: selectedProviderId === provider.id ? provider.colorHex : 'transparent' }}
                                   >
                                       <div className={cn("h-16 w-16 rounded-full bg-card flex items-center justify-center transition-all shadow-md hover:shadow-lg", selectedProviderId === provider.id ? 'shadow-lg' : '')}>
-                                          {isRecalculating && selectedProviderId === provider.id ? <Loader2 className="h-8 w-8 animate-spin" /> : <IconDisplay iconName={provider.icon} />}
+                                          {isRecalculating && selectedProviderId === provider.id ? <Loader2 className="h-8 w-8 animate-spin" /> : <IconDisplay iconName={provider.icon} className="h-8 w-8 text-muted-foreground" />}
                                       </div>
                                   </div>
                                   <span className={cn(
