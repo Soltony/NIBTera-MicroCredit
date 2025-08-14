@@ -12,7 +12,7 @@ import {
 import { IsNumber, IsDate, IsNotEmpty } from 'class-validator';
 import { LoanProvider } from './LoanProvider';
 import { LoanProduct } from './LoanProduct';
-import type { Payment } from './Payment';
+import { Payment } from './Payment';
 
 @Entity({ name: 'loan_details' })
 export class LoanDetails {
@@ -64,7 +64,7 @@ export class LoanDetails {
   @Column({ type: 'number', name: 'repaid_amount', precision: 10, scale: 2, nullable: true })
   repaidAmount!: number | null;
 
-  @OneToMany('Payment', (payment) => payment.loan)
+  @OneToMany(() => Payment, (payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
