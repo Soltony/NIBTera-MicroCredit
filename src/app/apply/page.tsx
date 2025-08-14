@@ -5,29 +5,45 @@ import type { LoanProvider } from '@/lib/types';
 import { ApplyClient } from './client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
+import type { DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 async function getProvider(providerId: string): Promise<LoanProvider | null> {
     if (!providerId) return null;
-    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-    const providerRepo = AppDataSource.getRepository(LoanProviderEntity);
-    
-    const provider = await providerRepo.findOne({
-        where: { id: Number(providerId) },
-        relations: ['products'],
-    });
+    let dataSource: DataSource | null = null;
+    try {
+        dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        
+        const provider = await providerRepo.findOne({
+            where: { id: Number(providerId) },
+            relations: ['products'],
+        });
 
-    if (!provider) return null;
+        if (!provider) return null;
 
-    // Convert to plain object for client component
-    return {
-        ...provider,
-        id: String(provider.id),
-        products: provider.products.map(prod => ({
-            ...prod,
-            id: String(prod.id),
-            status: prod.status as 'Active' | 'Disabled'
-        }))
-    } as any;
+        // Convert to plain object for client component
+        return {
+            ...provider,
+            id: String(provider.id),
+            products: provider.products.map(prod => ({
+                ...prod,
+                id: String(prod.id),
+                status: prod.status as 'Active' | 'Disabled'
+            }))
+        } as any;
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
+    }
 }
 
 

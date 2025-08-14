@@ -3,6 +3,15 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { z } from 'zod';
+import type { DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 const loanSchema = z.object({
     providerId: z.string(),
@@ -17,11 +26,10 @@ const loanSchema = z.object({
 });
 
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) {
-            await AppDataSource.initialize();
-        }
-        const loanRepo = AppDataSource.getRepository(LoanDetails);
+        dataSource = await getConnectedDataSource();
+        const loanRepo = dataSource.getRepository(LoanDetails);
 
         const body = await req.json();
         const validation = loanSchema.safeParse(body);
@@ -49,5 +57,9 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating loan:', error);
         return NextResponse.json({ error: 'Failed to create loan' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }

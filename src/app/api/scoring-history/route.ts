@@ -4,13 +4,22 @@ import { AppDataSource } from '@/data-source';
 import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { getUserFromSession } from '@/lib/user';
-import { In } from 'typeorm';
+import { In, DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 // GET history for a provider
 export async function GET(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const historyRepo = AppDataSource.getRepository(ScoringConfigurationHistory);
+        dataSource = await getConnectedDataSource();
+        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
 
         const { searchParams } = new URL(req.url);
         const providerId = searchParams.get('providerId');
@@ -32,21 +41,26 @@ export async function GET(req: Request) {
     } catch (error) {
         console.error('Error fetching scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }
 
 
 // POST a new history entry
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
         if (!currentUser || (currentUser.role !== 'Super Admin' && currentUser.role !== 'Loan Manager')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const historyRepo = AppDataSource.getRepository(ScoringConfigurationHistory);
-        const productRepo = AppDataSource.getRepository(LoanProduct);
+        dataSource = await getConnectedDataSource();
+        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
+        const productRepo = dataSource.getRepository(LoanProduct);
 
         const { providerId, parameters, appliedProductIds } = await req.json();
 
@@ -73,5 +87,9 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error saving scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }

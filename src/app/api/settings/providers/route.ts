@@ -3,8 +3,16 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { LoanProduct } from '@/entities/LoanProduct';
-import { In } from 'typeorm';
+import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 const providerSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -19,9 +27,10 @@ const updateProviderSchema = providerSchema.extend({
 
 // POST a new provider
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const providerRepo = AppDataSource.getRepository(LoanProvider);
+        dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
@@ -35,14 +44,19 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating provider:', error);
         return NextResponse.json({ error: 'Failed to create provider' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }
 
 // PUT (update) a provider
 export async function PUT(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const providerRepo = AppDataSource.getRepository(LoanProvider);
+        dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = updateProviderSchema.safeParse(body);
         if (!validation.success) {
@@ -58,16 +72,21 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating provider:', error);
         return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }
 
 
 // DELETE a provider
 export async function DELETE(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const providerRepo = AppDataSource.getRepository(LoanProvider);
-        const productRepo = AppDataSource.getRepository(LoanProduct);
+        dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProvider);
+        const productRepo = dataSource.getRepository(LoanProduct);
         
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
@@ -95,5 +114,9 @@ export async function DELETE(req: Request) {
     } catch (error) {
         console.error('Error deleting provider:', error);
         return NextResponse.json({ error: 'Failed to delete provider' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
+import type { DataSource } from 'typeorm';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -13,13 +14,20 @@ const iconNameMap: { [key: string]: string } = {
   PersonStanding: 'PersonStanding',
 };
 
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
+
 // GET all providers
 export async function GET() {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) {
-            await AppDataSource.initialize();
-        }
-        const providerRepo = AppDataSource.getRepository(LoanProvider);
+        dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProvider);
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {
@@ -46,5 +54,9 @@ export async function GET() {
     } catch (error) {
         console.error('Error fetching providers:', error);
         return NextResponse.json({ error: 'Failed to fetch providers' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }

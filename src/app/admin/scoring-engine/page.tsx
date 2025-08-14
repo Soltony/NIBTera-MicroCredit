@@ -3,35 +3,51 @@ import { ScoringEngineClient } from '@/components/admin/scoring-engine-client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 import type { LoanProvider, TransactionProduct, ScoringParameters } from '@/lib/types';
+import type { DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 
 async function getProviders(): Promise<LoanProvider[]> {
-    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-    const providerRepo = AppDataSource.getRepository(LoanProviderEntity);
-    const providers = await providerRepo.find({
-        relations: ['products'],
-    });
-    
-     // Manually map to plain objects to avoid passing class instances to client components.
-    return providers.map(p => ({
-        id: String(p.id),
-        name: p.name,
-        icon: p.icon,
-        colorHex: p.colorHex,
-        displayOrder: p.displayOrder,
-        products: p.products.map(prod => ({
-            id: String(prod.id),
-            name: prod.name,
-            description: prod.description,
-            icon: prod.icon,
-            minLoan: prod.minLoan,
-            maxLoan: prod.maxLoan,
-            serviceFee: prod.serviceFee,
-            dailyFee: prod.dailyFee,
-            penaltyFee: prod.penaltyFee,
-            status: prod.status as 'Active' | 'Disabled',
-        }))
-    })) as LoanProvider[];
+    let dataSource: DataSource | null = null;
+    try {
+        dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        const providers = await providerRepo.find({
+            relations: ['products'],
+        });
+        
+         // Manually map to plain objects to avoid passing class instances to client components.
+        return providers.map(p => ({
+            id: String(p.id),
+            name: p.name,
+            icon: p.icon,
+            colorHex: p.colorHex,
+            displayOrder: p.displayOrder,
+            products: p.products.map(prod => ({
+                id: String(prod.id),
+                name: prod.name,
+                description: prod.description,
+                icon: prod.icon,
+                minLoan: prod.minLoan,
+                maxLoan: prod.maxLoan,
+                serviceFee: prod.serviceFee,
+                dailyFee: prod.dailyFee,
+                penaltyFee: prod.penaltyFee,
+                status: prod.status as 'Active' | 'Disabled',
+            }))
+        })) as LoanProvider[];
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
+    }
 }
 
 // Mocked, as this data doesn't have a source in the current DB schema

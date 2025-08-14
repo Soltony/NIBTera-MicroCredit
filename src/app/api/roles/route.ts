@@ -3,26 +3,40 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { Role } from '@/entities/Role';
 import { User } from '@/entities/User';
-import { In } from 'typeorm';
+import { In, DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 // GET all roles
 export async function GET() {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const roleRepo = AppDataSource.getRepository(Role);
+        dataSource = await getConnectedDataSource();
+        const roleRepo = dataSource.getRepository(Role);
         const roles = await roleRepo.find();
         return NextResponse.json(roles.map(r => ({...r, id: String(r.id), permissions: JSON.parse(r.permissions) })));
     } catch (error) {
         console.error('Error fetching roles:', error);
         return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }
 
 // POST a new role
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const roleRepo = AppDataSource.getRepository(Role);
+        dataSource = await getConnectedDataSource();
+        const roleRepo = dataSource.getRepository(Role);
         const { name, permissions } = await req.json();
 
         if (!name || !permissions) {
@@ -47,14 +61,19 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating role:', error);
         return NextResponse.json({ error: 'Failed to create role' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }
 
 // PUT (update) a role
 export async function PUT(req: Request) {
+    let dataSource: DataSource | null = null;
      try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const roleRepo = AppDataSource.getRepository(Role);
+        dataSource = await getConnectedDataSource();
+        const roleRepo = dataSource.getRepository(Role);
         const { id, ...updateData } = await req.json();
 
         if (!id) {
@@ -73,15 +92,20 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating role:', error);
         return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }
 
 // DELETE a role
 export async function DELETE(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const roleRepo = AppDataSource.getRepository(Role);
-        const userRepo = AppDataSource.getRepository(User);
+        dataSource = await getConnectedDataSource();
+        const roleRepo = dataSource.getRepository(Role);
+        const userRepo = dataSource.getRepository(User);
         const { id } = await req.json();
 
         if (!id) {
@@ -109,5 +133,9 @@ export async function DELETE(req: Request) {
     } catch (error) {
         console.error('Error deleting role:', error);
         return NextResponse.json({ error: 'Failed to delete role' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }

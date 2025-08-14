@@ -4,13 +4,21 @@ import {AppDataSource} from '@/data-source';
 import {User} from '@/entities/User';
 import bcrypt from 'bcryptjs';
 import {createSession} from '@/lib/session';
+import type { DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 export async function POST(req: Request) {
+  let dataSource: DataSource | null = null;
   try {
-    if (!AppDataSource.isInitialized) {
-      await AppDataSource.initialize();
-    }
-    const userRepo = AppDataSource.getRepository(User);
+    dataSource = await getConnectedDataSource();
+    const userRepo = dataSource.getRepository(User);
 
     const {phoneNumber, password} = await req.json();
 
@@ -50,5 +58,9 @@ export async function POST(req: Request) {
       {error: 'Internal Server Error'},
       {status: 500}
     );
+  } finally {
+    if (dataSource && AppDataSource.options.type !== 'oracle') {
+      // await dataSource.destroy();
+    }
   }
 }

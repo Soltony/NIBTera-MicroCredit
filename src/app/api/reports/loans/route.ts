@@ -3,13 +3,22 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { getUserFromSession } from '@/lib/user';
-import type { FindOptionsWhere } from 'typeorm';
+import type { FindOptionsWhere, DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 export async function GET() {
+    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const loanRepo = AppDataSource.getRepository(LoanDetails);
+        dataSource = await getConnectedDataSource();
+        const loanRepo = dataSource.getRepository(LoanDetails);
 
         const whereClause: FindOptionsWhere<LoanDetails> = {};
         if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
@@ -37,5 +46,9 @@ export async function GET() {
     } catch (error) {
         console.error('Error fetching loan reports:', error);
         return NextResponse.json({ error: 'Failed to fetch loan reports' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }

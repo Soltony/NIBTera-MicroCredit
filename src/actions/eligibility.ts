@@ -12,90 +12,108 @@ import { Customer } from '@/entities/Customer';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { ScoringParameter } from '@/entities/ScoringParameter';
 import { evaluateCondition } from '@/lib/types';
+import type { DataSource } from 'typeorm';
+
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 
 async function calculateScoreForProvider(customerId: number, providerId: number): Promise<{score: number; maxLoanAmount: number}> {
-    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-    const customerRepo = AppDataSource.getRepository(Customer);
-    const providerRepo = AppDataSource.getRepository(LoanProvider);
-    const scoringParamRepo = AppDataSource.getRepository(ScoringParameter);
+    let dataSource: DataSource | null = null;
+    try {
+        dataSource = await getConnectedDataSource();
+        const customerRepo = dataSource.getRepository(Customer);
+        const providerRepo = dataSource.getRepository(LoanProvider);
+        const scoringParamRepo = dataSource.getRepository(ScoringParameter);
 
-    const customer = await customerRepo.findOneBy({ id: customerId });
-    if (!customer) {
-        throw new Error('Customer not found for score calculation.');
-    }
-    
-    const scoringParameters = await scoringParamRepo.find({
-        where: { providerId: providerId },
-        relations: ['rules']
-    });
-    
-    const provider = await providerRepo.findOne({
-        where: { id: providerId },
-        relations: ['products']
-    });
-
-    if (!provider || provider.products.length === 0) {
-        // If no provider or products, return 0 as no loan is possible.
-        return { score: 0, maxLoanAmount: 0 };
-    }
-    
-    // If a provider has no scoring rules, they are not eligible for a loan from them.
-    if (scoringParameters.length === 0) {
-        return { score: 0, maxLoanAmount: 0 };
-    }
-    
-    let totalWeightedScore = 0;
-    const customerLoanHistory = JSON.parse(customer.loanHistory);
-    const customerDataForScoring = {
-        age: customer.age,
-        monthlyIncome: customer.monthlyIncome,
-        gender: customer.gender,
-        educationLevel: customer.educationLevel,
-        ...customerLoanHistory
-    };
-
-    scoringParameters.forEach(param => {
-        let maxScoreForParam = 0;
-        param.rules.forEach(rule => {
-            const inputValue = customerDataForScoring[rule.field as keyof typeof customerDataForScoring];
-            if (evaluateCondition(inputValue, rule.condition, rule.value)) {
-                if (rule.score > maxScoreForParam) {
-                    maxScoreForParam = rule.score;
-                }
-            }
+        const customer = await customerRepo.findOneBy({ id: customerId });
+        if (!customer) {
+            throw new Error('Customer not found for score calculation.');
+        }
+        
+        const scoringParameters = await scoringParamRepo.find({
+            where: { providerId: providerId },
+            relations: ['rules']
         });
-        totalWeightedScore += maxScoreForParam * (param.weight / 100);
-    });
+        
+        const provider = await providerRepo.findOne({
+            where: { id: providerId },
+            relations: ['products']
+        });
 
-    // Calculate the maximum possible score for this provider's configuration
-    const maxPossibleWeightedScore = scoringParameters.reduce((sum, param) => {
-        const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
-        return sum + (maxRuleScore * (param.weight / 100));
-    }, 0);
-    
-    // Calculate the score as a percentage of the maximum possible score
-    const scorePercentage = maxPossibleWeightedScore > 0 ? totalWeightedScore / maxPossibleWeightedScore : 0;
-    
-    // Find the highest loan amount available from any of the provider's ACTIVE products
-    const highestMaxLoanProduct = provider.products
-        .filter(p => p.status === 'Active')
-        .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+        if (!provider || provider.products.length === 0) {
+            // If no provider or products, return 0 as no loan is possible.
+            return { score: 0, maxLoanAmount: 0 };
+        }
         
-    // Calculate the loan amount based on the score percentage
-    const calculatedLoanAmount = Math.round((highestMaxLoanProduct * scorePercentage) / 100) * 100;
-    
-    // Ensure the calculated amount doesn't exceed the product's hard limit.
-    const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
+        // If a provider has no scoring rules, they are not eligible for a loan from them.
+        if (scoringParameters.length === 0) {
+            return { score: 0, maxLoanAmount: 0 };
+        }
         
-    return { score: Math.round(totalWeightedScore), maxLoanAmount: suggestedLoanAmountMax };
+        let totalWeightedScore = 0;
+        const customerLoanHistory = JSON.parse(customer.loanHistory);
+        const customerDataForScoring = {
+            age: customer.age,
+            monthlyIncome: customer.monthlyIncome,
+            gender: customer.gender,
+            educationLevel: customer.educationLevel,
+            ...customerLoanHistory
+        };
+
+        scoringParameters.forEach(param => {
+            let maxScoreForParam = 0;
+            param.rules.forEach(rule => {
+                const inputValue = customerDataForScoring[rule.field as keyof typeof customerDataForScoring];
+                if (evaluateCondition(inputValue, rule.condition, rule.value)) {
+                    if (rule.score > maxScoreForParam) {
+                        maxScoreForParam = rule.score;
+                    }
+                }
+            });
+            totalWeightedScore += maxScoreForParam * (param.weight / 100);
+        });
+
+        // Calculate the maximum possible score for this provider's configuration
+        const maxPossibleWeightedScore = scoringParameters.reduce((sum, param) => {
+            const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
+            return sum + (maxRuleScore * (param.weight / 100));
+        }, 0);
+        
+        // Calculate the score as a percentage of the maximum possible score
+        const scorePercentage = maxPossibleWeightedScore > 0 ? totalWeightedScore / maxPossibleWeightedScore : 0;
+        
+        // Find the highest loan amount available from any of the provider's ACTIVE products
+        const highestMaxLoanProduct = provider.products
+            .filter(p => p.status === 'Active')
+            .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+            
+        // Calculate the loan amount based on the score percentage
+        const calculatedLoanAmount = Math.round((highestMaxLoanProduct * scorePercentage) / 100) * 100;
+        
+        // Ensure the calculated amount doesn't exceed the product's hard limit.
+        const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
+            
+        return { score: Math.round(totalWeightedScore), maxLoanAmount: suggestedLoanAmountMax };
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') { // Don't destroy oracle connections
+           // await dataSource.destroy();
+        }
+    }
 }
 
 
 export async function checkLoanEligibility(customerId: number, providerId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
+  let dataSource: DataSource | null = null;
   try {
-    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-    const customerRepo = AppDataSource.getRepository(Customer);
+    dataSource = await getConnectedDataSource();
+    const customerRepo = dataSource.getRepository(Customer);
 
     const customer = await customerRepo.findOneBy({ id: customerId });
     
@@ -112,7 +130,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId);
     
     // Check if the provider has any scoring rules defined at all. If not, they are not eligible.
-    const scoringParamRepo = AppDataSource.getRepository(ScoringParameter);
+    const scoringParamRepo = dataSource.getRepository(ScoringParameter);
     const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
@@ -127,14 +145,19 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
   } catch (error) {
     console.error('Error in checkLoanEligibility:', error);
     return { isEligible: false, reason: 'An unexpected server error occurred.', score: 0, maxLoanAmount: 0 };
+  } finally {
+      if (dataSource && AppDataSource.options.type !== 'oracle') {
+         // await dataSource.destroy();
+      }
   }
 }
 
 
 export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number): Promise<{score: number, maxLoanAmount: number}> {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const customer = await AppDataSource.getRepository(Customer).findOneBy({ id: customerId });
+        dataSource = await getConnectedDataSource();
+        const customer = await dataSource.getRepository(Customer).findOneBy({ id: customerId });
         if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
@@ -142,5 +165,9 @@ export async function recalculateScoreAndLoanLimit(customerId: number, providerI
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };
+    } finally {
+         if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }

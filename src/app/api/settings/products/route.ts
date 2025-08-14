@@ -4,6 +4,15 @@ import { AppDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { z } from 'zod';
+import type { DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 const productSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -27,9 +36,10 @@ const updateProductSchema = productSchema.extend({
 
 // POST a new product
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const productRepo = AppDataSource.getRepository(LoanProduct);
+        dataSource = await getConnectedDataSource();
+        const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
         const validation = createProductSchema.safeParse(body);
@@ -50,14 +60,19 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating product:', error);
         return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+    } finally {
+         if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }
 
 // PUT (update) a product
 export async function PUT(req: Request) {
+    let dataSource: DataSource | null = null;
      try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const productRepo = AppDataSource.getRepository(LoanProduct);
+        dataSource = await getConnectedDataSource();
+        const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
         const validation = updateProductSchema.safeParse(body);
@@ -75,15 +90,20 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating product:', error);
         return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }
 
 // DELETE a product
 export async function DELETE(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const productRepo = AppDataSource.getRepository(LoanProduct);
-        const loanRepo = AppDataSource.getRepository(LoanDetails);
+        dataSource = await getConnectedDataSource();
+        const productRepo = dataSource.getRepository(LoanProduct);
+        const loanRepo = dataSource.getRepository(LoanDetails);
 
         const { id } = await req.json();
 
@@ -103,5 +123,9 @@ export async function DELETE(req: Request) {
     } catch (error) {
         console.error('Error deleting product:', error);
         return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }

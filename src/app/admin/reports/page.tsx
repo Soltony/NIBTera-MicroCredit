@@ -5,7 +5,7 @@ import { AppDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 import type { LoanProvider } from '@/lib/types';
-import type { FindOptionsWhere } from 'typeorm';
+import type { FindOptionsWhere, DataSource } from 'typeorm';
 
 
 export interface ReportLoan {
@@ -23,44 +23,59 @@ export interface ReportLoan {
     paymentsCount: number;
 }
 
-async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProvider[] }> {
-    const currentUser = await getUserFromSession();
-    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-    
-    const loanRepo = AppDataSource.getRepository(LoanDetails);
-    const providerRepo = AppDataSource.getRepository(LoanProviderEntity);
-
-    const whereClause: FindOptionsWhere<LoanDetails> = {};
-    if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
-        whereClause.providerId = Number(currentUser.providerId);
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
     }
+}
 
-    const loans = await loanRepo.find({
-        where: whereClause,
-        relations: ['provider', 'product', 'payments'],
-        order: {
-            disbursedDate: 'DESC',
-        },
-    });
+async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProvider[] }> {
+    let dataSource: DataSource | null = null;
+    try {
+        const currentUser = await getUserFromSession();
+        dataSource = await getConnectedDataSource();
+        
+        const loanRepo = dataSource.getRepository(LoanDetails);
+        const providerRepo = dataSource.getRepository(LoanProviderEntity);
 
-    const loansToReturn: ReportLoan[] = loans.map(loan => ({
-        id: String(loan.id),
-        loanAmount: loan.loanAmount,
-        serviceFee: loan.serviceFee,
-        interestRate: loan.interestRate,
-        disbursedDate: loan.disbursedDate,
-        dueDate: loan.dueDate,
-        penaltyAmount: loan.penaltyAmount,
-        repaymentStatus: loan.repaymentStatus,
-        repaidAmount: loan.repaidAmount,
-        providerName: loan.provider.name,
-        productName: loan.product.name,
-        paymentsCount: loan.payments.length,
-    }));
+        const whereClause: FindOptionsWhere<LoanDetails> = {};
+        if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
+            whereClause.providerId = Number(currentUser.providerId);
+        }
 
-    const providers = await providerRepo.find();
-    
-    return { loans: loansToReturn, providers: providers.map(p => ({ ...p, id: String(p.id), products: [] })) as any };
+        const loans = await loanRepo.find({
+            where: whereClause,
+            relations: ['provider', 'product', 'payments'],
+            order: {
+                disbursedDate: 'DESC',
+            },
+        });
+
+        const loansToReturn: ReportLoan[] = loans.map(loan => ({
+            id: String(loan.id),
+            loanAmount: loan.loanAmount,
+            serviceFee: loan.serviceFee,
+            interestRate: loan.interestRate,
+            disbursedDate: loan.disbursedDate,
+            dueDate: loan.dueDate,
+            penaltyAmount: loan.penaltyAmount,
+            repaymentStatus: loan.repaymentStatus,
+            repaidAmount: loan.repaidAmount,
+            providerName: loan.provider.name,
+            productName: loan.product.name,
+            paymentsCount: loan.payments.length,
+        }));
+
+        const providers = await providerRepo.find();
+        
+        return { loans: loansToReturn, providers: providers.map(p => ({ ...p, id: String(p.id), products: [] })) as any };
+    } finally {
+         if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
+    }
 }
 
 

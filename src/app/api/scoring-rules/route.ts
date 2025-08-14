@@ -5,18 +5,26 @@ import { ScoringParameter } from '@/entities/ScoringParameter';
 import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import type { ScoringParameter as ScoringParameterType, Rule } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
-import { In } from 'typeorm';
+import { In, DataSource } from 'typeorm';
 
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
         if (!currentUser || (currentUser.role !== 'Super Admin' && currentUser.role !== 'Loan Manager')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const manager = AppDataSource.manager;
+        dataSource = await getConnectedDataSource();
+        const manager = dataSource.manager;
 
         const { providerId, parameters } = await req.json() as { providerId: string; parameters: ScoringParameterType[] };
 
@@ -93,5 +101,9 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error saving scoring parameters:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }

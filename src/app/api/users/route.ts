@@ -5,13 +5,22 @@ import { User } from '@/entities/User';
 import { Role } from '@/entities/Role';
 import { LoanProvider } from '@/entities/LoanProvider';
 import bcrypt from 'bcryptjs';
-import { FindOptionsWhere, Or } from 'typeorm';
+import { FindOptionsWhere, Or, DataSource } from 'typeorm';
+
+async function getConnectedDataSource(): Promise<DataSource> {
+    if (AppDataSource.isInitialized) {
+        return AppDataSource;
+    } else {
+        return await AppDataSource.initialize();
+    }
+}
 
 // GET all users
 export async function GET() {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const userRepo = AppDataSource.getRepository(User);
+        dataSource = await getConnectedDataSource();
+        const userRepo = dataSource.getRepository(User);
         const users = await userRepo.find({
             relations: ['provider', 'role'],
         });
@@ -30,15 +39,20 @@ export async function GET() {
     } catch (error) {
         console.error('Error fetching users:', error);
         return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+            // await dataSource.destroy();
+        }
     }
 }
 
 // POST a new user
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const userRepo = AppDataSource.getRepository(User);
-        const roleRepo = AppDataSource.getRepository(Role);
+        dataSource = await getConnectedDataSource();
+        const userRepo = dataSource.getRepository(User);
+        const roleRepo = dataSource.getRepository(Role);
         
         const { fullName, email, phoneNumber, password, role, providerId, status } = await req.json();
 
@@ -77,15 +91,20 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating user:', error);
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    } finally {
+         if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }
 
 // PUT (update) a user
 export async function PUT(req: Request) {
+    let dataSource: DataSource | null = null;
      try {
-        if (!AppDataSource.isInitialized) await AppDataSource.initialize();
-        const userRepo = AppDataSource.getRepository(User);
-        const roleRepo = AppDataSource.getRepository(Role);
+        dataSource = await getConnectedDataSource();
+        const userRepo = dataSource.getRepository(User);
+        const roleRepo = dataSource.getRepository(Role);
         
         const { id, ...updateData } = await req.json();
 
@@ -117,5 +136,9 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating user:', error);
         return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+    } finally {
+        if (dataSource && AppDataSource.options.type !== 'oracle') {
+           // await dataSource.destroy();
+        }
     }
 }
