@@ -1,4 +1,5 @@
 
+'use server';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -45,7 +46,10 @@ export class LoanProvider {
   @OneToMany('ScoringParameter', (parameter) => parameter.provider)
   scoringParameters!: ScoringParameter[];
 
-  @OneToMany('ScoringConfigurationHistory', (history) => history.provider)
+  @OneToMany(
+    'ScoringConfigurationHistory',
+    (history) => history.provider
+  )
   scoringConfigurationHistory!: ScoringConfigurationHistory[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

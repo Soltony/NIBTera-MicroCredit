@@ -1,4 +1,5 @@
 
+'use server';
 import {
   Entity,
   PrimaryGeneratedColumn,
