@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
-import { z } from 'zod';
+import { loanSchema } from '@/lib/schemas';
 import type { DataSource } from 'typeorm';
 
 async function getConnectedDataSource(): Promise<DataSource> {
@@ -12,18 +12,6 @@ async function getConnectedDataSource(): Promise<DataSource> {
         return await AppDataSource.initialize();
     }
 }
-
-const loanSchema = z.object({
-    providerId: z.string(),
-    productId: z.string(),
-    loanAmount: z.number(),
-    serviceFee: z.number(),
-    interestRate: z.number(),
-    disbursedDate: z.string().datetime(),
-    dueDate: z.string().datetime(),
-    penaltyAmount: z.number(),
-    repaymentStatus: z.enum(['Paid', 'Unpaid']),
-});
 
 export async function POST(req: Request) {
     let dataSource: DataSource | null = null;

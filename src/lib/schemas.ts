@@ -22,3 +22,15 @@ export const updateProductSchema = productSchema.extend({
   id: z.string(),
   status: z.enum(['Active', 'Disabled']),
 });
+
+export const loanSchema = z.object({
+    providerId: z.string(),
+    productId: z.string(),
+    loanAmount: z.number(),
+    serviceFee: z.number(),
+    interestRate: z.number(),
+    disbursedDate: z.string().datetime(),
+    dueDate: z.string().datetime(),
+    penaltyAmount: z.number(),
+    repaymentStatus: z.enum(['Paid', 'Unpaid']),
+});
