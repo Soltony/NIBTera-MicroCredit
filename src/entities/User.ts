@@ -12,7 +12,7 @@ import {
 } from 'typeorm';
 import { IsEmail, IsNotEmpty, Length } from 'class-validator';
 import { Role } from './Role';
-import type { LoanProvider } from './LoanProvider';
+import { LoanProvider } from './LoanProvider';
 
 @Entity({ name: 'users' })
 export class User {
@@ -48,7 +48,7 @@ export class User {
   @Column({ type: 'number', nullable: true, name: 'provider_id' })
   providerId!: number | null;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.users, { nullable: true })
+  @ManyToOne(() => LoanProvider, (provider) => provider.users, { nullable: true })
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 

@@ -33,7 +33,7 @@ export class LoanProvider {
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
 
-  @OneToMany(() => User, (user) => user.provider)
+  @OneToMany('User', (user) => user.provider)
   users!: User[];
 
   @OneToMany('LoanProduct', (product) => product.provider)
