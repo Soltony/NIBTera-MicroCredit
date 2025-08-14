@@ -7,7 +7,6 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany,
   Index,
 } from 'typeorm';
 import { IsEmail, IsNotEmpty, Length } from 'class-validator';

@@ -4,7 +4,6 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
   ManyToMany,
@@ -28,7 +27,7 @@ export class ScoringConfigurationHistory {
   @Column({ type: 'clob' })
   parameters!: string; // Stored as a JSON string
 
-  @ManyToMany(() => LoanProduct, (product) => product.id)
+  @ManyToMany(() => LoanProduct)
   @JoinTable({
     name: '_scoring_config_history_to_products',
     joinColumn: {
