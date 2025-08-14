@@ -28,7 +28,7 @@ export class ScoringConfigurationHistory {
   @Column({ type: 'clob' })
   parameters!: string; // Stored as a JSON string
 
-  @ManyToMany(() => LoanProduct)
+  @ManyToMany(() => LoanProduct, (product) => product.id)
   @JoinTable({
     name: '_scoring_config_history_to_products',
     joinColumn: {
