@@ -1,45 +1,78 @@
+
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import { prisma } from '@/lib/prisma';
-import type { LoanDetails } from '@/lib/types';
+import { AppDataSource } from '@/data-source';
+import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
+import { LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
+import type { LoanDetails, LoanProvider } from '@/lib/types';
 
 
-async function getProviders() {
-    const providers = await prisma.loanProvider.findMany({
-        include: {
-            products: true,
+async function getProviders(): Promise<LoanProvider[]> {
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const providerRepo = AppDataSource.getRepository(LoanProviderEntity);
+    const providers = await providerRepo.find({
+        relations: ['products'],
+        order: {
+            displayOrder: 'ASC',
+            products: {
+                name: 'ASC'
+            }
         }
     });
 
-    // We need to provide the icon component itself, not just the name.
-    // This is a temporary solution until the icon mapping is more robust.
+    // Manually map to plain objects to avoid passing class instances to client components.
     return providers.map(p => ({
-        ...p,
-        // The 'icon' field in the DB stores a string name, which we can't use directly
-        // We'll replace it with a placeholder or a mapped component if needed. For now, this is okay.
-    }));
+        id: String(p.id),
+        name: p.name,
+        icon: p.icon,
+        colorHex: p.colorHex,
+        displayOrder: p.displayOrder,
+        products: p.products.map(prod => ({
+            id: String(prod.id),
+            name: prod.name,
+            description: prod.description,
+            icon: prod.icon,
+            minLoan: prod.minLoan,
+            maxLoan: prod.maxLoan,
+            serviceFee: prod.serviceFee,
+            dailyFee: prod.dailyFee,
+            penaltyFee: prod.penaltyFee,
+            status: prod.status as 'Active' | 'Disabled',
+        }))
+    })) as LoanProvider[];
 }
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
-    const loans = await prisma.loanDetails.findMany({
-        include: {
-            provider: true,
-            product: true,
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const loanRepo = AppDataSource.getRepository(LoanDetailsEntity);
+    const loans = await loanRepo.find({
+        relations: ['provider', 'product', 'payments'],
+        order: {
+            disbursedDate: 'DESC',
             payments: {
-                orderBy: {
-                    date: 'asc',
-                },
-            },
-        },
-        orderBy: {
-            disbursedDate: 'desc',
+                date: 'ASC'
+            }
         },
     });
 
+    // Manually map to plain objects to avoid passing class instances to client components.
     return loans.map(loan => ({
-        ...loan,
+        id: String(loan.id),
         providerName: loan.provider.name,
         productName: loan.product.name,
-    }));
+        loanAmount: loan.loanAmount,
+        serviceFee: loan.serviceFee,
+        interestRate: loan.interestRate,
+        disbursedDate: loan.disbursedDate,
+        dueDate: loan.dueDate,
+        penaltyAmount: loan.penaltyAmount,
+        repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
+        repaidAmount: loan.repaidAmount || 0,
+        payments: loan.payments.map(p => ({
+            amount: p.amount,
+            date: p.date,
+            outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
+        }))
+    })) as LoanDetails[];
 }
 
 
