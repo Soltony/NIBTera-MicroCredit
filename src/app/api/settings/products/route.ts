@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { LoanDetails } from '@/entities/LoanDetails';
-import { z } from 'zod';
+import { createProductSchema, updateProductSchema } from '@/lib/schemas';
 import type { DataSource } from 'typeorm';
 
 async function getConnectedDataSource(): Promise<DataSource> {
@@ -13,26 +13,6 @@ async function getConnectedDataSource(): Promise<DataSource> {
         return await AppDataSource.initialize();
     }
 }
-
-const productSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  icon: z.string().min(1, 'Icon is required'),
-  minLoan: z.number().positive(),
-  maxLoan: z.number().positive(),
-  serviceFee: z.string(),
-  dailyFee: z.string(),
-  penaltyFee: z.string(),
-});
-
-const createProductSchema = productSchema.extend({
-    providerId: z.string()
-});
-
-const updateProductSchema = productSchema.extend({
-  id: z.string(),
-  status: z.enum(['Active', 'Disabled']),
-});
 
 // POST a new product
 export async function POST(req: Request) {
@@ -61,8 +41,8 @@ export async function POST(req: Request) {
         console.error('Error creating product:', error);
         return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
     } finally {
-         if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
+         if (dataSource && !dataSource.isDestroyed) {
+           await dataSource.destroy();
         }
     }
 }
@@ -91,8 +71,8 @@ export async function PUT(req: Request) {
         console.error('Error updating product:', error);
         return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
     } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
+        if (dataSource && !dataSource.isDestroyed) {
+           await dataSource.destroy();
         }
     }
 }
@@ -124,8 +104,8 @@ export async function DELETE(req: Request) {
         console.error('Error deleting product:', error);
         return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
     } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
+        if (dataSource && !dataSource.isDestroyed) {
+            await dataSource.destroy();
         }
     }
 }
