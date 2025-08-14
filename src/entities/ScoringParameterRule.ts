@@ -9,7 +9,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
-import type { ScoringParameter } from './ScoringParameter';
+import { ScoringParameter } from './ScoringParameter';
 
 @Entity({ name: 'scoring_parameter_rules' })
 export class ScoringParameterRule {
@@ -19,7 +19,7 @@ export class ScoringParameterRule {
   @Column({ name: 'parameter_id' })
   parameterId!: number;
 
-  @ManyToOne('ScoringParameter', (parameter: ScoringParameter) => parameter.rules, { onDelete: 'CASCADE' })
+  @ManyToOne(() => ScoringParameter, (parameter) => parameter.rules, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'parameter_id' })
   parameter!: ScoringParameter;
 

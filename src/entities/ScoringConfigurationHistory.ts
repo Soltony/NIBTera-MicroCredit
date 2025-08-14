@@ -10,8 +10,8 @@ import {
   ManyToMany,
   JoinTable,
 } from 'typeorm';
-import type { LoanProvider } from './LoanProvider';
-import type { LoanProduct } from './LoanProduct';
+import { LoanProvider } from './LoanProvider';
+import { LoanProduct } from './LoanProduct';
 
 @Entity({ name: 'scoring_configuration_history' })
 export class ScoringConfigurationHistory {
@@ -21,14 +21,14 @@ export class ScoringConfigurationHistory {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.scoringConfigurationHistory)
+  @ManyToOne(() => LoanProvider, (provider) => provider.scoringConfigurationHistory)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
   @Column({ type: 'clob' })
   parameters!: string; // Stored as a JSON string
 
-  @ManyToMany('LoanProduct')
+  @ManyToMany(() => LoanProduct)
   @JoinTable({
     name: '_scoring_config_history_to_products',
     joinColumn: {

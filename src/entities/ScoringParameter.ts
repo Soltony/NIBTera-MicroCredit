@@ -10,8 +10,8 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
-import type { LoanProvider } from './LoanProvider';
-import type { ScoringParameterRule } from './ScoringParameterRule';
+import { LoanProvider } from './LoanProvider';
+import { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'scoring_parameters' })
 export class ScoringParameter {
@@ -21,7 +21,7 @@ export class ScoringParameter {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.scoringParameters)
+  @ManyToOne(() => LoanProvider, (provider) => provider.scoringParameters)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
@@ -33,7 +33,7 @@ export class ScoringParameter {
   @IsNumber()
   weight!: number;
 
-  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, {
+  @OneToMany(() => ScoringParameterRule, (rule) => rule.parameter, {
     cascade: true,
   })
   rules!: ScoringParameterRule[];

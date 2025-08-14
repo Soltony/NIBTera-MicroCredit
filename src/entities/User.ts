@@ -11,8 +11,8 @@ import {
   Index,
 } from 'typeorm';
 import { IsEmail, IsNotEmpty, Length } from 'class-validator';
-import type { Role } from './Role';
-import type { LoanProvider } from './LoanProvider';
+import { Role } from './Role';
+import { LoanProvider } from './LoanProvider';
 
 @Entity({ name: 'users' })
 export class User {
@@ -41,14 +41,14 @@ export class User {
   @Column({ name: 'role_name' })
   roleName!: string;
 
-  @ManyToOne('Role', (role: Role) => role.users, { eager: true })
+  @ManyToOne(() => Role, (role) => role.users, { eager: true })
   @JoinColumn({ name: 'role_name', referencedColumnName: 'name' })
   role!: Role;
 
   @Column({ type: 'number', nullable: true, name: 'provider_id' })
   providerId!: number | null;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.users, { nullable: true })
+  @ManyToOne(() => LoanProvider, (provider) => provider.users, { nullable: true })
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
