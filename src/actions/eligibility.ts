@@ -11,7 +11,7 @@ import { AppDataSource } from '@/data-source';
 import { Customer } from '@/entities/Customer';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { ScoringParameter } from '@/entities/ScoringParameter';
-import { evaluateCondition } from '@/lib/types';
+import { evaluateCondition } from '@/lib/utils';
 import type { DataSource } from 'typeorm';
 
 
