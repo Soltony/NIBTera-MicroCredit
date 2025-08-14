@@ -102,8 +102,8 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
             
         return { score: Math.round(totalWeightedScore), maxLoanAmount: suggestedLoanAmountMax };
     } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') { // Don't destroy oracle connections
-           // await dataSource.destroy();
+        if (dataSource && !dataSource.isDestroyed && AppDataSource.options.type !== 'oracle') { 
+            await dataSource.destroy();
         }
     }
 }
@@ -146,8 +146,8 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     console.error('Error in checkLoanEligibility:', error);
     return { isEligible: false, reason: 'An unexpected server error occurred.', score: 0, maxLoanAmount: 0 };
   } finally {
-      if (dataSource && AppDataSource.options.type !== 'oracle') {
-         // await dataSource.destroy();
+      if (dataSource && !dataSource.isDestroyed && AppDataSource.options.type !== 'oracle') {
+         await dataSource.destroy();
       }
   }
 }
@@ -166,8 +166,8 @@ export async function recalculateScoreAndLoanLimit(customerId: number, providerI
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };
     } finally {
-         if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
+         if (dataSource && !dataSource.isDestroyed && AppDataSource.options.type !== 'oracle') {
+           await dataSource.destroy();
         }
     }
 }
