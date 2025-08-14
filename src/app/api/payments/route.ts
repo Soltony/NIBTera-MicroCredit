@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { Payment } from '@/entities/Payment';
-import { calculateTotalRepayable } from '@/lib/types';
+import { calculateTotalRepayable } from '@/lib/utils';
 import { z } from 'zod';
 import type { DataSource } from 'typeorm';
 
@@ -97,8 +97,8 @@ export async function POST(req: Request) {
         console.error('Error processing payment:', error);
         return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 });
     } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
+        if (dataSource && !dataSource.isDestroyed) {
+           await dataSource.destroy();
         }
     }
 }

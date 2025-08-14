@@ -14,7 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable, parseFee } from '@/lib/types';
+import { parseFee } from '@/lib/types';
+import { calculateTotalRepayable } from '@/lib/utils';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
