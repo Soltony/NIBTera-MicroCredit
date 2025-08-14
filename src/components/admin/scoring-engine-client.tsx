@@ -19,10 +19,9 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { LoanProduct, LoanProvider, TransactionProduct } from '@/lib/types';
+import type { LoanProduct, LoanProvider, TransactionProduct, ScoringParameters } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { produce } from 'immer';
-import type { ScoringParameters } from '@/app/api/scoring-configs/route';
 import { Loader2 } from 'lucide-react';
 import { deepClone } from 'fast-json-patch';
 
@@ -211,7 +210,7 @@ export function ScoringEngineClient({ providers, transactionProducts, initialSco
         if (!response.ok) throw new Error('Failed to reset configuration.');
         
         const defaultConfig = await response.json();
-        updateConfigProvider(selectedProviderId, defaultConfig);
+        updateConfigForProvider(selectedProviderId, defaultConfig);
 
         toast({
             title: 'Configuration Reset',
@@ -518,5 +517,3 @@ export function ScoringEngineClient({ providers, transactionProducts, initialSco
     </div>
   );
 }
-
-    

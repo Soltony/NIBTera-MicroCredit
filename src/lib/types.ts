@@ -188,3 +188,27 @@ export const evaluateCondition = (inputValue: string | number | undefined, condi
         }
     }
 };
+
+// Type for Legacy Scoring Config page
+export type GenderImpact = number;
+
+export interface ScoringParameters {
+  productIds: string[];
+  weights: {
+    age: { enabled: boolean; value: number };
+    transactionHistoryTotal: { enabled: boolean; value: number };
+    transactionHistoryByProduct: { enabled: boolean; values: Record<string, number> };
+    loanHistoryCount: { enabled: boolean; value: number };
+    onTimeRepayments: { enabled: boolean; value: number };
+    salary: { enabled: boolean; value: number };
+  };
+  genderImpact: {
+    enabled: boolean;
+    male: GenderImpact;
+    female: GenderImpact;
+  };
+  occupationRisk: {
+    enabled: boolean;
+    values: Record<string, 'Low' | 'Medium' | 'High'>;
+  };
+}

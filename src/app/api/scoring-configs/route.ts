@@ -2,29 +2,8 @@
 'use server';
 import { NextResponse } from 'next/server';
 import { deepClone } from 'fast-json-patch';
+import type { ScoringParameters } from '@/lib/types';
 
-export type GenderImpact = number;
-
-export interface ScoringParameters {
-  productIds: string[];
-  weights: {
-    age: { enabled: boolean; value: number };
-    transactionHistoryTotal: { enabled: boolean; value: number };
-    transactionHistoryByProduct: { enabled: boolean; values: Record<string, number> };
-    loanHistoryCount: { enabled: boolean; value: number };
-    onTimeRepayments: { enabled: boolean; value: number };
-    salary: { enabled: boolean; value: number };
-  };
-  genderImpact: {
-    enabled: boolean;
-    male: GenderImpact;
-    female: GenderImpact;
-  };
-  occupationRisk: {
-    enabled: boolean;
-    values: Record<string, 'Low' | 'Medium' | 'High'>;
-  };
-}
 
 const DEFAULT_PARAMETERS: ScoringParameters = {
   productIds: [],
@@ -56,7 +35,7 @@ const DEFAULT_PARAMETERS: ScoringParameters = {
 
 // In-memory store to simulate a database.
 // In a real app, you would replace this with Prisma calls.
-export let scoringConfigs: Record<string, ScoringParameters> = {};
+let scoringConfigs: Record<string, ScoringParameters> = {};
 
 function getConfigForProvider(providerId: string) {
     if (!scoringConfigs[providerId]) {
