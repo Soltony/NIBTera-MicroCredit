@@ -128,45 +128,48 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     }
 
     return (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-background">
-            <div className="space-y-2">
-                <Label htmlFor={`minLoan-${product.id}`}>Minimum Loan Amount</Label>
-                <Input id={`minLoan-${product.id}`} type="number" value={formData.minLoan} onChange={handleChange} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor={`maxLoan-${product.id}`}>Maximum Loan Amount</Label>
-                <Input id={`maxLoan-${product.id}`} type="number" value={formData.maxLoan} onChange={handleChange} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor={`serviceFee-${product.id}`}>Service Fee</Label>
-                <Input id={`serviceFee-${product.id}`} value={formData.serviceFee} onChange={handleChange} placeholder="e.g. 3%"/>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor={`dailyFee-${product.id}`}>Daily Fee</Label>
-                <Input id={`dailyFee-${product.id}`} value={formData.dailyFee} onChange={handleChange} placeholder="e.g. 0.2%"/>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor={`penaltyFee-${product.id}`}>Penalty Fee After Due Date</Label>
-                <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} placeholder="e.g. 0.11% daily" />
-            </div>
-            <div className="flex items-center space-x-2">
-                 <Switch 
-                    id={`status-${product.id}`}
-                    checked={formData.status === 'Active'} 
-                    onCheckedChange={handleSwitchChange}
-                    className="data-[state=checked]:bg-[--provider-color]"
-                    style={{'--provider-color': providerColor} as React.CSSProperties}
-                />
-                <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
-            </div>
-             <div className="flex items-center space-x-2 md:col-span-2 justify-end">
-                <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
-                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Changes
-                </Button>
-            </div>
-        </form>
+        <div className="space-y-4">
+            <h4 className="text-md font-semibold">{product.name}</h4>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-background">
+                <div className="space-y-2">
+                    <Label htmlFor={`minLoan-${product.id}`}>Minimum Loan Amount</Label>
+                    <Input id={`minLoan-${product.id}`} type="number" value={formData.minLoan} onChange={handleChange} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor={`maxLoan-${product.id}`}>Maximum Loan Amount</Label>
+                    <Input id={`maxLoan-${product.id}`} type="number" value={formData.maxLoan} onChange={handleChange} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor={`serviceFee-${product.id}`}>Service Fee</Label>
+                    <Input id={`serviceFee-${product.id}`} value={formData.serviceFee} onChange={handleChange} placeholder="e.g. 3%"/>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor={`dailyFee-${product.id}`}>Daily Fee</Label>
+                    <Input id={`dailyFee-${product.id}`} value={formData.dailyFee} onChange={handleChange} placeholder="e.g. 0.2%"/>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor={`penaltyFee-${product.id}`}>Penalty Fee After Due Date</Label>
+                    <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} placeholder="e.g. 0.11% daily" />
+                </div>
+                <div className="flex items-center space-x-2">
+                     <Switch 
+                        id={`status-${product.id}`}
+                        checked={formData.status === 'Active'} 
+                        onCheckedChange={handleSwitchChange}
+                        className="data-[state=checked]:bg-[--provider-color]"
+                        style={{'--provider-color': providerColor} as React.CSSProperties}
+                    />
+                    <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+                </div>
+                 <div className="flex items-center space-x-2 md:col-span-2 justify-end">
+                    <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                    <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                    </Button>
+                </div>
+            </form>
+        </div>
     )
 }
 
@@ -359,16 +362,14 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
-                                <div key={product.id}>
-                                     <h4 className="text-md font-semibold mb-2">{product.name}</h4>
-                                     <ProductSettingsForm 
-                                        providerId={provider.id}
-                                        product={{...product, icon: product.icon || 'PersonStanding'}} 
-                                        providerColor={provider.colorHex} 
-                                        onSave={handleSaveProduct}
-                                        onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                                     />
-                                </div>
+                                 <ProductSettingsForm 
+                                    key={product.id}
+                                    providerId={provider.id}
+                                    product={{...product, icon: product.icon || 'PersonStanding'}} 
+                                    providerColor={provider.colorHex} 
+                                    onSave={handleSaveProduct}
+                                    onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
+                                 />
                             ))}
                             <Button 
                                 variant="outline" 
