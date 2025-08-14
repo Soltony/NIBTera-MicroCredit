@@ -8,10 +8,10 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
-import type { User } from './User';
+import { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
-import type { ScoringParameter } from './ScoringParameter';
+import { ScoringParameter } from './ScoringParameter';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
 
 @Entity({ name: 'loan_providers' })
@@ -36,16 +36,16 @@ export class LoanProvider {
   @OneToMany(() => User, (user) => user.provider)
   users!: User[];
 
-  @OneToMany('LoanProduct', (product: LoanProduct) => product.provider)
+  @OneToMany('LoanProduct', (product) => product.provider)
   products!: LoanProduct[];
 
-  @OneToMany('LoanDetails', (loan: LoanDetails) => loan.provider)
+  @OneToMany('LoanDetails', (loan) => loan.provider)
   loans!: LoanDetails[];
 
   @OneToMany(() => ScoringParameter, (parameter) => parameter.provider)
   scoringParameters!: ScoringParameter[];
 
-  @OneToMany('ScoringConfigurationHistory', (history: ScoringConfigurationHistory) => history.provider)
+  @OneToMany('ScoringConfigurationHistory', (history) => history.provider)
   scoringConfigurationHistory!: ScoringConfigurationHistory[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

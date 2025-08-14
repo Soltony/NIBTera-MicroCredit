@@ -56,7 +56,7 @@ export class LoanProduct {
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
-  @OneToMany('LoanDetails', (loan: LoanDetails) => loan.product)
+  @OneToMany('LoanDetails', (loan) => loan.product)
   loans!: LoanDetails[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

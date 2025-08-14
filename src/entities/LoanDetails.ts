@@ -64,7 +64,7 @@ export class LoanDetails {
   @Column({ type: 'number', name: 'repaid_amount', precision: 10, scale: 2, nullable: true })
   repaidAmount!: number | null;
 
-  @OneToMany('Payment', (payment: Payment) => payment.loan)
+  @OneToMany('Payment', (payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
