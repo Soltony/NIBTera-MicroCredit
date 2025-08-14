@@ -347,10 +347,10 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                          <div className="flex items-center gap-2 ml-auto pl-4">
                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                                 <>
-                                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={() => handleOpenProviderDialog(provider)}>
+                                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
                                         <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={() => setDeletingId({ type: 'provider', providerId: provider.id })}>
+                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </>
