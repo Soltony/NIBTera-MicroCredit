@@ -335,17 +335,15 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                     <div className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline">
-                           <div className="flex items-center gap-4">
-                                <IconDisplay iconName={provider.icon} />
-                                <div>
-                                    <div className="text-lg font-semibold text-left">{provider.name}</div>
-                                    <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
-                                </div>
+                     <AccordionTrigger className="flex w-full items-center p-4 hover:no-underline">
+                        <div className="flex items-center gap-4 flex-1">
+                            <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                            <div>
+                                <div className="text-lg font-semibold text-left">{provider.name}</div>
+                                <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>
                             </div>
-                        </AccordionTrigger>
-                         <div className="flex items-center gap-2 ml-auto pl-4">
+                        </div>
+                         <div className="flex items-center gap-2 ml-4">
                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                                 <>
                                     <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
@@ -357,7 +355,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                 </>
                             )}
                         </div>
-                    </div>
+                    </AccordionTrigger>
                     <AccordionContent className="p-4 border-t">
                         <div className="space-y-6">
                             {provider.products.map(product => (
@@ -423,3 +421,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
