@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -26,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload } from 'lucide-react';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -44,7 +45,36 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
-import { IconDisplay } from '@/components/icons';
+import { getCustomIcon } from '@/lib/types';
+
+const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
+    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
+    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (isCustom) {
+            const src = getCustomIcon(iconName);
+            setCustomIconSrc(src);
+        }
+    }, [iconName, isCustom]);
+
+    if (isCustom) {
+        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6 bg-muted rounded-full", className)} />;
+    }
+    
+    // Dynamically import lucide-react icons
+    const [IconComponent, setIconComponent] = useState<React.ElementType | null>(null);
+    useEffect(() => {
+        import('lucide-react').then(icons => {
+            const LucideIcon = (icons as any)[iconName] || icons.Building2;
+            setIconComponent(() => LucideIcon);
+        });
+    }, [iconName]);
+
+    if (!IconComponent) return <div className={cn("h-6 w-6 bg-muted rounded-full animate-pulse", className)} />;
+
+    return <IconComponent className={cn("h-6 w-6", className)} />;
+};
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -176,7 +206,10 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
             });
-            if (!response.ok) throw new Error(`Failed to ${isEditing ? 'update' : 'add'} provider`);
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'add'} provider`);
+            }
             
             const savedProviderResponse = await response.json();
             
@@ -197,8 +230,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             }));
 
             toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProviderResponse.name} has been successfully saved.` });
-        } catch (error) {
-             toast({ title: "Error", description: `Could not ${isEditing ? 'update' : 'add'} provider.`, variant: 'destructive' });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
     };
     
@@ -216,7 +249,10 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...newProductData, providerId: selectedProviderId })
             });
-            if (!response.ok) throw new Error('Failed to add product');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to add product');
+            }
             const newProduct = await response.json();
 
             setProviders(produce(draft => {
@@ -226,8 +262,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 }
             }));
             toast({ title: "Product Added", description: `${newProduct.name} has been added successfully.` });
-        } catch (error) {
-             toast({ title: "Error", description: "Could not add product.", variant: 'destructive' });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
     };
 
@@ -256,21 +292,29 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
     
     const handleDeleteProvider = async (providerId: string) => {
         try {
-            await fetch(`/api/settings/providers?id=${providerId}`, { method: 'DELETE' });
+            const response = await fetch(`/api/settings/providers?id=${providerId}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Could not delete provider.');
+            }
             setProviders(providers.filter(p => p.id !== providerId));
             toast({ title: "Provider Deleted" });
-        } catch (error) {
-            toast({ title: "Error", description: "Could not delete provider.", variant: 'destructive' });
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
     }
     
     const handleDeleteProduct = async (providerId: string, productId: string) => {
         try {
-             await fetch('/api/settings/products', {
+             const response = await fetch('/api/settings/products', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: productId }),
              });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Could not delete product.');
+            }
              setProviders(produce(draft => {
                 const provider = draft.find(p => p.id === providerId);
                 if (provider) {
@@ -278,8 +322,8 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 }
             }));
             toast({ title: "Product Deleted" });
-        } catch (error) {
-             toast({ title: "Error", description: "Could not delete product.", variant: 'destructive' });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
     }
 
@@ -373,7 +417,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 <AlertDialogHeader>
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the selected item and all of its related data.
+                        This action cannot be undone. This will permanently delete the selected item. If it has associated data (like products or loans), this action might be blocked.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

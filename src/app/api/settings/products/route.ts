@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
+import { LoanDetails } from '@/entities/LoanDetails';
 import { z } from 'zod';
 
 const productSchema = z.object({
@@ -82,11 +83,18 @@ export async function DELETE(req: Request) {
     try {
         if (!AppDataSource.isInitialized) await AppDataSource.initialize();
         const productRepo = AppDataSource.getRepository(LoanProduct);
+        const loanRepo = AppDataSource.getRepository(LoanDetails);
 
         const { id } = await req.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
+        }
+
+        // Check for associated loans
+        const loanCount = await loanRepo.count({ where: { productId: Number(id) } });
+        if (loanCount > 0) {
+            return NextResponse.json({ error: `Cannot delete product. It has ${loanCount} associated loan(s).` }, { status: 400 });
         }
 
         await productRepo.delete(id);

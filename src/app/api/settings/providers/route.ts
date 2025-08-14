@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
+import { LoanProduct } from '@/entities/LoanProduct';
+import { In } from 'typeorm';
 import { z } from 'zod';
 
 const providerSchema = z.object({
@@ -65,11 +67,26 @@ export async function DELETE(req: Request) {
     try {
         if (!AppDataSource.isInitialized) await AppDataSource.initialize();
         const providerRepo = AppDataSource.getRepository(LoanProvider);
+        const productRepo = AppDataSource.getRepository(LoanProduct);
+        
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
         
         if (!id) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
+        }
+
+        const provider = await providerRepo.findOne({
+            where: { id: Number(id) },
+            relations: ['products']
+        });
+
+        if (!provider) {
+             return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
+        }
+
+        if (provider.products && provider.products.length > 0) {
+            return NextResponse.json({ error: `Cannot delete provider. It has ${provider.products.length} associated product(s). Please delete them first.` }, { status: 400 });
         }
 
         await providerRepo.delete(id);
