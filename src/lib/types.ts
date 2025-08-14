@@ -188,29 +188,3 @@ export const evaluateCondition = (inputValue: string | number | undefined, condi
         }
     }
 };
-
-
-// In-memory store for custom icons
-let customIconStore: Map<string, string>;
-
-function getIconStore(): Map<string, string> {
-    if (typeof window !== 'undefined') {
-        if (!customIconStore) {
-            customIconStore = new Map();
-        }
-        return customIconStore;
-    }
-    // Return a new map on the server to avoid issues
-    return new Map();
-}
-
-
-export function saveCustomIcon(key: string, dataUri: string) {
-    const store = getIconStore();
-    store.set(key, dataUri);
-}
-
-export function getCustomIcon(key: string): string | null {
-    const store = getIconStore();
-    return store.get(key) || null;
-}

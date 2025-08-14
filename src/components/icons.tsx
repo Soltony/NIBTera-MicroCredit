@@ -1,8 +1,7 @@
 'use client';
 
-import { SVGProps, useEffect, useState } from 'react';
+import { SVGProps } from 'react';
 import { cn } from '@/lib/utils';
-import { getCustomIcon } from '@/lib/types';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet } from 'lucide-react';
 
 
@@ -36,18 +35,11 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 export const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
-    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
-    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isCustom) {
-            const src = getCustomIcon(iconName);
-            setCustomIconSrc(src);
-        }
-    }, [iconName, isCustom]);
+    // Check if the iconName is a Base64 Data URI
+    const isCustom = iconName && iconName.startsWith('data:image/');
 
     if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6 bg-muted rounded-full", className)} />;
+        return <img src={iconName} alt="Custom Icon" className={cn("h-6 w-6", className)} />;
     }
 
     const IconComponent = iconMap[iconName] || Building2;

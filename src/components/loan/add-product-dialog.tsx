@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Briefcase, Home, PersonStanding, type LucideIcon, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LoanProduct } from '@/lib/types';
-import { saveCustomIcon } from '@/lib/types';
+import { IconDisplay } from '@/components/icons';
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -39,31 +39,26 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
   const [serviceFee, setServiceFee] = useState('');
   const [dailyFee, setDailyFee] = useState('');
   const [penaltyFee, setPenaltyFee] = useState('');
-  const [customIconPreview, setCustomIconPreview] = useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleCustomIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && (file.type === 'image/svg+xml' || file.type === 'image/png')) {
+    if (file && (file.type === 'image/svg+xml' || file.type === 'image/png' || file.type === 'image/jpeg')) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        const iconKey = `custom-icon-${file.name}-${Date.now()}`;
-        saveCustomIcon(iconKey, result);
-        setSelectedIconName(iconKey);
-        setCustomIconPreview(result);
+        setSelectedIconName(result);
       };
       reader.readAsDataURL(file);
     } else {
-      alert('Please select an SVG or PNG file.');
+      alert('Please select an SVG, PNG, or JPG file.');
     }
   };
 
-    const handleSelectIcon = (name: string) => {
-        setSelectedIconName(name);
-        setCustomIconPreview(null);
-    }
+  const handleSelectIcon = (name: string) => {
+    setSelectedIconName(name);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +84,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     setServiceFee('');
     setDailyFee('');
     setPenaltyFee('');
-    setCustomIconPreview(null);
 
     onClose();
   };
@@ -131,20 +125,20 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
                         onClick={() => fileInputRef.current?.click()}
                         className={cn(
                             'h-12 w-12',
-                            customIconPreview && selectedIconName.startsWith('custom-icon-') && 'ring-2 ring-primary'
+                            selectedIconName.startsWith('data:image/') && 'ring-2 ring-primary'
                         )}
                     >
-                        {customIconPreview ? (
-                            <img src={customIconPreview} alt="Custom Icon" className="h-6 w-6" />
+                       {selectedIconName.startsWith('data:image/') ? (
+                          <img src={selectedIconName} alt="Custom Icon" className="h-6 w-6" />
                         ) : (
-                            <Upload className="h-6 w-6" />
+                          <Upload className="h-6 w-6" />
                         )}
                     </Button>
                     <input
                         type="file"
                         ref={fileInputRef}
                         className="hidden"
-                        accept="image/svg+xml,image/png"
+                        accept="image/svg+xml,image/png,image/jpeg"
                         onChange={handleCustomIconUpload}
                     />
                 </div>

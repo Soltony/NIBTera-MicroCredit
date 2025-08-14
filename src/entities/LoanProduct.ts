@@ -26,7 +26,7 @@ export class LoanProduct {
   @Column({ type: 'varchar2', length: 1000 })
   description!: string;
 
-  @Column({ type: 'varchar2', length: 255 })
+  @Column({ type: 'clob' })
   icon!: string;
 
   @Column({ type: 'number', name: 'min_loan', precision: 10, scale: 2 })

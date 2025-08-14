@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Landmark, Briefcase, type LucideIcon, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LoanProvider } from '@/lib/types';
-import { saveCustomIcon, getCustomIcon } from '@/lib/types';
+import { IconDisplay } from '@/components/icons';
 
 interface AddProviderDialogProps {
   isOpen: boolean;
@@ -44,7 +44,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
   const [displayOrder, setDisplayOrder] = useState(0);
-  const [customIconPreview, setCustomIconPreview] = useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -54,40 +53,30 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setSelectedIconName(provider.icon);
         setSelectedColorHex(provider.colorHex || colors[0].hex);
         setDisplayOrder(provider.displayOrder || 0);
-        if (provider.icon.startsWith('custom-icon-')) {
-            setCustomIconPreview(getCustomIcon(provider.icon));
-        } else {
-            setCustomIconPreview(null);
-        }
     } else {
         setProviderName('');
         setSelectedIconName(icons[0].name);
         setSelectedColorHex(colors[0].hex);
         setDisplayOrder(0);
-        setCustomIconPreview(null);
     }
   }, [provider, isOpen]);
 
   const handleCustomIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && (file.type === 'image/svg+xml' || file.type === 'image/png')) {
+    if (file && (file.type === 'image/svg+xml' || file.type === 'image/png' || file.type === 'image/jpeg')) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        const iconKey = `custom-icon-${file.name}-${Date.now()}`;
-        saveCustomIcon(iconKey, result);
-        setSelectedIconName(iconKey);
-        setCustomIconPreview(result);
+        setSelectedIconName(result); // Set the icon name to the data URI
       };
       reader.readAsDataURL(file);
     } else {
-      alert('Please select an SVG or PNG file.');
+      alert('Please select an SVG, PNG, or JPG file.');
     }
   };
 
   const handleSelectIcon = (name: string) => {
     setSelectedIconName(name);
-    setCustomIconPreview(null);
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -165,21 +154,21 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                     onClick={() => fileInputRef.current?.click()}
                     className={cn(
                         'h-12 w-12',
-                        customIconPreview && selectedIconName.startsWith('custom-icon-') && 'ring-2'
+                        selectedIconName.startsWith('data:image/') && 'ring-2'
                     )}
                     style={{'--ring': primaryColor} as React.CSSProperties}
                 >
-                    {customIconPreview ? (
-                        <img src={customIconPreview} alt="Custom Icon" className="h-6 w-6" />
+                   {selectedIconName.startsWith('data:image/') ? (
+                      <img src={selectedIconName} alt="Custom Icon" className="h-6 w-6" />
                     ) : (
-                        <Upload className="h-6 w-6" />
+                      <Upload className="h-6 w-6" />
                     )}
                 </Button>
                 <input
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
-                    accept="image/svg+xml,image/png"
+                    accept="image/svg+xml,image/png,image/jpeg"
                     onChange={handleCustomIconUpload}
                 />
             </div>

@@ -24,7 +24,7 @@ export class LoanProvider {
   @Length(2, 255)
   name!: string;
 
-  @Column({ type: 'varchar2', length: 255 })
+  @Column({ type: 'clob' })
   icon!: string;
 
   @Column({ type: 'varchar2', length: 50, name: 'color_hex' })
