@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +18,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { Logo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminLoginPage() {
@@ -56,7 +56,7 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-                <Logo className="h-10 w-10" style={{ color: nibBankColor }} />
+                <Image src="https://play-lh.googleusercontent.com/HR87m6M2_7ZmPGrSp_MSlmfG5uyx94iYthItSzrmWVgFWkJ3FPTOYCLPw0F_ul4mYg" alt="Logo" width={40} height={40} className="h-10 w-10" />
             </div>
           <CardTitle className="text-2xl">Admin Login</CardTitle>
           <CardDescription>
