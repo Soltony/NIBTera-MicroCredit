@@ -1,4 +1,6 @@
 
+'use client';
+
 import { SVGProps, useEffect, useState } from 'react';
 import { getCustomIcon } from '@/lib/types';
 import { Building2, Landmark, Briefcase, Home, PersonStanding, CreditCard, Wallet } from 'lucide-react';
