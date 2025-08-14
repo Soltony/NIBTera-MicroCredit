@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { X, Delete } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable } from '@/lib/types';
+import { calculateTotalRepayable } from '@/lib/utils';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
