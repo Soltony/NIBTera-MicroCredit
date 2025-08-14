@@ -44,7 +44,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
-import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { getCustomIcon } from '@/lib/types';
 import { AccordionTrigger } from '../ui/accordion';
 
@@ -238,7 +237,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status'>) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status'> & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -336,7 +335,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                     <div className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left">
+                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideIcon>
                             <div className="flex items-center gap-4">
                                 <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                                 <div>
@@ -345,7 +344,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                 </div>
                             </div>
                         </AccordionTrigger>
-                         <div className="flex items-center gap-2 ml-auto pl-4">
+                        <div className="flex items-center gap-2 ml-auto pl-4">
                             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                                 <>
                                     <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
@@ -356,6 +355,9 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                                     </Button>
                                 </>
                             )}
+                            <AccordionTrigger className="p-2" hideChevron>
+                               <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                            </AccordionTrigger>
                         </div>
                     </div>
                     <AccordionContent className="p-4 border-t">
@@ -423,9 +425,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
-
-    
-
-    
