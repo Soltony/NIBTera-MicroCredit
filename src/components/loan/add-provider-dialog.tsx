@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Landmark, Briefcase, type LucideIcon, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LoanProvider } from '@/lib/types';
-import { saveCustomIcon } from '@/lib/types';
+import { saveCustomIcon, getCustomIcon } from '@/lib/types';
 
 interface AddProviderDialogProps {
   isOpen: boolean;
@@ -56,10 +56,9 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setSelectedColorHex(provider.colorHex || colors[0].hex);
         setDisplayOrder(provider.displayOrder || 0);
         if (provider.icon.startsWith('custom-icon-')) {
-            // Assuming getCustomIcon is available to get the preview
-            // You might need to adjust how you get the preview URL
-            // For now, let's clear it if it's custom, user can re-upload
-            setCustomIconPreview(null); 
+            setCustomIconPreview(getCustomIcon(provider.icon));
+        } else {
+            setCustomIconPreview(null);
         }
     } else {
         setProviderName('');

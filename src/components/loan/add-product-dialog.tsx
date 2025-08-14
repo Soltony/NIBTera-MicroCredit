@@ -22,7 +22,7 @@ import { saveCustomIcon } from '@/lib/types';
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'availableLimit' | 'status'>) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'availableLimit' | 'status'> & { customIconSrc?: string }) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [

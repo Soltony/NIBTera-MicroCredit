@@ -44,7 +44,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
-import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { getCustomIcon } from '@/lib/types';
 import { AccordionTrigger } from '../ui/accordion';
 
@@ -58,7 +57,7 @@ const iconMap: { [key: string]: React.ElementType } = {
   PersonStanding,
 };
 
-const IconDisplay = ({ iconName }: { iconName: string }) => {
+const IconDisplay = ({ iconName, className }: { iconName: string; className?: string; }) => {
     const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
     const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
 
@@ -70,11 +69,11 @@ const IconDisplay = ({ iconName }: { iconName: string }) => {
     }, [iconName, isCustom]);
 
     if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className="h-6 w-6" /> : <div className="h-6 w-6" />;
+        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6", className)} />;
     }
 
     const IconComponent = iconMap[iconName] || Building2;
-    return <IconComponent className="h-6 w-6" />;
+    return <IconComponent className={cn("h-6 w-6", className)} />;
 };
 
 
@@ -211,22 +210,21 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
             
             const savedProviderResponse = await response.json();
             
-            if (isEditing) {
-                setProviders(produce(draft => {
+            setProviders(produce(draft => {
+                if (isEditing) {
                     const index = draft.findIndex(p => p.id === savedProviderResponse.id);
                     if (index !== -1) {
                         const originalProvider = draft[index];
                         draft[index] = {
                             ...originalProvider,
                             ...savedProviderResponse,
-                            products: originalProvider.products,
+                            products: originalProvider.products, // Preserve existing products
                         };
                     }
-                }));
-            } else {
-                 setProviders(prev => [...prev, savedProviderResponse]);
-                 setSelectedProviderId(savedProviderResponse.id);
-            }
+                } else {
+                    draft.push(savedProviderResponse);
+                }
+            }));
 
             toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProviderResponse.name} has been successfully saved.` });
         } catch (error) {
@@ -336,10 +334,10 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         <Accordion type="multiple" className="w-full space-y-4">
             {visibleProviders.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <div className="flex items-center justify-between w-full p-4">
+                     <div className="flex items-center w-full p-4">
                         <AccordionTrigger hideIcon className="hover:no-underline flex-1 p-0">
                            <div className="flex items-center gap-4">
-                                <IconDisplay iconName={provider.icon} />
+                                <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                                 <div>
                                     <div className="text-lg font-semibold text-left">{provider.name}</div>
                                     <p className="text-sm text-muted-foreground text-left">{provider.products.length} products</p>

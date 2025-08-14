@@ -357,6 +357,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                           activeLoan={activeLoansByProduct[product.name]}
                                           onApply={() => handleApply(product.id)}
                                           onRepay={handleRepay}
+                                          IconDisplayComponent={IconDisplay}
                                       />
                                   ))}
                               </CardContent>

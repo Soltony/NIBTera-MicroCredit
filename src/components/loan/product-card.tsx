@@ -2,14 +2,14 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { LoanProduct, LoanDetails } from '@/lib/types';
-import { ChevronDown, ChevronUp, Building2 } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable, getCustomIcon } from '@/lib/types';
+import { calculateTotalRepayable } from '@/lib/types';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -23,36 +23,16 @@ const formatFee = (fee: string | undefined, suffix: string) => {
     return `${fee}${suffix}`;
 }
 
-const IconDisplay = ({ iconName, className }: { iconName: string; className?: string }) => {
-    const isCustom = typeof iconName === 'string' && iconName.startsWith('custom-icon-');
-    const [customIconSrc, setCustomIconSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isCustom) {
-            const src = getCustomIcon(iconName);
-            setCustomIconSrc(src);
-        }
-    }, [iconName, isCustom]);
-
-    if (isCustom) {
-        return customIconSrc ? <img src={customIconSrc} alt="Custom Icon" className={cn("h-6 w-6", className)} /> : <div className={cn("h-6 w-6", className)} />;
-    }
-
-    // This part is tricky because we don't have the full icon map here. 
-    // We can default to a standard icon. A better approach might be to pass the component itself.
-    const IconComponent = Building2; 
-    return <IconComponent className={cn("h-6 w-6 text-primary-foreground", className)} />;
-};
-
 interface ProductCardProps {
     product: LoanProduct;
     providerColor?: string;
     activeLoan?: LoanDetails;
     onApply: () => void;
     onRepay: (loan: LoanDetails) => void;
+    IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay }: ProductCardProps) {
+export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
@@ -73,7 +53,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
                         <div className="p-3 rounded-full" style={{ backgroundColor: providerColor }}>
-                            <IconDisplay iconName={product.icon} className="h-6 w-6 text-primary-foreground" />
+                            <IconDisplayComponent iconName={product.icon} className="h-6 w-6 text-primary-foreground" />
                         </div>
                         <div>
                             <CardTitle className="text-lg">{product.name}</CardTitle>
