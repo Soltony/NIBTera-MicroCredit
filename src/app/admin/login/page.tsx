@@ -29,6 +29,8 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const { toast } = useToast();
+  
+  const nibBankColor = '#fdb913';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +56,7 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-                <Logo className="h-10 w-10" />
+                <Logo className="h-10 w-10" style={{ color: nibBankColor }} />
             </div>
           <CardTitle className="text-2xl">Admin Login</CardTitle>
           <CardDescription>
@@ -99,7 +101,7 @@ export default function AdminLoginPage() {
                 {isPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-             <Button type="submit" className="w-full" disabled={isLoading}>
+             <Button type="submit" className="w-full text-white" disabled={isLoading} style={{ backgroundColor: nibBankColor }}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In
              </Button>
