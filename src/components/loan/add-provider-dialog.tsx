@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -31,18 +32,10 @@ const icons: { name: string; component: LucideIcon }[] = [
   { name: 'Briefcase', component: Briefcase },
 ];
 
-const colors = [
-  { name: 'Blue', hex: '#2563eb' },
-  { name: 'Green', hex: '#16a34a' },
-  { name: 'Yellow', hex: '#fdb913' },
-  { name: 'Red', hex: '#dc2626' },
-  { name: 'Purple', hex: '#7c3aed' },
-];
-
 export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryColor = '#fdb913' }: AddProviderDialogProps) {
   const [providerName, setProviderName] = useState('');
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
-  const [selectedColorHex, setSelectedColorHex] = useState(colors[0].hex);
+  const [selectedColorHex, setSelectedColorHex] = useState('#2563eb');
   const [displayOrder, setDisplayOrder] = useState(0);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -51,12 +44,12 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     if (provider) {
         setProviderName(provider.name);
         setSelectedIconName(provider.icon);
-        setSelectedColorHex(provider.colorHex || colors[0].hex);
+        setSelectedColorHex(provider.colorHex || '#2563eb');
         setDisplayOrder(provider.displayOrder || 0);
     } else {
         setProviderName('');
         setSelectedIconName(icons[0].name);
-        setSelectedColorHex(colors[0].hex);
+        setSelectedColorHex('#2563eb');
         setDisplayOrder(0);
     }
   }, [provider, isOpen]);
@@ -175,20 +168,15 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Color</Label>
-            <div className="col-span-3 flex space-x-2">
-              {colors.map((color) => (
-                <button
-                  key={color.name}
-                  type="button"
-                  onClick={() => setSelectedColorHex(color.hex)}
-                  className={cn(
-                    'h-8 w-8 rounded-full border',
-                    selectedColorHex === color.hex && 'ring-2 ring-offset-2'
-                  )}
-                  style={{ backgroundColor: color.hex, '--ring': primaryColor } as React.CSSProperties}
-                  aria-label={`Select ${color.name} color`}
+            <div className="col-span-3 flex items-center gap-2">
+                <Input
+                    id="color-picker"
+                    type="color"
+                    value={selectedColorHex}
+                    onChange={(e) => setSelectedColorHex(e.target.value)}
+                    className="p-1 h-10 w-14"
                 />
-              ))}
+                <span className="text-sm font-mono bg-muted px-2 py-1 rounded-md">{selectedColorHex}</span>
             </div>
           </div>
           <DialogFooter>
