@@ -10,7 +10,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
-import type { LoanProvider } from './LoanProvider';
+import { LoanProvider } from './LoanProvider';
 import type { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'scoring_parameters' })

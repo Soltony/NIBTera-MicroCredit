@@ -8,10 +8,10 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
-import { User } from './User';
+import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
-import { ScoringParameter } from './ScoringParameter';
+import type { ScoringParameter } from './ScoringParameter';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
 
 @Entity({ name: 'loan_providers' })
@@ -42,7 +42,7 @@ export class LoanProvider {
   @OneToMany('LoanDetails', (loan) => loan.provider)
   loans!: LoanDetails[];
 
-  @OneToMany(() => ScoringParameter, (parameter) => parameter.provider)
+  @OneToMany('ScoringParameter', (parameter) => parameter.provider)
   scoringParameters!: ScoringParameter[];
 
   @OneToMany('ScoringConfigurationHistory', (history) => history.provider)
