@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,7 +11,7 @@ import type { LoanProvider } from '@/lib/types';
 import { checkLoanEligibility } from '@/actions/eligibility';
 
 
-export default function CheckEligibilityPage() {
+function EligibilityCheck() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId');
@@ -106,4 +106,16 @@ export default function CheckEligibilityPage() {
       </main>
     </div>
   );
+}
+
+export default function CheckEligibilityPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        }>
+            <EligibilityCheck />
+        </Suspense>
+    )
 }
