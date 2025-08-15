@@ -38,13 +38,13 @@ export class LoanProduct {
   maxLoan!: number;
 
   // Store complex rules as JSON strings in CLOB
-  @Column({ type: 'clob', name: 'service_fee' })
+  @Column({ type: 'clob', name: 'service_fee', nullable: true })
   serviceFee!: string;
 
-  @Column({ type: 'clob', name: 'daily_fee' })
+  @Column({ type: 'clob', name: 'daily_fee', nullable: true })
   dailyFee!: string;
 
-  @Column({ type: 'clob', name: 'penalty_rules' })
+  @Column({ type: 'clob', name: 'penalty_rules', nullable: true })
   penaltyRules!: string;
 
   @Column({ type: 'varchar2', length: 50 })
@@ -57,7 +57,7 @@ export class LoanProduct {
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
-  @OneToMany('LoanDetails', (loan: LoanDetails) => loan.product)
+  @OneToMany(() => LoanDetails, (loan: LoanDetails) => loan.product)
   loans!: LoanDetails[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
