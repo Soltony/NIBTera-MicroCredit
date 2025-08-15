@@ -43,6 +43,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
