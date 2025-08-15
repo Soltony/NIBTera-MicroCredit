@@ -21,7 +21,42 @@ class MainSeeder {
       
       const queryRunner = AppDataSource.createQueryRunner();
 
-      // Get repositories from the query runner to run them in a transaction
+      // Clean up existing data in the correct order to respect foreign key constraints.
+      console.log('Dropping existing tables...');
+      const tableDropOrder = [
+        'payments',
+        'loan_details',
+        '_scoring_config_history_to_products', // Join table first
+        'scoring_configuration_history',
+        'scoring_parameter_rules',
+        'scoring_parameters',
+        'users',
+        'loan_products',
+        'customers',
+        'loan_providers',
+        'roles',
+      ];
+
+      for (const tableName of tableDropOrder) {
+          try {
+              await queryRunner.dropTable(tableName, true, true, true);
+              console.log(`Dropped table: ${tableName}`);
+          } catch (error: any) {
+              // Ignore errors if table does not exist (e.g., ORA-00942)
+              if (error.errorNum === 942) {
+                  console.log(`Table ${tableName} does not exist, skipping drop.`);
+              } else {
+                  throw error;
+              }
+          }
+      }
+      console.log('Finished dropping tables.');
+      
+      // Re-run synchronization to create tables from scratch
+      await AppDataSource.synchronize(false); // dropBeforeSync = false, as we've already dropped
+      console.log('Tables recreated successfully.');
+
+
       const paymentRepository = queryRunner.manager.getRepository(Payment);
       const loanDetailsRepository = queryRunner.manager.getRepository(LoanDetails);
       const scoringRuleRepository = queryRunner.manager.getRepository(ScoringParameterRule);
@@ -37,28 +72,6 @@ class MainSeeder {
 
       try {
         console.log('Starting seeding...');
-        
-        // Clean up existing data in the correct order to respect foreign key constraints.
-        await paymentRepository.clear();
-        await loanDetailsRepository.clear();
-        await scoringRuleRepository.clear();
-        await scoringParamRepository.clear();
-        await userRepository.clear();
-        
-        // Handle ManyToMany relationship for ScoringConfigurationHistory
-        const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
-        for (const history of histories) {
-          history.appliedProducts = [];
-          await scoringHistoryRepository.save(history);
-        }
-        await scoringHistoryRepository.clear();
-
-        await productRepository.clear();
-        await providerRepository.clear();
-        await roleRepository.clear();
-        await customerRepository.clear();
-
-        console.log('Deleted existing data.');
         
         const salt = await bcrypt.genSalt(10);
 
@@ -125,9 +138,9 @@ class MainSeeder {
           icon: 'PersonStanding',
           minLoan: 500,
           maxLoan: 2500,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
         await productRepository.save({
@@ -137,9 +150,9 @@ class MainSeeder {
           icon: 'Home',
           minLoan: 300,
           maxLoan: 1500,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
 
@@ -156,9 +169,9 @@ class MainSeeder {
           icon: 'PersonStanding',
           minLoan: 400,
           maxLoan: 2000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
          await productRepository.save({
@@ -168,9 +181,9 @@ class MainSeeder {
           icon: 'Home',
           minLoan: 10000,
           maxLoan: 50000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Disabled',
         });
 
@@ -187,9 +200,9 @@ class MainSeeder {
           icon: 'Briefcase',
           minLoan: 5000,
           maxLoan: 100000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
         await productRepository.save({
@@ -199,9 +212,9 @@ class MainSeeder {
           icon: 'PersonStanding',
           minLoan: 2000,
           maxLoan: 30000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
         console.log('Seeded loan providers and products');
@@ -241,10 +254,8 @@ class MainSeeder {
           product: quickCashLoan,
           loanAmount: 500,
           serviceFee: 15,
-          interestRate: 0.2,
           disbursedDate: new Date('2024-06-25'),
           dueDate: new Date('2024-07-25'),
-          penaltyAmount: 0.11,
           repaymentStatus: 'Paid',
           repaidAmount: 545.96,
         });
@@ -267,7 +278,7 @@ class MainSeeder {
         const nibHistoryParam = await scoringParamRepository.save({ provider: nibBank, name: 'Loan History', weight: 30 });
         await scoringRuleRepository.save([
           { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
-          { parameter: nibHistoryParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
+          { parameter: nibHistoryParam, field: 'totalLoans', condition: '<', value: '1', score: 10 },
         ]);
         const nibIncomeParam = await scoringParamRepository.save({ provider: nibBank, name: 'Income Level', weight: 50 });
          await scoringRuleRepository.save([
