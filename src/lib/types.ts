@@ -112,11 +112,6 @@ export interface TransactionProduct {
     name: string;
 }
 
-export const parseFee = (feeString: string | undefined): number => {
-    if (!feeString) return 0;
-    return parseFloat(feeString.replace('%', '')) || 0;
-}
-
 // Type for Scoring Engine
 export interface Rule {
   id: string;

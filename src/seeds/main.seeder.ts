@@ -125,9 +125,11 @@ class MainSeeder {
           icon: 'PersonStanding',
           minLoan: 500,
           maxLoan: 2500,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([
+              { id: 'p1', fromDay: 1, toDay: Infinity, type: 'percentageOfPrincipal', value: 0.11 }
+          ]),
           status: 'Active',
         });
         await productRepository.save({
@@ -137,9 +139,9 @@ class MainSeeder {
           icon: 'Home',
           minLoan: 300,
           maxLoan: 1500,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
 
@@ -156,9 +158,12 @@ class MainSeeder {
           icon: 'PersonStanding',
           minLoan: 400,
           maxLoan: 2000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'fixed', value: 50 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.25 }),
+          penaltyRules: JSON.stringify([
+               { id: 'p2', fromDay: 1, toDay: 5, type: 'fixed', value: 100 },
+               { id: 'p3', fromDay: 6, toDay: 10, type: 'fixed', value: 200 }
+          ]),
           status: 'Active',
         });
          await productRepository.save({
@@ -168,9 +173,9 @@ class MainSeeder {
           icon: 'Home',
           minLoan: 10000,
           maxLoan: 50000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 2.5 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.05 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Disabled',
         });
 
@@ -187,9 +192,9 @@ class MainSeeder {
           icon: 'Briefcase',
           minLoan: 5000,
           maxLoan: 100000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'fixed', value: 1000 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
         await productRepository.save({
@@ -199,9 +204,9 @@ class MainSeeder {
           icon: 'PersonStanding',
           minLoan: 2000,
           maxLoan: 30000,
-          serviceFee: '3%',
-          dailyFee: '0.2%',
-          penaltyFee: '0.11% daily',
+          serviceFee: JSON.stringify({ type: 'percentage', value: 4 }),
+          dailyFee: JSON.stringify({ type: 'percentage', value: 0.1 }),
+          penaltyRules: JSON.stringify([]),
           status: 'Active',
         });
         console.log('Seeded loan providers and products');
@@ -240,11 +245,9 @@ class MainSeeder {
           provider: nibBank,
           product: quickCashLoan,
           loanAmount: 500,
-          serviceFee: 15,
-          interestRate: 0.2,
+          serviceFeeAmount: 15,
           disbursedDate: new Date('2024-06-25'),
           dueDate: new Date('2024-07-25'),
-          penaltyAmount: 0.11,
           repaymentStatus: 'Paid',
           repaidAmount: 545.96,
         });
