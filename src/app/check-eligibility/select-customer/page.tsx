@@ -13,9 +13,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 async function getCustomers() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const customerRepo = dataSource.getRepository(Customer);
         const customers = await customerRepo.find();
         
@@ -29,10 +28,9 @@ async function getCustomers() {
             loanHistory: JSON.parse(c.loanHistory),
             transactionHistory: JSON.parse(c.transactionHistory),
         }));
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 

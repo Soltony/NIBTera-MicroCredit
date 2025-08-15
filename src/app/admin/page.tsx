@@ -18,10 +18,9 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 async function getDashboardData() {
-    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         
         const loanRepo = dataSource.getRepository(LoanDetails);
         const userRepo = dataSource.getRepository(User);
@@ -156,9 +155,21 @@ async function getDashboardData() {
             productOverview: productsWithDetails,
             providers: providers.map(p => ({...p, id: String(p.id)})),
         };
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
+    } catch(e) {
+        console.error(e);
+        // Return a default/empty state to prevent the page from crashing
+        return {
+            totalLoans: 0,
+            totalDisbursed: 0,
+            totalPaid: 0,
+            repaymentRate: 0,
+            atRiskLoans: 0,
+            totalUsers: 0,
+            loanDisbursementData: [],
+            loanStatusData: [],
+            recentActivity: [],
+            productOverview: [],
+            providers: [],
         }
     }
 }

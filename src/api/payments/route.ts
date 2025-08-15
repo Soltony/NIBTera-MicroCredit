@@ -21,9 +21,8 @@ const paymentSchema = z.object({
 });
 
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const manager = dataSource.manager;
 
         const body = await req.json();
@@ -49,8 +48,15 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
             }
 
+            const loanProduct = {
+                ...loan.product,
+                serviceFee: JSON.parse(loan.product.serviceFee),
+                dailyFee: JSON.parse(loan.product.dailyFee),
+                penaltyRules: JSON.parse(loan.product.penaltyRules),
+            }
+
             // Calculate current total repayable amount
-            const totalRepayable = calculateTotalRepayable(loan, new Date());
+            const totalRepayable = calculateTotalRepayable(loan, loanProduct, new Date());
             const alreadyPaid = loan.repaidAmount || 0;
             const outstandingBalance = totalRepayable - alreadyPaid;
 
@@ -96,9 +102,5 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error processing payment:', error);
         return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 });
-    } finally {
-        if (dataSource && !dataSource.isDestroyed) {
-           await dataSource.destroy();
-        }
     }
 }

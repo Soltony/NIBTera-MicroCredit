@@ -18,9 +18,8 @@ export async function getUserFromSession() {
   const session = await getSession();
   if (!session?.userId) return null;
 
-  let dataSource: DataSource | null = null;
   try {
-    dataSource = await getConnectedDataSource();
+    const dataSource = await getConnectedDataSource();
     const userRepo = dataSource.getRepository(User);
     
     // Ensure userId is a valid number before querying
@@ -53,9 +52,5 @@ export async function getUserFromSession() {
   } catch (error) {
     console.error('Database error while fetching user:', error);
     return null;
-  } finally {
-    if (dataSource && AppDataSource.options.type !== 'oracle') {
-        // await dataSource.destroy();
-    }
   }
 }

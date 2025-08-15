@@ -16,9 +16,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 
 async function getProviders() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const providers = await providerRepo.find({
             relations: ['products'],
@@ -28,17 +27,15 @@ async function getProviders() {
             id: String(p.id),
             products: p.products.map(prod => ({...prod, id: String(prod.id)}))
         })) as any[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') { // Don't destroy oracle connections
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 
 async function getScoringParameters() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const paramRepo = dataSource.getRepository(ScoringParameter);
         const params = await paramRepo.find({
             relations: ['rules'],
@@ -58,10 +55,9 @@ async function getScoringParameters() {
                 score: r.score,
             })),
         }));
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') { // Don't destroy oracle connections
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 

@@ -17,9 +17,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 async function getProvider(providerId: string): Promise<LoanProvider | null> {
     if (!providerId) return null;
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProviderEntity);
         
         const provider = await providerRepo.findOne({
@@ -39,10 +38,9 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
                 status: prod.status as 'Active' | 'Disabled'
             }))
         } as any;
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return null;
     }
 }
 

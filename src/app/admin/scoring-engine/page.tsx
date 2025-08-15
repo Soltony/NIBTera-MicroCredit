@@ -15,9 +15,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 
 async function getProviders(): Promise<LoanProvider[]> {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProviderEntity);
         const providers = await providerRepo.find({
             relations: ['products'],
@@ -43,10 +42,9 @@ async function getProviders(): Promise<LoanProvider[]> {
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 

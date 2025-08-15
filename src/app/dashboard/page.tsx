@@ -17,9 +17,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 
 async function getProviders(): Promise<LoanProvider[]> {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProviderEntity);
         const providers = await providerRepo.find({
             relations: ['products'],
@@ -51,17 +50,15 @@ async function getProviders(): Promise<LoanProvider[]> {
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const loanRepo = dataSource.getRepository(LoanDetailsEntity);
         const loans = await loanRepo.find({
             relations: ['provider', 'product', 'payments'],
@@ -90,10 +87,9 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
             }))
         })) as LoanDetails[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 

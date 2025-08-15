@@ -32,10 +32,9 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProvider[] }> {
-    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         
         const loanRepo = dataSource.getRepository(LoanDetails);
         const providerRepo = dataSource.getRepository(LoanProviderEntity);
@@ -71,10 +70,9 @@ async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: Lo
         const providers = await providerRepo.find();
         
         return { loans: loansToReturn, providers: providers.map(p => ({ ...p, id: String(p.id), products: [] })) as any };
-    } finally {
-         if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return { loans: [], providers: [] };
     }
 }
 
