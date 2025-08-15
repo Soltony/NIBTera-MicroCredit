@@ -50,7 +50,7 @@ async function getProviders(): Promise<LoanProvider[]> {
                 maxLoan: prod.maxLoan,
                 serviceFee: prod.serviceFee,
                 dailyFee: prod.dailyFee,
-                penaltyFee: prod.penaltyFee,
+                penaltyRules: prod.penaltyRules,
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];
@@ -82,11 +82,9 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
             providerName: loan.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
-            serviceFee: loan.serviceFee,
-            interestRate: loan.interestRate,
+            serviceFeeAmount: loan.serviceFeeAmount,
             disbursedDate: loan.disbursedDate,
             dueDate: loan.dueDate,
-            penaltyAmount: loan.penaltyAmount,
             repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
             repaidAmount: loan.repaidAmount || 0,
             payments: loan.payments.map(p => ({
