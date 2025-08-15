@@ -56,6 +56,10 @@ export class LoanDetails {
   @Column({ type: 'number', name: 'repaid_amount', precision: 10, scale: 2, nullable: true })
   repaidAmount!: number | null;
 
+  @Column({ type: 'number', name: 'penalty_amount', precision: 10, scale: 2, default: 0 })
+  @IsNumber()
+  penaltyAmount!: number;
+
   @OneToMany('Payment', (payment: Payment) => payment.loan)
   payments!: Payment[];
 

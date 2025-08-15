@@ -21,15 +21,15 @@ class MainSeeder {
       
       const queryRunner = AppDataSource.createQueryRunner();
 
-      console.log('Synchronizing database schema (dropping and recreating tables)...');
-      // Drop and re-create schema from scratch based on entities.
-      // This is safe because we assume the DB is for development/seeding.
-      await AppDataSource.synchronize(true);
-      console.log('Schema synchronized.');
-
       await queryRunner.startTransaction();
 
       try {
+        console.log('Synchronizing database schema...');
+        // Drop and re-create schema from scratch based on entities.
+        // This is safe because we assume the DB is for development/seeding.
+        await AppDataSource.synchronize(true);
+        console.log('Schema synchronized.');
+
         console.log('Starting seeding...');
         
         const salt = await bcrypt.genSalt(10);

@@ -56,10 +56,10 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const disbursedDate = new Date();
     const dueDate = addDays(disbursedDate, 30);
     
-    let serviceFeeAmount = 0;
+    let serviceFee = 0;
     if (product.serviceFee && product.serviceFee.value) {
         const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : product.serviceFee.value;
-        serviceFeeAmount = product.serviceFee.type === 'fixed' 
+        serviceFee = product.serviceFee.type === 'fixed' 
             ? feeValue
             : numericLoanAmount * (feeValue / 100);
     }
@@ -68,7 +68,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const tempLoan: LoanDetails = {
         id: 'temp',
         loanAmount: numericLoanAmount,
-        serviceFeeAmount: serviceFeeAmount,
+        serviceFee: serviceFee,
         disbursedDate,
         dueDate,
         repaymentStatus: 'Unpaid',
@@ -76,11 +76,12 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         productName: product.name,
         providerName: '',
         repaidAmount: 0,
+        penaltyAmount: 0,
     };
     
     const totalRepayable = calculateTotalRepayable(tempLoan, product, dueDate);
 
-    return { serviceFeeAmount, disbursedDate, dueDate, totalRepayable };
+    return { serviceFee, disbursedDate, dueDate, totalRepayable, penaltyAmount: 0 };
   }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {
