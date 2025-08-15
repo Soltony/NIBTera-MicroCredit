@@ -39,6 +39,9 @@ export interface LoanProduct {
   penaltyRules: PenaltyRule[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
+  serviceFeeEnabled?: boolean;
+  dailyFeeEnabled?: boolean;
+  penaltyRulesEnabled?: boolean;
 }
 
 export interface Payment {

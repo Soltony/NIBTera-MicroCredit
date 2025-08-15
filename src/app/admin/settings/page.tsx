@@ -64,6 +64,9 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
                 penaltyRules: safeJsonParse(prod.penaltyRules, []),
                 status: prod.status as 'Active' | 'Disabled',
+                serviceFeeEnabled: !!prod.serviceFeeEnabled,
+                dailyFeeEnabled: !!prod.dailyFeeEnabled,
+                penaltyRulesEnabled: !!prod.penaltyRulesEnabled,
             }))
         })) as LoanProviderType[];
     } catch(e) {

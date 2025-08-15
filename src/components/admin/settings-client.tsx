@@ -412,12 +412,12 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
     </>;
 }
 
-const FeeInput = ({ label, fee, onChange, color }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; color?: string; }) => {
+const FeeInput = ({ label, fee, onChange, color, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; color?: string; isEnabled: boolean; }) => {
     return (
         <div className="flex items-center gap-2">
-            <Label className="w-28">{label}</Label>
-            <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type })}>
-                <SelectTrigger className="w-32">
+            <Label className={cn("w-28", !isEnabled && "text-muted-foreground/50")}>{label}</Label>
+            <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type })} disabled={!isEnabled}>
+                <SelectTrigger className="w-32" disabled={!isEnabled}>
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -432,14 +432,15 @@ const FeeInput = ({ label, fee, onChange, color }: { label: string; fee: FeeRule
                     onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                     placeholder="Enter value"
                     className={cn(fee.type === 'percentage' ? "pr-8" : "")}
+                    disabled={!isEnabled}
                 />
-                {fee.type === 'percentage' && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>}
+                {fee.type === 'percentage' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
             </div>
         </div>
     );
 };
 
-const PenaltyRuleRow = ({ rule, onChange, onRemove, color }: { rule: PenaltyRule, onChange: (rule: PenaltyRule) => void, onRemove: () => void, color?: string }) => {
+const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: PenaltyRule, onChange: (rule: PenaltyRule) => void, onRemove: () => void, color?: string, isEnabled: boolean }) => {
     return (
         <div className="flex items-center gap-2">
             <Input 
@@ -448,6 +449,7 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color }: { rule: PenaltyRule
                 onChange={(e) => onChange({...rule, fromDay: e.target.value === '' ? '' : parseInt(e.target.value)})}
                 placeholder="From Day"
                 className="w-24"
+                disabled={!isEnabled}
             />
             <Input 
                 type="number" 
@@ -455,9 +457,10 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color }: { rule: PenaltyRule
                 onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? Infinity : parseInt(e.target.value)})}
                 placeholder="To Day"
                 className="w-24"
+                disabled={!isEnabled}
             />
-            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal') => onChange({ ...rule, type })}>
-                <SelectTrigger className="w-48">
+            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal') => onChange({ ...rule, type })} disabled={!isEnabled}>
+                <SelectTrigger className="w-48" disabled={!isEnabled}>
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -472,10 +475,11 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color }: { rule: PenaltyRule
                     onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                     placeholder="Value"
                     className={cn(rule.type === 'percentageOfPrincipal' ? "pr-8" : "")}
+                    disabled={!isEnabled}
                 />
-                 {rule.type === 'percentageOfPrincipal' && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>}
+                 {rule.type === 'percentageOfPrincipal' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
             </div>
-            <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive" disabled={!isEnabled}><Trash2 className="h-4 w-4" /></Button>
         </div>
     );
 };
@@ -584,21 +588,53 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
                                    <CardTitle>{product.name}</CardTitle>
                                </CardHeader>
                                <CardContent className="space-y-4">
+                                   <div className="flex items-center justify-between border-b pb-4">
+                                        <Label htmlFor={`serviceFeeEnabled-${product.id}`} className="font-medium">Service Fee</Label>
+                                        <Switch
+                                            id={`serviceFeeEnabled-${product.id}`}
+                                            checked={product.serviceFeeEnabled}
+                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { serviceFeeEnabled: checked })}
+                                            className="data-[state=checked]:bg-[--provider-color]"
+                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
+                                        />
+                                    </div>
                                    <FeeInput 
-                                        label="Service Fee"
+                                        label="Fee Details"
                                         fee={product.serviceFee}
                                         onChange={(fee) => handleProductChange(provider.id, product.id, { serviceFee: fee })}
                                         color={provider.colorHex}
+                                        isEnabled={!!product.serviceFeeEnabled}
                                     />
+                                    
+                                    <div className="flex items-center justify-between border-b pb-4 pt-4">
+                                        <Label htmlFor={`dailyFeeEnabled-${product.id}`} className="font-medium">Daily Fee</Label>
+                                        <Switch
+                                            id={`dailyFeeEnabled-${product.id}`}
+                                            checked={product.dailyFeeEnabled}
+                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { dailyFeeEnabled: checked })}
+                                            className="data-[state=checked]:bg-[--provider-color]"
+                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
+                                        />
+                                    </div>
                                      <FeeInput 
-                                        label="Daily Fee"
+                                        label="Fee Details"
                                         fee={product.dailyFee}
                                         onChange={(fee) => handleProductChange(provider.id, product.id, { dailyFee: fee })}
                                         color={provider.colorHex}
+                                        isEnabled={!!product.dailyFeeEnabled}
                                     />
                                     
+                                     <div className="flex items-center justify-between border-b pb-4 pt-4">
+                                        <Label htmlFor={`penaltyRulesEnabled-${product.id}`} className="font-medium">Penalty Rules</Label>
+                                        <Switch
+                                            id={`penaltyRulesEnabled-${product.id}`}
+                                            checked={product.penaltyRulesEnabled}
+                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { penaltyRulesEnabled: checked })}
+                                            className="data-[state=checked]:bg-[--provider-color]"
+                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
+                                        />
+                                    </div>
                                     <div>
-                                        <Label className="block mb-2">Penalty Rules</Label>
                                         <div className="space-y-2 p-4 border rounded-md bg-muted/50">
                                             {product.penaltyRules.map((rule, index) => (
                                                 <PenaltyRuleRow
@@ -611,9 +647,10 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
                                                     })}
                                                     onRemove={() => handleRemovePenaltyRule(provider.id, product.id, rule.id)}
                                                     color={provider.colorHex}
+                                                    isEnabled={!!product.penaltyRulesEnabled}
                                                 />
                                             ))}
-                                            <Button variant="outline" size="sm" onClick={() => handleAddPenaltyRule(provider.id, product.id)}>
+                                            <Button variant="outline" size="sm" onClick={() => handleAddPenaltyRule(provider.id, product.id)} disabled={!product.penaltyRulesEnabled}>
                                                 <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
                                             </Button>
                                         </div>

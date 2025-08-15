@@ -33,6 +33,9 @@ export const updateProductSchema = productSchema.partial().extend({
   serviceFee: feeRuleSchema.optional(),
   dailyFee: feeRuleSchema.optional(),
   penaltyRules: z.array(penaltyRuleSchema).optional(),
+  serviceFeeEnabled: z.boolean().optional(),
+  dailyFeeEnabled: z.boolean().optional(),
+  penaltyRulesEnabled: z.boolean().optional(),
 });
 
 export const loanSchema = z.object({

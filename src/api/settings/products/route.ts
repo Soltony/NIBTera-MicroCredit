@@ -17,8 +17,9 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 // POST a new product
 export async function POST(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        const dataSource = await getConnectedDataSource();
+        dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
@@ -37,6 +38,9 @@ export async function POST(req: Request) {
             serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
             dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
             penaltyRules: '[]',
+            serviceFeeEnabled: false,
+            dailyFeeEnabled: false,
+            penaltyRulesEnabled: false,
         });
         await productRepo.save(newProduct);
         
@@ -52,13 +56,18 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating product:', error);
         return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+    } finally {
+         if (dataSource && !dataSource.isDestroyed) {
+           await dataSource.destroy();
+        }
     }
 }
 
 // PUT (update) a product
 export async function PUT(req: Request) {
+    let dataSource: DataSource | null = null;
      try {
-        const dataSource = await getConnectedDataSource();
+        dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
@@ -101,13 +110,18 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating product:', error);
         return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
+    } finally {
+        if (dataSource && !dataSource.isDestroyed) {
+           await dataSource.destroy();
+        }
     }
 }
 
 // DELETE a product
 export async function DELETE(req: Request) {
+    let dataSource: DataSource | null = null;
     try {
-        const dataSource = await getConnectedDataSource();
+        dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
         const loanRepo = dataSource.getRepository(LoanDetails);
 
@@ -129,5 +143,9 @@ export async function DELETE(req: Request) {
     } catch (error) {
         console.error('Error deleting product:', error);
         return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
+    } finally {
+        if (dataSource && !dataSource.isDestroyed) {
+            await dataSource.destroy();
+        }
     }
 }
