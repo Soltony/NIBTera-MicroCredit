@@ -63,12 +63,6 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         setFormData(product);
     }, [product]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { id, value } = e.target;
-        const key = id.split('-')[0];
-        setFormData(prev => ({ ...prev, [key]: value }));
-    }
-
     const handleSwitchChange = (checked: boolean) => {
         setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
     }
@@ -76,22 +70,17 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        const updatedProduct: LoanProduct = {
-            ...formData,
-            minLoan: parseFloat(formData.minLoan as any),
-            maxLoan: parseFloat(formData.maxLoan as any),
-        };
         try {
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedProduct),
+                body: JSON.stringify(formData),
             });
-            if (!response.ok) throw new Error('Failed to save product');
-            onSave(providerId, updatedProduct);
-            toast({ title: "Settings Saved", description: `Changes to ${product.name} have been saved.` });
+            if (!response.ok) throw new Error('Failed to save product status');
+            onSave(providerId, formData);
+            toast({ title: "Status Saved", description: `Status for ${product.name} has been updated.` });
         } catch (error) {
-            toast({ title: "Error", description: "Could not save product settings.", variant: 'destructive' });
+            toast({ title: "Error", description: "Could not save product status.", variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -101,26 +90,6 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         <div className="space-y-4">
             <div className="text-md font-semibold">{product.name}</div>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-background">
-                <div className="space-y-2">
-                    <Label htmlFor={`minLoan-${product.id}`}>Minimum Loan Amount</Label>
-                    <Input id={`minLoan-${product.id}`} type="number" value={formData.minLoan} onChange={handleChange} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor={`maxLoan-${product.id}`}>Maximum Loan Amount</Label>
-                    <Input id={`maxLoan-${product.id}`} type="number" value={formData.maxLoan} onChange={handleChange} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor={`serviceFee-${product.id}`}>Service Fee</Label>
-                    <Input id={`serviceFee-${product.id}`} value={formData.serviceFee} onChange={handleChange} placeholder="e.g. 3%"/>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor={`dailyFee-${product.id}`}>Daily Fee</Label>
-                    <Input id={`dailyFee-${product.id}`} value={formData.dailyFee} onChange={handleChange} placeholder="e.g. 0.2%"/>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor={`penaltyFee-${product.id}`}>Penalty Fee After Due Date</Label>
-                    <Input id={`penaltyFee-${product.id}`} value={formData.penaltyFee} onChange={handleChange} placeholder="e.g. 0.11% daily" />
-                </div>
                 <div className="flex items-center space-x-2">
                      <Switch 
                         id={`status-${product.id}`}
@@ -211,7 +180,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status'> & { icon?: string }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyFee'> & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -397,25 +366,131 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
-    </>
+    </>;
 }
 
 
-function ConfigurationTab({ providers }: { providers: LoanProvider[] }) {
+function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider[] }) {
+    const [providers, setProviders] = useState(initialProviders);
+    const { toast } = useToast();
+    const { currentUser } = useAuth();
+    
+    const visibleProviders = useMemo(() => {
+        if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
+            return providers;
+        }
+        return providers.filter(p => p.id === currentUser.providerId);
+    }, [providers, currentUser]);
+
+    const handleFeeChange = (providerId: string, productId: string, field: 'serviceFee' | 'dailyFee' | 'penaltyFee', value: string) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const product = provider.products.find(p => p.id === productId);
+                if (product) {
+                    product[field] = value;
+                }
+            }
+        }));
+    };
+
+    const handleSaveFees = async (providerId: string, product: LoanProduct) => {
+        try {
+            const response = await fetch('/api/settings/products', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(product)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save fees');
+            }
+            toast({ title: 'Fees Saved', description: `Fees for ${product.name} have been updated.` });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    if (visibleProviders.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Product Fee Configuration</CardTitle>
+                    <CardDescription>
+                        No providers available to configure.
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+        );
+    }
+    
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Product Rule Configuration</CardTitle>
-                <CardDescription>
-                    Define specific rules for loan products. This feature is under construction.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">Coming Soon</p>
-                </div>
-            </CardContent>
-        </Card>
+        <Accordion type="multiple" className="w-full space-y-4">
+            {visibleProviders.map((provider) => (
+                <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                    <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                        <div className="flex items-center gap-4">
+                            <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                            <div>
+                                <div className="text-lg font-semibold">{provider.name}</div>
+                                <p className="text-sm text-muted-foreground">{provider.products.length} products to configure</p>
+                            </div>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 border-t">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-1/4">Product Name</TableHead>
+                                    <TableHead>Service Fee</TableHead>
+                                    <TableHead>Daily Fee</TableHead>
+                                    <TableHead>Penalty Fee</TableHead>
+                                    <TableHead className="text-right">Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {provider.products.map((product) => (
+                                    <TableRow key={product.id}>
+                                        <TableCell className="font-medium">{product.name}</TableCell>
+                                        <TableCell>
+                                            <Input 
+                                                value={product.serviceFee} 
+                                                onChange={(e) => handleFeeChange(provider.id, product.id, 'serviceFee', e.target.value)}
+                                                placeholder="e.g. 3%"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input 
+                                                value={product.dailyFee} 
+                                                onChange={(e) => handleFeeChange(provider.id, product.id, 'dailyFee', e.target.value)}
+                                                placeholder="e.g. 0.2%"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input 
+                                                value={product.penaltyFee} 
+                                                onChange={(e) => handleFeeChange(provider.id, product.id, 'penaltyFee', e.target.value)}
+                                                placeholder="e.g. 0.11% daily"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button 
+                                                onClick={() => handleSaveFees(provider.id, product)} 
+                                                size="sm"
+                                                style={{ backgroundColor: provider.colorHex }}
+                                                className="text-white"
+                                            >
+                                                Save
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
     );
 }
 
@@ -425,14 +500,14 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
             <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
             <Tabs defaultValue="providers" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="providers">Providers</TabsTrigger>
-                    <TabsTrigger value="configuration">Configuration</TabsTrigger>
+                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
+                    <TabsTrigger value="configuration">Fee Configuration</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">
                     <ProvidersTab initialProviders={initialProviders} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab providers={initialProviders} />
+                     <ConfigurationTab initialProviders={initialProviders} />
                 </TabsContent>
             </Tabs>
         </div>

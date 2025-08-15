@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -21,7 +22,7 @@ import { IconDisplay } from '@/components/icons';
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status'>) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyFee'>) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [
@@ -36,9 +37,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [minLoan, setMinLoan] = useState('');
   const [maxLoan, setMaxLoan] = useState('');
-  const [serviceFee, setServiceFee] = useState('');
-  const [dailyFee, setDailyFee] = useState('');
-  const [penaltyFee, setPenaltyFee] = useState('');
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -70,9 +68,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       icon: selectedIconName,
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
-      serviceFee,
-      dailyFee,
-      penaltyFee,
     });
     
     // Reset form
@@ -81,9 +76,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     setSelectedIconName(icons[0].name);
     setMinLoan('');
     setMaxLoan('');
-    setServiceFee('');
-    setDailyFee('');
-    setPenaltyFee('');
 
     onClose();
   };
@@ -150,18 +142,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="max-loan" className="text-right">Max Loan</Label>
               <Input id="max-loan" type="number" value={maxLoan} onChange={(e) => setMaxLoan(e.target.value)} className="col-span-3" required />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="service-fee" className="text-right">Service Fee</Label>
-              <Input id="service-fee" value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} placeholder="e.g., 3%" className="col-span-3" required />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="daily-fee" className="text-right">Daily Fee</Label>
-              <Input id="daily-fee" value={dailyFee} onChange={(e) => setDailyFee(e.target.value)} placeholder="e.g., 0.2%" className="col-span-3" required />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="penalty-fee" className="text-right">Penalty Fee</Label>
-              <Input id="penalty-fee" value={penaltyFee} onChange={(e) => setPenaltyFee(e.target.value)} placeholder="e.g., 0.11% daily" className="col-span-3" required />
             </div>
           <DialogFooter>
             <DialogClose asChild>

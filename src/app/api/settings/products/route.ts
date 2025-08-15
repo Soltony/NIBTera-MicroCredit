@@ -33,6 +33,9 @@ export async function POST(req: Request) {
             ...productData,
             providerId: Number(providerId),
             status: 'Active',
+            serviceFee: '0%', // Default value
+            dailyFee: '0%', // Default value
+            penaltyFee: '0%', // Default value
         });
         await productRepo.save(newProduct);
 
@@ -55,7 +58,8 @@ export async function PUT(req: Request) {
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
-        const validation = updateProductSchema.safeParse(body);
+        // Allow partial updates for just fees or status
+        const validation = updateProductSchema.partial().extend({ id: z.string() }).safeParse(body);
          if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
