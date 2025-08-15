@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -49,6 +48,7 @@ import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CardFooter } from '@/components/ui/card';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -126,7 +126,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                             id={`minLoan-${product.id}`}
                             name="minLoan"
                             type="number"
-                            value={formData.minLoan}
+                            value={formData.minLoan ?? ''}
                             onChange={handleChange}
                             placeholder="e.g., 500"
                         />
@@ -137,7 +137,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                             id={`maxLoan-${product.id}`}
                             name="maxLoan"
                             type="number"
-                            value={formData.maxLoan}
+                            value={formData.maxLoan ?? ''}
                             onChange={handleChange}
                             placeholder="e.g., 2500"
                         />
