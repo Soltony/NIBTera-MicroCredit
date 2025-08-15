@@ -32,7 +32,7 @@ const formatFee = (feeRule: FeeRule | undefined): string => {
     if (feeRule.type === 'percentage') {
         return `${feeRule.value}%`;
     }
-    return formatCurrency(feeRule.value);
+    return formatCurrency(Number(feeRule.value));
 };
 
 
@@ -58,9 +58,10 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     
     let serviceFeeAmount = 0;
     if (product.serviceFee && product.serviceFee.value) {
+        const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : product.serviceFee.value;
         serviceFeeAmount = product.serviceFee.type === 'fixed' 
-            ? product.serviceFee.value 
-            : numericLoanAmount * (product.serviceFee.value / 100);
+            ? feeValue
+            : numericLoanAmount * (feeValue / 100);
     }
     
     // Create a temporary loan object to pass to the calculation function.

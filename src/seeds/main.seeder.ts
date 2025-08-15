@@ -141,7 +141,7 @@ class MainSeeder {
           maxLoan: 1500,
           serviceFee: JSON.stringify({ type: 'percentage', value: 3 }),
           dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
-          penaltyRules: JSON.stringify([]),
+          penaltyRules: '[]',
           status: 'Active',
         });
 
@@ -175,7 +175,7 @@ class MainSeeder {
           maxLoan: 50000,
           serviceFee: JSON.stringify({ type: 'percentage', value: 2.5 }),
           dailyFee: JSON.stringify({ type: 'percentage', value: 0.05 }),
-          penaltyRules: JSON.stringify([]),
+          penaltyRules: '[]',
           status: 'Disabled',
         });
 
@@ -194,7 +194,7 @@ class MainSeeder {
           maxLoan: 100000,
           serviceFee: JSON.stringify({ type: 'fixed', value: 1000 }),
           dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
-          penaltyRules: JSON.stringify([]),
+          penaltyRules: '[]',
           status: 'Active',
         });
         await productRepository.save({
@@ -206,7 +206,7 @@ class MainSeeder {
           maxLoan: 30000,
           serviceFee: JSON.stringify({ type: 'percentage', value: 4 }),
           dailyFee: JSON.stringify({ type: 'percentage', value: 0.1 }),
-          penaltyRules: JSON.stringify([]),
+          penaltyRules: '[]',
           status: 'Active',
         });
         console.log('Seeded loan providers and products');

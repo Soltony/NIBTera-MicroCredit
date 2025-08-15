@@ -3,8 +3,19 @@ import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 import { LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
-import type { LoanDetails, LoanProvider } from '@/lib/types';
+import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
+
+// Helper function to safely parse JSON from DB
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
+
 
 async function getConnectedDataSource(): Promise<DataSource> {
     if (AppDataSource.isInitialized) {
@@ -47,9 +58,9 @@ async function getProviders(): Promise<LoanProvider[]> {
                 icon: prod.icon,
                 minLoan: prod.minLoan,
                 maxLoan: prod.maxLoan,
-                serviceFee: prod.serviceFee,
-                dailyFee: prod.dailyFee,
-                penaltyRules: prod.penaltyRules,
+                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
+                penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];

@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import type { LoanProduct, LoanDetails } from '@/lib/types';
+import type { LoanProduct, LoanDetails, FeeRule } from '@/lib/types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -14,12 +14,12 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-const formatFee = (feeRule: any, suffix?: string): string => {
-    if (!feeRule || !feeRule.value) return 'N/A';
+const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
+    if (!feeRule || feeRule.value === '' || feeRule.value === 0) return 'N/A';
     if (feeRule.type === 'percentage') {
         return `${feeRule.value}%${suffix || ''}`;
     }
-    return formatCurrency(feeRule.value);
+    return formatCurrency(Number(feeRule.value));
 };
 
 interface ProductCardProps {

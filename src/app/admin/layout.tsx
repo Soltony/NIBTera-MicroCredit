@@ -4,8 +4,18 @@ import { getUserFromSession as getCurrentUser } from '@/lib/user';
 import { ProtectedLayout } from '@/components/admin/protected-layout';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
-import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
+
+// Helper function to safely parse JSON from DB
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
 
 async function getConnectedDataSource(): Promise<DataSource> {
     if (AppDataSource.isInitialized) {
@@ -30,7 +40,13 @@ async function getProviders() {
         return providers.map(p => ({
             ...p,
             id: String(p.id),
-            products: p.products.map(prod => ({...prod, id: String(prod.id)}))
+            products: p.products.map(prod => ({
+                ...prod,
+                id: String(prod.id),
+                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
+                penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
+            }))
         }));
     } finally {
         if (dataSource && AppDataSource.options.type !== 'oracle') {
