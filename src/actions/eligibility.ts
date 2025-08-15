@@ -11,6 +11,7 @@ import { AppDataSource } from '@/data-source';
 import { Customer } from '@/entities/Customer';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { ScoringParameter } from '@/entities/ScoringParameter';
+import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import { evaluateCondition } from '@/lib/utils';
 import type { DataSource } from 'typeorm';
 
@@ -118,15 +119,15 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
     
-    // STEP 2: Credit Score Calculation (if eligible)
-    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId);
-    
     // Check if the provider has any scoring rules defined at all. If not, they are not eligible.
     const scoringParamRepo = dataSource.getRepository(ScoringParameter);
     const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
+    
+    // STEP 2: Credit Score Calculation (if eligible)
+    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId);
 
     if (maxLoanAmount <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };

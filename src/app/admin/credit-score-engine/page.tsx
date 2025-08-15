@@ -3,6 +3,7 @@ import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { ScoringParameter } from '@/entities/ScoringParameter';
+import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
@@ -61,10 +62,29 @@ async function getScoringParameters() {
     }
 }
 
-// History is not yet implemented with TypeORM entities in a way that can be easily seeded or fetched.
-// This will be adjusted once the entities are in place. For now, returning an empty array.
 async function getHistory() {
-    return [];
+    try {
+        const dataSource = await getConnectedDataSource();
+        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
+        const history = await historyRepo.find({
+            take: 20, // Fetch more history items if needed
+            order: {
+                savedAt: 'DESC',
+            },
+            relations: ['appliedProducts'],
+        });
+        
+        return history.map(h => ({
+            ...h, 
+            id: String(h.id),
+            providerId: String(h.providerId),
+            parameters: JSON.parse(h.parameters)
+        }));
+
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
 }
 
 
