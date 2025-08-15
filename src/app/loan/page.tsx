@@ -47,9 +47,9 @@ async function getProviders(): Promise<LoanProvider[]> {
                 icon: prod.icon,
                 minLoan: prod.minLoan,
                 maxLoan: prod.maxLoan,
-                serviceFee: JSON.parse(prod.serviceFee),
-                dailyFee: JSON.parse(prod.dailyFee),
-                penaltyRules: JSON.parse(prod.penaltyRules),
+                serviceFee: prod.serviceFee,
+                dailyFee: prod.dailyFee,
+                penaltyRules: prod.penaltyRules,
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];
