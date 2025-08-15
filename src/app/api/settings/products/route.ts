@@ -5,6 +5,7 @@ import { LoanProduct } from '@/entities/LoanProduct';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { createProductSchema, updateProductSchema } from '@/lib/schemas';
 import type { DataSource } from 'typeorm';
+import { z } from 'zod';
 
 async function getConnectedDataSource(): Promise<DataSource> {
     if (AppDataSource.isInitialized) {
@@ -33,13 +34,22 @@ export async function POST(req: Request) {
             ...productData,
             providerId: Number(providerId),
             status: 'Active',
-            serviceFee: '0%', // Default value
-            dailyFee: '0%', // Default value
-            penaltyFee: '0%', // Default value
+            // Initialize fee/penalty structures as empty/default JSON strings
+            serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
+            dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
+            penaltyRules: '[]',
         });
         await productRepo.save(newProduct);
+        
+        // Parse JSON for the response object
+        const responseProduct = {
+            ...newProduct,
+            serviceFee: JSON.parse(newProduct.serviceFee),
+            dailyFee: JSON.parse(newProduct.dailyFee),
+            penaltyRules: JSON.parse(newProduct.penaltyRules)
+        };
 
-        return NextResponse.json(newProduct, { status: 201 });
+        return NextResponse.json(responseProduct, { status: 201 });
     } catch (error) {
         console.error('Error creating product:', error);
         return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
@@ -66,11 +76,34 @@ export async function PUT(req: Request) {
         
         const { id, ...updateData } = validation.data;
 
-        await productRepo.update(id, updateData);
+        // Stringify JSON fields before updating
+        if (updateData.serviceFee) {
+            (updateData as any).serviceFee = JSON.stringify(updateData.serviceFee);
+        }
+        if (updateData.dailyFee) {
+            (updateData as any).dailyFee = JSON.stringify(updateData.dailyFee);
+        }
+        if (updateData.penaltyRules) {
+            (updateData as any).penaltyRules = JSON.stringify(updateData.penaltyRules);
+        }
+
+        await productRepo.update(id, updateData as any);
         const updatedProduct = await productRepo.findOneBy({ id: Number(id) });
+        
+        if (!updatedProduct) {
+             return NextResponse.json({ error: 'Product not found after update.' }, { status: 404 });
+        }
+        
+        // Parse JSON fields for the response
+        const responseProduct = {
+            ...updatedProduct,
+            serviceFee: JSON.parse(updatedProduct.serviceFee),
+            dailyFee: JSON.parse(updatedProduct.dailyFee),
+            penaltyRules: JSON.parse(updatedProduct.penaltyRules)
+        };
 
 
-        return NextResponse.json(updatedProduct);
+        return NextResponse.json(responseProduct);
     } catch (error) {
         console.error('Error updating product:', error);
         return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });

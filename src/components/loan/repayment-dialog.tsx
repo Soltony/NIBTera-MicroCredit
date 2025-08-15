@@ -1,9 +1,8 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, LoanProduct } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Delete } from 'lucide-react';
@@ -19,7 +18,7 @@ interface RepaymentDialogProps {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: (amount: number) => void;
-    loan: LoanDetails;
+    loan: LoanDetails & { product?: LoanProduct };
     providerColor?: string;
 }
 
@@ -28,7 +27,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
     const [error, setError] = useState('');
 
     const totalAmountToRepay = useMemo(() => {
-        return calculateTotalRepayable(loan);
+        if (!loan.product) return 0;
+        return calculateTotalRepayable(loan, loan.product);
     }, [loan]);
 
     const balanceDue = useMemo(() => {
@@ -54,7 +54,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
             setError('Please enter a valid amount.');
             return false;
         }
-        if (numericAmount > balanceDue) {
+        if (numericAmount > balanceDue + 0.01) { // Add tolerance
             setError(`Amount cannot be more than the balance due of ${formatCurrency(balanceDue)}.`);
             return false;
         }

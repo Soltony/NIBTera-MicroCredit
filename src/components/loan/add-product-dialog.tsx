@@ -22,7 +22,7 @@ import { IconDisplay } from '@/components/icons';
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyFee'>) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules'>) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [

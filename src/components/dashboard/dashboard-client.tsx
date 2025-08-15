@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -340,7 +341,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
             isOpen={isRepayDialogOpen}
             onClose={() => setIsRepayDialogOpen(false)}
             onConfirm={handleConfirmRepayment}
-            loan={repayingLoan}
+            loan={{...repayingLoan, product: providers.find(p => p.id === selectedProviderId)?.products.find(prod => prod.name === repayingLoan.productName)}}
             providerColor={selectedProvider?.colorHex}
         />
       )}

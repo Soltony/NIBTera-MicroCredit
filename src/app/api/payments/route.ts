@@ -49,8 +49,15 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
             }
 
+            const loanProduct = {
+                ...loan.product,
+                serviceFee: JSON.parse(loan.product.serviceFee),
+                dailyFee: JSON.parse(loan.product.dailyFee),
+                penaltyRules: JSON.parse(loan.product.penaltyRules),
+            }
+
             // Calculate current total repayable amount
-            const totalRepayable = calculateTotalRepayable(loan, new Date());
+            const totalRepayable = calculateTotalRepayable(loan, loanProduct, new Date());
             const alreadyPaid = loan.repaidAmount || 0;
             const outstandingBalance = totalRepayable - alreadyPaid;
 

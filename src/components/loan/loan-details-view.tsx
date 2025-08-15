@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, LoanProduct } from '@/lib/types';
 import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 
 interface LoanDetailsViewProps {
   details: LoanDetails;
+  product: LoanProduct;
   onReset: () => void;
   providerColor?: string;
 }
@@ -18,7 +19,7 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanDetailsView({ details, onReset, providerColor = 'hsl(var(--primary))' }: LoanDetailsViewProps) {
+export function LoanDetailsView({ details, product, onReset, providerColor = 'hsl(var(--primary))' }: LoanDetailsViewProps) {
   return (
     <div className="max-w-2xl mx-auto">
        <div className="text-center mb-8">
@@ -46,14 +47,18 @@ export function LoanDetailsView({ details, onReset, providerColor = 'hsl(var(--p
               </Badge>
             </div>
             
-            <div className="text-muted-foreground">Service Fee</div>
-            <div className="text-right font-medium">3%</div>
+            <div className="text-muted-foreground">Service Fee Applied</div>
+            <div className="text-right font-medium">{formatCurrency(details.serviceFeeAmount)}</div>
 
-            <div className="text-muted-foreground">Daily Fee</div>
-            <div className="text-right font-medium">0.2%</div>
+            <div className="text-muted-foreground">Daily Fee Rule</div>
+            <div className="text-right font-medium">
+                {product.dailyFee.value ? `${product.dailyFee.value}${product.dailyFee.type === 'percentage' ? '%' : ''}` : 'N/A'}
+            </div>
             
-            <div className="text-muted-foreground">Penalty Fee After Due Date</div>
-            <div className="text-right font-medium">0.11% daily</div>
+            <div className="text-muted-foreground">Penalty Rules</div>
+            <div className="text-right font-medium">
+                {product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
+            </div>
 
             <div className="text-muted-foreground">Due Date</div>
             <div className="text-right font-medium">{format(details.dueDate, 'PPP')}</div>

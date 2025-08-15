@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -13,13 +14,13 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-const formatFee = (fee: string | undefined, suffix: string) => {
-    if (!fee) return 'N/A';
-    if (fee.includes('%') || fee.toLowerCase().includes('daily')) {
-        return fee;
+const formatFee = (feeRule: any, suffix?: string): string => {
+    if (!feeRule || !feeRule.value) return 'N/A';
+    if (feeRule.type === 'percentage') {
+        return `${feeRule.value}%${suffix || ''}`;
     }
-    return `${fee}${suffix}`;
-}
+    return formatCurrency(feeRule.value);
+};
 
 interface ProductCardProps {
     product: LoanProduct;
@@ -37,11 +38,16 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        const totalDebt = calculateTotalRepayable(activeLoan, new Date());
+        // The product passed to activeLoan from parent might have JSON strings, need to parse them
+        const parsedProduct = {
+            ...product,
+            ...activeLoan.product
+        };
+        const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, new Date());
         const remainingBalance = totalDebt - (activeLoan.repaidAmount || 0);
         // Return 0 if the balance is negative (overpayment)
         return Math.max(0, remainingBalance);
-    }, [activeLoan]);
+    }, [activeLoan, product]);
 
     const canApply = (product.availableLimit ?? 0) > 0 && !activeLoan;
 
@@ -89,16 +95,16 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.serviceFee, '%')}</p>
+                                <p className="text-lg font-semibold">{formatCurrency(activeLoan.serviceFeeAmount)}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
-                            <div>
-                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, '%')}</p>
+                             <div>
+                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                 <p className="text-xs text-muted-foreground">Daily Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.penaltyFee, '% daily')}</p>
-                                <p className="text-xs text-muted-foreground">Penalty Fee After Due Date</p>
+                                <p className="text-lg font-semibold">{product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rules` : 'N/A'}</p>
+                                <p className="text-xs text-muted-foreground">Penalty Rules</p>
                             </div>
                              <div>
                                 <p className="text-lg font-semibold">{formatCurrency(activeLoan.loanAmount)}</p>
@@ -111,16 +117,16 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.serviceFee, '%')}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, '%')}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                 <p className="text-xs text-muted-foreground">Daily Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.penaltyFee, '% daily')}</p>
-                                <p className="text-xs text-muted-foreground">Penalty Fee After Due Date</p>
+                                <p className="text-lg font-semibold">{product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rules` : 'N/A'}</p>
+                                <p className="text-xs text-muted-foreground">Penalty Rules</p>
                             </div>
                             <div>
                                 <p className="text-lg font-semibold">{formatCurrency(product.availableLimit ?? 0)}</p>

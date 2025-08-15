@@ -1,42 +1,71 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { differenceInDays, startOfDay } from 'date-fns';
-import type { LoanDetails } from './types';
+import type { LoanDetails, LoanProduct } from './types';
 
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Corrected loan calculation logic
-export const calculateTotalRepayable = (loan: LoanDetails, asOfDate: Date = new Date()): number => {
-    const loanStartDate = startOfDay(new Date(loan.disbursedDate));
+export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, asOfDate: Date = new Date()): number => {
+    const loanStartDate = startOfDay(new Date(loanDetails.disbursedDate));
     const finalDate = startOfDay(asOfDate);
-    const dueDate = startOfDay(new Date(loan.dueDate));
+    const dueDate = startOfDay(new Date(loanDetails.dueDate));
 
-    const principal = loan.loanAmount;
-    const dailyInterestRate = loan.interestRate / 100;
-    const penaltyRate = (loan.penaltyAmount || 0) / 100;
+    const principal = loanDetails.loanAmount;
 
-    let interest = 0;
-    let penalty = 0;
+    let totalDebt = principal;
 
-    // 1. Calculate simple daily interest up to the 'asOfDate'
-    const daysSinceStart = differenceInDays(finalDate, loanStartDate);
-    if (daysSinceStart > 0) {
-        interest = principal * dailyInterestRate * daysSinceStart;
-    }
-
-    // 2. Calculate simple daily penalty if overdue
-    if (finalDate > dueDate) {
-        const daysOverdue = differenceInDays(finalDate, dueDate);
-        if (daysOverdue > 0) {
-            penalty = principal * penaltyRate * daysOverdue;
+    // 1. Service Fee
+    const serviceFeeRule = loanProduct.serviceFee;
+    if (serviceFeeRule && serviceFeeRule.value) {
+        if (serviceFeeRule.type === 'fixed') {
+            totalDebt += serviceFeeRule.value;
+        } else { // percentage
+            totalDebt += principal * (serviceFeeRule.value / 100);
         }
     }
-    
-    // 3. The total debt is principal + service fee + accumulated interest + accumulated penalty
-    const totalDebt = principal + loan.serviceFee + interest + penalty;
+
+    // 2. Daily Fee (Interest)
+    const dailyFeeRule = loanProduct.dailyFee;
+    if (dailyFeeRule && dailyFeeRule.value) {
+        const daysSinceStart = differenceInDays(finalDate, loanStartDate);
+        if (daysSinceStart > 0) {
+            if (dailyFeeRule.type === 'fixed') {
+                totalDebt += dailyFeeRule.value * daysSinceStart;
+            } else { // percentage
+                totalDebt += principal * (dailyFeeRule.value / 100) * daysSinceStart;
+            }
+        }
+    }
+
+    // 3. Penalty
+    const penaltyRules = loanProduct.penaltyRules;
+    if (penaltyRules && finalDate > dueDate) {
+        const daysOverdue = differenceInDays(finalDate, dueDate);
+        
+        penaltyRules.forEach(rule => {
+             const fromDay = rule.fromDay === '' ? 1 : rule.fromDay;
+             const toDay = rule.toDay === '' || rule.toDay === Infinity ? Infinity : rule.toDay;
+             const value = rule.value === '' ? 0 : rule.value;
+
+             if (daysOverdue >= fromDay) {
+                 const applicableDaysInTier = Math.min(daysOverdue, toDay) - fromDay + 1;
+                 
+                 if (applicableDaysInTier > 0) {
+                    if (rule.type === 'fixed') {
+                        // Fixed amount is a one-time charge for entering the tier
+                        totalDebt += value;
+                    } else { // percentageOfPrincipal
+                        // Percentage is applied daily for the duration in the tier
+                        totalDebt += principal * (value / 100) * applicableDaysInTier;
+                    }
+                 }
+             }
+        });
+    }
 
     return totalDebt;
 };

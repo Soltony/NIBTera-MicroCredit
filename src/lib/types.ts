@@ -1,8 +1,21 @@
 
-
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
+
+
+export interface FeeRule {
+    type: 'fixed' | 'percentage';
+    value: number | '';
+}
+
+export interface PenaltyRule {
+    id: string;
+    fromDay: number | '';
+    toDay: number | Infinity | '';
+    type: 'fixed' | 'percentageOfPrincipal';
+    value: number | '';
+}
 
 export interface LoanProvider {
   id: string;
@@ -21,9 +34,9 @@ export interface LoanProduct {
   icon: string;
   minLoan?: number;
   maxLoan?: number;
-  serviceFee?: string;
-  dailyFee?: string;
-  penaltyFee?: string;
+  serviceFee: FeeRule;
+  dailyFee: FeeRule;
+  penaltyRules: PenaltyRule[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
 }
@@ -39,14 +52,14 @@ export interface LoanDetails {
   providerName: string;
   productName: string;
   loanAmount: number;
-  serviceFee: number;
-  interestRate: number; // Represents the daily fee percentage
+  serviceFeeAmount: number;
   disbursedDate: Date;
   dueDate: Date;
-  penaltyAmount: number;
   repaymentStatus: 'Paid' | 'Unpaid';
   repaidAmount?: number;
   payments: Payment[];
+  // For calculation purposes, not stored in DB
+  product?: LoanProduct;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
@@ -104,7 +117,7 @@ export const parseFee = (feeString: string | undefined): number => {
     return parseFloat(feeString.replace('%', '')) || 0;
 }
 
-// Types for Scoring Engine
+// Type for Scoring Engine
 export interface Rule {
   id: string;
   field: string;

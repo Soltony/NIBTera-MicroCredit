@@ -1,9 +1,8 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput } from '@/lib/types';
+import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput, FeeRule } from '@/lib/types';
 import { addDays, format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +13,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
-import { parseFee } from '@/lib/types';
 import { calculateTotalRepayable } from '@/lib/utils';
 
 interface LoanOfferAndCalculatorProps {
@@ -29,13 +27,13 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-const formatFee = (fee: string | undefined, suffix: string) => {
-    if (!fee) return 'N/A';
-    if (fee.includes('%') || fee.toLowerCase().includes('daily')) {
-        return fee;
+const formatFee = (feeRule: FeeRule | undefined): string => {
+    if (!feeRule || feeRule.value === '' || feeRule.value === 0) return 'N/A';
+    if (feeRule.type === 'percentage') {
+        return `${feeRule.value}%`;
     }
-    return `${fee}${suffix}`;
-}
+    return formatCurrency(feeRule.value);
+};
 
 
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
@@ -55,22 +53,23 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
     if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
     
-    const serviceFeePercentage = parseFee(product.serviceFee);
-    const dailyFeePercentage = parseFee(product.dailyFee);
-    
-    const serviceFee = numericLoanAmount * (serviceFeePercentage / 100);
     const disbursedDate = new Date();
     const dueDate = addDays(disbursedDate, 30);
+    
+    let serviceFeeAmount = 0;
+    if (product.serviceFee && product.serviceFee.value) {
+        serviceFeeAmount = product.serviceFee.type === 'fixed' 
+            ? product.serviceFee.value 
+            : numericLoanAmount * (product.serviceFee.value / 100);
+    }
     
     // Create a temporary loan object to pass to the calculation function.
     const tempLoan: LoanDetails = {
         id: 'temp',
         loanAmount: numericLoanAmount,
-        serviceFee,
-        interestRate: dailyFeePercentage, // Daily rate as a percentage
+        serviceFeeAmount: serviceFeeAmount,
         disbursedDate,
         dueDate,
-        penaltyAmount: parseFee(product.penaltyFee), // Penalty rate
         repaymentStatus: 'Unpaid',
         payments: [],
         productName: product.name,
@@ -78,9 +77,9 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         repaidAmount: 0,
     };
     
-    const totalRepayable = calculateTotalRepayable(tempLoan, dueDate);
+    const totalRepayable = calculateTotalRepayable(tempLoan, product, dueDate);
 
-    return { serviceFee, interestRate: dailyFeePercentage, penaltyAmount: tempLoan.penaltyAmount, disbursedDate, dueDate, totalRepayable };
+    return { serviceFeeAmount, disbursedDate, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {
@@ -196,13 +195,15 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
                     <div className="font-medium">Service Fee</div>
-                    <div className="text-right">{formatFee(product.serviceFee, '%')}</div>
+                    <div className="text-right">{formatFee(product.serviceFee)}</div>
                     
                     <div className="font-medium">Daily Fee</div>
-                    <div className="text-right">{formatFee(product.dailyFee, '%')}</div>
+                    <div className="text-right">{formatFee(product.dailyFee)}</div>
                     
-                    <div className="font-medium text-destructive">Penalty Fee After Due Date</div>
-                    <div className="text-right text-destructive">{formatFee(product.penaltyFee, '% daily')}</div>
+                    <div className="font-medium text-destructive">Penalty Rules</div>
+                    <div className="text-right text-destructive">
+                        {product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
+                    </div>
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">

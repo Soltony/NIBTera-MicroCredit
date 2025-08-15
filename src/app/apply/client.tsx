@@ -116,8 +116,8 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
                 return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
             case 'details':
-                if (loanDetails) {
-                    return <LoanDetailsView details={loanDetails} onReset={handleReset} providerColor={provider.colorHex} />;
+                if (loanDetails && selectedProduct) {
+                    return <LoanDetailsView details={loanDetails} product={selectedProduct} onReset={handleReset} providerColor={provider.colorHex} />;
                 }
                 return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
             default:
@@ -145,4 +145,3 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         </div>
     );
 }
-

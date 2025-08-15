@@ -12,7 +12,7 @@ import {
 import { IsNumber, IsDate, IsNotEmpty } from 'class-validator';
 import { LoanProvider } from './LoanProvider';
 import { LoanProduct } from './LoanProduct';
-import type { Payment } from './Payment';
+import { Payment } from './Payment';
 
 @Entity({ name: 'loan_details' })
 export class LoanDetails {
@@ -37,13 +37,9 @@ export class LoanDetails {
   @IsNumber()
   loanAmount!: number;
 
-  @Column({ type: 'number', name: 'service_fee', precision: 10, scale: 2 })
+  @Column({ type: 'number', name: 'service_fee_amount', precision: 10, scale: 2 })
   @IsNumber()
-  serviceFee!: number;
-
-  @Column({ type: 'number', name: 'interest_rate', precision: 10, scale: 4 })
-  @IsNumber()
-  interestRate!: number;
+  serviceFeeAmount!: number;
 
   @Column({ type: 'date', name: 'disbursed_date' })
   @IsDate()
@@ -52,10 +48,6 @@ export class LoanDetails {
   @Column({ type: 'date', name: 'due_date' })
   @IsDate()
   dueDate!: Date;
-
-  @Column({ type: 'number', name: 'penalty_amount', precision: 10, scale: 2 })
-  @IsNumber()
-  penaltyAmount!: number;
 
   @Column({ type: 'varchar2', length: 50, name: 'repayment_status' })
   @IsNotEmpty()

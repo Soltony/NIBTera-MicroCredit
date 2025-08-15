@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload } from 'lucide-react';
-import type { LoanProvider, LoanProduct } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -47,6 +47,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
     providerId: string; 
@@ -180,7 +181,7 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyFee'> & { icon?: string }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules'> & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -369,6 +370,73 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
     </>;
 }
 
+const FeeInput = ({ label, fee, onChange, color }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; color?: string; }) => {
+    return (
+        <div className="flex items-center gap-2">
+            <Label className="w-28">{label}</Label>
+            <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type })}>
+                <SelectTrigger className="w-32">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed">Fixed</SelectItem>
+                </SelectContent>
+            </Select>
+            <div className="relative flex-1">
+                <Input
+                    type="number"
+                    value={fee.value}
+                    onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                    placeholder="Enter value"
+                    className={cn(fee.type === 'percentage' ? "pr-8" : "")}
+                />
+                {fee.type === 'percentage' && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>}
+            </div>
+        </div>
+    );
+};
+
+const PenaltyRuleRow = ({ rule, onChange, onRemove, color }: { rule: PenaltyRule, onChange: (rule: PenaltyRule) => void, onRemove: () => void, color?: string }) => {
+    return (
+        <div className="flex items-center gap-2">
+            <Input 
+                type="number" 
+                value={rule.fromDay}
+                onChange={(e) => onChange({...rule, fromDay: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                placeholder="From Day"
+                className="w-24"
+            />
+            <Input 
+                type="number" 
+                value={rule.toDay === Infinity ? '' : rule.toDay}
+                onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? Infinity : parseInt(e.target.value)})}
+                placeholder="To Day"
+                className="w-24"
+            />
+            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal') => onChange({ ...rule, type })}>
+                <SelectTrigger className="w-48">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="fixed">Fixed Amount</SelectItem>
+                    <SelectItem value="percentageOfPrincipal">Percentage of Principal</SelectItem>
+                </SelectContent>
+            </Select>
+             <div className="relative flex-1">
+                <Input
+                    type="number"
+                    value={rule.value}
+                    onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                    placeholder="Value"
+                    className={cn(rule.type === 'percentageOfPrincipal' ? "pr-8" : "")}
+                />
+                 {rule.type === 'percentageOfPrincipal' && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+        </div>
+    );
+};
 
 function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider[] }) {
     const [providers, setProviders] = useState(initialProviders);
@@ -382,13 +450,43 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
         return providers.filter(p => p.id === currentUser.providerId);
     }, [providers, currentUser]);
 
-    const handleFeeChange = (providerId: string, productId: string, field: 'serviceFee' | 'dailyFee' | 'penaltyFee', value: string) => {
+    const handleProductChange = (providerId: string, productId: string, updatedProduct: Partial<LoanProduct>) => {
         setProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const product = provider.products.find(p => p.id === productId);
                 if (product) {
-                    product[field] = value;
+                    Object.assign(product, updatedProduct);
+                }
+            }
+        }));
+    };
+    
+    const handleAddPenaltyRule = (providerId: string, productId: string) => {
+        setProviders(produce(draft => {
+             const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const product = provider.products.find(p => p.id === productId);
+                if (product) {
+                    product.penaltyRules.push({
+                        id: `penalty-${Date.now()}`,
+                        fromDay: 1,
+                        toDay: Infinity,
+                        type: 'fixed',
+                        value: 0
+                    });
+                }
+            }
+        }));
+    };
+    
+    const handleRemovePenaltyRule = (providerId: string, productId: string, ruleId: string) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const product = provider.products.find(p => p.id === productId);
+                if (product) {
+                    product.penaltyRules = product.penaltyRules.filter(r => r.id !== ruleId);
                 }
             }
         }));
@@ -437,56 +535,61 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
                             </div>
                         </div>
                     </AccordionTrigger>
-                    <AccordionContent className="p-4 border-t">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-1/4">Product Name</TableHead>
-                                    <TableHead>Service Fee</TableHead>
-                                    <TableHead>Daily Fee</TableHead>
-                                    <TableHead>Penalty Fee</TableHead>
-                                    <TableHead className="text-right">Action</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {provider.products.map((product) => (
-                                    <TableRow key={product.id}>
-                                        <TableCell className="font-medium">{product.name}</TableCell>
-                                        <TableCell>
-                                            <Input 
-                                                value={product.serviceFee} 
-                                                onChange={(e) => handleFeeChange(provider.id, product.id, 'serviceFee', e.target.value)}
-                                                placeholder="e.g. 3%"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input 
-                                                value={product.dailyFee} 
-                                                onChange={(e) => handleFeeChange(provider.id, product.id, 'dailyFee', e.target.value)}
-                                                placeholder="e.g. 0.2%"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input 
-                                                value={product.penaltyFee} 
-                                                onChange={(e) => handleFeeChange(provider.id, product.id, 'penaltyFee', e.target.value)}
-                                                placeholder="e.g. 0.11% daily"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button 
-                                                onClick={() => handleSaveFees(provider.id, product)} 
-                                                size="sm"
-                                                style={{ backgroundColor: provider.colorHex }}
-                                                className="text-white"
-                                            >
-                                                Save
+                    <AccordionContent className="p-4 border-t space-y-6">
+                       {provider.products.map(product => (
+                           <Card key={product.id}>
+                               <CardHeader>
+                                   <CardTitle>{product.name}</CardTitle>
+                               </CardHeader>
+                               <CardContent className="space-y-4">
+                                   <FeeInput 
+                                        label="Service Fee"
+                                        fee={product.serviceFee}
+                                        onChange={(fee) => handleProductChange(provider.id, product.id, { serviceFee: fee })}
+                                        color={provider.colorHex}
+                                    />
+                                     <FeeInput 
+                                        label="Daily Fee"
+                                        fee={product.dailyFee}
+                                        onChange={(fee) => handleProductChange(provider.id, product.id, { dailyFee: fee })}
+                                        color={provider.colorHex}
+                                    />
+                                    
+                                    <div>
+                                        <Label className="block mb-2">Penalty Rules</Label>
+                                        <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                                            {product.penaltyRules.map((rule, index) => (
+                                                <PenaltyRuleRow
+                                                    key={rule.id}
+                                                    rule={rule}
+                                                    onChange={(updatedRule) => handleProductChange(provider.id, product.id, {
+                                                        penaltyRules: produce(product.penaltyRules, draft => {
+                                                            draft[index] = updatedRule;
+                                                        })
+                                                    })}
+                                                    onRemove={() => handleRemovePenaltyRule(provider.id, product.id, rule.id)}
+                                                    color={provider.colorHex}
+                                                />
+                                            ))}
+                                            <Button variant="outline" size="sm" onClick={() => handleAddPenaltyRule(provider.id, product.id)}>
+                                                <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
                                             </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                        </div>
+                                    </div>
+
+                               </CardContent>
+                               <CardFooter>
+                                    <Button 
+                                        onClick={() => handleSaveFees(provider.id, product)} 
+                                        size="sm"
+                                        style={{ backgroundColor: provider.colorHex }}
+                                        className="text-white ml-auto"
+                                    >
+                                        Save Configuration for {product.name}
+                                    </Button>
+                               </CardFooter>
+                           </Card>
+                       ))}
                     </AccordionContent>
                 </AccordionItem>
             ))}

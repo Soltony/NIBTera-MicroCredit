@@ -2,7 +2,7 @@
 import { SettingsClient } from '@/components/admin/settings-client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
-import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
 // A helper to map string names to actual icon component names for the client
@@ -12,6 +12,16 @@ const iconNameMap: { [key: string]: string } = {
   Briefcase: 'Briefcase',
   Home: 'Home',
   PersonStanding: 'PersonStanding',
+};
+
+// Helper function to safely parse JSON from DB
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
 };
 
 async function getConnectedDataSource(): Promise<DataSource> {
@@ -51,9 +61,9 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 icon: iconNameMap[prod.icon] || 'PersonStanding',
                 minLoan: prod.minLoan,
                 maxLoan: prod.maxLoan,
-                serviceFee: prod.serviceFee,
-                dailyFee: prod.dailyFee,
-                penaltyFee: prod.penaltyFee,
+                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
+                penaltyRules: safeJsonParse(prod.penaltyRules, []),
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProviderType[];

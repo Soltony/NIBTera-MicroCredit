@@ -37,14 +37,15 @@ export class LoanProduct {
   @IsNumber()
   maxLoan!: number;
 
-  @Column({ type: 'varchar2', length: 50, name: 'service_fee' })
+  // Store complex rules as JSON strings in CLOB
+  @Column({ type: 'clob', name: 'service_fee' })
   serviceFee!: string;
 
-  @Column({ type: 'varchar2', length: 50, name: 'daily_fee' })
+  @Column({ type: 'clob', name: 'daily_fee' })
   dailyFee!: string;
 
-  @Column({ type: 'varchar2', length: 50, name: 'penalty_fee' })
-  penaltyFee!: string;
+  @Column({ type: 'clob', name: 'penalty_rules' })
+  penaltyRules!: string;
 
   @Column({ type: 'varchar2', length: 50 })
   status!: string;
