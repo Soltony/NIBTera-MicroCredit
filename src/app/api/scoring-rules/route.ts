@@ -46,7 +46,7 @@ export async function POST(req: Request) {
             for (const param of parameters) {
                 const isNewParam = param.id.startsWith('param-');
                 
-                let savedParam: ScoringParameter | null;
+                let savedParam: ScoringParameter;
                 if (isNewParam) {
                     savedParam = await paramRepo.save({
                         providerId: Number(providerId),
@@ -55,12 +55,20 @@ export async function POST(req: Request) {
                     });
                 } else {
                     await paramRepo.update(param.id, { name: param.name, weight: param.weight });
-                    savedParam = await paramRepo.findOneBy({ id: Number(param.id) });
+                    // Avoid re-fetching which can cause race conditions in a transaction.
+                    // We already have the necessary data.
+                    savedParam = {
+                        id: Number(param.id),
+                        providerId: Number(providerId),
+                        name: param.name,
+                        weight: param.weight,
+                        rules: [], // This will be populated next
+                        createdAt: new Date(), // These values are not used later, so placeholder is fine
+                        updatedAt: new Date(),
+                        provider: null as any,
+                    };
                 }
 
-                if (!savedParam) {
-                    throw new Error(`Failed to find or create parameter with ID ${param.id}`);
-                }
 
                 const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
                 const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !id.startsWith('rule-')));
@@ -101,7 +109,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(finalParams, { status: 200 });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error saving scoring parameters:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
