@@ -25,11 +25,11 @@ class MainSeeder {
       console.log('Dropping existing tables...');
       const tableDropOrder = [
         'payments',
-        '_scoring_config_history_to_products', // Join table must be dropped first
-        'scoring_configuration_history',
-        'loan_details',
+        '_scoring_config_history_to_products',
         'scoring_parameter_rules',
+        'loan_details',
         'scoring_parameters',
+        'scoring_configuration_history',
         'users',
         'loan_products',
         'customers',
