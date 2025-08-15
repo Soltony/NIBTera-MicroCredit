@@ -22,38 +22,11 @@ class MainSeeder {
       const queryRunner = AppDataSource.createQueryRunner();
 
       try {
-        console.log('Synchronizing database schema (dropping and recreating tables)...');
+        console.log('Synchronizing database schema...');
         
-        // Correct order to drop tables, respecting foreign key constraints
-        const tableDropOrder = [
-          '_scoring_config_history_to_products',
-          'payments',
-          'loan_details',
-          'users',
-          'scoring_parameter_rules',
-          'scoring_parameters',
-          'scoring_configuration_history',
-          'loan_products',
-          'loan_providers',
-          'roles',
-          'customers',
-        ];
-
-        for (const tableName of tableDropOrder) {
-          try {
-            await queryRunner.query(`DROP TABLE "${tableName}"`);
-            console.log(`Dropped table: ${tableName}`);
-          } catch (error: any) {
-            // Ignore ORA-00942: table or view does not exist
-            if (error.errorNum !== 942) {
-              console.error(`Error dropping table ${tableName}:`, error);
-              throw error; // re-throw other errors
-            }
-          }
-        }
-        
-        // Re-create the schema from scratch based on entities
-        await AppDataSource.synchronize();
+        // Re-create the schema from scratch based on entities. 
+        // Note: For a clean run, ensure the database is empty beforehand.
+        await AppDataSource.synchronize(); 
         console.log('Schema synchronized.');
 
         await queryRunner.startTransaction();
