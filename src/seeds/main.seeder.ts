@@ -22,7 +22,7 @@ class MainSeeder {
       const queryRunner = AppDataSource.createQueryRunner();
 
       console.log('Dropping existing tables...');
-      // Drop all tables to ensure a clean slate, in the correct order to respect foreign key constraints.
+      // The order is critical to respect foreign key constraints.
       const tableDropOrder = [
         'payments',
         '_scoring_config_history_to_products', // Join table first
@@ -39,22 +39,18 @@ class MainSeeder {
 
       for (const tableName of tableDropOrder) {
           try {
-              // Use queryRunner for dropping to keep it within the transaction context if needed, though drop is often auto-committed.
               await queryRunner.query(`DROP TABLE "${tableName}"`);
               console.log(`Dropped table: ${tableName}`);
           } catch (error: any) {
-              // ORA-00942: table or view does not exist - this is expected if the table doesn't exist yet.
-              if (error.code !== 'ORA-00942') {
+              if (error.code !== 'ORA-00942') { // ORA-00942: table or view does not exist
                   console.error(`Error dropping table ${tableName}:`, error);
-                  // Rethrow if it's an unexpected error
-                  throw error;
+                  throw error; // Re-throw if it's an unexpected error
               }
           }
       }
       
       console.log('Synchronizing database schema...');
-      // Re-create the schema from scratch based on entities
-      await AppDataSource.synchronize();
+      await AppDataSource.synchronize(); // Re-create schema from scratch
       console.log('Schema synchronized.');
 
       await queryRunner.startTransaction();
