@@ -16,14 +16,13 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
         if (!currentUser || (currentUser.role !== 'Super Admin' && currentUser.role !== 'Loan Manager')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const manager = dataSource.manager;
 
         const { providerId, parameters } = await req.json() as { providerId: string; parameters: ScoringParameterType[] };
@@ -47,7 +46,7 @@ export async function POST(req: Request) {
             for (const param of parameters) {
                 const isNewParam = param.id.startsWith('param-');
                 
-                let savedParam: ScoringParameter;
+                let savedParam: ScoringParameter | null;
                 if (isNewParam) {
                     savedParam = await paramRepo.save({
                         providerId: Number(providerId),
@@ -56,7 +55,11 @@ export async function POST(req: Request) {
                     });
                 } else {
                     await paramRepo.update(param.id, { name: param.name, weight: param.weight });
-                    savedParam = (await paramRepo.findOneBy({ id: Number(param.id) }))!;
+                    savedParam = await paramRepo.findOneBy({ id: Number(param.id) });
+                }
+
+                if (!savedParam) {
+                    throw new Error(`Failed to find or create parameter with ID ${param.id}`);
                 }
 
                 const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
@@ -101,9 +104,5 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error saving scoring parameters:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
     }
 }
