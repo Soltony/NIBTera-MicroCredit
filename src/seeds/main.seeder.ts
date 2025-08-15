@@ -88,6 +88,11 @@ class MainSeeder {
     try {
       await AppDataSource.initialize();
       console.log('Database connection initialized.');
+
+      // Synchronize schema to ensure tables are created
+      console.log('Synchronizing database schema...');
+      await AppDataSource.synchronize(false); // Pass false to prevent dropping tables
+      console.log('Schema synchronized.');
       
       const queryRunner = AppDataSource.createQueryRunner();
 
