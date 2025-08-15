@@ -1,4 +1,5 @@
 
+
 import { SettingsClient } from '@/components/admin/settings-client';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
@@ -76,38 +77,9 @@ async function getProviders(): Promise<LoanProviderType[]> {
     }
 }
 
-async function getScoringParameters(): Promise<ScoringParameterType[]> {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository(ScoringParameter);
-        const params = await paramRepo.find({
-            relations: ['rules'],
-        });
-        
-        // Map to a serializable format that matches our client-side type
-        return params.map(p => ({
-            id: String(p.id),
-            providerId: String(p.providerId),
-            name: p.name,
-            weight: p.weight,
-            rules: p.rules.map(r => ({
-                id: String(r.id),
-                field: r.field,
-                condition: r.condition,
-                value: r.value,
-                score: r.score,
-            })),
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
-}
-
 
 export default async function AdminSettingsPage() {
     const providers = await getProviders();
-    const scoringParameters = await getScoringParameters();
 
-    return <SettingsClient initialProviders={providers} initialScoringParameters={scoringParameters} />;
+    return <SettingsClient initialProviders={providers} />;
 }
