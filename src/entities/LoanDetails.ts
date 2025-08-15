@@ -37,9 +37,9 @@ export class LoanDetails {
   @IsNumber()
   loanAmount!: number;
 
-  @Column({ type: 'number', name: 'service_fee_amount', precision: 10, scale: 2 })
+  @Column({ type: 'number', name: 'service_fee', precision: 10, scale: 2 })
   @IsNumber()
-  serviceFeeAmount!: number;
+  serviceFee!: number;
 
   @Column({ type: 'date', name: 'disbursed_date' })
   @IsDate()

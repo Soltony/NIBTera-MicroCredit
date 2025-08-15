@@ -52,7 +52,7 @@ export interface LoanDetails {
   providerName: string;
   productName: string;
   loanAmount: number;
-  serviceFeeAmount: number;
+  serviceFee: number;
   disbursedDate: Date;
   dueDate: Date;
   repaymentStatus: 'Paid' | 'Unpaid';

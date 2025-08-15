@@ -32,7 +32,7 @@ const formatFee = (feeRule: FeeRule | undefined): string => {
     if (feeRule.type === 'percentage') {
         return `${feeRule.value}%`;
     }
-    return formatCurrency(feeRule.value);
+    return formatCurrency(feeRule.value as number);
 };
 
 
@@ -56,18 +56,18 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const disbursedDate = new Date();
     const dueDate = addDays(disbursedDate, 30);
     
-    let serviceFeeAmount = 0;
+    let serviceFee = 0;
     if (product.serviceFee && product.serviceFee.value) {
-        serviceFeeAmount = product.serviceFee.type === 'fixed' 
-            ? product.serviceFee.value 
-            : numericLoanAmount * (product.serviceFee.value / 100);
+        serviceFee = product.serviceFee.type === 'fixed' 
+            ? (product.serviceFee.value as number)
+            : numericLoanAmount * ((product.serviceFee.value as number) / 100);
     }
     
     // Create a temporary loan object to pass to the calculation function.
     const tempLoan: LoanDetails = {
         id: 'temp',
         loanAmount: numericLoanAmount,
-        serviceFeeAmount: serviceFeeAmount,
+        serviceFee: serviceFee,
         disbursedDate,
         dueDate,
         repaymentStatus: 'Unpaid',
@@ -79,7 +79,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     
     const totalRepayable = calculateTotalRepayable(tempLoan, product, dueDate);
 
-    return { serviceFeeAmount, disbursedDate, dueDate, totalRepayable };
+    return { serviceFee, disbursedDate, dueDate, totalRepayable };
   }, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {

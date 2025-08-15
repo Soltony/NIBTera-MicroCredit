@@ -41,7 +41,7 @@ export const loanSchema = z.object({
     providerId: z.string(),
     productId: z.string(),
     loanAmount: z.number(),
-    serviceFeeAmount: z.number(),
+    serviceFee: z.number(),
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
     repaymentStatus: z.enum(['Paid', 'Unpaid']),

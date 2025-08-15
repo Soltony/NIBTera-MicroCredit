@@ -48,7 +48,7 @@ export function LoanDetailsView({ details, product, onReset, providerColor = 'hs
             </div>
             
             <div className="text-muted-foreground">Service Fee Applied</div>
-            <div className="text-right font-medium">{formatCurrency(details.serviceFeeAmount)}</div>
+            <div className="text-right font-medium">{formatCurrency(details.serviceFee)}</div>
 
             <div className="text-muted-foreground">Daily Fee Rule</div>
             <div className="text-right font-medium">
