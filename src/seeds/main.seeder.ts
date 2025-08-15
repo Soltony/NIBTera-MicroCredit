@@ -11,6 +11,7 @@ import { ScoringParameter } from '@/entities/ScoringParameter';
 import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import { Customer } from '@/entities/Customer';
+import { CustomParameter } from '@/entities/CustomParameter';
 import bcrypt from 'bcryptjs';
 
 class MainSeeder {
@@ -24,9 +25,7 @@ class MainSeeder {
       try {
         console.log('Synchronizing database schema...');
         
-        // Re-create the schema from scratch based on entities. 
-        // Note: For a clean run, ensure the database is empty beforehand.
-        await AppDataSource.synchronize(); 
+        await AppDataSource.synchronize(false);
         console.log('Schema synchronized.');
 
         await queryRunner.startTransaction();
@@ -336,6 +335,22 @@ class MainSeeder {
           },
         ]);
         console.log('Seeded customers');
+
+        // 7. Seed Custom Parameters
+        await queryRunner.manager.save(CustomParameter, {
+            provider: nibBank,
+            name: 'Credit Utilization'
+        });
+        await queryRunner.manager.save(CustomParameter, {
+            provider: nibBank,
+            name: 'Years of Credit History'
+        });
+        await queryRunner.manager.save(CustomParameter, {
+            provider: capitalBank,
+            name: 'Debt-to-Income Ratio'
+        });
+
+        console.log('Seeded custom parameters.');
         
         await queryRunner.commitTransaction();
         console.log('Seeding finished successfully.');

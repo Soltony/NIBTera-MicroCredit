@@ -10,7 +10,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card';
 import {
   Accordion,
@@ -511,11 +510,13 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
     }, [providers, currentUser]);
 
     visibleProviders.forEach(p => {
-        p.products.forEach(prod => {
-            if (!fileInputRefs.current[prod.id]) {
-                fileInputRefs.current[prod.id] = React.createRef<HTMLInputElement>();
-            }
-        });
+        if (p.products) {
+            p.products.forEach(prod => {
+                if (!fileInputRefs.current[prod.id]) {
+                    fileInputRefs.current[prod.id] = React.createRef<HTMLInputElement>();
+                }
+            });
+        }
     });
 
     const handleProductChange = (providerId: string, productId: string, updatedProduct: Partial<LoanProduct>) => {
@@ -634,12 +635,12 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
                             <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                             <div>
                                 <div className="text-lg font-semibold">{provider.name}</div>
-                                <p className="text-sm text-muted-foreground">{provider.products.length} products to configure</p>
+                                <p className="text-sm text-muted-foreground">{provider.products?.length || 0} products to configure</p>
                             </div>
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 border-t space-y-6">
-                       {provider.products.map(product => (
+                       {provider.products?.map(product => (
                            <Card key={product.id}>
                                <CardHeader>
                                    <CardTitle>{product.name}</CardTitle>
@@ -764,6 +765,177 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
     );
 }
 
+interface CustomParameterType {
+    id: string;
+    name: string;
+}
+
+function ParametersTab({ providers: initialProviders }: { providers: LoanProvider[] }) {
+    const [providers, setProviders] = useState(initialProviders);
+    const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+    const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);
+    const [newParamName, setNewParamName] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+    const { currentUser } = useAuth();
+    
+    const themeColor = useMemo(() => {
+        if (!selectedProviderId) return '#fdb913';
+        return providers.find(p => p.id === selectedProviderId)?.colorHex || '#fdb913';
+    }, [selectedProviderId, providers]);
+
+    useEffect(() => {
+        if (providers.length > 0 && !selectedProviderId) {
+            setSelectedProviderId(providers[0].id);
+        }
+    }, [providers, selectedProviderId]);
+
+    useEffect(() => {
+        if (!selectedProviderId) return;
+        const fetchParams = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`);
+                if (!response.ok) throw new Error('Failed to fetch parameters.');
+                const data = await response.json();
+                setCustomParams(data);
+            } catch (error: any) {
+                toast({ title: 'Error', description: error.message, variant: 'destructive' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchParams();
+    }, [selectedProviderId, toast]);
+
+    const handleAddParameter = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newParamName.trim() || !selectedProviderId) return;
+
+        try {
+            const response = await fetch('/api/settings/custom-parameters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newParamName, providerId: selectedProviderId }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to add parameter.');
+            }
+            const newParam = await response.json();
+            setCustomParams(prev => [...prev, newParam]);
+            setNewParamName('');
+            toast({ title: 'Success', description: 'Parameter added successfully.' });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    const handleDeleteParameter = async (paramId: string) => {
+        try {
+            const response = await fetch(`/api/settings/custom-parameters?id=${paramId}`, {
+                method: 'DELETE',
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete parameter.');
+            }
+            setCustomParams(prev => prev.filter(p => p.id !== paramId));
+            toast({ title: 'Success', description: 'Parameter deleted successfully.' });
+        } catch (error: any) {
+             toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+    
+    const visibleProviders = useMemo(() => {
+        if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
+            return providers;
+        }
+        return providers.filter(p => p.id === currentUser.providerId);
+    }, [providers, currentUser]);
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Custom Scoring Parameters</CardTitle>
+                <CardDescription>
+                    Define custom data fields that can be used in the Scoring Engine. These are provider-specific.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="max-w-xs">
+                    <Label htmlFor="provider-select">Provider</Label>
+                    <Select onValueChange={setSelectedProviderId} value={selectedProviderId}>
+                        <SelectTrigger id="provider-select">
+                            <SelectValue placeholder="Select a provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {visibleProviders.map(provider => (
+                                <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                
+                <form onSubmit={handleAddParameter} className="flex items-end gap-2">
+                    <div className="flex-grow">
+                        <Label htmlFor="new-param-name">New Parameter Name</Label>
+                        <Input 
+                            id="new-param-name"
+                            value={newParamName}
+                            onChange={(e) => setNewParamName(e.target.value)}
+                            placeholder="e.g., Number of Dependents"
+                        />
+                    </div>
+                    <Button type="submit" style={{backgroundColor: themeColor}} className="text-white">
+                        <PlusCircle className="h-4 w-4 mr-2" /> Add
+                    </Button>
+                </form>
+
+                <div className="border rounded-md">
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Parameter Name</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-center">
+                                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : customParams.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                        No custom parameters defined for this provider.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                customParams.map(param => (
+                                    <TableRow key={param.id}>
+                                        <TableCell className="font-medium">{param.name}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => handleDeleteParameter(param.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+
+            </CardContent>
+        </Card>
+    )
+}
+
+
 export function SettingsClient({ initialProviders, initialScoringParameters }: { initialProviders: LoanProvider[], initialScoringParameters: ScoringParameter[] }) {
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -772,12 +944,16 @@ export function SettingsClient({ initialProviders, initialScoringParameters }: {
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
                     <TabsTrigger value="configuration">Fee Configuration</TabsTrigger>
+                    <TabsTrigger value="parameters">Parameters</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">
                     <ProvidersTab providers={initialProviders} />
                 </TabsContent>
                 <TabsContent value="configuration">
                      <ConfigurationTab initialProviders={initialProviders} />
+                </TabsContent>
+                <TabsContent value="parameters">
+                     <ParametersTab providers={initialProviders} />
                 </TabsContent>
             </Tabs>
         </div>

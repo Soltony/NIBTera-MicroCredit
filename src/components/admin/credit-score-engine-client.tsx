@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -49,6 +50,11 @@ export interface ScoringHistoryItem {
     appliedProducts: { name: string }[];
 }
 
+interface CustomParameterType {
+    id: string;
+    name: string;
+}
+
 
 const validateRule = (rule: Rule): string | null => {
     if (!rule.field.trim()) {
@@ -85,7 +91,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 
-const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string; }) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -109,7 +115,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                         <SelectValue placeholder="Select Field" />
                     </SelectTrigger>
                     <SelectContent>
-                        {AVAILABLE_FIELDS.map(field => (
+                        {availableFields.map(field => (
                             <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
                         ))}
                     </SelectContent>
@@ -184,6 +190,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
     const { toast } = useToast();
     const [appliedProductIds, setAppliedProductIds] = useState<string[]>([]);
     const [history, setHistory] = useState<ScoringHistoryItem[]>(initialHistory);
+    const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);
 
     useEffect(() => {
         if (providers.length > 0 && !selectedProviderId) {
@@ -199,25 +206,42 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
     const themeColor = selectedProvider?.colorHex || '#fdb913';
     
     useEffect(() => {
-        // When provider changes, fetch its history
-        const fetchHistory = async () => {
+        // When provider changes, fetch its history and custom parameters
+        const fetchProviderData = async () => {
             if (!selectedProviderId) return;
+            setIsLoading(true);
             try {
-                const response = await fetch(`/api/scoring-history?providerId=${selectedProviderId}`);
-                if (!response.ok) throw new Error('Failed to fetch history');
-                const data = await response.json();
-                setHistory(data.map((item: any) => ({ ...item, savedAt: new Date(item.savedAt) })));
+                const [historyResponse, customParamsResponse] = await Promise.all([
+                    fetch(`/api/scoring-history?providerId=${selectedProviderId}`),
+                    fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`)
+                ]);
+                
+                if (!historyResponse.ok) throw new Error('Failed to fetch history');
+                const historyData = await historyResponse.json();
+                setHistory(historyData.map((item: any) => ({ ...item, savedAt: new Date(item.savedAt) })));
+
+                if (!customParamsResponse.ok) throw new Error('Failed to fetch custom parameters');
+                const customParamsData = await customParamsResponse.json();
+                setCustomParams(customParamsData);
+
             } catch (error) {
-                toast({ title: "Error", description: "Could not fetch configuration history.", variant: "destructive" });
+                toast({ title: "Error", description: "Could not fetch configuration data.", variant: "destructive" });
+            } finally {
+                setIsLoading(false);
             }
         };
-        fetchHistory();
+        fetchProviderData();
     }, [selectedProviderId, toast]);
 
     const totalWeight = React.useMemo(() => {
         if (!currentParametersForProvider) return 0;
         return currentParametersForProvider.reduce((sum, param) => sum + param.weight, 0);
     }, [currentParametersForProvider]);
+
+    const allAvailableFields = useMemo(() => {
+        const customFields = customParams.map(p => ({ value: p.name, label: p.name }));
+        return [...AVAILABLE_FIELDS, ...customFields];
+    }, [customParams]);
 
     const handleSave = async () => {
         if (!selectedProviderId || !currentParametersForProvider) return;
@@ -444,7 +468,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
                         <CardDescription>Select which products from {selectedProvider.name} this scoring model applies to.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {selectedProvider.products.map((product: LoanProduct) => (
+                        {selectedProvider.products?.map((product: LoanProduct) => (
                             <div key={product.id} className="flex items-center space-x-2">
                                 <Checkbox
                                     id={`product-${product.id}`}
@@ -522,6 +546,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
                                                 rule={rule}
                                                 onUpdate={(updatedRule) => handleUpdateRule(param.id, rule.id, updatedRule)}
                                                 onRemove={() => handleRemoveRule(param.id, rule.id)}
+                                                availableFields={allAvailableFields}
                                                 color={themeColor}
                                            />
                                         ))}
@@ -578,7 +603,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
                 </CardContent>
              </Card>
 
-             <ScorePreview parameters={currentParametersForProvider} providerColor={themeColor} />
+             <ScorePreview parameters={currentParametersForProvider} availableFields={allAvailableFields} providerColor={themeColor} />
         </div>
     );
 }

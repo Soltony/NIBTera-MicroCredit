@@ -12,42 +12,24 @@ import { evaluateCondition } from '@/lib/utils';
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
+  availableFields: { value: string; label: string; type?: 'select', options?: string[] }[];
   providerColor?: string;
 }
 
-export function ScorePreview({ parameters, providerColor = '#fdb913' }: ScorePreviewProps) {
+export function ScorePreview({ parameters, availableFields, providerColor = '#fdb913' }: ScorePreviewProps) {
   const [applicantData, setApplicantData] = useState<Record<string, string>>({});
   const [calculatedScore, setCalculatedScore] = useState<number | null>(null);
 
   const uniqueFields = useMemo(() => {
-    const fields = new Map<string, { type: 'number' | 'select', options: Set<string> }>();
+    const fieldsInUse = new Set<string>();
     parameters.forEach(param => {
       param.rules.forEach(rule => {
-        if (rule.field) {
-            if (!fields.has(rule.field)) {
-                 fields.set(rule.field, { type: 'number', options: new Set() });
-            }
-            
-            const fieldInfo = fields.get(rule.field)!;
-            const isRuleValueNumeric = !isNaN(parseFloat(rule.value.split('-')[0]));
-            
-            // If the rule value is not a number, it must be a dropdown option
-            if (!isRuleValueNumeric) {
-                fieldInfo.type = 'select';
-                // Add all non-numeric values to the dropdown options
-                if (rule.condition === '==' || rule.condition === '!=') {
-                    fieldInfo.options.add(rule.value);
-                }
-            }
-        }
+        fieldsInUse.add(rule.field);
       });
     });
-    return Array.from(fields.entries()).map(([name, info]) => ({ 
-        name, 
-        type: info.type,
-        options: Array.from(info.options) 
-    }));
-  }, [parameters]);
+
+    return availableFields.filter(field => fieldsInUse.has(field.value));
+  }, [parameters, availableFields]);
 
   const handleInputChange = (field: string, value: string) => {
     setApplicantData(prev => ({ ...prev, [field]: value }));
@@ -74,6 +56,10 @@ export function ScorePreview({ parameters, providerColor = '#fdb913' }: ScorePre
 
     setCalculatedScore(totalWeightedScore);
   };
+  
+  const getFieldInfo = (fieldName: string) => {
+      return availableFields.find(f => f.value === fieldName);
+  }
 
   return (
     <Card>
@@ -85,31 +71,34 @@ export function ScorePreview({ parameters, providerColor = '#fdb913' }: ScorePre
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {uniqueFields.map(field => (
-            <div key={field.name} className="space-y-2">
-              <Label htmlFor={`preview-${field.name}`} className="capitalize">{field.name.replace(/([A-Z])/g, ' $1')}</Label>
-              {field.type === 'select' ? (
-                <Select onValueChange={(value) => handleInputChange(field.name, value)} value={applicantData[field.name] || ''}>
-                  <SelectTrigger id={`preview-${field.name}`}>
-                    <SelectValue placeholder={`Select ${field.name}`} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {field.options.filter(Boolean).map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  id={`preview-${field.name}`}
-                  type="number"
-                  value={applicantData[field.name] || ''}
-                  onChange={(e) => handleInputChange(field.name, e.target.value)}
-                  placeholder={`Enter ${field.name}`}
-                />
-              )}
-            </div>
-          ))}
+          {uniqueFields.map(field => {
+            const fieldInfo = getFieldInfo(field.value);
+            return (
+                <div key={field.value} className="space-y-2">
+                  <Label htmlFor={`preview-${field.value}`} className="capitalize">{field.label}</Label>
+                  {fieldInfo?.type === 'select' ? (
+                    <Select onValueChange={(value) => handleInputChange(field.value, value)} value={applicantData[field.value] || ''}>
+                      <SelectTrigger id={`preview-${field.value}`}>
+                        <SelectValue placeholder={`Select ${field.label}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fieldInfo.options?.filter(Boolean).map(option => (
+                          <SelectItem key={option} value={option}>{option}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={`preview-${field.value}`}
+                      type="number"
+                      value={applicantData[field.value] || ''}
+                      onChange={(e) => handleInputChange(field.value, e.target.value)}
+                      placeholder={`Enter ${field.label}`}
+                    />
+                  )}
+                </div>
+            )
+          })}
         </div>
         <div className="flex items-center justify-between">
             <Button onClick={handleCalculateScore} style={{ backgroundColor: providerColor }} className="text-white">Calculate Score</Button>

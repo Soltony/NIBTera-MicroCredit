@@ -12,6 +12,7 @@ import { ScoringParameter } from './entities/ScoringParameter';
 import { ScoringParameterRule } from './entities/ScoringParameterRule';
 import { ScoringConfigurationHistory } from './entities/ScoringConfigurationHistory';
 import { Customer } from './entities/Customer';
+import { CustomParameter } from './entities/CustomParameter';
 
 export const AppDataSource = new DataSource({
   type: 'oracle',
@@ -31,6 +32,7 @@ export const AppDataSource = new DataSource({
     ScoringParameterRule,
     ScoringConfigurationHistory,
     Customer,
+    CustomParameter,
   ],
   migrations: [],
   subscribers: [],
