@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -42,6 +43,7 @@ export interface LoanProduct {
   serviceFeeEnabled?: boolean;
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
+  dataProvisioningEnabled?: boolean;
 }
 
 export interface Payment {

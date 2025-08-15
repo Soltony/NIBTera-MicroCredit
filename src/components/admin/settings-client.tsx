@@ -1,7 +1,9 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Card,
   CardContent,
@@ -64,6 +66,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setFormData(product);
@@ -74,9 +77,48 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         setFormData(prev => ({ ...prev, [name]: value === '' ? '' : parseFloat(value) }));
     };
 
-    const handleSwitchChange = (checked: boolean) => {
-        setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
+    const handleSwitchChange = (field: 'status' | 'dataProvisioningEnabled') => (checked: boolean) => {
+        if (field === 'status') {
+            setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
+        } else {
+             setFormData(prev => ({...prev, dataProvisioningEnabled: checked }));
+        }
     }
+
+    const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = e.target?.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    console.log('Uploaded Excel Data:', json);
+                    toast({
+                        title: 'File Uploaded',
+                        description: `Successfully parsed ${json.length} rows from the Excel file. Check the console for the data.`,
+                    });
+                } catch (error) {
+                     toast({
+                        title: 'Error Parsing File',
+                        description: 'There was an issue reading the Excel file. Please ensure it is a valid format.',
+                        variant: 'destructive',
+                    });
+                }
+            };
+            reader.onerror = () => {
+                toast({
+                    title: 'Error Reading File',
+                    description: 'Could not read the selected file.',
+                    variant: 'destructive',
+                });
+            };
+            reader.readAsBinaryString(file);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -113,13 +155,22 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                          <Switch 
                             id={`status-${product.id}`}
                             checked={formData.status === 'Active'} 
-                            onCheckedChange={handleSwitchChange}
+                            onCheckedChange={handleSwitchChange('status')}
                             className="data-[state=checked]:bg-[--provider-color]"
                             style={{'--provider-color': providerColor} as React.CSSProperties}
                         />
                         <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
                     </div>
-                    <div></div>
+                    <div className="flex items-center space-x-2">
+                         <Switch 
+                            id={`data-provisioning-${product.id}`}
+                            checked={!!formData.dataProvisioningEnabled}
+                            onCheckedChange={handleSwitchChange('dataProvisioningEnabled')}
+                            className="data-[state=checked]:bg-[--provider-color]"
+                            style={{'--provider-color': providerColor} as React.CSSProperties}
+                        />
+                        <Label htmlFor={`data-provisioning-${product.id}`}>Enable Data Provisioning</Label>
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
                         <Input
@@ -143,6 +194,30 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                         />
                     </div>
                 </div>
+                 {formData.dataProvisioningEnabled && (
+                    <div className="mt-6">
+                        <Label>Data Upload</Label>
+                        <div className="flex items-center gap-4 mt-2 p-4 border rounded-lg bg-muted/50">
+                            <p className="text-sm text-muted-foreground">Upload an Excel file to provide data for this loan product.</p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="ml-auto"
+                            >
+                                <Upload className="h-4 w-4 mr-2"/>
+                                Upload from Excel
+                            </Button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept=".xlsx, .xls"
+                                onChange={handleExcelUpload}
+                            />
+                        </div>
+                    </div>
+                )}
                  <div className="flex items-center space-x-2 justify-end mt-6">
                     <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                     <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
