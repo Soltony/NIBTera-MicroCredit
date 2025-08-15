@@ -26,12 +26,12 @@ class MainSeeder {
         
         // Correct order to drop tables, respecting foreign key constraints
         const tableDropOrder = [
+          '_scoring_config_history_to_products',
           'payments',
           'loan_details',
           'users',
           'scoring_parameter_rules',
           'scoring_parameters',
-          '_scoring_config_history_to_products',
           'scoring_configuration_history',
           'loan_products',
           'loan_providers',
@@ -131,6 +131,9 @@ class MainSeeder {
               { id: 'p1', fromDay: 1, toDay: Infinity, type: 'percentageOfPrincipal', value: 0.11 }
           ]),
           status: 'Active',
+          serviceFeeEnabled: true,
+          dailyFeeEnabled: true,
+          penaltyRulesEnabled: true,
         });
         await queryRunner.manager.save(LoanProduct, {
           provider: nibBank,
@@ -143,6 +146,9 @@ class MainSeeder {
           dailyFee: JSON.stringify({ type: 'percentage', value: 0.2 }),
           penaltyRules: '[]',
           status: 'Active',
+          serviceFeeEnabled: true,
+          dailyFeeEnabled: true,
+          penaltyRulesEnabled: false,
         });
 
         const capitalBank = await queryRunner.manager.save(LoanProvider, {
@@ -165,6 +171,9 @@ class MainSeeder {
                { id: 'p3', fromDay: 6, toDay: 10, type: 'fixed', value: 200 }
           ]),
           status: 'Active',
+          serviceFeeEnabled: true,
+          dailyFeeEnabled: true,
+          penaltyRulesEnabled: true,
         });
          await queryRunner.manager.save(LoanProduct, {
           provider: capitalBank,
@@ -177,6 +186,9 @@ class MainSeeder {
           dailyFee: JSON.stringify({ type: 'percentage', value: 0.05 }),
           penaltyRules: '[]',
           status: 'Disabled',
+          serviceFeeEnabled: true,
+          dailyFeeEnabled: true,
+          penaltyRulesEnabled: false,
         });
 
         const providusFinancial = await queryRunner.manager.save(LoanProvider, {
@@ -196,6 +208,9 @@ class MainSeeder {
           dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
           penaltyRules: '[]',
           status: 'Active',
+          serviceFeeEnabled: true,
+          dailyFeeEnabled: false,
+          penaltyRulesEnabled: false,
         });
         await queryRunner.manager.save(LoanProduct, {
           provider: providusFinancial,
@@ -208,6 +223,9 @@ class MainSeeder {
           dailyFee: JSON.stringify({ type: 'percentage', value: 0.1 }),
           penaltyRules: '[]',
           status: 'Active',
+          serviceFeeEnabled: true,
+          dailyFeeEnabled: true,
+          penaltyRulesEnabled: false,
         });
         console.log('Seeded loan providers and products');
 
