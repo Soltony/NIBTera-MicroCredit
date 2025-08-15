@@ -18,7 +18,7 @@ export const AppDataSource = new DataSource({
   connectString: process.env.ORACLE_DB_CONNECT_STRING,
   username: process.env.ORACLE_DB_USER,
   password: process.env.ORACLE_DB_PASSWORD,
-  synchronize: true, // Set to false in production
+  synchronize: false, // Set to false in production and for seeding
   logging: process.env.NODE_ENV === 'development',
   entities: [
     User,

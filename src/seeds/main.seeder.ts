@@ -21,49 +21,51 @@ class MainSeeder {
       
       const queryRunner = AppDataSource.createQueryRunner();
 
-      // Get repositories from the query runner to run them in a transaction
-      const paymentRepository = queryRunner.manager.getRepository(Payment);
-      const loanDetailsRepository = queryRunner.manager.getRepository(LoanDetails);
-      const scoringRuleRepository = queryRunner.manager.getRepository(ScoringParameterRule);
-      const scoringParamRepository = queryRunner.manager.getRepository(ScoringParameter);
-      const userRepository = queryRunner.manager.getRepository(User);
-      const scoringHistoryRepository = queryRunner.manager.getRepository(ScoringConfigurationHistory);
-      const productRepository = queryRunner.manager.getRepository(LoanProduct);
-      const providerRepository = queryRunner.manager.getRepository(LoanProvider);
-      const roleRepository = queryRunner.manager.getRepository(Role);
-      const customerRepository = queryRunner.manager.getRepository(Customer);
+      console.log('Dropping existing tables...');
+      // Drop all tables to ensure a clean slate, in the correct order to respect foreign key constraints.
+      const tableDropOrder = [
+        'payments',
+        '_scoring_config_history_to_products', // Join table first
+        'loan_details',
+        'scoring_parameter_rules',
+        'scoring_parameters',
+        'scoring_configuration_history',
+        'users',
+        'loan_products',
+        'customers',
+        'loan_providers',
+        'roles',
+      ];
+
+      for (const tableName of tableDropOrder) {
+          try {
+              // Use queryRunner for dropping to keep it within the transaction context if needed, though drop is often auto-committed.
+              await queryRunner.query(`DROP TABLE "${tableName}"`);
+              console.log(`Dropped table: ${tableName}`);
+          } catch (error: any) {
+              // ORA-00942: table or view does not exist - this is expected if the table doesn't exist yet.
+              if (error.code !== 'ORA-00942') {
+                  console.error(`Error dropping table ${tableName}:`, error);
+                  // Rethrow if it's an unexpected error
+                  throw error;
+              }
+          }
+      }
+      
+      console.log('Synchronizing database schema...');
+      // Re-create the schema from scratch based on entities
+      await AppDataSource.synchronize();
+      console.log('Schema synchronized.');
 
       await queryRunner.startTransaction();
 
       try {
         console.log('Starting seeding...');
         
-        // Clean up existing data in the correct order to respect foreign key constraints.
-        await paymentRepository.clear();
-        await loanDetailsRepository.clear();
-        await scoringRuleRepository.clear();
-        await scoringParamRepository.clear();
-        await userRepository.clear();
-        
-        // Handle ManyToMany relationship for ScoringConfigurationHistory
-        const histories = await scoringHistoryRepository.find({ relations: ['appliedProducts'] });
-        for (const history of histories) {
-          history.appliedProducts = [];
-          await scoringHistoryRepository.save(history);
-        }
-        await scoringHistoryRepository.clear();
-
-        await productRepository.clear();
-        await providerRepository.clear();
-        await roleRepository.clear();
-        await customerRepository.clear();
-
-        console.log('Deleted existing data.');
-        
         const salt = await bcrypt.genSalt(10);
 
         // 1. Seed Roles
-        const superAdminRole = roleRepository.create({
+        const superAdminRole = queryRunner.manager.create(Role, {
           name: 'Super Admin',
           permissions: JSON.stringify({
             users: { create: true, read: true, update: true, delete: true },
@@ -74,7 +76,7 @@ class MainSeeder {
           }),
         });
 
-        const loanManagerRole = roleRepository.create({
+        const loanManagerRole = queryRunner.manager.create(Role, {
           name: 'Loan Manager',
           permissions: JSON.stringify({
             users: { create: false, read: true, update: true, delete: false },
@@ -85,7 +87,7 @@ class MainSeeder {
           }),
         });
 
-        const auditorRole = roleRepository.create({
+        const auditorRole = queryRunner.manager.create(Role, {
           name: 'Auditor',
           permissions: JSON.stringify({
             users: { create: false, read: true, update: false, delete: false },
@@ -96,7 +98,7 @@ class MainSeeder {
           }),
         });
         
-        const loanProviderRole = roleRepository.create({
+        const loanProviderRole = queryRunner.manager.create(Role, {
           name: 'Loan Provider',
           permissions: JSON.stringify({
              users: { create: false, read: false, update: false, delete: false },
@@ -107,18 +109,18 @@ class MainSeeder {
           }),
         });
         
-        await roleRepository.save([superAdminRole, loanManagerRole, auditorRole, loanProviderRole]);
+        await queryRunner.manager.save([superAdminRole, loanManagerRole, auditorRole, loanProviderRole]);
         console.log('Seeded roles');
 
         // 2. Seed Loan Providers and Products
-        const nibBank = await providerRepository.save({
+        const nibBank = await queryRunner.manager.save(LoanProvider, {
           name: 'NIb Bank',
           icon: 'Building2',
           colorHex: '#fdb913',
           displayOrder: 1,
         });
 
-        const quickCashLoan = await productRepository.save({
+        const quickCashLoan = await queryRunner.manager.save(LoanProduct, {
           provider: nibBank,
           name: 'Quick Cash Loan',
           description: 'Instant cash for emergencies.',
@@ -132,7 +134,7 @@ class MainSeeder {
           ]),
           status: 'Active',
         });
-        await productRepository.save({
+        await queryRunner.manager.save(LoanProduct, {
           provider: nibBank,
           name: 'Gadget Financing',
           description: 'Upgrade your devices with easy financing.',
@@ -145,13 +147,13 @@ class MainSeeder {
           status: 'Active',
         });
 
-        const capitalBank = await providerRepository.save({
+        const capitalBank = await queryRunner.manager.save(LoanProvider, {
           name: 'Capital Bank',
           icon: 'Building2',
           colorHex: '#2563eb',
           displayOrder: 2,
         });
-        await productRepository.save({
+        await queryRunner.manager.save(LoanProduct, {
           provider: capitalBank,
           name: 'Personal Loan',
           description: 'Flexible personal loans for your needs.',
@@ -166,7 +168,7 @@ class MainSeeder {
           ]),
           status: 'Active',
         });
-         await productRepository.save({
+         await queryRunner.manager.save(LoanProduct, {
           provider: capitalBank,
           name: 'Home Improvement Loan',
           description: 'Finance your home renovation projects.',
@@ -179,13 +181,13 @@ class MainSeeder {
           status: 'Disabled',
         });
 
-        const providusFinancial = await providerRepository.save({
+        const providusFinancial = await queryRunner.manager.save(LoanProvider, {
           name: 'Providus Financial',
           icon: 'Landmark',
           colorHex: '#16a34a',
           displayOrder: 3,
         });
-         await productRepository.save({
+         await queryRunner.manager.save(LoanProduct, {
           provider: providusFinancial,
           name: 'Startup Business Loan',
           description: 'Kickstart your new business venture.',
@@ -197,7 +199,7 @@ class MainSeeder {
           penaltyRules: '[]',
           status: 'Active',
         });
-        await productRepository.save({
+        await queryRunner.manager.save(LoanProduct, {
           provider: providusFinancial,
           name: 'Personal Auto Loan',
           description: 'Get behind the wheel of your new car.',
@@ -212,7 +214,7 @@ class MainSeeder {
         console.log('Seeded loan providers and products');
 
         // 3. Seed Users
-        await userRepository.save({
+        await queryRunner.manager.save(User, {
           fullName: 'Super Admin',
           email: 'superadmin@loanflow.com',
           phoneNumber: '0912345678',
@@ -220,7 +222,7 @@ class MainSeeder {
           status: 'Active',
           role: superAdminRole,
         });
-        await userRepository.save({
+        await queryRunner.manager.save(User, {
           fullName: 'John Provider',
           email: 'john.p@capitalbank.com',
           phoneNumber: '0987654321',
@@ -229,7 +231,7 @@ class MainSeeder {
           role: loanProviderRole,
           provider: capitalBank,
         });
-         await userRepository.save({
+         await queryRunner.manager.save(User, {
           fullName: 'Jane Officer',
           email: 'jane.o@providus.com',
           phoneNumber: '5555555555',
@@ -241,17 +243,17 @@ class MainSeeder {
         console.log('Seeded users');
 
         // 4. Seed Loan History
-        const loan = await loanDetailsRepository.save({
+        const loan = await queryRunner.manager.save(LoanDetails, {
           provider: nibBank,
           product: quickCashLoan,
           loanAmount: 500,
-          serviceFeeAmount: 15,
+          serviceFee: 15,
           disbursedDate: new Date('2024-06-25'),
           dueDate: new Date('2024-07-25'),
           repaymentStatus: 'Paid',
           repaidAmount: 545.96,
         });
-        await paymentRepository.save({
+        await queryRunner.manager.save(Payment, {
           loan: loan,
           amount: 545.96,
           date: new Date('2024-07-20'),
@@ -262,42 +264,42 @@ class MainSeeder {
         // 5. Seed Scoring Parameters for all providers
         
         // NIb Bank
-        const nibAgeParam = await scoringParamRepository.save({ provider: nibBank, name: 'Age', weight: 20 });
-        await scoringRuleRepository.save([
+        const nibAgeParam = await queryRunner.manager.save(ScoringParameter, { provider: nibBank, name: 'Age', weight: 20 });
+        await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibAgeParam, field: 'age', condition: '>=', value: '35', score: 20 },
           { parameter: nibAgeParam, field: 'age', condition: '<', value: '25', score: 5 },
         ]);
-        const nibHistoryParam = await scoringParamRepository.save({ provider: nibBank, name: 'Loan History', weight: 30 });
-        await scoringRuleRepository.save([
+        const nibHistoryParam = await queryRunner.manager.save(ScoringParameter, { provider: nibBank, name: 'Loan History', weight: 30 });
+        await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
           { parameter: nibHistoryParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
         ]);
-        const nibIncomeParam = await scoringParamRepository.save({ provider: nibBank, name: 'Income Level', weight: 50 });
-         await scoringRuleRepository.save([
+        const nibIncomeParam = await queryRunner.manager.save(ScoringParameter, { provider: nibBank, name: 'Income Level', weight: 50 });
+         await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
         ]);
 
         // Capital Bank
-        const capIncomeParam = await scoringParamRepository.save({ provider: capitalBank, name: 'Income Level', weight: 70 });
-        await scoringRuleRepository.save([
+        const capIncomeParam = await queryRunner.manager.save(ScoringParameter, { provider: capitalBank, name: 'Income Level', weight: 70 });
+        await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: capIncomeParam, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
             { parameter: capIncomeParam, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
             { parameter: capIncomeParam, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
         ]);
-        const capEduParam = await scoringParamRepository.save({ provider: capitalBank, name: 'Education Level', weight: 30 });
-        await scoringRuleRepository.save([
+        const capEduParam = await queryRunner.manager.save(ScoringParameter, { provider: capitalBank, name: 'Education Level', weight: 30 });
+        await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Master\'s Degree', score: 40 },
             { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Bachelor\'s Degree', score: 25 },
         ]);
         
         // Providus Financial
-        const provGenderParam = await scoringParamRepository.save({ provider: providusFinancial, name: 'Gender', weight: 10 });
-        await scoringRuleRepository.save([
+        const provGenderParam = await queryRunner.manager.save(ScoringParameter, { provider: providusFinancial, name: 'Gender', weight: 10 });
+        await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Female', score: 10 },
         ]);
-        const provLoanHistoryParam = await scoringParamRepository.save({ provider: providusFinancial, name: 'Loan History', weight: 90 });
-         await scoringRuleRepository.save([
+        const provLoanHistoryParam = await queryRunner.manager.save(ScoringParameter, { provider: providusFinancial, name: 'Loan History', weight: 90 });
+         await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: provLoanHistoryParam, field: 'onTimeRepayments', condition: '>=', value: '10', score: 100 },
             { parameter: provLoanHistoryParam, field: 'totalLoans', condition: '>', value: '5', score: 60 },
         ]);
@@ -305,7 +307,7 @@ class MainSeeder {
         console.log('Seeded scoring parameters for all providers.');
 
         // 6. Seed Customers
-        await customerRepository.save([
+        await queryRunner.manager.save(Customer, [
           {
             id: 8,
             age: 30,
