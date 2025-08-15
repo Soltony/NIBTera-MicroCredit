@@ -10,6 +10,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import {
   Accordion,
@@ -50,7 +51,6 @@ import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CardFooter } from '@/components/ui/card';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -430,7 +430,7 @@ const FeeInput = ({ label, fee, onChange, color, isEnabled }: { label: string; f
             <div className="relative flex-1">
                 <Input
                     type="number"
-                    value={fee.value}
+                    value={fee.value ?? ''}
                     onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                     placeholder="Enter value"
                     className={cn(fee.type === 'percentage' ? "pr-8" : "")}
@@ -447,7 +447,7 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
         <div className="flex items-center gap-2">
             <Input 
                 type="number" 
-                value={rule.fromDay}
+                value={rule.fromDay ?? ''}
                 onChange={(e) => onChange({...rule, fromDay: e.target.value === '' ? '' : parseInt(e.target.value)})}
                 placeholder="From Day"
                 className="w-24"
@@ -455,7 +455,7 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
             />
             <Input 
                 type="number" 
-                value={rule.toDay === Infinity ? '' : rule.toDay}
+                value={rule.toDay === Infinity ? '' : (rule.toDay ?? '')}
                 onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? Infinity : parseInt(e.target.value)})}
                 placeholder="To Day"
                 className="w-24"
@@ -473,7 +473,7 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
              <div className="relative flex-1">
                 <Input
                     type="number"
-                    value={rule.value}
+                    value={rule.value ?? ''}
                     onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                     placeholder="Value"
                     className={cn(rule.type === 'percentageOfPrincipal' ? "pr-8" : "")}
@@ -772,5 +772,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
