@@ -46,6 +46,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
     providerId: string; 
@@ -399,13 +400,41 @@ function ProvidersTab({ initialProviders }: { initialProviders: LoanProvider[] }
     </>
 }
 
+
+function ConfigurationTab({ providers }: { providers: LoanProvider[] }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Product Rule Configuration</CardTitle>
+                <CardDescription>
+                    Define specific rules for loan products. This feature is under construction.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">Coming Soon</p>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export function SettingsClient({ initialProviders }: { initialProviders: LoanProvider[] }) {
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-            <div className="space-y-4">
-                <ProvidersTab initialProviders={initialProviders} />
-            </div>
+            <Tabs defaultValue="providers" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="providers">Providers</TabsTrigger>
+                    <TabsTrigger value="configuration">Configuration</TabsTrigger>
+                </TabsList>
+                <TabsContent value="providers">
+                    <ProvidersTab initialProviders={initialProviders} />
+                </TabsContent>
+                <TabsContent value="configuration">
+                     <ConfigurationTab providers={initialProviders} />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
