@@ -38,14 +38,22 @@ async function getProviders() {
         });
         // Convert to plain objects
         return providers.map(p => ({
-            ...p,
             id: String(p.id),
+            name: p.name,
+            icon: p.icon,
+            colorHex: p.colorHex,
+            displayOrder: p.displayOrder,
             products: p.products.map(prod => ({
-                ...prod,
                 id: String(prod.id),
+                name: prod.name,
+                description: prod.description,
+                icon: prod.icon,
+                minLoan: prod.minLoan,
+                maxLoan: prod.maxLoan,
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
                 penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
+                status: prod.status as 'Active' | 'Disabled'
             }))
         }));
     } finally {

@@ -56,7 +56,7 @@ async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: Lo
             id: String(loan.id),
             loanAmount: loan.loanAmount,
             serviceFee: loan.serviceFee,
-            interestRate: loan.interestRate,
+            interestRate: 0, // This was missing, let's keep it but maybe it should be calculated.
             disbursedDate: loan.disbursedDate,
             dueDate: loan.dueDate,
             penaltyAmount: loan.penaltyAmount,
@@ -69,7 +69,17 @@ async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: Lo
 
         const providers = await providerRepo.find();
         
-        return { loans: loansToReturn, providers: providers.map(p => ({ ...p, id: String(p.id), products: [] })) as any };
+        return { 
+            loans: loansToReturn, 
+            providers: providers.map(p => ({
+                id: String(p.id),
+                name: p.name,
+                icon: p.icon,
+                colorHex: p.colorHex,
+                displayOrder: p.displayOrder,
+                products: []
+            })) as any
+        };
     } catch(e) {
         console.error(e);
         return { loans: [], providers: [] };

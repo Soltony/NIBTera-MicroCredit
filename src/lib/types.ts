@@ -47,6 +47,7 @@ export interface LoanProduct {
 }
 
 export interface Payment {
+  id: string;
   amount: number;
   date: Date;
   outstandingBalanceBeforePayment?: number;

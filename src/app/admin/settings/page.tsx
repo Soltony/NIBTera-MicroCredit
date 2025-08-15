@@ -57,6 +57,7 @@ async function getProviders(): Promise<LoanProviderType[]> {
             displayOrder: p.displayOrder,
             products: p.products.map(prod => ({
                 id: String(prod.id),
+                providerId: String(p.id),
                 name: prod.name,
                 description: prod.description,
                 icon: iconNameMap[prod.icon] || 'PersonStanding',

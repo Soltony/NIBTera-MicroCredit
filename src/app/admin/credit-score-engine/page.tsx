@@ -24,9 +24,18 @@ async function getProviders() {
             relations: ['products'],
         });
         return providers.map(p => ({
-            ...p,
             id: String(p.id),
-            products: p.products.map(prod => ({...prod, id: String(prod.id)}))
+            name: p.name,
+            colorHex: p.colorHex,
+            displayOrder: p.displayOrder,
+            icon: p.icon,
+            products: p.products.map(prod => ({
+                ...prod,
+                id: String(prod.id),
+                serviceFee: JSON.parse(prod.serviceFee),
+                dailyFee: JSON.parse(prod.dailyFee),
+                penaltyRules: JSON.parse(prod.penaltyRules),
+            }))
         })) as any[];
     } catch(e) {
         console.error(e);
@@ -75,10 +84,14 @@ async function getHistory() {
         });
         
         return history.map(h => ({
-            ...h, 
             id: String(h.id),
             providerId: String(h.providerId),
-            parameters: JSON.parse(h.parameters)
+            parameters: JSON.parse(h.parameters),
+            savedAt: h.savedAt.toISOString(),
+            appliedProducts: h.appliedProducts.map(p => ({
+                id: String(p.id),
+                name: p.name,
+            })),
         }));
 
     } catch(e) {
