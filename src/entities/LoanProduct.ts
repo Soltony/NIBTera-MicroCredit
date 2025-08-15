@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { IsNotEmpty, Length, IsNumber } from 'class-validator';
 import { LoanProvider } from './LoanProvider';
-import { LoanDetails } from './LoanDetails';
+import type { LoanDetails } from './LoanDetails';
 
 @Entity({ name: 'loan_products' })
 export class LoanProduct {
