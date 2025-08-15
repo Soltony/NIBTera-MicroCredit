@@ -79,7 +79,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         totalWeightedScore += maxScoreForParam * (param.weight / 100);
     });
 
-    // Calculate the maximum possible score for this provider's configuration
+    // ** FIX: Calculate max score based only on the current provider's parameters **
     const maxPossibleWeightedScore = scoringParameters.reduce((sum, param) => {
         const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
         return sum + (maxRuleScore * (param.weight / 100));
