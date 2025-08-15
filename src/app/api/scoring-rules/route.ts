@@ -55,20 +55,21 @@ export async function POST(req: Request) {
                     });
                 } else {
                     await paramRepo.update(param.id, { name: param.name, weight: param.weight });
-                    // Avoid re-fetching which can cause race conditions in a transaction.
-                    // We already have the necessary data.
                     savedParam = {
                         id: Number(param.id),
                         providerId: Number(providerId),
                         name: param.name,
                         weight: param.weight,
-                        rules: [], // This will be populated next
-                        createdAt: new Date(), // These values are not used later, so placeholder is fine
+                        rules: [], 
+                        createdAt: new Date(), 
                         updatedAt: new Date(),
                         provider: null as any,
                     };
                 }
 
+                if (!savedParam) {
+                    throw new Error(`Failed to find or create parameter with ID ${param.id}`);
+                }
 
                 const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
                 const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !id.startsWith('rule-')));
