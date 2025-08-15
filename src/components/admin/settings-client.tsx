@@ -49,6 +49,10 @@ import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+};
+
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
     providerId: string; 
     product: LoanProduct; 
@@ -64,6 +68,11 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         setFormData(product);
     }, [product]);
 
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value === '' ? '' : parseFloat(value) }));
+    };
+
     const handleSwitchChange = (checked: boolean) => {
         setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
     }
@@ -75,13 +84,20 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    minLoan: parseFloat(String(formData.minLoan)) || 0,
+                    maxLoan: parseFloat(String(formData.maxLoan)) || 0,
+                }),
             });
-            if (!response.ok) throw new Error('Failed to save product status');
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.error || 'Failed to save product settings.');
+            }
             onSave(providerId, formData);
-            toast({ title: "Status Saved", description: `Status for ${product.name} has been updated.` });
-        } catch (error) {
-            toast({ title: "Error", description: "Could not save product status.", variant: 'destructive' });
+            toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -90,18 +106,43 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     return (
         <div className="space-y-4">
             <div className="text-md font-semibold">{product.name}</div>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-background">
-                <div className="flex items-center space-x-2">
-                     <Switch 
-                        id={`status-${product.id}`}
-                        checked={formData.status === 'Active'} 
-                        onCheckedChange={handleSwitchChange}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                    <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+            <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex items-center space-x-2">
+                         <Switch 
+                            id={`status-${product.id}`}
+                            checked={formData.status === 'Active'} 
+                            onCheckedChange={handleSwitchChange}
+                            className="data-[state=checked]:bg-[--provider-color]"
+                            style={{'--provider-color': providerColor} as React.CSSProperties}
+                        />
+                        <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+                    </div>
+                    <div></div>
+                    <div className="space-y-2">
+                        <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
+                        <Input
+                            id={`minLoan-${product.id}`}
+                            name="minLoan"
+                            type="number"
+                            value={formData.minLoan}
+                            onChange={handleChange}
+                            placeholder="e.g., 500"
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor={`maxLoan-${product.id}`}>Max Loan Amount</Label>
+                        <Input
+                            id={`maxLoan-${product.id}`}
+                            name="maxLoan"
+                            type="number"
+                            value={formData.maxLoan}
+                            onChange={handleChange}
+                            placeholder="e.g., 2500"
+                        />
+                    </div>
                 </div>
-                 <div className="flex items-center space-x-2 md:col-span-2 justify-end">
+                 <div className="flex items-center space-x-2 justify-end mt-6">
                     <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                     <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
