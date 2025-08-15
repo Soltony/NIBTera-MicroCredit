@@ -13,32 +13,72 @@ import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHist
 import { Customer } from '@/entities/Customer';
 import { CustomParameter } from '@/entities/CustomParameter';
 import bcrypt from 'bcryptjs';
-import type { EntityManager } from 'typeorm';
+import type { DeepPartial, EntityManager } from 'typeorm';
 
 class MainSeeder {
-  private async findOrCreate<T extends object>(
-    manager: EntityManager,
-    entityClass: new () => T,
-    findCriteria: Partial<T>,
-    createData: Partial<T>
-  ): Promise<T> {
-    let instance = await manager.findOneBy(entityClass, findCriteria);
+  private async findOrCreateRole(manager: EntityManager, findCriteria: { name: string }, createData: DeepPartial<Role>): Promise<Role> {
+    let instance = await manager.findOneBy(Role, findCriteria);
     if (!instance) {
-      instance = manager.create(entityClass, createData);
+      instance = manager.create(Role, createData);
+      await manager.save(instance);
+    }
+    return instance;
+  }
+
+  private async findOrCreateProvider(manager: EntityManager, findCriteria: { name: string }, createData: DeepPartial<LoanProvider>): Promise<LoanProvider> {
+    let instance = await manager.findOneBy(LoanProvider, findCriteria);
+    if (!instance) {
+      instance = manager.create(LoanProvider, createData);
       await manager.save(instance);
     }
     return instance;
   }
   
+  private async findOrCreateUser(manager: EntityManager, findCriteria: { email: string }, createData: DeepPartial<User>): Promise<User> {
+    let instance = await manager.findOneBy(User, findCriteria);
+    if (!instance) {
+      instance = manager.create(User, createData);
+      await manager.save(instance);
+    }
+    return instance;
+  }
+
   private async findOrCreateProduct(
     manager: EntityManager,
     findCriteria: { name: string; provider: LoanProvider },
-    createData: Partial<LoanProduct>
+    createData: DeepPartial<LoanProduct>
   ): Promise<LoanProduct> {
     let instance = await manager.findOne(LoanProduct, { where: findCriteria });
     if (!instance) {
       instance = manager.create(LoanProduct, createData);
       await manager.save(instance);
+    }
+    return instance;
+  }
+
+  private async findOrCreateCustomer(manager: EntityManager, findCriteria: { id: number }, createData: DeepPartial<Customer>): Promise<Customer> {
+    let instance = await manager.findOneBy(Customer, findCriteria);
+    if (!instance) {
+        instance = manager.create(Customer, createData);
+        await manager.save(instance);
+    }
+    return instance;
+  }
+  
+  private async findOrCreateScoringParameter(manager: EntityManager, findCriteria: { name: string; providerId: number }, createData: DeepPartial<ScoringParameter>): Promise<ScoringParameter> {
+    let instance = await manager.findOneBy(ScoringParameter, findCriteria);
+    if (!instance) {
+        instance = manager.create(ScoringParameter, createData);
+        await manager.save(instance);
+    }
+    return instance;
+  }
+
+  private async findOrCreateCustomParameter(manager: EntityManager, findCriteria: { name: string; providerId: number }, createData: DeepPartial<CustomParameter>): Promise<CustomParameter> {
+    let instance = await manager.findOneBy(CustomParameter, findCriteria);
+    if (!instance) {
+        instance = manager.create(CustomParameter, createData);
+        await manager.save(instance);
     }
     return instance;
   }
@@ -52,18 +92,13 @@ class MainSeeder {
       const queryRunner = AppDataSource.createQueryRunner();
 
       try {
-        console.log('Synchronizing database schema...');
-        await AppDataSource.synchronize(false);
-        console.log('Schema synchronized.');
-
-        await queryRunner.startTransaction();
-        
         console.log('Starting seeding...');
+        await queryRunner.startTransaction();
         
         const salt = await bcrypt.genSalt(10);
 
         // 1. Seed Roles
-        const superAdminRole = await this.findOrCreate(queryRunner.manager, Role, { name: 'Super Admin' }, {
+        const superAdminRole = await this.findOrCreateRole(queryRunner.manager, { name: 'Super Admin' }, {
           name: 'Super Admin',
           permissions: JSON.stringify({
             users: { create: true, read: true, update: true, delete: true },
@@ -74,7 +109,7 @@ class MainSeeder {
           }),
         });
 
-        const loanManagerRole = await this.findOrCreate(queryRunner.manager, Role, { name: 'Loan Manager' }, {
+        const loanManagerRole = await this.findOrCreateRole(queryRunner.manager, { name: 'Loan Manager' }, {
           name: 'Loan Manager',
           permissions: JSON.stringify({
             users: { create: false, read: true, update: true, delete: false },
@@ -85,7 +120,7 @@ class MainSeeder {
           }),
         });
 
-        const auditorRole = await this.findOrCreate(queryRunner.manager, Role, { name: 'Auditor' }, {
+        const auditorRole = await this.findOrCreateRole(queryRunner.manager, { name: 'Auditor' }, {
           name: 'Auditor',
           permissions: JSON.stringify({
             users: { create: false, read: true, update: false, delete: false },
@@ -96,7 +131,7 @@ class MainSeeder {
           }),
         });
         
-        const loanProviderRole = await this.findOrCreate(queryRunner.manager, Role, { name: 'Loan Provider' }, {
+        const loanProviderRole = await this.findOrCreateRole(queryRunner.manager, { name: 'Loan Provider' }, {
           name: 'Loan Provider',
           permissions: JSON.stringify({
              users: { create: false, read: false, update: false, delete: false },
@@ -109,7 +144,7 @@ class MainSeeder {
         console.log('Seeded roles');
 
         // 2. Seed Loan Providers and Products
-        const nibBank = await this.findOrCreate(queryRunner.manager, LoanProvider, { name: 'NIb Bank' }, {
+        const nibBank = await this.findOrCreateProvider(queryRunner.manager, { name: 'NIb Bank' }, {
           name: 'NIb Bank',
           icon: 'Building2',
           colorHex: '#fdb913',
@@ -149,7 +184,7 @@ class MainSeeder {
           penaltyRulesEnabled: false,
         });
 
-        const capitalBank = await this.findOrCreate(queryRunner.manager, LoanProvider, { name: 'Capital Bank' }, {
+        const capitalBank = await this.findOrCreateProvider(queryRunner.manager, { name: 'Capital Bank' }, {
           name: 'Capital Bank',
           icon: 'Building2',
           colorHex: '#2563eb',
@@ -189,7 +224,7 @@ class MainSeeder {
           penaltyRulesEnabled: false,
         });
 
-        const providusFinancial = await this.findOrCreate(queryRunner.manager, LoanProvider, { name: 'Providus Financial' }, {
+        const providusFinancial = await this.findOrCreateProvider(queryRunner.manager, { name: 'Providus Financial' }, {
           name: 'Providus Financial',
           icon: 'Landmark',
           colorHex: '#16a34a',
@@ -228,7 +263,7 @@ class MainSeeder {
         console.log('Seeded loan providers and products');
 
         // 3. Seed Users
-        await this.findOrCreate(queryRunner.manager, User, { email: 'superadmin@loanflow.com' }, {
+        await this.findOrCreateUser(queryRunner.manager, { email: 'superadmin@loanflow.com' }, {
           fullName: 'Super Admin',
           email: 'superadmin@loanflow.com',
           phoneNumber: '0912345678',
@@ -236,7 +271,7 @@ class MainSeeder {
           status: 'Active',
           role: superAdminRole,
         });
-        await this.findOrCreate(queryRunner.manager, User, { email: 'john.p@capitalbank.com' }, {
+        await this.findOrCreateUser(queryRunner.manager, { email: 'john.p@capitalbank.com' }, {
           fullName: 'John Provider',
           email: 'john.p@capitalbank.com',
           phoneNumber: '0987654321',
@@ -245,7 +280,7 @@ class MainSeeder {
           role: loanProviderRole,
           provider: capitalBank,
         });
-         await this.findOrCreate(queryRunner.manager, User, { email: 'jane.o@providus.com' }, {
+         await this.findOrCreateUser(queryRunner.manager, { email: 'jane.o@providus.com' }, {
           fullName: 'Jane Officer',
           email: 'jane.o@providus.com',
           phoneNumber: '5555555555',
@@ -281,41 +316,41 @@ class MainSeeder {
 
         // 5. Seed Scoring Parameters for all providers
         // NIb Bank
-        const nibAgeParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Age', providerId: nibBank.id }, { provider: nibBank, name: 'Age', weight: 20 });
+        const nibAgeParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Age', providerId: nibBank.id }, { provider: nibBank, name: 'Age', weight: 20 });
         await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibAgeParam, field: 'age', condition: '>=', value: '35', score: 20 },
           { parameter: nibAgeParam, field: 'age', condition: '<', value: '25', score: 5 },
         ]);
-        const nibHistoryParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Loan History', providerId: nibBank.id }, { provider: nibBank, name: 'Loan History', weight: 30 });
+        const nibHistoryParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Loan History', providerId: nibBank.id }, { provider: nibBank, name: 'Loan History', weight: 30 });
         await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
           { parameter: nibHistoryParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
         ]);
-        const nibIncomeParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Income Level', providerId: nibBank.id }, { provider: nibBank, name: 'Income Level', weight: 50 });
+        const nibIncomeParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Income Level', providerId: nibBank.id }, { provider: nibBank, name: 'Income Level', weight: 50 });
          await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
           { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
         ]);
 
         // Capital Bank
-        const capIncomeParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Income Level', providerId: capitalBank.id }, { provider: capitalBank, name: 'Income Level', weight: 70 });
+        const capIncomeParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Income Level', providerId: capitalBank.id }, { provider: capitalBank, name: 'Income Level', weight: 70 });
         await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: capIncomeParam, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
             { parameter: capIncomeParam, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
             { parameter: capIncomeParam, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
         ]);
-        const capEduParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Education Level', providerId: capitalBank.id }, { provider: capitalBank, name: 'Education Level', weight: 30 });
+        const capEduParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Education Level', providerId: capitalBank.id }, { provider: capitalBank, name: 'Education Level', weight: 30 });
         await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Master\'s Degree', score: 40 },
             { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Bachelor\'s Degree', score: 25 },
         ]);
         
         // Providus Financial
-        const provGenderParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Gender', providerId: providusFinancial.id }, { provider: providusFinancial, name: 'Gender', weight: 10 });
+        const provGenderParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Gender', providerId: providusFinancial.id }, { provider: providusFinancial, name: 'Gender', weight: 10 });
         await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Female', score: 10 },
         ]);
-        const provLoanHistoryParam = await this.findOrCreate(queryRunner.manager, ScoringParameter, { name: 'Loan History', providerId: providusFinancial.id }, { provider: providusFinancial, name: 'Loan History', weight: 90 });
+        const provLoanHistoryParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Loan History', providerId: providusFinancial.id }, { provider: providusFinancial, name: 'Loan History', weight: 90 });
          await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: provLoanHistoryParam, field: 'onTimeRepayments', condition: '>=', value: '10', score: 100 },
             { parameter: provLoanHistoryParam, field: 'totalLoans', condition: '>', value: '5', score: 60 },
@@ -324,7 +359,7 @@ class MainSeeder {
         console.log('Seeded scoring parameters for all providers.');
 
         // 6. Seed Customers
-        await this.findOrCreate(queryRunner.manager, Customer, { id: 8 }, {
+        await this.findOrCreateCustomer(queryRunner.manager, { id: 8 }, {
             id: 8,
             age: 30,
             monthlyIncome: 5500,
@@ -333,7 +368,7 @@ class MainSeeder {
             loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
             educationLevel: "Bachelor's Degree",
         });
-        await this.findOrCreate(queryRunner.manager, Customer, { id: 9 }, {
+        await this.findOrCreateCustomer(queryRunner.manager, { id: 9 }, {
             id: 9,
             age: 22,
             monthlyIncome: 2500,
@@ -342,7 +377,7 @@ class MainSeeder {
             loanHistory: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
             educationLevel: 'High School',
         });
-        await this.findOrCreate(queryRunner.manager, Customer, { id: 10 }, {
+        await this.findOrCreateCustomer(queryRunner.manager, { id: 10 }, {
             id: 10,
             age: 45,
             monthlyIncome: 15000,
@@ -351,7 +386,7 @@ class MainSeeder {
             loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
             educationLevel: "Master's Degree",
         });
-        await this.findOrCreate(queryRunner.manager, Customer, { id: 11 }, {
+        await this.findOrCreateCustomer(queryRunner.manager, { id: 11 }, {
             id: 11,
             age: 19,
             monthlyIncome: 1000,
@@ -363,15 +398,15 @@ class MainSeeder {
         console.log('Seeded customers');
 
         // 7. Seed Custom Parameters
-        await this.findOrCreate(queryRunner.manager, CustomParameter, { name: 'Credit Utilization', providerId: nibBank.id }, {
+        await this.findOrCreateCustomParameter(queryRunner.manager, { name: 'Credit Utilization', providerId: nibBank.id }, {
             provider: nibBank,
             name: 'Credit Utilization'
         });
-        await this.findOrCreate(queryRunner.manager, CustomParameter, { name: 'Years of Credit History', providerId: nibBank.id }, {
+        await this.findOrCreateCustomParameter(queryRunner.manager, { name: 'Years of Credit History', providerId: nibBank.id }, {
             provider: nibBank,
             name: 'Years of Credit History'
         });
-        await this.findOrCreate(queryRunner.manager, CustomParameter, { name: 'Debt-to-Income Ratio', providerId: capitalBank.id }, {
+        await this.findOrCreateCustomParameter(queryRunner.manager, { name: 'Debt-to-Income Ratio', providerId: capitalBank.id }, {
             provider: capitalBank,
             name: 'Debt-to-Income Ratio'
         });
