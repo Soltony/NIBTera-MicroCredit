@@ -21,15 +21,43 @@ class MainSeeder {
       
       const queryRunner = AppDataSource.createQueryRunner();
 
-      await queryRunner.startTransaction();
-
       try {
-        console.log('Synchronizing database schema...');
-        // Drop and re-create schema from scratch based on entities.
-        // This is safe because we assume the DB is for development/seeding.
-        await AppDataSource.synchronize(true);
+        console.log('Synchronizing database schema (dropping and recreating tables)...');
+        
+        // Correct order to drop tables, respecting foreign key constraints
+        const tableDropOrder = [
+          'payments',
+          'loan_details',
+          'users',
+          'scoring_parameter_rules',
+          'scoring_parameters',
+          '_scoring_config_history_to_products',
+          'scoring_configuration_history',
+          'loan_products',
+          'loan_providers',
+          'roles',
+          'customers',
+        ];
+
+        for (const tableName of tableDropOrder) {
+          try {
+            await queryRunner.query(`DROP TABLE "${tableName}"`);
+            console.log(`Dropped table: ${tableName}`);
+          } catch (error: any) {
+            // Ignore ORA-00942: table or view does not exist
+            if (error.errorNum !== 942) {
+              console.error(`Error dropping table ${tableName}:`, error);
+              throw error; // re-throw other errors
+            }
+          }
+        }
+        
+        // Re-create the schema from scratch based on entities
+        await AppDataSource.synchronize();
         console.log('Schema synchronized.');
 
+        await queryRunner.startTransaction();
+        
         console.log('Starting seeding...');
         
         const salt = await bcrypt.genSalt(10);
@@ -222,6 +250,7 @@ class MainSeeder {
           dueDate: new Date('2024-07-25'),
           repaymentStatus: 'Paid',
           repaidAmount: 545.96,
+          penaltyAmount: 0,
         });
         await queryRunner.manager.save(Payment, {
           loan: loan,
