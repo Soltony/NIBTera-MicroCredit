@@ -2,9 +2,9 @@
 import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
+import { LoanProduct } from '@/entities/LoanProduct';
 import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
-import { LoanProduct } from '@/entities/LoanProduct';
 
 async function getConnectedDataSource(): Promise<DataSource> {
     if (AppDataSource.isInitialized) {
