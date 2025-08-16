@@ -10,7 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed": "ts-node -P tsconfig.seed.json -r tsconfig-paths/register src/seeds/main.seeder.ts",
-    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js"
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/data-source.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",
