@@ -26,7 +26,7 @@ export class CustomParameter {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => LoanProvider, (provider) => provider.customParameters)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.customParameters)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
