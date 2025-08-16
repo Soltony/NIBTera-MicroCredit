@@ -9,7 +9,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
-import type { ScoringParameter } from './ScoringParameter';
+import { ScoringParameter } from './ScoringParameter';
 
 @Entity({ name: 'scoring_parameter_rules' })
 export class ScoringParameterRule {
