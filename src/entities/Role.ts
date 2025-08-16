@@ -9,7 +9,7 @@ import {
   Index,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
-import { User } from './User';
+import type { User } from './User';
 
 @Entity({ name: 'roles' })
 export class Role {

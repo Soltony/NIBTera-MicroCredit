@@ -10,8 +10,8 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, Length, IsNumber, IsBoolean } from 'class-validator';
-import { LoanProvider } from './LoanProvider';
-import { LoanDetails } from './LoanDetails';
+import type { LoanProvider } from './LoanProvider';
+import type { LoanDetails } from './LoanDetails';
 
 @Entity({ name: 'loan_products' })
 export class LoanProduct {
@@ -65,7 +65,7 @@ export class LoanProduct {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => LoanProvider, (provider) => provider.products)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.products)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 

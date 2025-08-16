@@ -10,9 +10,9 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNumber, IsDate, IsNotEmpty } from 'class-validator';
-import { LoanProvider } from './LoanProvider';
+import type { LoanProvider } from './LoanProvider';
 import type { LoanProduct } from './LoanProduct';
-import { Payment } from './Payment';
+import type { Payment } from './Payment';
 
 @Entity({ name: 'loan_details' })
 export class LoanDetails {
@@ -22,7 +22,7 @@ export class LoanDetails {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => LoanProvider, (provider) => provider.loans)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.loans)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
@@ -60,7 +60,7 @@ export class LoanDetails {
   @IsNumber()
   penaltyAmount!: number;
 
-  @OneToMany(() => Payment, (payment) => payment.loan)
+  @OneToMany('Payment', (payment: Payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
