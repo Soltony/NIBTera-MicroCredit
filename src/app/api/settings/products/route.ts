@@ -17,9 +17,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 // POST a new product
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
@@ -61,9 +60,8 @@ export async function POST(req: Request) {
 
 // PUT (update) a product
 export async function PUT(req: Request) {
-    let dataSource: DataSource | null = null;
      try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
@@ -111,9 +109,8 @@ export async function PUT(req: Request) {
 
 // DELETE a product
 export async function DELETE(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
         const loanRepo = dataSource.getRepository(LoanDetails);
 
