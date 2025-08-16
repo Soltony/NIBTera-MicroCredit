@@ -2,9 +2,9 @@
 import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
-import { LoanProduct } from '@/entities/LoanProduct';
 import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
+import { LoanProduct } from '@/entities/LoanProduct';
 
 async function getConnectedDataSource(): Promise<DataSource> {
     if (AppDataSource.isInitialized) {
@@ -84,17 +84,10 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
         }
 
-        const provider = await providerRepo.findOne({
-            where: { id: Number(id) },
-            relations: ['products']
-        });
+        const productCount = await productRepo.count({ where: { providerId: Number(id) } });
 
-        if (!provider) {
-             return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
-        }
-
-        if (provider.products && provider.products.length > 0) {
-            return NextResponse.json({ error: `Cannot delete provider. It has ${provider.products.length} associated product(s). Please delete them first.` }, { status: 400 });
+        if (productCount > 0) {
+            return NextResponse.json({ error: `Cannot delete provider. It has ${productCount} associated product(s). Please delete them first.` }, { status: 400 });
         }
 
         await providerRepo.delete(id);
