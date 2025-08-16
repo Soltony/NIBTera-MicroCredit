@@ -34,25 +34,25 @@ export class LoanProvider {
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
 
-  @OneToMany('User', (user: User) => user.provider)
+  @OneToMany(() => User, (user) => user.provider)
   users!: User[];
 
-  @OneToMany('LoanProduct', (product: LoanProduct) => product.provider)
+  @OneToMany(() => LoanProduct, (product) => product.provider)
   products!: LoanProduct[];
 
-  @OneToMany('LoanDetails', (loan: LoanDetails) => loan.provider)
+  @OneToMany(() => LoanDetails, (loan) => loan.provider)
   loans!: LoanDetails[];
 
-  @OneToMany('ScoringParameter', (parameter: ScoringParameter) => parameter.provider)
+  @OneToMany(() => ScoringParameter, (parameter) => parameter.provider)
   scoringParameters!: ScoringParameter[];
 
   @OneToMany(
-    'ScoringConfigurationHistory',
-    (history: ScoringConfigurationHistory) => history.provider
+    () => ScoringConfigurationHistory,
+    (history) => history.provider
   )
   scoringConfigurationHistory!: ScoringConfigurationHistory[];
   
-  @OneToMany('CustomParameter', (parameter: CustomParameter) => parameter.provider)
+  @OneToMany(() => CustomParameter, (parameter) => parameter.provider)
   customParameters!: CustomParameter[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
