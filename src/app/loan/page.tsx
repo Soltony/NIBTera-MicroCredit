@@ -5,6 +5,8 @@ import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 import { LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
 import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
+import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 
 // Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -121,5 +123,13 @@ export default async function LoanPage() {
     const providers = await getProviders();
     const loanHistory = await getLoanHistory();
     
-    return <DashboardClient providers={providers} initialLoanHistory={loanHistory} />;
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        }>
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} />
+        </Suspense>
+    );
 }

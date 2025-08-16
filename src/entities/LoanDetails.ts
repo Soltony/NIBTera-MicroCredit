@@ -12,7 +12,7 @@ import {
 import { IsNumber, IsDate, IsNotEmpty } from 'class-validator';
 import { LoanProvider } from './LoanProvider';
 import { LoanProduct } from './LoanProduct';
-import type { Payment } from './Payment';
+import { Payment } from './Payment';
 
 @Entity({ name: 'loan_details' })
 export class LoanDetails {
@@ -60,7 +60,7 @@ export class LoanDetails {
   @IsNumber()
   penaltyAmount!: number;
 
-  @OneToMany('Payment', (payment: Payment) => payment.loan)
+  @OneToMany(() => Payment, (payment: Payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

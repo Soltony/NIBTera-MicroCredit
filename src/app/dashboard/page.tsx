@@ -5,7 +5,8 @@ import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 import { LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
 import type { LoanDetails, LoanProvider } from '@/lib/types';
 import type { DataSource } from 'typeorm';
-
+import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 
 async function getConnectedDataSource(): Promise<DataSource> {
     if (AppDataSource.isInitialized) {
@@ -44,9 +45,9 @@ async function getProviders(): Promise<LoanProvider[]> {
                 icon: prod.icon,
                 minLoan: prod.minLoan,
                 maxLoan: prod.maxLoan,
-                serviceFee: prod.serviceFee,
-                dailyFee: prod.dailyFee,
-                penaltyRules: prod.penaltyRules,
+                serviceFee: JSON.parse(prod.serviceFee),
+                dailyFee: JSON.parse(prod.dailyFee),
+                penaltyRules: JSON.parse(prod.penaltyRules),
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];
@@ -76,12 +77,21 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
             providerName: loan.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
-            serviceFeeAmount: loan.serviceFeeAmount,
+            serviceFee: loan.serviceFee,
             disbursedDate: loan.disbursedDate,
             dueDate: loan.dueDate,
             repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
             repaidAmount: loan.repaidAmount || 0,
+            penaltyAmount: loan.penaltyAmount,
+            product: {
+              ...loan.product,
+              id: String(loan.product.id),
+              serviceFee: JSON.parse(loan.product.serviceFee),
+              dailyFee: JSON.parse(loan.product.dailyFee),
+              penaltyRules: JSON.parse(loan.product.penaltyRules),
+            },
             payments: loan.payments.map(p => ({
+                id: String(p.id),
                 amount: p.amount,
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
@@ -98,5 +108,13 @@ export default async function DashboardPage() {
     const providers = await getProviders();
     const loanHistory = await getLoanHistory();
     
-    return <DashboardClient providers={providers} initialLoanHistory={loanHistory} />;
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        }>
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} />
+        </Suspense>
+    );
 }
