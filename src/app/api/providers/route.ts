@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { AppDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
-import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 import type { DataSource } from 'typeorm';
 
 // A helper to map string names to actual icon component names for the client
