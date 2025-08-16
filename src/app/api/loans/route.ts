@@ -14,9 +14,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const loanRepo = dataSource.getRepository(LoanDetails);
 
         const body = await req.json();
@@ -45,9 +44,5 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating loan:', error);
         return NextResponse.json({ error: 'Failed to create loan' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
     }
 }

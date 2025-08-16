@@ -14,10 +14,9 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 export async function GET() {
-    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const loanRepo = dataSource.getRepository(LoanDetails);
 
         const whereClause: FindOptionsWhere<LoanDetails> = {};
@@ -46,9 +45,5 @@ export async function GET() {
     } catch (error) {
         console.error('Error fetching loan reports:', error);
         return NextResponse.json({ error: 'Failed to fetch loan reports' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
     }
 }

@@ -7,6 +7,8 @@ import { LoanProvider } from '@/entities/LoanProvider';
 import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
     if (!jsonString) return defaultValue;
@@ -57,9 +59,7 @@ async function getProviders() {
             }))
         }));
     } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+        // Do not destroy the connection here in a server component layout
     }
 }
 

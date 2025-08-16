@@ -16,9 +16,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 // GET history for a provider
 export async function GET(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
 
         const { searchParams } = new URL(req.url);
@@ -41,24 +40,19 @@ export async function GET(req: Request) {
     } catch (error) {
         console.error('Error fetching scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
     }
 }
 
 
 // POST a new history entry
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
         if (!currentUser || (currentUser.role !== 'Super Admin' && currentUser.role !== 'Loan Manager')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
         const productRepo = dataSource.getRepository(LoanProduct);
 
@@ -87,9 +81,5 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error saving scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
     }
 }

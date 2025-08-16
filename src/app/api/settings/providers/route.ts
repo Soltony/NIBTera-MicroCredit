@@ -27,9 +27,8 @@ const updateProviderSchema = providerSchema.extend({
 
 // POST a new provider
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = providerSchema.safeParse(body);
@@ -44,18 +43,13 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating provider:', error);
         return NextResponse.json({ error: 'Failed to create provider' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
     }
 }
 
 // PUT (update) a provider
 export async function PUT(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = updateProviderSchema.safeParse(body);
@@ -72,19 +66,14 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating provider:', error);
         return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
     }
 }
 
 
 // DELETE a provider
 export async function DELETE(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const productRepo = dataSource.getRepository(LoanProduct);
         
@@ -114,9 +103,5 @@ export async function DELETE(req: Request) {
     } catch (error) {
         console.error('Error deleting provider:', error);
         return NextResponse.json({ error: 'Failed to delete provider' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
     }
 }

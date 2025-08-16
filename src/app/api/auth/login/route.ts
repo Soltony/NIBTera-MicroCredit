@@ -15,9 +15,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 }
 
 export async function POST(req: Request) {
-  let dataSource: DataSource | null = null;
   try {
-    dataSource = await getConnectedDataSource();
+    const dataSource = await getConnectedDataSource();
     const userRepo = dataSource.getRepository(User);
 
     const {phoneNumber, password} = await req.json();
@@ -58,9 +57,5 @@ export async function POST(req: Request) {
       {error: 'Internal Server Error'},
       {status: 500}
     );
-  } finally {
-    if (dataSource && AppDataSource.options.type !== 'oracle') {
-      // await dataSource.destroy();
-    }
   }
 }

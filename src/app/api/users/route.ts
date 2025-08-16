@@ -17,9 +17,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 // GET all users
 export async function GET() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const userRepo = dataSource.getRepository(User);
         const users = await userRepo.find({
             relations: ['provider', 'role'],
@@ -30,7 +29,7 @@ export async function GET() {
             return {
                 ...userWithoutPassword,
                 id: String(user.id),
-                providerId: String(user.providerId),
+                providerId: user.providerId ? String(user.providerId) : null,
                 providerName: user.provider?.name || '',
                 role: user.role.name,
             };
@@ -39,18 +38,13 @@ export async function GET() {
     } catch (error) {
         console.error('Error fetching users:', error);
         return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
     }
 }
 
 // POST a new user
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const userRepo = dataSource.getRepository(User);
         const roleRepo = dataSource.getRepository(Role);
         
@@ -91,18 +85,13 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating user:', error);
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
-    } finally {
-         if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
     }
 }
 
 // PUT (update) a user
 export async function PUT(req: Request) {
-    let dataSource: DataSource | null = null;
      try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const userRepo = dataSource.getRepository(User);
         const roleRepo = dataSource.getRepository(Role);
         
@@ -136,9 +125,5 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating user:', error);
         return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
     }
 }

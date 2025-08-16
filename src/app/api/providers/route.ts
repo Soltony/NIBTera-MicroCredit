@@ -24,9 +24,8 @@ async function getConnectedDataSource(): Promise<DataSource> {
 
 // GET all providers
 export async function GET() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const providers = await providerRepo.find({
             relations: ['products'],
@@ -54,9 +53,5 @@ export async function GET() {
     } catch (error) {
         console.error('Error fetching providers:', error);
         return NextResponse.json({ error: 'Failed to fetch providers' }, { status: 500 });
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
     }
 }

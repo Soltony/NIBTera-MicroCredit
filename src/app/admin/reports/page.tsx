@@ -7,6 +7,7 @@ import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
 import type { LoanProvider } from '@/lib/types';
 import type { FindOptionsWhere, DataSource } from 'typeorm';
 
+export const dynamic = 'force-dynamic';
 
 export interface ReportLoan {
     id: string;
