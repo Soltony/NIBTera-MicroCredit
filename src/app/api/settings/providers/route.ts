@@ -75,7 +75,6 @@ export async function DELETE(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
-        const productRepo = dataSource.getRepository(LoanProduct);
         
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
@@ -84,16 +83,17 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
         }
 
-        const productCount = await productRepo.count({ where: { providerId: Number(id) } });
-
-        if (productCount > 0) {
-            return NextResponse.json({ error: `Cannot delete provider. It has ${productCount} associated product(s). Please delete them first.` }, { status: 400 });
-        }
-
+        // The database's foreign key constraint will prevent deletion if products exist.
+        // We will catch this specific error and return a user-friendly message.
         await providerRepo.delete(id);
 
         return NextResponse.json({ message: 'Provider deleted successfully' }, { status: 200 });
-    } catch (error) {
+    } catch (error: any) {
+        // ORA-02292 is the Oracle error code for an integrity constraint violation (foreign key).
+        // This is a more robust way to check than querying the products table first.
+        if (error.code === 'ORA-02292' || (error.message && error.message.includes('ORA-02292'))) {
+             return NextResponse.json({ error: 'Cannot delete provider. It has associated product(s). Please delete them first.' }, { status: 400 });
+        }
         console.error('Error deleting provider:', error);
         return NextResponse.json({ error: 'Failed to delete provider' }, { status: 500 });
     }
