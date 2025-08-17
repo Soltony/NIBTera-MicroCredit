@@ -11,7 +11,7 @@ const dataSourceOptions: DataSourceOptions = {
   synchronize: false, // This MUST be false for safety
   logging: process.env.NODE_ENV === 'development',
   // Use glob pattern to discover entities. This is the most robust method for Next.js production builds.
-  entities: [__dirname + '/entities/**/*.js', __dirname + '/entities/**/*.ts'],
+  entities: [__dirname + '/entities/*{.ts,.js}'],
   migrations: [],
   subscribers: [],
 };
