@@ -1,4 +1,5 @@
 
+
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
@@ -32,6 +33,8 @@ export async function POST(req: Request) {
             serviceFeeEnabled: false,
             dailyFeeEnabled: false,
             penaltyRulesEnabled: false,
+            dataProvisioningEnabled: false,
+            dataProvisioningType: undefined,
         });
         await productRepo.save(newProduct);
         
@@ -74,6 +77,11 @@ export async function PUT(req: Request) {
         }
         if (updateData.penaltyRules) {
             (updateData as any).penaltyRules = JSON.stringify(updateData.penaltyRules);
+        }
+
+        // Handle the case where data provisioning is disabled
+        if (updateData.dataProvisioningEnabled === false) {
+            (updateData as any).dataProvisioningType = null;
         }
 
         await productRepo.update(id, updateData as any);

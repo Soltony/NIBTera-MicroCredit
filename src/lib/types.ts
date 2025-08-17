@@ -18,6 +18,8 @@ export interface PenaltyRule {
     value: number | '';
 }
 
+export type DataProvisioningType = 'employeeData' | 'transactionHistory';
+
 export interface LoanProvider {
   id: string;
   name: string;
@@ -44,6 +46,7 @@ export interface LoanProduct {
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
   dataProvisioningEnabled?: boolean;
+  dataProvisioningType?: DataProvisioningType;
 }
 
 export interface Payment {

@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningType } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,7 @@ import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -699,29 +700,51 @@ function ConfigurationTab({ initialProviders }: { initialProviders: LoanProvider
                                         <Switch 
                                             id={`dataProvisioningEnabled-${product.id}`}
                                             checked={!!product.dataProvisioningEnabled}
-                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { dataProvisioningEnabled: checked })}
+                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { dataProvisioningEnabled: checked, dataProvisioningType: checked ? 'employeeData' : undefined })}
                                             className="data-[state=checked]:bg-[--provider-color]"
                                             style={{'--provider-color': provider.colorHex} as React.CSSProperties}
                                         />
                                     </div>
                                     {product.dataProvisioningEnabled && (
-                                        <div className="p-4 border rounded-lg bg-muted/50 flex items-center justify-between">
-                                            <p className="text-sm text-muted-foreground">Upload data for this loan product.</p>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() => fileInputRefs.current[product.id]?.current?.click()}
-                                            >
-                                                <Upload className="h-4 w-4 mr-2"/>
-                                                Upload from Excel
-                                            </Button>
-                                            <input
-                                                type="file"
-                                                ref={fileInputRefs.current[product.id]}
-                                                className="hidden"
-                                                accept=".xlsx, .xls"
-                                                onChange={handleExcelUpload}
-                                            />
+                                        <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
+                                            <div>
+                                                <Label className="font-medium text-sm">Data Type</Label>
+                                                <RadioGroup
+                                                    value={product.dataProvisioningType}
+                                                    onValueChange={(value) => handleProductChange(provider.id, product.id, { dataProvisioningType: value as DataProvisioningType })}
+                                                    className="flex items-center gap-4 mt-2"
+                                                >
+                                                    <div className="flex items-center space-x-2">
+                                                        <RadioGroupItem value="employeeData" id={`employeeData-${product.id}`} />
+                                                        <Label htmlFor={`employeeData-${product.id}`}>Employee Data</Label>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <RadioGroupItem value="transactionHistory" id={`transactionHistory-${product.id}`} />
+                                                        <Label htmlFor={`transactionHistory-${product.id}`}>Transaction History</Label>
+                                                    </div>
+                                                </RadioGroup>
+                                            </div>
+                                            
+                                            {product.dataProvisioningType && (
+                                                <div className="flex items-center justify-between pt-4 border-t">
+                                                    <p className="text-sm text-muted-foreground">Upload data for this loan product.</p>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => fileInputRefs.current[product.id]?.current?.click()}
+                                                    >
+                                                        <Upload className="h-4 w-4 mr-2"/>
+                                                        Upload from Excel
+                                                    </Button>
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRefs.current[product.id]}
+                                                        className="hidden"
+                                                        accept=".xlsx, .xls"
+                                                        onChange={handleExcelUpload}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
