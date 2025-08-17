@@ -8,17 +8,11 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
-import { User as UserEntity } from './User';
 import type { User } from './User';
-import { LoanProduct as LoanProductEntity } from './LoanProduct';
 import type { LoanProduct } from './LoanProduct';
-import { LoanDetails as LoanDetailsEntity } from './LoanDetails';
 import type { LoanDetails } from './LoanDetails';
-import { ScoringParameter as ScoringParameterEntity } from './ScoringParameter';
 import type { ScoringParameter } from './ScoringParameter';
-import { ScoringConfigurationHistory as ScoringConfigurationHistoryEntity } from './ScoringConfigurationHistory';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
-import { CustomParameter as CustomParameterEntity } from './CustomParameter';
 import type { CustomParameter } from './CustomParameter';
 
 
@@ -41,25 +35,25 @@ export class LoanProvider {
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
 
-  @OneToMany(() => UserEntity, (user: User) => user.provider)
+  @OneToMany('User', (user: User) => user.provider)
   users!: User[];
 
-  @OneToMany(() => LoanProductEntity, (product: LoanProduct) => product.provider)
+  @OneToMany('LoanProduct', (product: LoanProduct) => product.provider)
   products!: LoanProduct[];
 
-  @OneToMany(() => LoanDetailsEntity, (loan: LoanDetails) => loan.provider)
+  @OneToMany('LoanDetails', (loan: LoanDetails) => loan.provider)
   loans!: LoanDetails[];
 
-  @OneToMany(() => ScoringParameterEntity, (parameter: ScoringParameter) => parameter.provider)
+  @OneToMany('ScoringParameter', (parameter: ScoringParameter) => parameter.provider)
   scoringParameters!: ScoringParameter[];
 
   @OneToMany(
-    () => ScoringConfigurationHistoryEntity,
+    'ScoringConfigurationHistory',
     (history: ScoringConfigurationHistory) => history.provider
   )
   scoringConfigurationHistory!: ScoringConfigurationHistory[];
   
-  @OneToMany(() => CustomParameterEntity, (parameter: CustomParameter) => parameter.provider)
+  @OneToMany('CustomParameter', (parameter: CustomParameter) => parameter.provider)
   customParameters!: CustomParameter[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

@@ -2,17 +2,6 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource, type DataSourceOptions } from 'typeorm';
-import { User, User as UserEntity } from '@/entities/User';
-import { Role, Role as RoleEntity } from '@/entities/Role';
-import { LoanProvider, LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
-import { LoanProduct, LoanProduct as LoanProductEntity } from '@/entities/LoanProduct';
-import { LoanDetails, LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
-import { Payment, Payment as PaymentEntity } from '@/entities/Payment';
-import { ScoringParameter, ScoringParameter as ScoringParameterEntity } from '@/entities/ScoringParameter';
-import { ScoringParameterRule, ScoringParameterRule as ScoringParameterRuleEntity } from '@/entities/ScoringParameterRule';
-import { ScoringConfigurationHistory, ScoringConfigurationHistory as ScoringConfigurationHistoryEntity } from '@/entities/ScoringConfigurationHistory';
-import { Customer, Customer as CustomerEntity } from '@/entities/Customer';
-import { CustomParameter, CustomParameter as CustomParameterEntity } from '@/entities/CustomParameter';
 
 const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
@@ -21,19 +10,8 @@ const dataSourceOptions: DataSourceOptions = {
   password: process.env.ORACLE_DB_PASSWORD,
   synchronize: false, // This MUST be false for safety
   logging: process.env.NODE_ENV === 'development',
-  entities: [
-    UserEntity,
-    RoleEntity,
-    LoanProviderEntity,
-    LoanProductEntity,
-    LoanDetailsEntity,
-    PaymentEntity,
-    ScoringParameterEntity,
-    ScoringParameterRuleEntity,
-    ScoringConfigurationHistoryEntity,
-    CustomerEntity,
-    CustomParameterEntity,
-  ],
+  // Use glob pattern to discover entities. This is the most robust method for Next.js production builds.
+  entities: [__dirname + '/entities/**/*.js', __dirname + '/entities/**/*.ts'],
   migrations: [],
   subscribers: [],
 };
@@ -60,7 +38,7 @@ async function initializeDataSource(): Promise<DataSource> {
 }
 
 export async function getConnectedDataSource(): Promise<DataSource> {
-  if (dataSource) {
+  if (dataSource && dataSource.isInitialized) {
     // If the data source is already initialized and cached, return it
     return dataSource;
   }
@@ -74,6 +52,3 @@ export async function getConnectedDataSource(): Promise<DataSource> {
   // This handles concurrent requests safely
   return await dataSourcePromise;
 }
-
-// We no longer export the instance directly to enforce using the async getter
-// export const AppDataSource = AppDataSourceInstance;

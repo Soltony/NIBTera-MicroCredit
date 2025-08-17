@@ -9,7 +9,6 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { IsNumber, IsDate } from 'class-validator';
-import { LoanDetails as LoanDetailsEntity } from './LoanDetails';
 import type { LoanDetails } from './LoanDetails';
 
 @Entity({ name: 'payments' })
@@ -20,7 +19,7 @@ export class Payment {
   @Column({ name: 'loan_id' })
   loanId!: number;
 
-  @ManyToOne(() => LoanDetailsEntity, (loan: LoanDetails) => loan.payments)
+  @ManyToOne('LoanDetails', (loan: LoanDetails) => loan.payments)
   @JoinColumn({ name: 'loan_id' })
   loan!: LoanDetails;
 
