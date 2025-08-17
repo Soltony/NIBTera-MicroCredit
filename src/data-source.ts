@@ -2,6 +2,17 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource, type DataSourceOptions } from 'typeorm';
+import { User } from '@/entities/User';
+import { Role } from '@/entities/Role';
+import { LoanProvider } from '@/entities/LoanProvider';
+import { LoanProduct } from '@/entities/LoanProduct';
+import { LoanDetails } from '@/entities/LoanDetails';
+import { Payment } from '@/entities/Payment';
+import { ScoringParameter } from '@/entities/ScoringParameter';
+import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
+import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
+import { Customer } from '@/entities/Customer';
+import { CustomParameter } from '@/entities/CustomParameter';
 
 const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
@@ -10,8 +21,20 @@ const dataSourceOptions: DataSourceOptions = {
   password: process.env.ORACLE_DB_PASSWORD,
   synchronize: false, // This MUST be false for safety
   logging: process.env.NODE_ENV === 'development',
-  // Use glob pattern to discover entities. This is the most robust method for Next.js production builds.
-  entities: [__dirname + '/entities/*{.ts,.js}'],
+  // Explicitly list all entities to ensure they are always found.
+  entities: [
+    User,
+    Role,
+    LoanProvider,
+    LoanProduct,
+    LoanDetails,
+    Payment,
+    ScoringParameter,
+    ScoringParameterRule,
+    ScoringConfigurationHistory,
+    Customer,
+    CustomParameter,
+  ],
   migrations: [],
   subscribers: [],
 };
