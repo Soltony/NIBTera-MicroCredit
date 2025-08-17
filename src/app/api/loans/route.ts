@@ -1,22 +1,13 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { LoanDetails } from '@/entities/LoanDetails';
+import { getConnectedDataSource } from '@/data-source';
 import { loanSchema } from '@/lib/schemas';
-import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import type { LoanDetails } from '@/entities/LoanDetails';
 
 export async function POST(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository(LoanDetails);
+        const loanRepo = dataSource.getRepository('LoanDetails');
 
         const body = await req.json();
         const validation = loanSchema.safeParse(body);

@@ -2,8 +2,7 @@
 import { AuthProvider } from '@/hooks/use-auth';
 import { getUserFromSession as getCurrentUser } from '@/lib/user';
 import { ProtectedLayout } from '@/components/admin/protected-layout';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
+import { getConnectedDataSource } from '@/data-source';
 import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
@@ -19,19 +18,10 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
     }
 };
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 async function getProviders() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {
@@ -58,8 +48,9 @@ async function getProviders() {
                 status: prod.status as 'Active' | 'Disabled'
             }))
         }));
-    } finally {
-        // Do not destroy the connection here in a server component layout
+    } catch (error) {
+        console.error("Failed to fetch providers in layout:", error);
+        return [];
     }
 }
 

@@ -1,24 +1,16 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
-import { LoanProduct } from '@/entities/LoanProduct';
+import { getConnectedDataSource } from '@/data-source';
+import { In } from 'typeorm';
 import { getUserFromSession } from '@/lib/user';
-import { In, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import type { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
+import type { LoanProduct } from '@/entities/LoanProduct';
 
 // GET history for a provider
 export async function GET(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
+        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
 
         const { searchParams } = new URL(req.url);
         const providerId = searchParams.get('providerId');
@@ -53,8 +45,8 @@ export async function POST(req: Request) {
         }
 
         const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
-        const productRepo = dataSource.getRepository(LoanProduct);
+        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
+        const productRepo = dataSource.getRepository('LoanProduct');
 
         const { providerId, parameters, appliedProductIds } = await req.json();
 

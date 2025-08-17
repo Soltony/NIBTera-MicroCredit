@@ -3,8 +3,7 @@ import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import type { LoanProvider } from '@/lib/types';
 import { ApplyClient } from './client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
+import { getConnectedDataSource } from '@/data-source';
 import type { DataSource } from 'typeorm';
 
 // Helper function to safely parse JSON from DB
@@ -17,19 +16,11 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
     }
 };
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 async function getProvider(providerId: string): Promise<LoanProvider | null> {
     if (!providerId) return null;
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        const providerRepo = dataSource.getRepository('LoanProvider');
         
         const provider = await providerRepo.findOne({
             where: { id: Number(providerId) },

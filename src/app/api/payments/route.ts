@@ -1,19 +1,10 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { LoanDetails } from '@/entities/LoanDetails';
-import { Payment } from '@/entities/Payment';
+import { getConnectedDataSource } from '@/data-source';
 import { calculateTotalRepayable } from '@/lib/utils';
 import { z } from 'zod';
-import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import type { LoanDetails } from '@/entities/LoanDetails';
+import type { Payment } from '@/entities/Payment';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -36,8 +27,8 @@ export async function POST(req: Request) {
         const numericLoanId = Number(loanId);
 
         return await manager.transaction(async (transactionalEntityManager) => {
-            const loanRepo = transactionalEntityManager.getRepository(LoanDetails);
-            const paymentRepo = transactionalEntityManager.getRepository(Payment);
+            const loanRepo = transactionalEntityManager.getRepository('LoanDetails');
+            const paymentRepo = transactionalEntityManager.getRepository('Payment');
 
             const loan = await loanRepo.findOne({
                 where: { id: numericLoanId },

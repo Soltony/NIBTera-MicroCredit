@@ -2,34 +2,22 @@
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import { getUserFromSession } from '@/lib/user';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
-import { AppDataSource } from '@/data-source';
-import { LoanDetails } from '@/entities/LoanDetails';
-import { User } from '@/entities/User';
-import { LoanProduct } from '@/entities/LoanProduct';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { MoreThanOrEqual, LessThan, LessThanOrEqual, MoreThan, FindOptionsWhere, In, DataSource } from 'typeorm';
+import { getConnectedDataSource } from '@/data-source';
+import { MoreThanOrEqual, LessThan, FindOptionsWhere } from 'typeorm';
 
 export const dynamic = 'force-dynamic';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 async function getDashboardData() {
     try {
         const currentUser = await getUserFromSession();
         const dataSource = await getConnectedDataSource();
         
-        const loanRepo = dataSource.getRepository(LoanDetails);
-        const userRepo = dataSource.getRepository(User);
-        const productRepo = dataSource.getRepository(LoanProduct);
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const loanRepo = dataSource.getRepository('LoanDetails');
+        const userRepo = dataSource.getRepository('User');
+        const productRepo = dataSource.getRepository('LoanProduct');
+        const providerRepo = dataSource.getRepository('LoanProvider');
         
-        const whereClause: FindOptionsWhere<LoanDetails> = {};
+        const whereClause: FindOptionsWhere<any> = {};
         if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
             whereClause.providerId = Number(currentUser.providerId);
         }
@@ -60,7 +48,7 @@ async function getDashboardData() {
             (loan) => loan.repaymentStatus === 'Unpaid' && new Date() > new Date(loan.dueDate)
         ).length;
 
-        const userWhere: FindOptionsWhere<User> = {};
+        const userWhere: FindOptionsWhere<any> = {};
         if (whereClause.providerId) {
             userWhere.providerId = whereClause.providerId;
         }
@@ -103,14 +91,14 @@ async function getDashboardData() {
              productWhereClause.providerId = Number(currentUser.providerId);
         }
         
-        const products = await productRepo.find({ where: productWhereClause, relations: ['loans']});
+        const products = await productRepo.find({ where: productWhereClause, relations: ['loans', 'provider']});
 
         const productsWithDetails = products.map(p => {
              const activeLoans = p.loans.filter(l => l.repaymentStatus === 'Unpaid').length;
              const defaultedLoans = p.loans.filter(l => l.repaymentStatus === 'Unpaid' && new Date() > new Date(l.dueDate)).length;
              return {
                 name: p.name,
-                provider: p.provider?.name || 'N/A', // This relation needs to be loaded if needed
+                provider: p.provider?.name || 'N/A',
                 active: activeLoans,
                 defaulted: defaultedLoans,
                 total: p.loans.length,

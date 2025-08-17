@@ -7,29 +7,18 @@
  * - recalculateScoreAndLoanLimit - Calculates a credit score for a given provider and returns the max loan amount.
  */
 
-import { AppDataSource } from '@/data-source';
-import { Customer } from '@/entities/Customer';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
+import { getConnectedDataSource } from '@/data-source';
+import type { Customer } from '@/entities/Customer';
+import type { LoanProvider } from '@/entities/LoanProvider';
+import type { ScoringParameter } from '@/entities/ScoringParameter';
 import { evaluateCondition } from '@/lib/utils';
 import type { DataSource } from 'typeorm';
 
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
-
 async function calculateScoreForProvider(customerId: number, providerId: number): Promise<{score: number; maxLoanAmount: number}> {
     const dataSource = await getConnectedDataSource();
-    const customerRepo = dataSource.getRepository(Customer);
-    const providerRepo = dataSource.getRepository(LoanProvider);
-    const scoringParamRepo = dataSource.getRepository(ScoringParameter);
+    const customerRepo = dataSource.getRepository('Customer');
+    const providerRepo = dataSource.getRepository('LoanProvider');
+    const scoringParamRepo = dataSource.getRepository('ScoringParameter');
 
     const customer = await customerRepo.findOneBy({ id: customerId });
     if (!customer) {
@@ -106,7 +95,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
 export async function checkLoanEligibility(customerId: number, providerId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
     const dataSource = await getConnectedDataSource();
-    const customerRepo = dataSource.getRepository(Customer);
+    const customerRepo = dataSource.getRepository('Customer');
 
     const customer = await customerRepo.findOneBy({ id: customerId });
     
@@ -120,7 +109,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     }
     
     // Check if the provider has any scoring rules defined at all. If not, they are not eligible.
-    const scoringParamRepo = dataSource.getRepository(ScoringParameter);
+    const scoringParamRepo = dataSource.getRepository('ScoringParameter');
     const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
@@ -145,7 +134,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
 export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number): Promise<{score: number, maxLoanAmount: number}> {
     try {
         const dataSource = await getConnectedDataSource();
-        const customer = await dataSource.getRepository(Customer).findOneBy({ id: customerId });
+        const customer = await dataSource.getRepository('Customer').findOneBy({ id: customerId });
         if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }

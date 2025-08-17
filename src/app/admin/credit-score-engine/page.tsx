@@ -1,25 +1,13 @@
 
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
-import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanProvider as LoanProviderType, ScoringParameter as ScoringParameterType } from '@/lib/types';
 import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 
 async function getProviders() {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
         });
@@ -46,7 +34,7 @@ async function getProviders() {
 async function getScoringParameters() {
     try {
         const dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository(ScoringParameter);
+        const paramRepo = dataSource.getRepository('ScoringParameter');
         const params = await paramRepo.find({
             relations: ['rules'],
         });
@@ -74,7 +62,7 @@ async function getScoringParameters() {
 async function getHistory() {
     try {
         const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
+        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
         const history = await historyRepo.find({
             take: 20, // Fetch more history items if needed
             order: {

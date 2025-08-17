@@ -1,23 +1,15 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { Role } from '@/entities/Role';
-import { User } from '@/entities/User';
-import { In, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import { getConnectedDataSource } from '@/data-source';
+import { In } from 'typeorm';
+import type { Role } from '@/entities/Role';
+import type { User } from '@/entities/User';
 
 // GET all roles
 export async function GET() {
     try {
         const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
+        const roleRepo = dataSource.getRepository('Role');
         const roles = await roleRepo.find();
         return NextResponse.json(roles.map(r => ({...r, id: String(r.id), permissions: JSON.parse(r.permissions) })));
     } catch (error) {
@@ -30,7 +22,7 @@ export async function GET() {
 export async function POST(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
+        const roleRepo = dataSource.getRepository('Role');
         const { name, permissions } = await req.json();
 
         if (!name || !permissions) {
@@ -62,7 +54,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
      try {
         const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
+        const roleRepo = dataSource.getRepository('Role');
         const { id, ...updateData } = await req.json();
 
         if (!id) {
@@ -88,8 +80,8 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
-        const userRepo = dataSource.getRepository(User);
+        const roleRepo = dataSource.getRepository('Role');
+        const userRepo = dataSource.getRepository('User');
         const { id } = await req.json();
 
         if (!id) {

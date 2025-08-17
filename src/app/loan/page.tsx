@@ -1,10 +1,7 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
-import { LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
+import { getConnectedDataSource } from '@/data-source';
 import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
-import type { DataSource } from 'typeorm';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -18,19 +15,10 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
     }
 };
 
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 async function getProviders(): Promise<LoanProvider[]> {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
             where: {
@@ -75,7 +63,7 @@ async function getProviders(): Promise<LoanProvider[]> {
 async function getLoanHistory(): Promise<LoanDetails[]> {
     try {
         const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository(LoanDetailsEntity);
+        const loanRepo = dataSource.getRepository('LoanDetails');
         const loans = await loanRepo.find({
             relations: ['provider', 'product', 'payments'],
             order: {

@@ -1,25 +1,15 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { LoanProduct } from '@/entities/LoanProduct';
-import { LoanDetails } from '@/entities/LoanDetails';
+import { getConnectedDataSource } from '@/data-source';
 import { createProductSchema, updateProductSchema } from '@/lib/schemas';
-import type { DataSource } from 'typeorm';
 import { z } from 'zod';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import type { LoanProduct } from '@/entities/LoanProduct';
 
 // POST a new product
 export async function POST(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const productRepo = dataSource.getRepository(LoanProduct);
+        const productRepo = dataSource.getRepository('LoanProduct');
 
         const body = await req.json();
         const validation = createProductSchema.safeParse(body);
@@ -62,7 +52,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
      try {
         const dataSource = await getConnectedDataSource();
-        const productRepo = dataSource.getRepository(LoanProduct);
+        const productRepo = dataSource.getRepository('LoanProduct');
 
         const body = await req.json();
         // Allow partial updates for just fees or status
@@ -111,7 +101,7 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const productRepo = dataSource.getRepository(LoanProduct);
+        const productRepo = dataSource.getRepository('LoanProduct');
         const { id } = await req.json();
 
         if (!id) {

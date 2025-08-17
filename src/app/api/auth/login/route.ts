@@ -1,23 +1,13 @@
 
 import {NextResponse} from 'next/server';
-import {AppDataSource} from '@/data-source';
-import {User} from '@/entities/User';
+import { getConnectedDataSource } from '@/data-source';
 import bcrypt from 'bcryptjs';
 import {createSession} from '@/lib/session';
-import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 export async function POST(req: Request) {
   try {
     const dataSource = await getConnectedDataSource();
-    const userRepo = dataSource.getRepository(User);
+    const userRepo = dataSource.getRepository('User');
 
     const {phoneNumber, password} = await req.json();
 

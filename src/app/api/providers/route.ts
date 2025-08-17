@@ -1,8 +1,8 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import type { DataSource } from 'typeorm';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanProvider } from '@/entities/LoanProvider';
+import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -13,19 +13,11 @@ const iconNameMap: { [key: string]: string } = {
   PersonStanding: 'PersonStanding',
 };
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 // GET all providers
 export async function GET() {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {

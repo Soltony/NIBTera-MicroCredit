@@ -1,19 +1,10 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
-import type { ScoringParameter as ScoringParameterType, Rule } from '@/lib/types';
+import { getConnectedDataSource } from '@/data-source';
+import { In } from 'typeorm';
 import { getUserFromSession } from '@/lib/user';
-import { In, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
+import type { ScoringParameter } from '@/entities/ScoringParameter';
 
 export async function POST(req: Request) {
     try {
@@ -33,8 +24,8 @@ export async function POST(req: Request) {
         }
         
         await manager.transaction(async (transactionalEntityManager) => {
-            const paramRepo = transactionalEntityManager.getRepository(ScoringParameter);
-            const ruleRepo = transactionalEntityManager.getRepository(ScoringParameterRule);
+            const paramRepo = transactionalEntityManager.getRepository('ScoringParameter');
+            const ruleRepo = transactionalEntityManager.getRepository('ScoringParameterRule');
 
             // 1. Delete all existing parameters for this provider.
             // The cascade option on the entity will also delete the associated rules.
@@ -66,7 +57,7 @@ export async function POST(req: Request) {
         });
 
         // After the transaction, fetch the final state to return to the client.
-        const finalParams = await manager.getRepository(ScoringParameter).find({
+        const finalParams = await manager.getRepository('ScoringParameter').find({
             where: { providerId: numericProviderId },
             relations: ['rules'],
         });

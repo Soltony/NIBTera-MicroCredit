@@ -1,11 +1,10 @@
 
 import { ReportsClient } from '@/components/admin/reports-client';
 import { getUserFromSession } from '@/lib/user';
-import { AppDataSource } from '@/data-source';
-import { LoanDetails } from '@/entities/LoanDetails';
-import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
-import type { LoanProvider } from '@/lib/types';
-import type { FindOptionsWhere, DataSource } from 'typeorm';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanDetails } from '@/entities/LoanDetails';
+import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import type { FindOptionsWhere } from 'typeorm';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,21 +23,13 @@ export interface ReportLoan {
     paymentsCount: number;
 }
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
-async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProvider[] }> {
+async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProviderType[] }> {
     try {
         const currentUser = await getUserFromSession();
         const dataSource = await getConnectedDataSource();
         
-        const loanRepo = dataSource.getRepository(LoanDetails);
-        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        const loanRepo = dataSource.getRepository('LoanDetails');
+        const providerRepo = dataSource.getRepository('LoanProvider');
 
         const whereClause: FindOptionsWhere<LoanDetails> = {};
         if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {

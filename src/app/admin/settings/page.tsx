@@ -1,11 +1,7 @@
 
-
 import { SettingsClient } from '@/components/admin/settings-client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule, ScoringParameter as ScoringParameterType } from '@/lib/types';
-import type { DataSource } from 'typeorm';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanProvider as LoanProviderType } from '@/lib/types';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -26,18 +22,10 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
     }
 };
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 async function getProviders(): Promise<LoanProviderType[]> {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {

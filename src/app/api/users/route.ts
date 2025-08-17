@@ -1,25 +1,15 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
-import { User } from '@/entities/User';
-import { Role } from '@/entities/Role';
-import { LoanProvider } from '@/entities/LoanProvider';
+import { getConnectedDataSource } from '@/data-source';
 import bcrypt from 'bcryptjs';
-import { FindOptionsWhere, Or, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import type { FindOptionsWhere } from 'typeorm';
+import type { User } from '@/entities/User';
 
 // GET all users
 export async function GET() {
     try {
         const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository(User);
+        const userRepo = dataSource.getRepository('User');
         const users = await userRepo.find({
             relations: ['provider', 'role'],
         });
@@ -45,8 +35,8 @@ export async function GET() {
 export async function POST(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository(User);
-        const roleRepo = dataSource.getRepository(Role);
+        const userRepo = dataSource.getRepository('User');
+        const roleRepo = dataSource.getRepository('Role');
         
         const { fullName, email, phoneNumber, password, role, providerId, status } = await req.json();
 
@@ -74,7 +64,7 @@ export async function POST(req: Request) {
             email,
             phoneNumber,
             password: hashedPassword,
-            role: userRole,
+            roleName: userRole.name,
             providerId: providerId ? Number(providerId) : null,
             status,
         });
@@ -92,8 +82,8 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
      try {
         const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository(User);
-        const roleRepo = dataSource.getRepository(Role);
+        const userRepo = dataSource.getRepository('User');
+        const roleRepo = dataSource.getRepository('Role');
         
         const { id, ...updateData } = await req.json();
 
@@ -108,14 +98,15 @@ export async function PUT(req: Request) {
             if (!userRole) {
                  return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
             }
-            dataToUpdate.role = userRole;
             dataToUpdate.roleName = userRole.name;
-            delete (dataToUpdate as any).role;
         }
         
         if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'providerId')) {
           dataToUpdate.providerId = dataToUpdate.providerId ? Number(dataToUpdate.providerId) : null;
         }
+        
+        delete (dataToUpdate as any).role;
+
 
         await userRepo.update(id, dataToUpdate as any);
         const updatedUser = await userRepo.findOneBy({id: Number(id)});
