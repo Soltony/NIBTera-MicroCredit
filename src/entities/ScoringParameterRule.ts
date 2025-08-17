@@ -20,7 +20,7 @@ export class ScoringParameterRule {
   @Column({ name: 'parameter_id' })
   parameterId!: number;
 
-  @ManyToOne(() => 'ScoringParameter', (parameter) => parameter.rules, { onDelete: 'CASCADE' })
+  @ManyToOne('ScoringParameter', (parameter) => parameter.rules, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'parameter_id' })
   parameter!: ScoringParameter;
 

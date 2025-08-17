@@ -19,7 +19,7 @@ export class Payment {
   @Column({ name: 'loan_id' })
   loanId!: number;
 
-  @ManyToOne(() => 'LoanDetails', (loan: LoanDetails) => loan.payments)
+  @ManyToOne('LoanDetails', (loan: LoanDetails) => loan.payments)
   @JoinColumn({ name: 'loan_id' })
   loan!: LoanDetails;
 
