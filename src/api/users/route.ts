@@ -29,7 +29,7 @@ export async function GET() {
             return {
                 ...userWithoutPassword,
                 id: String(user.id),
-                providerId: String(user.providerId),
+                providerId: user.providerId ? String(user.providerId) : null,
                 providerName: user.provider?.name || '',
                 role: user.role.name,
             };
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
             email,
             phoneNumber,
             password: hashedPassword,
-            role: userRole,
+            roleName: userRole.name,
             providerId: providerId ? Number(providerId) : null,
             status,
         });
@@ -108,14 +108,15 @@ export async function PUT(req: Request) {
             if (!userRole) {
                  return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
             }
-            dataToUpdate.role = userRole;
             dataToUpdate.roleName = userRole.name;
-            delete (dataToUpdate as any).role;
         }
         
         if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'providerId')) {
           dataToUpdate.providerId = dataToUpdate.providerId ? Number(dataToUpdate.providerId) : null;
         }
+        
+        delete (dataToUpdate as any).role;
+
 
         await userRepo.update(id, dataToUpdate as any);
         const updatedUser = await userRepo.findOneBy({id: Number(id)});

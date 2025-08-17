@@ -21,7 +21,7 @@ export class ScoringParameter {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.scoringParameters)
+  @ManyToOne(() => 'LoanProvider', (provider: LoanProvider) => provider.scoringParameters)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 

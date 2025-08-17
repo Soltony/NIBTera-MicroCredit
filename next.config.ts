@@ -28,8 +28,10 @@ const nextConfig: NextConfig = {
    webpack: (config, { isServer }) => {
     // This is the correct way to ignore optional TypeORM dependencies
     // in a Next.js project.
-    if (isServer) {
-      config.externals.push(
+    if (!isServer) {
+        return config;
+    }
+    config.externals.push(
         'pg',
         'sqlite3',
         'tedious',
@@ -42,8 +44,7 @@ const nextConfig: NextConfig = {
         'better-sqlite3',
         '@sap/hana-client',
         'react-native-sqlite-storage'
-      );
-    }
+    );
     return config;
   },
 };

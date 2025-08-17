@@ -36,7 +36,7 @@ export async function POST(req: Request) {
             const ruleRepo = transactionalEntityManager.getRepository(ScoringParameterRule);
 
             const existingParams = await paramRepo.find({ where: { providerId: Number(providerId) } });
-            const incomingParamIds = new Set(parameters.map(p => p.id).filter(id => !id.startsWith('param-')));
+            const incomingParamIds = new Set(parameters.map(p => p.id).filter(id => !String(id).startsWith('param-')));
             const paramsToDelete = existingParams.filter(p => !incomingParamIds.has(String(p.id)));
 
             if (paramsToDelete.length > 0) {
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
             }
 
             for (const param of parameters) {
-                const isNewParam = param.id.startsWith('param-');
+                const isNewParam = String(param.id).startsWith('param-');
                 
                 let savedParam: ScoringParameter;
                 if (isNewParam) {
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
                 }
 
                 const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
-                const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !id.startsWith('rule-')));
+                const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !String(id).startsWith('rule-')));
                 const rulesToDelete = existingRules.filter(r => !incomingRuleIds.has(String(r.id)));
 
                 if (rulesToDelete.length > 0) {
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
                 }
 
                 for (const rule of param.rules) {
-                    const isNewRule = rule.id.startsWith('rule-');
+                    const isNewRule = String(rule.id).startsWith('rule-');
                     const valueToSave = rule.condition === 'between' ? rule.value : String(parseFloat(rule.value));
 
                      if (isNewRule) {
