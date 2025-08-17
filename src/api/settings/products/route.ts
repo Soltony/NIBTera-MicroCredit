@@ -1,19 +1,11 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { createProductSchema, updateProductSchema } from '@/lib/schemas';
 import type { DataSource } from 'typeorm';
 import { z } from 'zod';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 // POST a new product
 export async function POST(req: Request) {

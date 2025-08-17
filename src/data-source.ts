@@ -52,14 +52,16 @@ class DataSourceManager {
   }
 }
 
-export const AppDataSource = DataSourceManager.getInstance();
+const AppDataSourceInstance = DataSourceManager.getInstance();
+
+export const AppDataSource = AppDataSourceInstance;
 
 export async function getConnectedDataSource(): Promise<DataSource> {
-  if (AppDataSource.isInitialized) {
-    return AppDataSource;
+  if (AppDataSourceInstance.isInitialized) {
+    return AppDataSourceInstance;
   }
   try {
-    return await AppDataSource.initialize();
+    return await AppDataSourceInstance.initialize();
   } catch (error) {
     console.error("Error during Data Source initialization:", error)
     throw error;

@@ -1,18 +1,10 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 const providerSchema = z.object({
     name: z.string().min(1, 'Name is required'),

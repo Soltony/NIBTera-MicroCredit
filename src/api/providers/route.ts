@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
 import type { DataSource } from 'typeorm';
@@ -13,14 +13,6 @@ const iconNameMap: { [key: string]: string } = {
   Home: 'Home',
   PersonStanding: 'PersonStanding',
 };
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 // GET all providers
 export async function GET() {

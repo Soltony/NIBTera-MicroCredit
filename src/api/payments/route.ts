@@ -1,19 +1,11 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { Payment } from '@/entities/Payment';
 import { calculateTotalRepayable } from '@/lib/utils';
 import { z } from 'zod';
 import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 const paymentSchema = z.object({
   loanId: z.string(),

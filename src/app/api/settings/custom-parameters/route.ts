@@ -1,9 +1,10 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
+import { CustomParameter } from '@/entities/CustomParameter';
 import { getUserFromSession } from '@/lib/user';
 import { z } from 'zod';
-import type { CustomParameter } from '@/entities/CustomParameter';
+import type { DataSource } from 'typeorm';
 
 const paramSchema = z.object({
   name: z.string().min(2, 'Parameter name must be at least 2 characters long.'),
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
         }
 
         const dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository('CustomParameter');
+        const paramRepo = dataSource.getRepository(CustomParameter);
         const parameters = await paramRepo.find({ where: { providerId: Number(providerId) }, order: { name: 'ASC' } });
         
         return NextResponse.json(parameters.map(p => ({...p, id: String(p.id)})));
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
         }
 
         const dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository('CustomParameter');
+        const paramRepo = dataSource.getRepository(CustomParameter);
         
         const { name, providerId } = validation.data;
         
@@ -83,7 +84,7 @@ export async function DELETE(req: Request) {
         }
         
         const dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository('CustomParameter');
+        const paramRepo = dataSource.getRepository(CustomParameter);
         
         // TODO: Add a check to prevent deletion if the parameter is in use by a scoring rule.
         

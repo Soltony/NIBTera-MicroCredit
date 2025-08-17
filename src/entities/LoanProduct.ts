@@ -10,8 +10,11 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, Length, IsNumber, IsBoolean } from 'class-validator';
+import { LoanProvider as LoanProviderEntity } from './LoanProvider';
 import type { LoanProvider } from './LoanProvider';
+import { LoanDetails as LoanDetailsEntity } from './LoanDetails';
 import type { LoanDetails } from './LoanDetails';
+
 
 @Entity({ name: 'loan_products' })
 export class LoanProduct {
@@ -65,11 +68,11 @@ export class LoanProduct {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => 'LoanProvider', (provider: LoanProvider) => provider.products)
+  @ManyToOne(() => LoanProviderEntity, (provider: LoanProvider) => provider.products)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
-  @OneToMany(() => 'LoanDetails', (loan: LoanDetails) => loan.product)
+  @OneToMany(() => LoanDetailsEntity, (loan: LoanDetails) => loan.product)
   loans!: LoanDetails[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

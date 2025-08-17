@@ -10,8 +10,11 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNumber, IsDate, IsNotEmpty } from 'class-validator';
+import { LoanProvider as LoanProviderEntity } from './LoanProvider';
 import type { LoanProvider } from './LoanProvider';
+import { LoanProduct as LoanProductEntity } from './LoanProduct';
 import type { LoanProduct } from './LoanProduct';
+import { Payment as PaymentEntity } from './Payment';
 import type { Payment } from './Payment';
 
 @Entity({ name: 'loan_details' })
@@ -22,14 +25,14 @@ export class LoanDetails {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => 'LoanProvider', (provider: LoanProvider) => provider.loans)
+  @ManyToOne(() => LoanProviderEntity, (provider: LoanProvider) => provider.loans)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
   @Column({ name: 'product_id' })
   productId!: number;
 
-  @ManyToOne(() => 'LoanProduct', (product: LoanProduct) => product.loans)
+  @ManyToOne(() => LoanProductEntity, (product: LoanProduct) => product.loans)
   @JoinColumn({ name: 'product_id' })
   product!: LoanProduct;
 
@@ -60,7 +63,7 @@ export class LoanDetails {
   @IsNumber()
   penaltyAmount!: number;
 
-  @OneToMany(() => 'Payment', (payment: Payment) => payment.loan)
+  @OneToMany(() => PaymentEntity, (payment: Payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

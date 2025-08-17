@@ -10,8 +10,10 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
+import { LoanProvider as LoanProviderEntity } from './LoanProvider';
 import type { LoanProvider } from './LoanProvider';
 import { ScoringParameterRule } from './ScoringParameterRule';
+import type { ScoringParameterRule as ScoringParameterRuleType } from './ScoringParameterRule';
 
 @Entity({ name: 'scoring_parameters' })
 export class ScoringParameter {
@@ -21,7 +23,7 @@ export class ScoringParameter {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => 'LoanProvider', (provider: LoanProvider) => provider.scoringParameters)
+  @ManyToOne(() => LoanProviderEntity, (provider: LoanProvider) => provider.scoringParameters)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
@@ -36,7 +38,7 @@ export class ScoringParameter {
   @OneToMany(() => ScoringParameterRule, (rule) => rule.parameter, {
     cascade: true,
   })
-  rules!: ScoringParameterRule[];
+  rules!: ScoringParameterRuleType[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

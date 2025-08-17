@@ -9,6 +9,7 @@ import {
   Index,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
+import { User as UserEntity } from './User';
 import type { User } from './User';
 
 @Entity({ name: 'roles' })
@@ -24,7 +25,7 @@ export class Role {
   @Column({ type: 'clob' }) // Using CLOB for potentially large JSON objects
   permissions!: string; // Stored as a JSON string
 
-  @OneToMany(() => 'User', (user: User) => user.role)
+  @OneToMany(() => UserEntity, (user: User) => user.role)
   users!: User[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

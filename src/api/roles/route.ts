@@ -1,17 +1,9 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { Role } from '@/entities/Role';
 import { User } from '@/entities/User';
 import { In, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 // GET all roles
 export async function GET() {

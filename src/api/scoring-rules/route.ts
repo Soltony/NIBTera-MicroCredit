@@ -1,19 +1,11 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { ScoringParameter } from '@/entities/ScoringParameter';
 import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import type { ScoringParameter as ScoringParameterType, Rule } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
 import { In, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 export async function POST(req: Request) {
     try {

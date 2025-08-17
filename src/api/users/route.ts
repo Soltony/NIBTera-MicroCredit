@@ -1,19 +1,11 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { User } from '@/entities/User';
 import { Role } from '@/entities/Role';
 import { LoanProvider } from '@/entities/LoanProvider';
 import bcrypt from 'bcryptjs';
 import { FindOptionsWhere, Or, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 // GET all users
 export async function GET() {

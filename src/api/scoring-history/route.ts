@@ -1,18 +1,10 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { getUserFromSession } from '@/lib/user';
 import { In, DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 // GET history for a provider
 export async function GET(req: Request) {
