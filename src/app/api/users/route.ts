@@ -1,15 +1,17 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
+import { User } from '@/entities/User';
+import { Role } from '@/entities/Role';
+import { LoanProvider } from '@/entities/LoanProvider';
 import bcrypt from 'bcryptjs';
-import type { FindOptionsWhere } from 'typeorm';
-import type { User } from '@/entities/User';
+import { FindOptionsWhere, Or, DataSource } from 'typeorm';
 
 // GET all users
 export async function GET() {
     try {
         const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository('User');
+        const userRepo = dataSource.getRepository(User);
         const users = await userRepo.find({
             relations: ['provider', 'role'],
         });
@@ -35,8 +37,8 @@ export async function GET() {
 export async function POST(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository('User');
-        const roleRepo = dataSource.getRepository('Role');
+        const userRepo = dataSource.getRepository(User);
+        const roleRepo = dataSource.getRepository(Role);
         
         const { fullName, email, phoneNumber, password, role, providerId, status } = await req.json();
 
@@ -82,8 +84,8 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
      try {
         const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository('User');
-        const roleRepo = dataSource.getRepository('Role');
+        const userRepo = dataSource.getRepository(User);
+        const roleRepo = dataSource.getRepository(Role);
         
         const { id, ...updateData } = await req.json();
 

@@ -1,8 +1,9 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
-import type { LoanProvider } from '@/entities/LoanProvider';
+import { LoanProvider } from '@/entities/LoanProvider';
 import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
+import type { DataSource } from 'typeorm';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -17,7 +18,7 @@ const iconNameMap: { [key: string]: string } = {
 export async function GET() {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
+        const providerRepo = dataSource.getRepository(LoanProvider);
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {

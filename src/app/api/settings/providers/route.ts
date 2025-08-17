@@ -1,8 +1,10 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
+import { LoanProvider } from '@/entities/LoanProvider';
+import { LoanProduct } from '@/entities/LoanProduct';
+import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
-import type { LoanProvider } from '@/entities/LoanProvider';
 
 const providerSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -19,7 +21,7 @@ const updateProviderSchema = providerSchema.extend({
 export async function POST(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
+        const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
+        const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = updateProviderSchema.safeParse(body);
         if (!validation.success) {
@@ -64,7 +66,7 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
+        const providerRepo = dataSource.getRepository(LoanProvider);
         
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');

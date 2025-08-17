@@ -1,20 +1,20 @@
 
 import 'reflect-metadata';
 import 'dotenv/config';
-import { DataSource } from 'typeorm';
-import { User } from '@/entities/User';
-import { Role } from '@/entities/Role';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { LoanProduct } from '@/entities/LoanProduct';
-import { LoanDetails } from '@/entities/LoanDetails';
-import { Payment } from '@/entities/Payment';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
-import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
-import { Customer } from '@/entities/Customer';
-import { CustomParameter } from '@/entities/CustomParameter';
+import { DataSource, type DataSourceOptions } from 'typeorm';
+import { User, User as UserEntity } from '@/entities/User';
+import { Role, Role as RoleEntity } from '@/entities/Role';
+import { LoanProvider, LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
+import { LoanProduct, LoanProduct as LoanProductEntity } from '@/entities/LoanProduct';
+import { LoanDetails, LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
+import { Payment, Payment as PaymentEntity } from '@/entities/Payment';
+import { ScoringParameter, ScoringParameter as ScoringParameterEntity } from '@/entities/ScoringParameter';
+import { ScoringParameterRule, ScoringParameterRule as ScoringParameterRuleEntity } from '@/entities/ScoringParameterRule';
+import { ScoringConfigurationHistory, ScoringConfigurationHistory as ScoringConfigurationHistoryEntity } from '@/entities/ScoringConfigurationHistory';
+import { Customer, Customer as CustomerEntity } from '@/entities/Customer';
+import { CustomParameter, CustomParameter as CustomParameterEntity } from '@/entities/CustomParameter';
 
-const dataSourceOptions = {
+const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
   connectString: process.env.ORACLE_DB_CONNECT_STRING,
   username: process.env.ORACLE_DB_USER,
@@ -22,48 +22,58 @@ const dataSourceOptions = {
   synchronize: false, // This MUST be false for safety
   logging: process.env.NODE_ENV === 'development',
   entities: [
-    User,
-    Role,
-    LoanProvider,
-    LoanProduct,
-    LoanDetails,
-    Payment,
-    ScoringParameter,
-    ScoringParameterRule,
-    ScoringConfigurationHistory,
-    Customer,
-    CustomParameter,
+    UserEntity,
+    RoleEntity,
+    LoanProviderEntity,
+    LoanProductEntity,
+    LoanDetailsEntity,
+    PaymentEntity,
+    ScoringParameterEntity,
+    ScoringParameterRuleEntity,
+    ScoringConfigurationHistoryEntity,
+    CustomerEntity,
+    CustomParameterEntity,
   ],
   migrations: [],
   subscribers: [],
 };
 
-// Singleton pattern to manage the DataSource instance
-class DataSourceManager {
-  private static instance: DataSource;
+// This is the correct way to implement a singleton in a serverless environment.
+// We cache the DataSource instance and the promise to initialize it.
+// This prevents race conditions where multiple requests try to initialize at once.
 
-  private constructor() {}
+let dataSource: DataSource | null = null;
+let dataSourcePromise: Promise<DataSource> | null = null;
 
-  public static getInstance(): DataSource {
-    if (!DataSourceManager.instance) {
-      DataSourceManager.instance = new DataSource(dataSourceOptions);
+async function initializeDataSource(): Promise<DataSource> {
+    const ds = new DataSource(dataSourceOptions);
+    try {
+        await ds.initialize();
+        console.log('Database connection initialized successfully.');
+        dataSource = ds;
+        return ds;
+    } catch (error) {
+        console.error("FATAL: Error during Data Source initialization:", error);
+        dataSourcePromise = null; // Reset promise on failure to allow retry
+        throw error;
     }
-    return DataSourceManager.instance;
-  }
 }
-
-const AppDataSourceInstance = DataSourceManager.getInstance();
-
-export const AppDataSource = AppDataSourceInstance;
 
 export async function getConnectedDataSource(): Promise<DataSource> {
-  if (AppDataSourceInstance.isInitialized) {
-    return AppDataSourceInstance;
+  if (dataSource) {
+    // If the data source is already initialized and cached, return it
+    return dataSource;
   }
-  try {
-    return await AppDataSourceInstance.initialize();
-  } catch (error) {
-    console.error("Error during Data Source initialization:", error)
-    throw error;
+
+  if (!dataSourcePromise) {
+    // If there's no ongoing initialization, start one
+    dataSourcePromise = initializeDataSource();
   }
+
+  // Await the ongoing initialization promise
+  // This handles concurrent requests safely
+  return await dataSourcePromise;
 }
+
+// We no longer export the instance directly to enforce using the async getter
+// export const AppDataSource = AppDataSourceInstance;

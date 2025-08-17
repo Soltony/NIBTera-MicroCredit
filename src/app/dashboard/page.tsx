@@ -1,7 +1,7 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { getConnectedDataSource } from '@/data-source';
-import type { LoanDetails, LoanProvider } from '@/lib/types';
+import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 

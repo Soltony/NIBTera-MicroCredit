@@ -1,15 +1,15 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
-import type { LoanDetails } from '@/entities/LoanDetails';
+import { LoanDetails } from '@/entities/LoanDetails';
 import { getUserFromSession } from '@/lib/user';
-import type { FindOptionsWhere } from 'typeorm';
+import type { FindOptionsWhere, DataSource } from 'typeorm';
 
 export async function GET() {
     try {
         const currentUser = await getUserFromSession();
         const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository('LoanDetails');
+        const loanRepo = dataSource.getRepository(LoanDetails);
 
         const whereClause: FindOptionsWhere<LoanDetails> = {};
         if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {

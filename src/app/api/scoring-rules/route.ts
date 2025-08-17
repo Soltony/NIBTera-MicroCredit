@@ -1,10 +1,11 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
-import { In } from 'typeorm';
+import { ScoringParameter } from '@/entities/ScoringParameter';
+import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
+import type { ScoringParameter as ScoringParameterType, Rule } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
-import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
-import type { ScoringParameter } from '@/entities/ScoringParameter';
+import { In, DataSource } from 'typeorm';
 
 export async function POST(req: Request) {
     try {
@@ -17,55 +18,79 @@ export async function POST(req: Request) {
         const manager = dataSource.manager;
 
         const { providerId, parameters } = await req.json() as { providerId: string; parameters: ScoringParameterType[] };
-        const numericProviderId = Number(providerId);
 
         if (!providerId || !parameters) {
             return NextResponse.json({ error: 'Missing providerId or parameters' }, { status: 400 });
         }
         
         await manager.transaction(async (transactionalEntityManager) => {
-            const paramRepo = transactionalEntityManager.getRepository('ScoringParameter');
-            const ruleRepo = transactionalEntityManager.getRepository('ScoringParameterRule');
+            const paramRepo = transactionalEntityManager.getRepository(ScoringParameter);
+            const ruleRepo = transactionalEntityManager.getRepository(ScoringParameterRule);
 
-            // 1. Delete all existing parameters for this provider.
-            // The cascade option on the entity will also delete the associated rules.
-            await paramRepo.delete({ providerId: numericProviderId });
+            const existingParams = await paramRepo.find({ where: { providerId: Number(providerId) } });
+            const incomingParamIds = new Set(parameters.map(p => p.id).filter(id => !String(id).startsWith('param-')));
+            const paramsToDelete = existingParams.filter(p => !incomingParamIds.has(String(p.id)));
 
-            // 2. Insert the new configuration from scratch.
+            if (paramsToDelete.length > 0) {
+                await paramRepo.remove(paramsToDelete);
+            }
+
             for (const param of parameters) {
-                // Create and save the new parameter
-                const newParam = paramRepo.create({
-                    providerId: numericProviderId,
-                    name: param.name,
-                    weight: param.weight,
-                });
-                const savedParam = await paramRepo.save(newParam);
+                const isNewParam = String(param.id).startsWith('param-');
                 
-                if (param.rules && param.rules.length > 0) {
-                    // Create rule entities linked to the newly saved parameter
-                    const rulesToCreate = param.rules.map(rule => ruleRepo.create({
-                        parameterId: savedParam.id,
-                        field: rule.field,
-                        condition: rule.condition,
-                        value: rule.condition === 'between' ? rule.value : String(parseFloat(rule.value)),
-                        score: rule.score,
-                    }));
-                    // Save all rules for this parameter
-                    await ruleRepo.save(rulesToCreate);
+                let savedParam: ScoringParameter;
+                if (isNewParam) {
+                    savedParam = await paramRepo.save({
+                        providerId: Number(providerId),
+                        name: param.name,
+                        weight: param.weight
+                    });
+                } else {
+                    await paramRepo.update(param.id, { name: param.name, weight: param.weight });
+                    savedParam = (await paramRepo.findOneBy({ id: Number(param.id) }))!;
+                }
+
+                const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
+                const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !String(id).startsWith('rule-')));
+                const rulesToDelete = existingRules.filter(r => !incomingRuleIds.has(String(r.id)));
+
+                if (rulesToDelete.length > 0) {
+                    await ruleRepo.remove(rulesToDelete);
+                }
+
+                for (const rule of param.rules) {
+                    const isNewRule = String(rule.id).startsWith('rule-');
+                    const valueToSave = rule.condition === 'between' ? rule.value : String(parseFloat(rule.value));
+
+                     if (isNewRule) {
+                        await ruleRepo.save({
+                            parameterId: savedParam.id,
+                            field: rule.field,
+                            condition: rule.condition,
+                            value: valueToSave,
+                            score: rule.score,
+                        });
+                    } else {
+                         await ruleRepo.update(rule.id, {
+                            field: rule.field,
+                            condition: rule.condition,
+                            value: valueToSave,
+                            score: rule.score,
+                        });
+                    }
                 }
             }
         });
 
-        // After the transaction, fetch the final state to return to the client.
-        const finalParams = await manager.getRepository('ScoringParameter').find({
-            where: { providerId: numericProviderId },
+        const finalParams = await manager.getRepository(ScoringParameter).find({
+            where: { providerId: Number(providerId) },
             relations: ['rules'],
         });
 
         return NextResponse.json(finalParams, { status: 200 });
 
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error saving scoring parameters:', error);
-        return NextResponse.json({ error: `Internal Server Error: ${error.message}` }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

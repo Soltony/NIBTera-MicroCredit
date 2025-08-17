@@ -1,16 +1,16 @@
 
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
-import { In } from 'typeorm';
+import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
+import { LoanProduct } from '@/entities/LoanProduct';
 import { getUserFromSession } from '@/lib/user';
-import type { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
-import type { LoanProduct } from '@/entities/LoanProduct';
+import { In, DataSource } from 'typeorm';
 
 // GET history for a provider
 export async function GET(req: Request) {
     try {
         const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
+        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
 
         const { searchParams } = new URL(req.url);
         const providerId = searchParams.get('providerId');
@@ -45,8 +45,8 @@ export async function POST(req: Request) {
         }
 
         const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
-        const productRepo = dataSource.getRepository('LoanProduct');
+        const historyRepo = dataSource.getRepository(ScoringConfigurationHistory);
+        const productRepo = dataSource.getRepository(LoanProduct);
 
         const { providerId, parameters, appliedProductIds } = await req.json();
 

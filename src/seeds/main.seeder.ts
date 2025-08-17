@@ -1,6 +1,6 @@
 
 import 'reflect-metadata';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { Role } from '@/entities/Role';
 import { User } from '@/entities/User';
 import { LoanProvider } from '@/entities/LoanProvider';
@@ -85,16 +85,16 @@ class MainSeeder {
     
     
   public async run(): Promise<void> {
+    const dataSource = await getConnectedDataSource();
+    console.log('Database connection initialized.');
+    
     try {
-      await AppDataSource.initialize();
-      console.log('Database connection initialized.');
-
       // Synchronize schema to ensure tables are created
       console.log('Synchronizing database schema...');
-      await AppDataSource.synchronize(); 
+      await dataSource.synchronize(); 
       console.log('Schema synchronized.');
       
-      const queryRunner = AppDataSource.createQueryRunner();
+      const queryRunner = dataSource.createQueryRunner();
 
       try {
         console.log('Starting seeding...');
@@ -431,10 +431,11 @@ class MainSeeder {
     } catch (err) {
       console.error('Error establishing database connection for seeding:', err);
     } finally {
-      if (AppDataSource.isInitialized) {
-        await AppDataSource.destroy();
-        console.log('Database connection closed.');
-      }
+        const dataSource = await getConnectedDataSource();
+        if (dataSource.isInitialized) {
+            await dataSource.destroy();
+            console.log('Database connection closed.');
+        }
     }
   }
 }
