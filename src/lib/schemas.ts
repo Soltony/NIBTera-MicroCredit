@@ -37,7 +37,7 @@ export const updateProductSchema = productSchema.partial().extend({
   dailyFeeEnabled: z.boolean().optional(),
   penaltyRulesEnabled: z.boolean().optional(),
   dataProvisioningEnabled: z.boolean().optional(),
-  dataProvisioningType: z.enum(['employeeData', 'transactionHistory']).optional().nullable(),
+  dataProvisioningConfigId: z.string().nullable().optional(),
 });
 
 export const loanSchema = z.object({

@@ -1,7 +1,7 @@
 
 import { SettingsClient } from '@/components/admin/settings-client';
 import { getConnectedDataSource } from '@/data-source';
-import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, DataProvisioningConfig } from '@/lib/types';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -27,7 +27,7 @@ async function getProviders(): Promise<LoanProviderType[]> {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
-            relations: ['products'],
+            relations: ['products', 'dataProvisioningConfigs'],
             order: {
                 displayOrder: 'ASC',
                 products: {
@@ -58,7 +58,15 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 serviceFeeEnabled: !!prod.serviceFeeEnabled,
                 dailyFeeEnabled: !!prod.dailyFeeEnabled,
                 penaltyRulesEnabled: !!prod.penaltyRulesEnabled,
-            }))
+                dataProvisioningEnabled: !!prod.dataProvisioningEnabled,
+                dataProvisioningConfigId: prod.dataProvisioningConfigId ? String(prod.dataProvisioningConfigId) : null,
+            })),
+            dataProvisioningConfigs: p.dataProvisioningConfigs.map(dpc => ({
+                id: String(dpc.id),
+                providerId: String(dpc.providerId),
+                name: dpc.name,
+                columns: safeJsonParse(dpc.columns, []),
+            })),
         })) as LoanProviderType[];
     } catch(e) {
         console.error(e);

@@ -12,6 +12,8 @@ import {
 import { IsNotEmpty, Length, IsNumber, IsBoolean, IsOptional, IsString } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
 import type { LoanDetails } from './LoanDetails';
+import type { DataProvisioningConfig } from './DataProvisioningConfig';
+
 
 @Entity({ name: 'loan_products' })
 export class LoanProduct {
@@ -65,8 +67,12 @@ export class LoanProduct {
   @Column({ type: 'number', precision: 1, scale: 0, name: 'data_provisioning_enabled', default: 0 })
   dataProvisioningEnabled?: boolean;
 
-  @Column({ type: 'varchar2', length: 50, name: 'data_provisioning_type', nullable: true })
-  dataProvisioningType?: 'employeeData' | 'transactionHistory';
+  @Column({ type: 'number', name: 'data_provisioning_config_id', nullable: true })
+  dataProvisioningConfigId?: number | null;
+
+  @ManyToOne('DataProvisioningConfig', { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'data_provisioning_config_id' })
+  dataProvisioningConfig?: DataProvisioningConfig;
 
   @Column({ name: 'provider_id' })
   providerId!: number;

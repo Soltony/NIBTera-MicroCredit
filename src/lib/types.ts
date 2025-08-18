@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -18,13 +17,26 @@ export interface PenaltyRule {
     value: number | '';
 }
 
-export type DataProvisioningType = 'employeeData' | 'transactionHistory';
+export interface DataColumn {
+    id: string;
+    name: string;
+    type: 'string' | 'number' | 'date';
+}
+
+export interface DataProvisioningConfig {
+    id: string;
+    providerId: string;
+    name: string;
+    columns: DataColumn[];
+}
+
 
 export interface LoanProvider {
   id: string;
   name: string;
   icon: string;
   products: LoanProduct[];
+  dataProvisioningConfigs?: DataProvisioningConfig[];
   color?: string;
   colorHex?: string;
   displayOrder: number;
@@ -46,7 +58,8 @@ export interface LoanProduct {
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
   dataProvisioningEnabled?: boolean;
-  dataProvisioningType?: DataProvisioningType;
+  dataProvisioningConfigId?: string | null;
+  dataProvisioningConfig?: DataProvisioningConfig;
 }
 
 export interface Payment {

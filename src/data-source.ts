@@ -13,6 +13,7 @@ import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import { Customer } from '@/entities/Customer';
 import { CustomParameter } from '@/entities/CustomParameter';
+import { DataProvisioningConfig } from '@/entities/DataProvisioningConfig';
 
 const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
@@ -34,6 +35,7 @@ const dataSourceOptions: DataSourceOptions = {
     ScoringConfigurationHistory,
     Customer,
     CustomParameter,
+    DataProvisioningConfig,
   ],
   migrations: [],
   subscribers: [],

@@ -1,5 +1,4 @@
 
-
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
@@ -34,7 +33,7 @@ export async function POST(req: Request) {
             dailyFeeEnabled: false,
             penaltyRulesEnabled: false,
             dataProvisioningEnabled: false,
-            dataProvisioningType: undefined,
+            dataProvisioningConfigId: null,
         });
         await productRepo.save(newProduct);
         
@@ -67,24 +66,29 @@ export async function PUT(req: Request) {
         }
         
         const { id, ...updateData } = validation.data;
+        const dataToUpdate: any = { ...updateData };
 
         // Stringify JSON fields before updating
         if (updateData.serviceFee) {
-            (updateData as any).serviceFee = JSON.stringify(updateData.serviceFee);
+            dataToUpdate.serviceFee = JSON.stringify(updateData.serviceFee);
         }
         if (updateData.dailyFee) {
-            (updateData as any).dailyFee = JSON.stringify(updateData.dailyFee);
+            dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
         }
         if (updateData.penaltyRules) {
-            (updateData as any).penaltyRules = JSON.stringify(updateData.penaltyRules);
+            dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
         }
 
         // Handle the case where data provisioning is disabled
         if (updateData.dataProvisioningEnabled === false) {
-            (updateData as any).dataProvisioningType = null;
+            dataToUpdate.dataProvisioningConfigId = null;
         }
 
-        await productRepo.update(id, updateData as any);
+        if (updateData.dataProvisioningConfigId) {
+             dataToUpdate.dataProvisioningConfigId = Number(updateData.dataProvisioningConfigId);
+        }
+
+        await productRepo.update(id, dataToUpdate);
         const updatedProduct = await productRepo.findOneBy({ id: Number(id) });
         
         if (!updatedProduct) {
