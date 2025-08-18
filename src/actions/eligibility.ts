@@ -47,7 +47,8 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     
     let totalWeightedScore = 0;
     const customerLoanHistory = JSON.parse(customer.loanHistory);
-    const customerDataForScoring = {
+    // Combine standard customer fields and dynamic loan history fields into one object for evaluation
+    const customerDataForScoring: Record<string, any> = {
         age: customer.age,
         monthlyIncome: customer.monthlyIncome,
         gender: customer.gender,
@@ -58,7 +59,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
     scoringParameters.forEach(param => {
         let maxScoreForParam = 0;
         param.rules.forEach(rule => {
-            const inputValue = customerDataForScoring[rule.field as keyof typeof customerDataForScoring];
+            const inputValue = customerDataForScoring[rule.field];
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;
