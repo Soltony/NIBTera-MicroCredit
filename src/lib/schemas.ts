@@ -21,7 +21,7 @@ const feeRuleSchema = z.object({
 const penaltyRuleSchema = z.object({
     id: z.string(),
     fromDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? '' : Number(v))),
-    toDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? Infinity : Number(v))),
+    toDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? null : Number(v))).nullable(),
     type: z.enum(['fixed', 'percentageOfPrincipal']),
     value: z.number().or(z.string().regex(/^\d*\.?\d*$/).transform(v => v === '' ? '' : Number(v))),
 });

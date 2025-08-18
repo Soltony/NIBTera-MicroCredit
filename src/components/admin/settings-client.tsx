@@ -452,7 +452,7 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
             <Input 
                 type="number" 
                 value={rule.toDay === Infinity ? '' : (rule.toDay ?? '')}
-                onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? Infinity : parseInt(e.target.value)})}
+                onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? null : parseInt(e.target.value)})}
                 placeholder="To Day"
                 className="w-24"
                 disabled={!isEnabled}

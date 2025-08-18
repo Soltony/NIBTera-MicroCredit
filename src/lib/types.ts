@@ -12,7 +12,7 @@ export interface FeeRule {
 export interface PenaltyRule {
     id: string;
     fromDay: number | '';
-    toDay: number | Infinity | '';
+    toDay: number | Infinity | '' | null;
     type: 'fixed' | 'percentageOfPrincipal';
     value: number | '';
 }
