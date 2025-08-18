@@ -33,7 +33,7 @@ export class ScoringParameter {
   @IsNumber()
   weight!: number;
 
-  @OneToMany('ScoringParameterRule', (rule) => rule.parameter, {
+  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, {
     cascade: true,
   })
   rules!: ScoringParameterRule[];
