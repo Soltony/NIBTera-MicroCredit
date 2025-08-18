@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { Payment } from '@/entities/Payment';
-import { calculateTotalRepayable } from '@/lib/utils';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { z } from 'zod';
 import type { DataSource } from 'typeorm';
 

@@ -22,14 +22,14 @@ export class LoanDetails {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => LoanProvider, (provider) => provider.loans)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.loans)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
   @Column({ name: 'product_id' })
   productId!: number;
 
-  @ManyToOne(() => LoanProduct, (product) => product.loans)
+  @ManyToOne('LoanProduct', (product: LoanProduct) => product.loans)
   @JoinColumn({ name: 'product_id' })
   product!: LoanProduct;
 
@@ -60,7 +60,7 @@ export class LoanDetails {
   @IsNumber()
   penaltyAmount!: number;
 
-  @OneToMany(() => Payment, (payment) => payment.loan)
+  @OneToMany('Payment', (payment: Payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
