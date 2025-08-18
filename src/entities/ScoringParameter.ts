@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
-import type { ScoringParameterRule } from './ScoringParameterRule';
+import { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'scoring_parameters' })
 export class ScoringParameter {
@@ -33,7 +33,7 @@ export class ScoringParameter {
   @IsNumber()
   weight!: number;
 
-  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, {
+  @OneToMany(() => ScoringParameterRule, (rule) => rule.parameter, {
     cascade: true,
   })
   rules!: ScoringParameterRule[];
