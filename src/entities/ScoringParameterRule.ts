@@ -11,7 +11,6 @@ import {
 import { IsNumber, IsNotEmpty } from 'class-validator';
 import type { ScoringParameter } from './ScoringParameter';
 
-
 @Entity({ name: 'scoring_parameter_rules' })
 export class ScoringParameterRule {
   @PrimaryGeneratedColumn('increment', { name: 'id' })

@@ -12,7 +12,6 @@ import {
 import { IsNotEmpty, Length } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
 
-
 @Entity({ name: 'custom_parameters' })
 @Unique(['providerId', 'name'])
 export class CustomParameter {

@@ -13,7 +13,6 @@ import { IsEmail, IsNotEmpty, Length } from 'class-validator';
 import type { Role } from './Role';
 import type { LoanProvider } from './LoanProvider';
 
-
 @Entity({ name: 'users' })
 export class User {
   @PrimaryGeneratedColumn('increment', { name: 'id' })

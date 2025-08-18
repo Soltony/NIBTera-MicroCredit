@@ -15,7 +15,6 @@ import type { ScoringParameter } from './ScoringParameter';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
 import type { CustomParameter } from './CustomParameter';
 
-
 @Entity({ name: 'loan_providers' })
 export class LoanProvider {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
