@@ -1,6 +1,4 @@
 
-'use server';
-
 import { z } from 'zod';
 
 export const productSchema = z.object({
@@ -35,13 +33,19 @@ export const updateProductSchema = productSchema.partial().extend({
   serviceFee: feeRuleSchema.optional(),
   dailyFee: feeRuleSchema.optional(),
   penaltyRules: z.array(penaltyRuleSchema).optional(),
+  serviceFeeEnabled: z.boolean().optional(),
+  dailyFeeEnabled: z.boolean().optional(),
+  penaltyRulesEnabled: z.boolean().optional(),
+  dataProvisioningEnabled: z.boolean().optional(),
+  dataProvisioningConfigId: z.string().nullable().optional(),
 });
 
 export const loanSchema = z.object({
     providerId: z.string(),
     productId: z.string(),
     loanAmount: z.number(),
-    serviceFeeAmount: z.number(),
+    serviceFee: z.number(),
+    penaltyAmount: z.number(),
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
     repaymentStatus: z.enum(['Paid', 'Unpaid']),

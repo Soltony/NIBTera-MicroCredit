@@ -1,45 +1,40 @@
 
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanProvider as LoanProviderType, ScoringParameter as ScoringParameterType } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
-
 async function getProviders() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
         });
         return providers.map(p => ({
-            ...p,
             id: String(p.id),
-            products: p.products.map(prod => ({...prod, id: String(prod.id)}))
+            name: p.name,
+            colorHex: p.colorHex,
+            displayOrder: p.displayOrder,
+            icon: p.icon,
+            products: p.products.map(prod => ({
+                ...prod,
+                id: String(prod.id),
+                serviceFee: JSON.parse(prod.serviceFee),
+                dailyFee: JSON.parse(prod.dailyFee),
+                penaltyRules: JSON.parse(prod.penaltyRules),
+            }))
         })) as any[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') { // Don't destroy oracle connections
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 
 async function getScoringParameters() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository(ScoringParameter);
+        const dataSource = await getConnectedDataSource();
+        const paramRepo = dataSource.getRepository('ScoringParameter');
         const params = await paramRepo.find({
             relations: ['rules'],
         });
@@ -58,17 +53,39 @@ async function getScoringParameters() {
                 score: r.score,
             })),
         }));
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') { // Don't destroy oracle connections
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 
-// History is not yet implemented with TypeORM entities in a way that can be easily seeded or fetched.
-// This will be adjusted once the entities are in place. For now, returning an empty array.
 async function getHistory() {
-    return [];
+    try {
+        const dataSource = await getConnectedDataSource();
+        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
+        const history = await historyRepo.find({
+            take: 20, // Fetch more history items if needed
+            order: {
+                savedAt: 'DESC',
+            },
+            relations: ['appliedProducts'],
+        });
+        
+        return history.map(h => ({
+            id: String(h.id),
+            providerId: String(h.providerId),
+            parameters: JSON.parse(h.parameters),
+            savedAt: h.savedAt.toISOString(),
+            appliedProducts: h.appliedProducts.map(p => ({
+                id: String(p.id),
+                name: p.name,
+            })),
+        }));
+
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
 }
 
 

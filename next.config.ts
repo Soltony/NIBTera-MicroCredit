@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -23,6 +24,27 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+   webpack: (config, { isServer }) => {
+    // This is the correct way to ignore optional TypeORM dependencies
+    // in a Next.js project.
+    if (isServer) {
+      config.externals.push(
+          'pg',
+          'sqlite3',
+          'tedious',
+          'pg-hstore',
+          'pg-native',
+          'mysql',
+          'mysql2',
+          'redis',
+          'ioredis',
+          'better-sqlite3',
+          '@sap/hana-client',
+          'react-native-sqlite-storage'
+      );
+    }
+    return config;
   },
 };
 

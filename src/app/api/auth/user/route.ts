@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession as getCurrentUser } from '@/lib/user';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const user = await getCurrentUser();

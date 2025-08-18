@@ -3,24 +3,24 @@ import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import type { LoanProvider } from '@/lib/types';
 import { ApplyClient } from './client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
+import { getConnectedDataSource } from '@/data-source';
 import type { DataSource } from 'typeorm';
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
+// Helper function to safely parse JSON from DB
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
     }
-}
+};
 
 async function getProvider(providerId: string): Promise<LoanProvider | null> {
     if (!providerId) return null;
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository('LoanProvider');
         
         const provider = await providerRepo.findOne({
             where: { id: Number(providerId) },
@@ -31,18 +31,27 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
 
         // Convert to plain object for client component
         return {
-            ...provider,
             id: String(provider.id),
+            name: provider.name,
+            icon: provider.icon,
+            colorHex: provider.colorHex,
+            displayOrder: provider.displayOrder,
             products: provider.products.map(prod => ({
-                ...prod,
                 id: String(prod.id),
+                name: prod.name,
+                description: prod.description,
+                icon: prod.icon,
+                minLoan: prod.minLoan,
+                maxLoan: prod.maxLoan,
+                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
+                penaltyRules: safeJsonParse(prod.penaltyRules, []),
                 status: prod.status as 'Active' | 'Disabled'
             }))
         } as any;
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return null;
     }
 }
 

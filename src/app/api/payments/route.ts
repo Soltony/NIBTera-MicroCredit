@@ -1,19 +1,11 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { Payment } from '@/entities/Payment';
-import { calculateTotalRepayable } from '@/lib/utils';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { z } from 'zod';
 import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -21,9 +13,8 @@ const paymentSchema = z.object({
 });
 
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const manager = dataSource.manager;
 
         const body = await req.json();
@@ -103,9 +94,5 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error processing payment:', error);
         return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 });
-    } finally {
-        if (dataSource && !dataSource.isDestroyed) {
-           await dataSource.destroy();
-        }
     }
 }

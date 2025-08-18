@@ -1,27 +1,18 @@
 
 'use server';
 
-import { AppDataSource } from '@/data-source';
-import { User } from '@/entities/User';
+import { getConnectedDataSource } from '@/data-source';
 import { getSession } from './session';
+import type { User } from '@/entities/User';
 import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
 
 export async function getUserFromSession() {
   const session = await getSession();
   if (!session?.userId) return null;
 
-  let dataSource: DataSource | null = null;
   try {
-    dataSource = await getConnectedDataSource();
-    const userRepo = dataSource.getRepository(User);
+    const dataSource = await getConnectedDataSource();
+    const userRepo = dataSource.getRepository('User');
     
     // Ensure userId is a valid number before querying
     const userId = Number(session.userId);
@@ -53,9 +44,5 @@ export async function getUserFromSession() {
   } catch (error) {
     console.error('Database error while fetching user:', error);
     return null;
-  } finally {
-    if (dataSource && AppDataSource.options.type !== 'oracle') {
-        // await dataSource.destroy();
-    }
   }
 }

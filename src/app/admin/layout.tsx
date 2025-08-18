@@ -2,24 +2,26 @@
 import { AuthProvider } from '@/hooks/use-auth';
 import { getUserFromSession as getCurrentUser } from '@/lib/user';
 import { ProtectedLayout } from '@/components/admin/protected-layout';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
+export const dynamic = 'force-dynamic';
+
+// Helper function to safely parse JSON from DB
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
     }
-}
+};
 
 async function getProviders() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {
@@ -28,14 +30,27 @@ async function getProviders() {
         });
         // Convert to plain objects
         return providers.map(p => ({
-            ...p,
             id: String(p.id),
-            products: p.products.map(prod => ({...prod, id: String(prod.id)}))
+            name: p.name,
+            icon: p.icon,
+            colorHex: p.colorHex,
+            displayOrder: p.displayOrder,
+            products: p.products.map(prod => ({
+                id: String(prod.id),
+                name: prod.name,
+                description: prod.description,
+                icon: prod.icon,
+                minLoan: prod.minLoan,
+                maxLoan: prod.maxLoan,
+                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
+                penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
+                status: prod.status as 'Active' | 'Disabled'
+            }))
         }));
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch (error) {
+        console.error("Failed to fetch providers in layout:", error);
+        return [];
     }
 }
 

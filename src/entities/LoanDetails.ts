@@ -10,9 +10,9 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNumber, IsDate, IsNotEmpty } from 'class-validator';
-import { LoanProvider } from './LoanProvider';
-import { LoanProduct } from './LoanProduct';
-import { Payment } from './Payment';
+import type { LoanProvider } from './LoanProvider';
+import type { LoanProduct } from './LoanProduct';
+import type { Payment } from './Payment';
 
 @Entity({ name: 'loan_details' })
 export class LoanDetails {
@@ -22,14 +22,14 @@ export class LoanDetails {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => LoanProvider, (provider) => provider.loans)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.loans)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
   @Column({ name: 'product_id' })
   productId!: number;
 
-  @ManyToOne(() => LoanProduct, (product) => product.loans)
+  @ManyToOne('LoanProduct', (product: LoanProduct) => product.loans)
   @JoinColumn({ name: 'product_id' })
   product!: LoanProduct;
 
@@ -37,9 +37,9 @@ export class LoanDetails {
   @IsNumber()
   loanAmount!: number;
 
-  @Column({ type: 'number', name: 'service_fee_amount', precision: 10, scale: 2 })
+  @Column({ type: 'number', name: 'service_fee', precision: 10, scale: 2 })
   @IsNumber()
-  serviceFeeAmount!: number;
+  serviceFee!: number;
 
   @Column({ type: 'date', name: 'disbursed_date' })
   @IsDate()
@@ -56,7 +56,11 @@ export class LoanDetails {
   @Column({ type: 'number', name: 'repaid_amount', precision: 10, scale: 2, nullable: true })
   repaidAmount!: number | null;
 
-  @OneToMany('Payment', (payment) => payment.loan)
+  @Column({ type: 'number', name: 'penalty_amount', precision: 10, scale: 2, default: 0 })
+  @IsNumber()
+  penaltyAmount!: number;
+
+  @OneToMany('Payment', (payment: Payment) => payment.loan)
   payments!: Payment[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2 } from 'lucide-react';
+import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,7 +42,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   
   const isEligible = !eligibilityError;
@@ -223,86 +222,17 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
               
                   <div className="grid gap-8 grid-cols-1">
                       <div>
-                          <Accordion type="single" collapsible className="w-full" defaultValue="loan-history">
-                              <AccordionItem value="loan-history" className="border-none">
-                                  <AccordionTrigger className="text-muted-foreground p-4 rounded-lg text-lg font-semibold hover:no-underline [&[data-state=open]>svg]:rotate-180" style={{ backgroundColor: selectedProvider ? `${selectedProvider.colorHex}1A` : '#fef3c7' }}>
-                                      <div className="flex items-center justify-between w-full" style={{ color: selectedProvider?.colorHex }}>
-                                          <span>Loan History</span>
-                                      </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Card className="mt-2 shadow-sm rounded-lg">
-                                        <CardContent className="p-0">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                        <TableHead className="py-3 px-4"></TableHead>
-                                                        <TableHead className="py-3 px-4">Product</TableHead>
-                                                        <TableHead className="py-3 px-4">Disbursed Date</TableHead>
-                                                        <TableHead className="py-3 px-4">Due Date</TableHead>
-                                                        <TableHead className="text-right py-3 px-4">Amount</TableHead>
-                                                        <TableHead className="text-right py-3 px-4">Repaid</TableHead>
-                                                        <TableHead className="text-center py-3 px-4">Status</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                {loanHistory.map((loan) => (
-                                                    <React.Fragment key={loan.id}>
-                                                        <TableRow className={cn(loan.payments && loan.payments.length > 1 && "cursor-pointer")} onClick={() => loan.payments && loan.payments.length > 1 && setExpandedLoan(expandedLoan === loan.id ? null : loan.id)}>
-                                                            <TableCell className="px-4">
-                                                                {loan.payments && loan.payments.length > 1 && (
-                                                                    expandedLoan === loan.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="font-medium py-3 px-4">{loan.productName}</TableCell>
-                                                            <TableCell className="py-3 px-4">{format(new Date(loan.disbursedDate), 'yyyy-MM-dd')}</TableCell>
-                                                            <TableCell className="py-3 px-4">{format(new Date(loan.dueDate), 'yyyy-MM-dd')}</TableCell>
-                                                            <TableCell className="text-right py-3 px-4">{formatCurrency(loan.loanAmount)}</TableCell>
-                                                            <TableCell className="text-right py-3 px-4">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
-                                                            <TableCell className="text-center py-3 px-4">
-                                                                <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'}>
-                                                                {loan.repaymentStatus}
-                                                                </Badge>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                        {expandedLoan === loan.id && loan.payments && loan.payments.length > 1 && (
-                                                          <TableRow>
-                                                              <TableCell colSpan={7} className="p-0">
-                                                                  <div className="p-4 bg-secondary/50">
-                                                                      <h4 className="font-semibold mb-2 text-sm">Payment History</h4>
-                                                                      <Table>
-                                                                          <TableHeader>
-                                                                              <TableRow className="bg-secondary hover:bg-secondary">
-                                                                                  <TableHead>Payment No.</TableHead>
-                                                                                  <TableHead>Date</TableHead>
-                                                                                  <TableHead className="text-right">Outstanding Balance</TableHead>
-                                                                                  <TableHead className="text-right">Amount Paid</TableHead>
-                                                                              </TableRow>
-                                                                          </TableHeader>
-                                                                          <TableBody>
-                                                                              {loan.payments.map((payment, pIndex) => (
-                                                                                  <TableRow key={pIndex}>
-                                                                                      <TableCell>#{pIndex + 1}</TableCell>
-                                                                                      <TableCell>{format(new Date(payment.date), 'yyyy-MM-dd')}</TableCell>
-                                                                                      <TableCell className="text-right">{formatCurrency(payment.outstandingBalanceBeforePayment ?? 0)}</TableCell>
-                                                                                      <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
-                                                                                  </TableRow>
-                                                                              ))}
-                                                                          </TableBody>
-                                                                      </Table>
-                                                                  </div>
-                                                              </TableCell>
-                                                          </TableRow>
-                                                        )}
-                                                    </React.Fragment>
-                                                ))}
-                                                </TableBody>
-                                            </Table>
-                                        </CardContent>
-                                    </Card>
-                                  </AccordionContent>
-                              </AccordionItem>
-                          </Accordion>
+                          <Card className="shadow-sm rounded-lg">
+                            <CardHeader>
+                                <CardTitle>Loan History</CardTitle>
+                                <CardDescription>View your past and active loans.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Button className="w-full" variant="outline" onClick={() => router.push(`/history?${searchParams.toString()}`)}>
+                                    <History className="mr-2 h-4 w-4" /> View Full Loan History
+                                </Button>
+                            </CardContent>
+                          </Card>
                       </div>
                       <div>
                       {selectedProvider && isEligible && (

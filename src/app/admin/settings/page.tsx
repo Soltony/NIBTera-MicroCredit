@@ -1,9 +1,7 @@
 
 import { SettingsClient } from '@/components/admin/settings-client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import type { LoanProvider as LoanProviderType, FeeRule, PenaltyRule } from '@/lib/types';
-import type { DataSource } from 'typeorm';
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanProvider as LoanProviderType, DataProvisioningConfig } from '@/lib/types';
 
 // A helper to map string names to actual icon component names for the client
 const iconNameMap: { [key: string]: string } = {
@@ -24,21 +22,12 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
     }
 };
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 async function getProviders(): Promise<LoanProviderType[]> {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
-            relations: ['products'],
+            relations: ['products', 'dataProvisioningConfigs'],
             order: {
                 displayOrder: 'ASC',
                 products: {
@@ -56,21 +45,32 @@ async function getProviders(): Promise<LoanProviderType[]> {
             displayOrder: p.displayOrder,
             products: p.products.map(prod => ({
                 id: String(prod.id),
+                providerId: String(p.id),
                 name: prod.name,
                 description: prod.description,
                 icon: iconNameMap[prod.icon] || 'PersonStanding',
-                minLoan: prod.minLoan,
-                maxLoan: prod.maxLoan,
+                minLoan: prod.minLoan ?? 0,
+                maxLoan: prod.maxLoan ?? 0,
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
                 penaltyRules: safeJsonParse(prod.penaltyRules, []),
                 status: prod.status as 'Active' | 'Disabled',
-            }))
+                serviceFeeEnabled: !!prod.serviceFeeEnabled,
+                dailyFeeEnabled: !!prod.dailyFeeEnabled,
+                penaltyRulesEnabled: !!prod.penaltyRulesEnabled,
+                dataProvisioningEnabled: !!prod.dataProvisioningEnabled,
+                dataProvisioningConfigId: prod.dataProvisioningConfigId ? String(prod.dataProvisioningConfigId) : null,
+            })),
+            dataProvisioningConfigs: p.dataProvisioningConfigs.map(dpc => ({
+                id: String(dpc.id),
+                providerId: String(dpc.providerId),
+                name: dpc.name,
+                columns: safeJsonParse(dpc.columns, []),
+            })),
         })) as LoanProviderType[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 

@@ -17,11 +17,26 @@ export interface PenaltyRule {
     value: number | '';
 }
 
+export interface DataColumn {
+    id: string;
+    name: string;
+    type: 'string' | 'number' | 'date';
+}
+
+export interface DataProvisioningConfig {
+    id: string;
+    providerId: string;
+    name: string;
+    columns: DataColumn[];
+}
+
+
 export interface LoanProvider {
   id: string;
   name: string;
   icon: string;
   products: LoanProduct[];
+  dataProvisioningConfigs?: DataProvisioningConfig[];
   color?: string;
   colorHex?: string;
   displayOrder: number;
@@ -39,9 +54,16 @@ export interface LoanProduct {
   penaltyRules: PenaltyRule[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
+  serviceFeeEnabled?: boolean;
+  dailyFeeEnabled?: boolean;
+  penaltyRulesEnabled?: boolean;
+  dataProvisioningEnabled?: boolean;
+  dataProvisioningConfigId?: string | null;
+  dataProvisioningConfig?: DataProvisioningConfig;
 }
 
 export interface Payment {
+  id: string;
   amount: number;
   date: Date;
   outstandingBalanceBeforePayment?: number;
@@ -52,12 +74,13 @@ export interface LoanDetails {
   providerName: string;
   productName: string;
   loanAmount: number;
-  serviceFeeAmount: number;
+  serviceFee: number;
   disbursedDate: Date;
   dueDate: Date;
   repaymentStatus: 'Paid' | 'Unpaid';
   repaidAmount?: number;
   payments: Payment[];
+  penaltyAmount: number;
   // For calculation purposes, not stored in DB
   product?: LoanProduct;
 }
@@ -110,11 +133,6 @@ export interface Role {
 export interface TransactionProduct {
     id: string;
     name: string;
-}
-
-export const parseFee = (feeString: string | undefined): number => {
-    if (!feeString) return 0;
-    return parseFloat(feeString.replace('%', '')) || 0;
 }
 
 // Type for Scoring Engine

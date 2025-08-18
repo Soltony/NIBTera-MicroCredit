@@ -1,5 +1,4 @@
 
-'use server';
 import { NextResponse } from 'next/server';
 import { deepClone } from 'fast-json-patch';
 import type { ScoringParameters } from '@/lib/types';

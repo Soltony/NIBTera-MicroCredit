@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -40,6 +41,8 @@ import type { LoanProduct, LoanProvider } from '@/lib/types';
 import { format } from 'date-fns';
 import { produce } from 'immer';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
 export interface ScoringHistoryItem {
@@ -47,6 +50,11 @@ export interface ScoringHistoryItem {
     savedAt: Date;
     parameters: ScoringParameter[];
     appliedProducts: { name: string }[];
+}
+
+interface CustomParameterType {
+    id: string;
+    name: string;
 }
 
 
@@ -85,7 +93,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 
-const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string; }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string; }) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -102,20 +110,20 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
     const error = validateRule(rule);
     
     return (
-        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md">
+        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
                 <Select value={rule.field} onValueChange={(value) => onUpdate({ ...rule, field: value })}>
-                    <SelectTrigger className={cn("w-1/4", !rule.field.trim() && 'border-destructive')}>
+                    <SelectTrigger className={cn("w-1/4 focus:ring-[--ring-color]", !rule.field.trim() && 'border-destructive')}>
                         <SelectValue placeholder="Select Field" />
                     </SelectTrigger>
                     <SelectContent>
-                        {AVAILABLE_FIELDS.map(field => (
+                        {availableFields.map(field => (
                             <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                    <SelectTrigger className="w-1/4">
+                    <SelectTrigger className="w-1/4 focus:ring-[--ring-color]">
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -135,14 +143,14 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                             placeholder="Min"
                             value={min}
                             onChange={handleRangeChange('min')}
-                            className={cn((!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                            className={cn("focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                         <span>-</span>
                         <Input
                             placeholder="Max"
                             value={max}
                             onChange={handleRangeChange('max')}
-                            className={cn((!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                            className={cn("focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                     </div>
                 ) : (
@@ -150,7 +158,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                         placeholder="e.g., 30"
                         value={rule.value || ''}
                         onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                        className={cn("w-1/4", !rule.value.trim() && 'border-destructive')}
+                        className={cn("w-1/4 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
                     />
                 )}
                 
@@ -159,9 +167,9 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
                     placeholder="Score"
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
-                    className="w-1/4"
+                    className="w-1/4 focus-visible:ring-[--ring-color]"
                 />
-                <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white hover:bg-destructive">
+                <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground">
                     <Trash2 className="h-4 w-4" />
                 </Button>
             </div>
@@ -170,26 +178,45 @@ const RuleRow = ({ rule, onUpdate, onRemove, color }: { rule: Rule; onUpdate: (u
     );
 };
 
-interface CreditScoreEngineClientProps {
-    providers: LoanProvider[];
-    initialScoringParameters: ScoringParameter[];
-    initialHistory: ScoringHistoryItem[];
-}
-
-export function CreditScoreEngineClient({ providers, initialScoringParameters, initialHistory }: CreditScoreEngineClientProps) {
-    const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-    const [parameters, setParameters] = useState<ScoringParameter[]>(initialScoringParameters);
+function RulesTab({ 
+    parameters, 
+    setParameters, 
+    providers, 
+    selectedProviderId, 
+    initialHistory,
+    customParams
+}: {
+    parameters: ScoringParameter[],
+    setParameters: React.Dispatch<React.SetStateAction<ScoringParameter[]>>,
+    providers: LoanProvider[],
+    selectedProviderId: string,
+    initialHistory: ScoringHistoryItem[],
+    customParams: CustomParameterType[],
+}) {
     const [isLoading, setIsLoading] = useState(false);
     const [deletingParameterId, setDeletingParameterId] = useState<string | null>(null);
-    const { toast } = useToast();
     const [appliedProductIds, setAppliedProductIds] = useState<string[]>([]);
     const [history, setHistory] = useState<ScoringHistoryItem[]>(initialHistory);
+    const { toast } = useToast();
 
     useEffect(() => {
-        if (providers.length > 0 && !selectedProviderId) {
-            setSelectedProviderId(providers[0].id);
-        }
-    }, [providers, selectedProviderId]);
+        // When provider changes, fetch its history
+        const fetchProviderHistory = async () => {
+            if (!selectedProviderId) return;
+            setIsLoading(true);
+            try {
+                const historyResponse = await fetch(`/api/scoring-history?providerId=${selectedProviderId}`);
+                if (!historyResponse.ok) throw new Error('Failed to fetch history');
+                const historyData = await historyResponse.json();
+                setHistory(historyData.map((item: any) => ({ ...item, savedAt: new Date(item.savedAt) })));
+            } catch (error) {
+                toast({ title: "Error", description: "Could not fetch configuration history.", variant: "destructive" });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchProviderHistory();
+    }, [selectedProviderId, toast]);
 
     const currentParametersForProvider = useMemo(() => {
         return parameters.filter(p => p.providerId === selectedProviderId);
@@ -197,27 +224,16 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
 
     const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
     const themeColor = selectedProvider?.colorHex || '#fdb913';
-    
-    useEffect(() => {
-        // When provider changes, fetch its history
-        const fetchHistory = async () => {
-            if (!selectedProviderId) return;
-            try {
-                const response = await fetch(`/api/scoring-history?providerId=${selectedProviderId}`);
-                if (!response.ok) throw new Error('Failed to fetch history');
-                const data = await response.json();
-                setHistory(data.map((item: any) => ({ ...item, savedAt: new Date(item.savedAt) })));
-            } catch (error) {
-                toast({ title: "Error", description: "Could not fetch configuration history.", variant: "destructive" });
-            }
-        };
-        fetchHistory();
-    }, [selectedProviderId, toast]);
 
     const totalWeight = React.useMemo(() => {
         if (!currentParametersForProvider) return 0;
         return currentParametersForProvider.reduce((sum, param) => sum + param.weight, 0);
     }, [currentParametersForProvider]);
+
+    const allAvailableFields = useMemo(() => {
+        const customFields = customParams.map(p => ({ value: p.name, label: p.name }));
+        return [...AVAILABLE_FIELDS, ...customFields];
+    }, [customParams]);
 
     const handleSave = async () => {
         if (!selectedProviderId || !currentParametersForProvider) return;
@@ -277,7 +293,7 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
             const savedParameters = await paramsResponse.json();
             const newHistoryItem = await historyResponse.json();
             
-            setParameters(produce(parameters, draft => {
+            setParameters(produce(draft => {
                 const otherProviderParams = draft.filter(p => p.providerId !== selectedProviderId);
                 return [...otherProviderParams, ...savedParameters];
             }));
@@ -389,6 +405,335 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
             isChecked ? [...prev, productId] : prev.filter(id => id !== productId)
         );
     };
+    
+    return <>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium">Total Weight:</span>
+                    <span className={`text-lg font-bold ${totalWeight > 100 ? 'text-red-500' : ''}`}>
+                        {totalWeight}%
+                    </span>
+                </div>
+            </div>
+            <div className="flex items-center gap-4">
+                <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white" disabled={isLoading}>
+                    {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save Configuration
+                </Button>
+                <Button onClick={handleAddParameter} style={{ backgroundColor: themeColor }} className="text-white">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
+                </Button>
+            </div>
+        </div>
+        
+        {selectedProvider && (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Applied Products</CardTitle>
+                    <CardDescription>Select which products from {selectedProvider.name} this scoring model applies to.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {selectedProvider.products?.map((product: LoanProduct) => (
+                        <div key={product.id} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`product-${product.id}`}
+                                onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
+                                style={{'--primary': themeColor} as React.CSSProperties}
+                                className="border-[--primary] data-[state=checked]:bg-[--primary] data-[state=checked]:border-[--primary]"
+                            />
+                            <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
+        )}
+
+        <div className="space-y-4 mt-4">
+            {currentParametersForProvider.map((param) => (
+                <Card key={param.id}>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-4 w-full">
+                            <Input
+                                placeholder="Parameter Name"
+                                value={param.name}
+                                onChange={(e) => handleUpdateParameter(param.id, { name: e.target.value })}
+                                className="text-lg font-semibold w-1/3"
+                            />
+                            <div className="flex items-center gap-2">
+                                    <Label>Weight:</Label>
+                                    <Input
+                                    type="number"
+                                    placeholder="%"
+                                    value={param.weight}
+                                    onChange={(e) => handleUpdateParameter(param.id, { weight: parseInt(e.target.value) || 0 })}
+                                    className="w-20"
+                                />
+                            </div>
+                        </div>
+                            <AlertDialog open={deletingParameterId === param.id} onOpenChange={(isOpen) => !isOpen && setDeletingParameterId(null)}>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => setDeletingParameterId(param.id)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the &quot;{param.name}&quot; parameter and all of its rules.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleRemoveParameter(param.id)} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </CardHeader>
+                    <CardContent>
+                        <Accordion type="single" collapsible>
+                            <AccordionItem value="rules">
+                                <AccordionTrigger>Manage Rules</AccordionTrigger>
+                                <AccordionContent className="space-y-2">
+                                    <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+                                        <Label className="w-1/4">Field</Label>
+                                        <Label className="w-1/4">Condition</Label>
+                                        <Label className="w-1/4">Value</Label>
+                                        <Label className="w-1/4">Score</Label>
+                                    </div>
+                                    {param.rules.map((rule) => (
+                                        <RuleRow
+                                            key={rule.id}
+                                            rule={rule}
+                                            onUpdate={(updatedRule) => handleUpdateRule(param.id, rule.id, updatedRule)}
+                                            onRemove={() => handleRemoveRule(param.id, rule.id)}
+                                            availableFields={allAvailableFields}
+                                            color={themeColor}
+                                        />
+                                    ))}
+                                        <Button
+                                        variant="outline"
+                                        className="mt-2 w-full text-white"
+                                        onClick={() => handleAddRule(param.id)}
+                                        style={{ backgroundColor: themeColor }}
+                                        >
+                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
+                                    </Button>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+
+            <Card>
+            <CardHeader>
+                <CardTitle>Configuration History</CardTitle>
+                <CardDescription>
+                    Previously saved versions of this provider&apos;s scoring configuration.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+                {history.length > 0 ? (
+                    history.map((item) => (
+                        <Card key={item.id} className="flex items-center justify-between p-3 bg-muted/50">
+                            <div>
+                                <p className="font-medium">
+                                    Saved on: {format(new Date(item.savedAt), 'PPP p')}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                    Applied to: {item.appliedProducts.map(p => p.name).join(', ') || 'None'}
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleLoadHistory(item)}
+                            >
+                                <History className="mr-2 h-4 w-4" />
+                                Load
+                            </Button>
+                        </Card>
+                    ))
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                        No history found. Save the configuration to create a snapshot.
+                    </p>
+                )}
+            </CardContent>
+            </Card>
+
+            <ScorePreview parameters={currentParametersForProvider} availableFields={allAvailableFields} providerColor={themeColor} />
+    </>
+}
+
+function ParametersTab({ 
+    providers, 
+    selectedProviderId, 
+    customParams,
+    setCustomParams
+}: { 
+    providers: LoanProvider[], 
+    selectedProviderId: string,
+    customParams: CustomParameterType[],
+    setCustomParams: React.Dispatch<React.SetStateAction<CustomParameterType[]>>
+}) {
+    const [newParamName, setNewParamName] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+    
+    const themeColor = useMemo(() => {
+        if (!selectedProviderId) return '#fdb913';
+        return providers.find(p => p.id === selectedProviderId)?.colorHex || '#fdb913';
+    }, [selectedProviderId, providers]);
+
+    const handleAddParameter = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newParamName.trim() || !selectedProviderId) return;
+
+        try {
+            const response = await fetch('/api/settings/custom-parameters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newParamName, providerId: selectedProviderId }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to add parameter.');
+            }
+            const newParam = await response.json();
+            setCustomParams(prev => [...prev, newParam]);
+            setNewParamName('');
+            toast({ title: 'Success', description: 'Parameter added successfully.' });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    const handleDeleteParameter = async (paramId: string) => {
+        try {
+            const response = await fetch(`/api/settings/custom-parameters?id=${paramId}`, {
+                method: 'DELETE',
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete parameter.');
+            }
+            setCustomParams(prev => prev.filter(p => p.id !== paramId));
+            toast({ title: 'Success', description: 'Parameter deleted successfully.' });
+        } catch (error: any) {
+             toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Custom Scoring Parameters</CardTitle>
+                <CardDescription>
+                    Define custom data fields that can be used in the Scoring Engine. These are provider-specific.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <form onSubmit={handleAddParameter} className="flex items-end gap-2">
+                    <div className="flex-grow">
+                        <Label htmlFor="new-param-name">New Parameter Name</Label>
+                        <Input 
+                            id="new-param-name"
+                            value={newParamName}
+                            onChange={(e) => setNewParamName(e.target.value)}
+                            placeholder="e.g., Number of Dependents"
+                        />
+                    </div>
+                    <Button type="submit" style={{backgroundColor: themeColor}} className="text-white">
+                        <PlusCircle className="h-4 w-4 mr-2" /> Add
+                    </Button>
+                </form>
+
+                <div className="border rounded-md">
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Parameter Name</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-center">
+                                        <Loader className="h-6 w-6 animate-spin mx-auto" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : customParams.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                        No custom parameters defined for this provider.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                customParams.map(param => (
+                                    <TableRow key={param.id}>
+                                        <TableCell className="font-medium">{param.name}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => handleDeleteParameter(param.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+interface CreditScoreEngineClientProps {
+    providers: LoanProvider[];
+    initialScoringParameters: ScoringParameter[];
+    initialHistory: ScoringHistoryItem[];
+}
+
+export function CreditScoreEngineClient({ providers, initialScoringParameters, initialHistory }: CreditScoreEngineClientProps) {
+    const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+    const [parameters, setParameters] = useState<ScoringParameter[]>(initialScoringParameters);
+    const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (providers.length > 0 && !selectedProviderId) {
+            setSelectedProviderId(providers[0].id);
+        }
+    }, [providers, selectedProviderId]);
+    
+    useEffect(() => {
+        const fetchProviderData = async () => {
+            if (!selectedProviderId) return;
+            setIsLoading(true);
+            try {
+                const customParamsResponse = await fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`);
+                if (!customParamsResponse.ok) throw new Error('Failed to fetch custom parameters');
+                const customParamsData = await customParamsResponse.json();
+                setCustomParams(customParamsData);
+
+            } catch (error) {
+                toast({ title: "Error", description: "Could not fetch configuration data.", variant: "destructive" });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchProviderData();
+    }, [selectedProviderId, toast]);
 
     if (providers.length === 0) {
         return (
@@ -421,164 +766,33 @@ export function CreditScoreEngineClient({ providers, initialScoringParameters, i
                             ))}
                         </SelectContent>
                     </Select>
-                    <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium">Total Weight:</span>
-                        <span className={`text-lg font-bold ${totalWeight > 100 ? 'text-red-500' : ''}`}>
-                            {totalWeight}%
-                        </span>
-                    </div>
-                    <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white" disabled={isLoading}>
-                        {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Configuration
-                    </Button>
-                    <Button onClick={handleAddParameter} style={{ backgroundColor: themeColor }} className="text-white">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
-                    </Button>
                 </div>
             </div>
 
-            {selectedProvider && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Applied Products</CardTitle>
-                        <CardDescription>Select which products from {selectedProvider.name} this scoring model applies to.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {selectedProvider.products.map((product: LoanProduct) => (
-                            <div key={product.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                    id={`product-${product.id}`}
-                                    onCheckedChange={(checked) => handleProductSelectionChange(product.id, !!checked)}
-                                    style={{'--primary': themeColor} as React.CSSProperties}
-                                    className="border-[--primary] data-[state=checked]:bg-[--primary] data-[state=checked]:border-[--primary]"
-                                />
-                                <Label htmlFor={`product-${product.id}`} className="font-normal">{product.name}</Label>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
-
-            <div className="space-y-4 mt-4">
-                {currentParametersForProvider.map((param) => (
-                    <Card key={param.id}>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div className="flex items-center gap-4 w-full">
-                                <Input
-                                    placeholder="Parameter Name"
-                                    value={param.name}
-                                    onChange={(e) => handleUpdateParameter(param.id, { name: e.target.value })}
-                                    className="text-lg font-semibold w-1/3"
-                                />
-                                <div className="flex items-center gap-2">
-                                     <Label>Weight:</Label>
-                                     <Input
-                                        type="number"
-                                        placeholder="%"
-                                        value={param.weight}
-                                        onChange={(e) => handleUpdateParameter(param.id, { weight: parseInt(e.target.value) || 0 })}
-                                        className="w-20"
-                                    />
-                                </div>
-                            </div>
-                             <AlertDialog open={deletingParameterId === param.id} onOpenChange={(isOpen) => !isOpen && setDeletingParameterId(null)}>
-                                <AlertDialogTrigger asChild>
-                                    <Button
-                                        variant="destructive"
-                                        size="icon"
-                                        onClick={() => setDeletingParameterId(param.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete the &quot;{param.name}&quot; parameter and all of its rules.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleRemoveParameter(param.id)} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </CardHeader>
-                        <CardContent>
-                            <Accordion type="single" collapsible>
-                                <AccordionItem value="rules">
-                                    <AccordionTrigger>Manage Rules</AccordionTrigger>
-                                    <AccordionContent className="space-y-2">
-                                        <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
-                                            <Label className="w-1/4">Field</Label>
-                                            <Label className="w-1/4">Condition</Label>
-                                            <Label className="w-1/4">Value</Label>
-                                            <Label className="w-1/4">Score</Label>
-                                        </div>
-                                        {param.rules.map((rule) => (
-                                           <RuleRow
-                                                key={rule.id}
-                                                rule={rule}
-                                                onUpdate={(updatedRule) => handleUpdateRule(param.id, rule.id, updatedRule)}
-                                                onRemove={() => handleRemoveRule(param.id, rule.id)}
-                                                color={themeColor}
-                                           />
-                                        ))}
-                                         <Button
-                                            variant="outline"
-                                            className="mt-2 w-full text-white"
-                                            onClick={() => handleAddRule(param.id)}
-                                            style={{ backgroundColor: themeColor }}
-                                         >
-                                            <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
-                                        </Button>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            </Accordion>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
-             <Card>
-                <CardHeader>
-                    <CardTitle>Configuration History</CardTitle>
-                    <CardDescription>
-                        Previously saved versions of this provider&apos;s scoring configuration.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    {history.length > 0 ? (
-                        history.map((item) => (
-                            <Card key={item.id} className="flex items-center justify-between p-3 bg-muted/50">
-                                <div>
-                                    <p className="font-medium">
-                                        Saved on: {format(new Date(item.savedAt), 'PPP p')}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Applied to: {item.appliedProducts.map(p => p.name).join(', ') || 'None'}
-                                    </p>
-                                </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleLoadHistory(item)}
-                                >
-                                    <History className="mr-2 h-4 w-4" />
-                                    Load
-                                </Button>
-                            </Card>
-                        ))
-                    ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                            No history found. Save the configuration to create a snapshot.
-                        </p>
-                    )}
-                </CardContent>
-             </Card>
-
-             <ScorePreview parameters={currentParametersForProvider} providerColor={themeColor} />
+            <Tabs defaultValue="rules" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="rules">Rules</TabsTrigger>
+                    <TabsTrigger value="parameters">Custom Parameters</TabsTrigger>
+                </TabsList>
+                <TabsContent value="rules" className="space-y-4">
+                    <RulesTab 
+                        parameters={parameters}
+                        setParameters={setParameters}
+                        providers={providers}
+                        selectedProviderId={selectedProviderId}
+                        initialHistory={initialHistory}
+                        customParams={customParams}
+                    />
+                </TabsContent>
+                <TabsContent value="parameters">
+                    <ParametersTab 
+                        providers={providers}
+                        selectedProviderId={selectedProviderId}
+                        customParams={customParams}
+                        setCustomParams={setCustomParams}
+                    />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

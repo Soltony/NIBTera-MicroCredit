@@ -1,26 +1,14 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import { AppDataSource } from '@/data-source';
-import { LoanProvider as LoanProviderEntity } from '@/entities/LoanProvider';
-import { LoanDetails as LoanDetailsEntity } from '@/entities/LoanDetails';
-import type { LoanDetails, LoanProvider } from '@/lib/types';
-import type { DataSource } from 'typeorm';
-
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
+import { getConnectedDataSource } from '@/data-source';
+import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
+import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 
 async function getProviders(): Promise<LoanProvider[]> {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProviderEntity);
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
             order: {
@@ -45,24 +33,22 @@ async function getProviders(): Promise<LoanProvider[]> {
                 icon: prod.icon,
                 minLoan: prod.minLoan,
                 maxLoan: prod.maxLoan,
-                serviceFee: prod.serviceFee,
-                dailyFee: prod.dailyFee,
-                penaltyRules: prod.penaltyRules,
+                serviceFee: JSON.parse(prod.serviceFee),
+                dailyFee: JSON.parse(prod.dailyFee),
+                penaltyRules: JSON.parse(prod.penaltyRules),
                 status: prod.status as 'Active' | 'Disabled',
             }))
         })) as LoanProvider[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository(LoanDetailsEntity);
+        const dataSource = await getConnectedDataSource();
+        const loanRepo = dataSource.getRepository('LoanDetails');
         const loans = await loanRepo.find({
             relations: ['provider', 'product', 'payments'],
             order: {
@@ -79,21 +65,29 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
             providerName: loan.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
-            serviceFeeAmount: loan.serviceFeeAmount,
+            serviceFee: loan.serviceFee,
             disbursedDate: loan.disbursedDate,
             dueDate: loan.dueDate,
             repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
             repaidAmount: loan.repaidAmount || 0,
+            penaltyAmount: loan.penaltyAmount,
+            product: {
+              ...loan.product,
+              id: String(loan.product.id),
+              serviceFee: JSON.parse(loan.product.serviceFee),
+              dailyFee: JSON.parse(loan.product.dailyFee),
+              penaltyRules: JSON.parse(loan.product.penaltyRules),
+            },
             payments: loan.payments.map(p => ({
+                id: String(p.id),
                 amount: p.amount,
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
             }))
         })) as LoanDetails[];
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 
@@ -102,5 +96,13 @@ export default async function DashboardPage() {
     const providers = await getProviders();
     const loanHistory = await getLoanHistory();
     
-    return <DashboardClient providers={providers} initialLoanHistory={loanHistory} />;
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        }>
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} />
+        </Suspense>
+    );
 }

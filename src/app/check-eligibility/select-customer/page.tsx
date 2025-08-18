@@ -1,22 +1,12 @@
 
 import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-client';
-import { AppDataSource } from '@/data-source';
-import { Customer } from '@/entities/Customer';
-import type { DataSource } from 'typeorm';
-
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+import { getConnectedDataSource } from '@/data-source';
+import type { Customer } from '@/entities/Customer';
 
 async function getCustomers() {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
-        const customerRepo = dataSource.getRepository(Customer);
+        const dataSource = await getConnectedDataSource();
+        const customerRepo = dataSource.getRepository('Customer');
         const customers = await customerRepo.find();
         
         // Map to plain objects
@@ -29,10 +19,9 @@ async function getCustomers() {
             loanHistory: JSON.parse(c.loanHistory),
             transactionHistory: JSON.parse(c.transactionHistory),
         }));
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-           // await dataSource.destroy();
-        }
+    } catch(e) {
+        console.error(e);
+        return [];
     }
 }
 

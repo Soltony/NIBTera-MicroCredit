@@ -1,25 +1,16 @@
 
 import { NextResponse } from 'next/server';
-import { AppDataSource } from '@/data-source';
+import { getConnectedDataSource } from '@/data-source';
 import { LoanProduct } from '@/entities/LoanProduct';
 import { LoanDetails } from '@/entities/LoanDetails';
 import { createProductSchema, updateProductSchema } from '@/lib/schemas';
 import type { DataSource } from 'typeorm';
 import { z } from 'zod';
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
-
 // POST a new product
 export async function POST(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
@@ -38,6 +29,11 @@ export async function POST(req: Request) {
             serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
             dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
             penaltyRules: '[]',
+            serviceFeeEnabled: false,
+            dailyFeeEnabled: false,
+            penaltyRulesEnabled: false,
+            dataProvisioningEnabled: false,
+            dataProvisioningType: undefined,
         });
         await productRepo.save(newProduct);
         
@@ -53,18 +49,13 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error creating product:', error);
         return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
-    } finally {
-         if (dataSource && !dataSource.isDestroyed) {
-           await dataSource.destroy();
-        }
     }
 }
 
 // PUT (update) a product
 export async function PUT(req: Request) {
-    let dataSource: DataSource | null = null;
      try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
@@ -87,6 +78,11 @@ export async function PUT(req: Request) {
             (updateData as any).penaltyRules = JSON.stringify(updateData.penaltyRules);
         }
 
+        // Handle the case where data provisioning is disabled
+        if (updateData.dataProvisioningEnabled === false) {
+            (updateData as any).dataProvisioningType = null;
+        }
+
         await productRepo.update(id, updateData as any);
         const updatedProduct = await productRepo.findOneBy({ id: Number(id) });
         
@@ -107,42 +103,30 @@ export async function PUT(req: Request) {
     } catch (error) {
         console.error('Error updating product:', error);
         return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
-    } finally {
-        if (dataSource && !dataSource.isDestroyed) {
-           await dataSource.destroy();
-        }
     }
 }
 
 // DELETE a product
 export async function DELETE(req: Request) {
-    let dataSource: DataSource | null = null;
     try {
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         const productRepo = dataSource.getRepository(LoanProduct);
-        const loanRepo = dataSource.getRepository(LoanDetails);
-
         const { id } = await req.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
         }
 
-        // Check for associated loans
-        const loanCount = await loanRepo.count({ where: { productId: Number(id) } });
-        if (loanCount > 0) {
-            return NextResponse.json({ error: `Cannot delete product. It has ${loanCount} associated loan(s).` }, { status: 400 });
-        }
-
+        // Let the database foreign key constraint handle the check for associated loans.
         await productRepo.delete(id);
 
         return NextResponse.json({ message: 'Product deleted successfully' }, { status: 200 });
-    } catch (error) {
+    } catch (error: any) {
+        // ORA-02292 is the Oracle error code for an integrity constraint violation (foreign key).
+        if (error.code === 'ORA-02292' || (error.message && error.message.includes('ORA-02292'))) {
+             return NextResponse.json({ error: 'Cannot delete product. It has associated loans.' }, { status: 400 });
+        }
         console.error('Error deleting product:', error);
         return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
-    } finally {
-        if (dataSource && !dataSource.isDestroyed) {
-            await dataSource.destroy();
-        }
     }
 }

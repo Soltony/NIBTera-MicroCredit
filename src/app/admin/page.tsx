@@ -2,33 +2,22 @@
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import { getUserFromSession } from '@/lib/user';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
-import { AppDataSource } from '@/data-source';
-import { LoanDetails } from '@/entities/LoanDetails';
-import { User } from '@/entities/User';
-import { LoanProduct } from '@/entities/LoanProduct';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { MoreThanOrEqual, LessThan, LessThanOrEqual, MoreThan, FindOptionsWhere, In, DataSource } from 'typeorm';
+import { getConnectedDataSource } from '@/data-source';
+import { MoreThanOrEqual, LessThan, FindOptionsWhere } from 'typeorm';
 
-async function getConnectedDataSource(): Promise<DataSource> {
-    if (AppDataSource.isInitialized) {
-        return AppDataSource;
-    } else {
-        return await AppDataSource.initialize();
-    }
-}
+export const dynamic = 'force-dynamic';
 
 async function getDashboardData() {
-    let dataSource: DataSource | null = null;
     try {
         const currentUser = await getUserFromSession();
-        dataSource = await getConnectedDataSource();
+        const dataSource = await getConnectedDataSource();
         
-        const loanRepo = dataSource.getRepository(LoanDetails);
-        const userRepo = dataSource.getRepository(User);
-        const productRepo = dataSource.getRepository(LoanProduct);
-        const providerRepo = dataSource.getRepository(LoanProvider);
+        const loanRepo = dataSource.getRepository('LoanDetails');
+        const userRepo = dataSource.getRepository('User');
+        const productRepo = dataSource.getRepository('LoanProduct');
+        const providerRepo = dataSource.getRepository('LoanProvider');
         
-        const whereClause: FindOptionsWhere<LoanDetails> = {};
+        const whereClause: FindOptionsWhere<any> = {};
         if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
             whereClause.providerId = Number(currentUser.providerId);
         }
@@ -59,7 +48,7 @@ async function getDashboardData() {
             (loan) => loan.repaymentStatus === 'Unpaid' && new Date() > new Date(loan.dueDate)
         ).length;
 
-        const userWhere: FindOptionsWhere<User> = {};
+        const userWhere: FindOptionsWhere<any> = {};
         if (whereClause.providerId) {
             userWhere.providerId = whereClause.providerId;
         }
@@ -97,43 +86,25 @@ async function getDashboardData() {
         ];
 
         // Loan Products Overview
-        const productStats = await productRepo.createQueryBuilder("product")
-            .leftJoin("product.loans", "loan")
-            .select("product.name", "name")
-            .addSelect("product.providerId", "providerId")
-            .addSelect("COUNT(loan.id)", "total")
-            .groupBy("product.name")
-            .addGroupBy("product.providerId")
-            .where(whereClause.providerId ? `product.providerId = ${whereClause.providerId}`: '1=1')
-            .getRawMany();
+        const productWhereClause: any = {};
+        if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
+             productWhereClause.providerId = Number(currentUser.providerId);
+        }
+        
+        const products = await productRepo.find({ where: productWhereClause, relations: ['loans', 'provider']});
 
-
-        const productsWithDetails = await Promise.all(productStats.map(async (p) => {
-            const provider = await providerRepo.findOne({ where: { id: p.providerId } });
-            const activeLoans = await loanRepo.count({
-                where: {
-                    providerId: whereClause.providerId,
-                    product: { name: p.name },
-                    repaymentStatus: 'Unpaid',
-                }
-            });
-            const defaultedLoans = await loanRepo.count({
-                where: {
-                    providerId: whereClause.providerId,
-                    product: { name: p.name },
-                    repaymentStatus: 'Unpaid',
-                    dueDate: LessThan(new Date())
-                }
-            });
-            return {
+        const productsWithDetails = products.map(p => {
+             const activeLoans = p.loans.filter(l => l.repaymentStatus === 'Unpaid').length;
+             const defaultedLoans = p.loans.filter(l => l.repaymentStatus === 'Unpaid' && new Date() > new Date(l.dueDate)).length;
+             return {
                 name: p.name,
-                provider: provider?.name || 'N/A',
+                provider: p.provider?.name || 'N/A',
                 active: activeLoans,
                 defaulted: defaultedLoans,
-                total: p.total,
-                defaultRate: p.total > 0 ? (defaultedLoans / p.total) * 100 : 0
+                total: p.loans.length,
+                defaultRate: p.loans.length > 0 ? (defaultedLoans / p.loans.length) * 100 : 0
             };
-        }));
+        });
 
         const providers = await providerRepo.find();
 
@@ -156,9 +127,21 @@ async function getDashboardData() {
             productOverview: productsWithDetails,
             providers: providers.map(p => ({...p, id: String(p.id)})),
         };
-    } finally {
-        if (dataSource && AppDataSource.options.type !== 'oracle') {
-            // await dataSource.destroy();
+    } catch(e) {
+        console.error(e);
+        // Return a default/empty state to prevent the page from crashing
+        return {
+            totalLoans: 0,
+            totalDisbursed: 0,
+            totalPaid: 0,
+            repaymentRate: 0,
+            atRiskLoans: 0,
+            totalUsers: 0,
+            loanDisbursementData: [],
+            loanStatusData: [],
+            recentActivity: [],
+            productOverview: [],
+            providers: [],
         }
     }
 }
