@@ -113,7 +113,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md">
             <div className="flex items-center gap-2">
                 <Select value={rule.field} onValueChange={(value) => onUpdate({ ...rule, field: value })}>
-                    <SelectTrigger className={cn("w-1/4", !rule.field.trim() && 'border-destructive')}>
+                    <SelectTrigger className={cn("w-1/4", !rule.field.trim() && 'border-destructive')} style={{borderColor: color}}>
                         <SelectValue placeholder="Select Field" />
                     </SelectTrigger>
                     <SelectContent>
@@ -123,7 +123,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     </SelectContent>
                 </Select>
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                    <SelectTrigger className="w-1/4">
+                    <SelectTrigger className="w-1/4" style={{borderColor: color}}>
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -144,6 +144,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                             value={min}
                             onChange={handleRangeChange('min')}
                             className={cn((!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                             style={{borderColor: color}}
                         />
                         <span>-</span>
                         <Input
@@ -151,6 +152,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                             value={max}
                             onChange={handleRangeChange('max')}
                             className={cn((!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                             style={{borderColor: color}}
                         />
                     </div>
                 ) : (
@@ -159,6 +161,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                         value={rule.value || ''}
                         onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
                         className={cn("w-1/4", !rule.value.trim() && 'border-destructive')}
+                         style={{borderColor: color}}
                     />
                 )}
                 
@@ -168,6 +171,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
                     className="w-1/4"
+                    style={{borderColor: color}}
                 />
                 <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white hover:bg-destructive">
                     <Trash2 className="h-4 w-4" />
@@ -293,7 +297,7 @@ function RulesTab({
             const savedParameters = await paramsResponse.json();
             const newHistoryItem = await historyResponse.json();
             
-            setParameters(produce(parameters, draft => {
+            setParameters(produce(draft => {
                 const otherProviderParams = draft.filter(p => p.providerId !== selectedProviderId);
                 return [...otherProviderParams, ...savedParameters];
             }));
