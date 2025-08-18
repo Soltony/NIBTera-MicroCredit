@@ -62,6 +62,12 @@ export class LoanProduct {
   @IsBoolean()
   penaltyRulesEnabled!: boolean;
 
+  @Column({ type: 'number', precision: 1, scale: 0, name: 'data_provisioning_enabled', default: 0 })
+  dataProvisioningEnabled?: boolean;
+
+  @Column({ type: 'varchar2', length: 50, name: 'data_provisioning_type', nullable: true })
+  dataProvisioningType?: 'employeeData' | 'transactionHistory';
+
   @Column({ name: 'provider_id' })
   providerId!: number;
 
