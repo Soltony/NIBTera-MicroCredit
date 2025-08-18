@@ -10,7 +10,7 @@ import {
   Unique,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
-import { LoanProvider } from './LoanProvider';
+import type { LoanProvider } from './LoanProvider';
 
 
 @Entity({ name: 'custom_parameters' })
@@ -27,7 +27,7 @@ export class CustomParameter {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne(() => LoanProvider, (provider: LoanProvider) => provider.customParameters)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.customParameters)
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 

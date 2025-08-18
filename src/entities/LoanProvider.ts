@@ -8,12 +8,12 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, Length } from 'class-validator';
-import { User } from './User';
-import { LoanProduct } from './LoanProduct';
-import { LoanDetails } from './LoanDetails';
-import { ScoringParameter } from './ScoringParameter';
-import { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
-import { CustomParameter } from './CustomParameter';
+import type { User } from './User';
+import type { LoanProduct } from './LoanProduct';
+import type { LoanDetails } from './LoanDetails';
+import type { ScoringParameter } from './ScoringParameter';
+import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
+import type { CustomParameter } from './CustomParameter';
 
 
 @Entity({ name: 'loan_providers' })
@@ -35,25 +35,25 @@ export class LoanProvider {
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
 
-  @OneToMany(() => User, (user: User) => user.provider)
+  @OneToMany('User', (user: User) => user.provider)
   users!: User[];
 
-  @OneToMany(() => LoanProduct, (product: LoanProduct) => product.provider)
+  @OneToMany('LoanProduct', (product: LoanProduct) => product.provider)
   products!: LoanProduct[];
 
-  @OneToMany(() => LoanDetails, (loan: LoanDetails) => loan.provider)
+  @OneToMany('LoanDetails', (loan: LoanDetails) => loan.provider)
   loans!: LoanDetails[];
 
-  @OneToMany(() => ScoringParameter, (parameter: ScoringParameter) => parameter.provider)
+  @OneToMany('ScoringParameter', (parameter: ScoringParameter) => parameter.provider)
   scoringParameters!: ScoringParameter[];
 
   @OneToMany(
-    () => ScoringConfigurationHistory,
+    'ScoringConfigurationHistory',
     (history: ScoringConfigurationHistory) => history.provider
   )
   scoringConfigurationHistory!: ScoringConfigurationHistory[];
   
-  @OneToMany(() => CustomParameter, (parameter: CustomParameter) => parameter.provider)
+  @OneToMany('CustomParameter', (parameter: CustomParameter) => parameter.provider)
   customParameters!: CustomParameter[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
