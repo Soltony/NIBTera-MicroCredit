@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { X, Delete } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable } from '@/lib/utils';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -28,7 +28,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
 
     const totalAmountToRepay = useMemo(() => {
         if (!loan.product) return 0;
-        return calculateTotalRepayable(loan, loan.product);
+        return calculateTotalRepayable(loan, loan.product, new Date());
     }, [loan]);
 
     const balanceDue = useMemo(() => {

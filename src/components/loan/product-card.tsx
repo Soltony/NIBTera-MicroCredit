@@ -8,7 +8,7 @@ import type { LoanProduct, LoanDetails, FeeRule } from '@/lib/types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable } from '@/lib/utils';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -95,7 +95,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
                             <div>
-                                <p className="text-lg font-semibold">{formatCurrency(activeLoan.serviceFeeAmount)}</p>
+                                <p className="text-lg font-semibold">{formatCurrency(activeLoan.serviceFee)}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
                              <div>

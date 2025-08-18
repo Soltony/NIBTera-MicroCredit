@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable } from '@/lib/utils';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
@@ -57,7 +57,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     const dueDate = addDays(disbursedDate, 30);
     
     let serviceFee = 0;
-    if (product.serviceFee && product.serviceFee.value) {
+    if (product.serviceFeeEnabled && product.serviceFee && product.serviceFee.value) {
         const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : product.serviceFee.value;
         serviceFee = product.serviceFee.type === 'fixed' 
             ? feeValue
@@ -197,14 +197,14 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
                     <div className="font-medium">Service Fee</div>
-                    <div className="text-right">{formatFee(product.serviceFee)}</div>
+                    <div className="text-right">{formatFee(product.serviceFeeEnabled ? product.serviceFee : undefined)}</div>
                     
                     <div className="font-medium">Daily Fee</div>
-                    <div className="text-right">{formatFee(product.dailyFee)}</div>
+                    <div className="text-right">{formatFee(product.dailyFeeEnabled ? product.dailyFee : undefined)}</div>
                     
                     <div className="font-medium text-destructive">Penalty Rules</div>
                     <div className="text-right text-destructive">
-                        {product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
+                        {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
                     </div>
                 </div>
 
