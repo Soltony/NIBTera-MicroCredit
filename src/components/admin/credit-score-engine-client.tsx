@@ -110,10 +110,10 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
     const error = validateRule(rule);
     
     return (
-        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md">
+        <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
                 <Select value={rule.field} onValueChange={(value) => onUpdate({ ...rule, field: value })}>
-                    <SelectTrigger className={cn("w-1/4", !rule.field.trim() && 'border-destructive')} style={{borderColor: color}}>
+                    <SelectTrigger className={cn("w-1/4 focus:ring-[--ring-color]", !rule.field.trim() && 'border-destructive')}>
                         <SelectValue placeholder="Select Field" />
                     </SelectTrigger>
                     <SelectContent>
@@ -123,7 +123,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     </SelectContent>
                 </Select>
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                    <SelectTrigger className="w-1/4" style={{borderColor: color}}>
+                    <SelectTrigger className="w-1/4 focus:ring-[--ring-color]">
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -143,16 +143,14 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                             placeholder="Min"
                             value={min}
                             onChange={handleRangeChange('min')}
-                            className={cn((!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
-                             style={{borderColor: color}}
+                            className={cn("focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                         <span>-</span>
                         <Input
                             placeholder="Max"
                             value={max}
                             onChange={handleRangeChange('max')}
-                            className={cn((!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
-                             style={{borderColor: color}}
+                            className={cn("focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                     </div>
                 ) : (
@@ -160,8 +158,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                         placeholder="e.g., 30"
                         value={rule.value || ''}
                         onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                        className={cn("w-1/4", !rule.value.trim() && 'border-destructive')}
-                         style={{borderColor: color}}
+                        className={cn("w-1/4 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
                     />
                 )}
                 
@@ -170,10 +167,9 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     placeholder="Score"
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
-                    className="w-1/4"
-                    style={{borderColor: color}}
+                    className="w-1/4 focus-visible:ring-[--ring-color]"
                 />
-                <Button variant="ghost" size="icon" onClick={onRemove} style={{ color: color }} className="hover:text-white hover:bg-destructive">
+                <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground">
                     <Trash2 className="h-4 w-4" />
                 </Button>
             </div>
