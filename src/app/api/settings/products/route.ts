@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         
         const { providerId, ...productData } = validation.data;
 
-        const newProduct = productRepo.create({
+        const newProductEntity = productRepo.create({
             ...productData,
             providerId: Number(providerId),
             status: 'Active',
@@ -35,14 +35,15 @@ export async function POST(req: Request) {
             dataProvisioningEnabled: false,
             dataProvisioningConfigId: null,
         });
-        await productRepo.save(newProduct);
+        const savedProduct = await productRepo.save(newProductEntity);
         
-        // Parse JSON for the response object
+        // The savedProduct object already has the JSON fields parsed by TypeORM if it's a new entity.
+        // If they are strings (which they will be from the create call), parse them.
         const responseProduct = {
-            ...newProduct,
-            serviceFee: JSON.parse(newProduct.serviceFee),
-            dailyFee: JSON.parse(newProduct.dailyFee),
-            penaltyRules: JSON.parse(newProduct.penaltyRules)
+            ...savedProduct,
+            serviceFee: typeof savedProduct.serviceFee === 'string' ? JSON.parse(savedProduct.serviceFee) : savedProduct.serviceFee,
+            dailyFee: typeof savedProduct.dailyFee === 'string' ? JSON.parse(savedProduct.dailyFee) : savedProduct.dailyFee,
+            penaltyRules: typeof savedProduct.penaltyRules === 'string' ? JSON.parse(savedProduct.penaltyRules) : savedProduct.penaltyRules,
         };
 
         return NextResponse.json(responseProduct, { status: 201 });
