@@ -4,6 +4,7 @@
 import React from 'react';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -209,9 +210,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
               </h1>
             </div>
              <div className="ml-auto">
-                <Button variant="ghost" onClick={() => router.push(`/history?${searchParams.toString()}`)} className="text-primary-foreground hover:bg-white/20 hover:text-primary-foreground">
-                    <History className="mr-2 h-4 w-4" /> View Full History
-                </Button>
              </div>
           </div>
         </header>
@@ -259,6 +257,14 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     />
                   )}
               
+                  <Link
+                    href={`/history?${searchParams.toString()}`}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors -my-4"
+                  >
+                    <span className="font-semibold text-foreground">Loan History</span>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </Link>
+                  
                   <div className="grid gap-8 grid-cols-1">
                       <div className="md:col-span-2">
                         {selectedProvider && (
