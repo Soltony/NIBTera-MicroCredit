@@ -8,10 +8,20 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import type { User } from '@/lib/types';
+import type { UserRole, UserStatus } from '@/lib/types';
+
 
 // Define a user type that matches the structure returned by getUserFromSession
-export type AuthenticatedUser = User | null;
+export type AuthenticatedUser = {
+    id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    role: UserRole;
+    status: UserStatus;
+    providerId?: string | null;
+    providerName?: string;
+} | null;
 
 interface AuthContextType {
   currentUser: AuthenticatedUser | null;
