@@ -15,6 +15,7 @@ function EligibilityCheck() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId');
+  const providerId = searchParams.get('providerId');
   const productId = searchParams.get('productId'); // Get the product ID from URL
 
   const [isLoading, setIsLoading] = useState(true);
@@ -39,10 +40,9 @@ function EligibilityCheck() {
 
   useEffect(() => {
     const performCheck = async () => {
-      if (providers.length === 0 || !customerId || !productId) return;
+      if (providers.length === 0 || !customerId || !productId || !providerId) return;
 
-      const providerIdFromUrl = searchParams.get('providerId');
-      const targetProvider = providers.find(p => p.id === providerIdFromUrl);
+      const targetProvider = providers.find(p => p.id === providerId);
 
       if (!targetProvider) {
         setError("Could not find the specified loan provider.");
@@ -51,15 +51,15 @@ function EligibilityCheck() {
       }
       
       setCheckingProvider(targetProvider);
-      const providerId = Number(targetProvider.id);
+      const numericProviderId = Number(targetProvider.id);
 
       setIsLoading(true);
       setError(null);
       
-      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId, Number(productId));
+      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), numericProviderId, Number(productId));
 
       const params = new URLSearchParams();
-      params.set('providerId', String(providerId));
+      params.set('providerId', String(numericProviderId));
       params.set('customerId', customerId);
 
       if (isEligible) {
@@ -71,10 +71,10 @@ function EligibilityCheck() {
       router.push(`/loan?${params.toString()}`);
     };
 
-    if(providers.length > 0 && customerId && productId) {
+    if(providers.length > 0 && customerId && productId && providerId) {
         performCheck();
     }
-  }, [providers, router, customerId, productId, searchParams]);
+  }, [providers, router, customerId, productId, searchParams, providerId]);
 
 
   return (

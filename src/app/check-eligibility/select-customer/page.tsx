@@ -1,6 +1,7 @@
 
 import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-client';
 import { getConnectedDataSource } from '@/data-source';
+import { LoanProvider } from '@/entities/LoanProvider';
 import type { Customer } from '@/entities/Customer';
 
 async function getCustomers() {
@@ -25,8 +26,35 @@ async function getCustomers() {
     }
 }
 
+async function getProviders() {
+    try {
+        const dataSource = await getConnectedDataSource();
+        const providerRepo = dataSource.getRepository(LoanProvider);
+        const providers = await providerRepo.find({
+            relations: ['products'],
+            order: {
+                displayOrder: 'ASC'
+            }
+        });
+        
+        // Map the icon string to a name that can be looked up on the client
+        return providers.map(p => ({
+            ...p,
+            id: String(p.id),
+            products: p.products.map(prod => ({
+                ...prod,
+                id: String(prod.id),
+            }))
+        }));
+    } catch(e) {
+        console.error(e);
+        return [];
+    }
+}
+
 export default async function SelectCustomerPage() {
     const customers = await getCustomers();
+    const providers = await getProviders();
     
-    return <EligibilityCheckerClient customers={customers as any[]} />;
+    return <EligibilityCheckerClient customers={customers as any[]} providers={providers as any[]} />;
 }

@@ -22,6 +22,8 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Logo } from '../icons';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import type { LoanProvider } from '@/lib/types';
 
 interface CustomerData {
   id: string;
@@ -34,6 +36,7 @@ interface CustomerData {
 
 interface EligibilityCheckerClientProps {
   customers: CustomerData[];
+  providers: LoanProvider[];
 }
 
 const formatCurrency = (amount: number) => {
@@ -41,15 +44,24 @@ const formatCurrency = (amount: number) => {
 };
 
 
-export function EligibilityCheckerClient({ customers }: EligibilityCheckerClientProps) {
+export function EligibilityCheckerClient({ customers, providers }: EligibilityCheckerClientProps) {
   const router = useRouter();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(providers[0]?.id || null);
   
   const handleCheckEligibility = () => {
-    if (selectedCustomerId) {
-      router.push(`/check-eligibility?customerId=${selectedCustomerId}`);
+    if (selectedCustomerId && selectedProviderId) {
+        const provider = providers.find(p => p.id === selectedProviderId);
+        if (provider && provider.products.length > 0) {
+            // For simplicity, we just use the first product of the provider.
+            // In a real app, you might let the user choose a product first.
+            const productId = provider.products[0].id;
+            router.push(`/check-eligibility?customerId=${selectedCustomerId}&providerId=${selectedProviderId}&productId=${productId}`);
+        } else {
+            alert('This provider has no products available to check eligibility for.');
+        }
     } else {
-      alert('Please select a customer first.');
+      alert('Please select a customer and a provider first.');
     }
   };
 
@@ -69,12 +81,25 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
             <div className="container max-w-4xl">
                  <Card>
                     <CardHeader>
-                        <CardTitle>Select a Customer Profile</CardTitle>
+                        <CardTitle>Select a Customer Profile and Provider</CardTitle>
                         <CardDescription>
-                            Choose one of the mock customer profiles below to check their loan eligibility.
+                            Choose one of the mock customer profiles and a provider to check their loan eligibility.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
+                        <div className='mb-6'>
+                            <Label>Select Provider</Label>
+                            <Select value={selectedProviderId || ''} onValueChange={setSelectedProviderId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a provider" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {providers.map(provider => (
+                                        <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
                              <Table>
                                 <TableHeader>
@@ -112,12 +137,12 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
                 <div className="flex justify-end mt-6">
                     <Button 
                         onClick={handleCheckEligibility}
-                        disabled={!selectedCustomerId}
+                        disabled={!selectedCustomerId || !selectedProviderId}
                         size="lg"
                         style={{ backgroundColor: nibBankColor }}
                         className="text-white"
                     >
-                        Check Eligibility for Selected Customer
+                        Check Eligibility
                     </Button>
                 </div>
             </div>
