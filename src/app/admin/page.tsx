@@ -151,14 +151,18 @@ async function getDashboardData() {
 
 export default function AdminDashboard() {
     const [data, setData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        getDashboardData().then(setData);
+        getDashboardData().then(data => {
+            setData(data);
+            setLoading(false);
+        });
     }, []);
 
-    if (!data) {
+    if (loading) {
         // You can return a loading spinner here
-        return <div>Loading...</div>;
+        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
     return <DashboardClient initialData={data} />;
