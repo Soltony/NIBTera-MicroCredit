@@ -37,8 +37,8 @@ export async function POST(req: Request) {
         });
         const savedProduct = await productRepo.save(newProductEntity);
         
-        // The savedProduct object already has the JSON fields parsed by TypeORM if it's a new entity.
-        // If they are strings (which they will be from the create call), parse them.
+        // After saving, the JSON fields might be objects or strings depending on the DB driver.
+        // This robustly handles both cases to create a consistent response.
         const responseProduct = {
             ...savedProduct,
             serviceFee: typeof savedProduct.serviceFee === 'string' ? JSON.parse(savedProduct.serviceFee) : savedProduct.serviceFee,
