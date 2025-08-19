@@ -58,17 +58,17 @@ function EligibilityCheck() {
       
       const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), numericProviderId, Number(productId));
 
-      const params = new URLSearchParams();
-      params.set('providerId', String(numericProviderId));
-      params.set('customerId', customerId);
+      const params = new URLSearchParams(searchParams.toString());
 
       if (isEligible) {
           params.set('max', String(maxLoanAmount));
+          params.set('step', 'calculator');
+          router.push(`/apply?${params.toString()}`);
       } else {
         params.set('error', reason);
+        router.push(`/loan?${params.toString()}`);
       }
       
-      router.push(`/loan?${params.toString()}`);
     };
 
     if(providers.length > 0 && customerId && productId && providerId) {
