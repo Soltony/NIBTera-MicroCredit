@@ -259,7 +259,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     />
                   )}
               
-                  <div className="grid gap-8 grid-cols-1 md:grid-cols-3">
+                  <div className="grid gap-8 grid-cols-1">
                       <div className="md:col-span-2">
                         {selectedProvider && (
                             <Card>
@@ -284,48 +284,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             IconDisplayComponent={IconDisplay}
                                         />
                                     ))}
+                                    {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (
+                                        <p className="text-sm text-muted-foreground text-center py-8">No active loan products available from this provider.</p>
+                                    )}
                                 </CardContent>
                             </Card>
                         )}
-                      </div>
-                       <div className="md:col-span-1">
-                          <Card>
-                            <CardHeader>
-                                <CardTitle>Recent Activity</CardTitle>
-                                <CardDescription>Your most recent loans.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {loanHistory.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {loanHistory.slice(0, 5).map((loan, index) => {
-                                             const provider = getProviderForLoan(loan);
-                                             const statusColor = loan.repaymentStatus === 'Paid' ? 'text-green-500' : 'text-red-500';
-                                            return (
-                                            <React.Fragment key={loan.id}>
-                                                <div className="flex items-center">
-                                                    <Avatar className="h-9 w-9">
-                                                        <div className="w-full h-full flex items-center justify-center rounded-full" style={{backgroundColor: provider?.colorHex || '#ccc'}}>
-                                                            <IconDisplay iconName={provider?.icon || 'Building2'} className="h-5 w-5 text-white" />
-                                                        </div>
-                                                    </Avatar>
-                                                    <div className="ml-4 space-y-1">
-                                                        <p className="text-sm font-medium leading-none">{loan.providerName}</p>
-                                                        <p className="text-xs text-muted-foreground">{loan.productName}</p>
-                                                    </div>
-                                                    <div className="ml-auto font-medium text-right">
-                                                        <p>{formatCurrency(loan.loanAmount)}</p>
-                                                         <p className={cn("text-xs", statusColor)}>{loan.repaymentStatus}</p>
-                                                    </div>
-                                                </div>
-                                                {index < loanHistory.slice(0, 5).length - 1 && <Separator />}
-                                            </React.Fragment>
-                                        )})}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground text-center py-8">No loan history found.</p>
-                                )}
-                            </CardContent>
-                          </Card>
                       </div>
                   </div>
               </div>
@@ -344,4 +308,3 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
-
