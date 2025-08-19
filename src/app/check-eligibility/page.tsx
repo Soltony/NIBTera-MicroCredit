@@ -15,6 +15,7 @@ function EligibilityCheck() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId');
+  const productId = searchParams.get('productId'); // Get the product ID from URL
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +39,13 @@ function EligibilityCheck() {
 
   useEffect(() => {
     const performCheck = async () => {
-      if (providers.length === 0 || !customerId) return;
+      if (providers.length === 0 || !customerId || !productId) return;
 
       const providerIdFromUrl = searchParams.get('providerId');
-      const targetProvider = providers.find(p => p.id === providerIdFromUrl) || providers[0];
+      const targetProvider = providers.find(p => p.id === providerIdFromUrl);
 
       if (!targetProvider) {
-        setError("Could not find any available loan providers.");
+        setError("Could not find the specified loan provider.");
         setIsLoading(false);
         return;
       }
@@ -55,7 +56,7 @@ function EligibilityCheck() {
       setIsLoading(true);
       setError(null);
       
-      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId);
+      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId, Number(productId));
 
       const params = new URLSearchParams();
       params.set('providerId', String(providerId));
@@ -70,10 +71,10 @@ function EligibilityCheck() {
       router.push(`/loan?${params.toString()}`);
     };
 
-    if(providers.length > 0 && customerId) {
+    if(providers.length > 0 && customerId && productId) {
         performCheck();
     }
-  }, [providers, router, customerId, searchParams]);
+  }, [providers, router, customerId, productId, searchParams]);
 
 
   return (

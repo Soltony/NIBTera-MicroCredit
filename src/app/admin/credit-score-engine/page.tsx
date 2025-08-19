@@ -1,7 +1,7 @@
 
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
 import { getConnectedDataSource } from '@/data-source';
-import type { LoanProvider as LoanProviderType, ScoringParameter as ScoringParameterType, LoanAmountTier as LoanAmountTierType } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, ScoringParameter as ScoringParameterType } from '@/lib/types';
 import type { DataSource } from 'typeorm';
 
 async function getProviders() {
@@ -9,12 +9,9 @@ async function getProviders() {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
-            relations: ['products', 'loanAmountTiers'],
+            relations: ['products'],
              order: {
                 displayOrder: 'ASC',
-                loanAmountTiers: {
-                    fromScore: 'ASC'
-                }
             }
         });
         return providers.map(p => ({
@@ -27,10 +24,6 @@ async function getProviders() {
                 dailyFee: JSON.parse(prod.dailyFee),
                 penaltyRules: JSON.parse(prod.penaltyRules),
             })),
-            loanAmountTiers: p.loanAmountTiers.map(tier => ({
-                ...tier,
-                id: String(tier.id)
-            }))
         })) as any[];
     } catch(e) {
         console.error(e);

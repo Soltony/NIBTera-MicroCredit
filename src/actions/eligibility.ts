@@ -13,7 +13,7 @@ import { evaluateCondition } from '@/lib/utils';
 import type { DataSource } from 'typeorm';
 import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 
-async function calculateScoreForProvider(customerId: number, providerId: number): Promise<{score: number; maxLoanAmount: number}> {
+async function calculateScoreForProvider(customerId: number, providerId: number, productId: number): Promise<{score: number; maxLoanAmount: number}> {
     const dataSource = await getConnectedDataSource();
     const customerRepo = dataSource.getRepository('Customer');
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
@@ -60,10 +60,10 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
 
     const finalScore = Math.round(totalWeightedScore);
 
-    // Find the loan amount from the tiers based on the calculated score
+    // Find the loan amount from the tiers based on the calculated score for the specific product
     const applicableTier = await loanTierRepo.findOne({
         where: {
-            providerId: providerId,
+            productId: productId,
             fromScore: LessThanOrEqual(finalScore),
             toScore: MoreThanOrEqual(finalScore),
         }
@@ -73,7 +73,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
 }
 
 
-export async function checkLoanEligibility(customerId: number, providerId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
+export async function checkLoanEligibility(customerId: number, providerId: number, productId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
     const dataSource = await getConnectedDataSource();
     const customerRepo = dataSource.getRepository('Customer');
@@ -97,7 +97,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     }
     
     // STEP 2: Credit Score Calculation (if eligible)
-    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId);
+    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId, productId);
 
     if (maxLoanAmount <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
@@ -112,14 +112,14 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
 }
 
 
-export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number): Promise<{score: number, maxLoanAmount: number}> {
+export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number, productId: number): Promise<{score: number, maxLoanAmount: number}> {
     try {
         const dataSource = await getConnectedDataSource();
         const customer = await dataSource.getRepository('Customer').findOneBy({ id: customerId });
         if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
-        return await calculateScoreForProvider(customerId, providerId);
+        return await calculateScoreForProvider(customerId, providerId, productId);
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };

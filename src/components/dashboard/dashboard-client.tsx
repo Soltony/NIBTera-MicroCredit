@@ -90,27 +90,30 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }, [selectedProviderId, providers]);
 
   const handleApply = (productId: string) => {
+    if (!customerId) {
+        toast({ title: 'Error', description: 'Customer ID not found.', variant: 'destructive'});
+        return;
+    }
     const params = new URLSearchParams(searchParams);
     params.set('providerId', selectedProviderId);
-    params.set('product', productId);
-    // Pass the currently calculated max loan for this provider
-    params.set('max', String(currentMaxLoanLimit));
-    router.push(`/apply?${params.toString()}`);
+    params.set('productId', productId);
+    params.set('customerId', customerId);
+    router.push(`/check-eligibility?${params.toString()}`);
   }
 
   const handleProviderSelect = async (providerId: string) => {
     setSelectedProviderId(providerId);
-    setIsRecalculating(true);
-    
-    if (customerId) {
-        const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(providerId));
-        setCurrentMaxLoanLimit(maxLoanAmount);
-    }
 
-    setIsRecalculating(false);
+    // When provider changes, we don't know the eligibility for their products yet.
+    // So we reset the max loan limit. The new limit will be calculated
+    // when the user clicks 'Apply' for a specific product.
+    setCurrentMaxLoanLimit(0); 
 
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', providerId);
+    // Remove old max and error params as they are no longer relevant
+    params.delete('max');
+    params.delete('error');
     router.push(`/loan?${params.toString()}`, { scroll: false });
   }
   
@@ -235,7 +238,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                           </Card>
                       </div>
                       <div>
-                      {selectedProvider && isEligible && (
+                      {selectedProvider && (
                           <Card>
                               <CardHeader>
                                   <CardTitle>Available Loan Products</CardTitle>

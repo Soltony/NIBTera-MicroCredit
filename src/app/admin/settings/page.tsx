@@ -27,12 +27,12 @@ async function getProviders(): Promise<LoanProviderType[]> {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
-            relations: ['products', 'dataProvisioningConfigs'],
+            relations: ['products', 'products.loanAmountTiers', 'dataProvisioningConfigs'],
             order: {
                 displayOrder: 'ASC',
                 products: {
                     name: 'ASC'
-                }
+                },
             }
         });
 
@@ -54,6 +54,7 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
                 penaltyRules: safeJsonParse(prod.penaltyRules, []),
+                loanAmountTiers: prod.loanAmountTiers ? prod.loanAmountTiers.map(tier => ({...tier, id: String(tier.id)})).sort((a,b) => a.fromScore - b.fromScore) : [],
                 status: prod.status as 'Active' | 'Disabled',
                 serviceFeeEnabled: !!prod.serviceFeeEnabled,
                 dailyFeeEnabled: !!prod.dailyFeeEnabled,

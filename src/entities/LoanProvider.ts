@@ -15,8 +15,6 @@ import type { ScoringParameter } from './ScoringParameter';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
 import type { CustomParameter } from './CustomParameter';
 import type { DataProvisioningConfig } from './DataProvisioningConfig';
-import type { LoanAmountTier } from './LoanAmountTier';
-
 
 @Entity({ name: 'loan_providers' })
 export class LoanProvider {
@@ -60,9 +58,6 @@ export class LoanProvider {
 
   @OneToMany('DataProvisioningConfig', (config: DataProvisioningConfig) => config.provider)
   dataProvisioningConfigs!: DataProvisioningConfig[];
-
-  @OneToMany('LoanAmountTier', (tier: LoanAmountTier) => tier.provider)
-  loanAmountTiers!: LoanAmountTier[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

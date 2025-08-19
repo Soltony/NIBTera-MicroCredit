@@ -20,7 +20,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { PlusCircle, Trash2, Save, History, Loader2 as Loader } from 'lucide-react';
-import type { Rule, ScoringParameter, LoanAmountTier } from '@/lib/types';
+import type { Rule, ScoringParameter } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -696,168 +696,6 @@ function ParametersTab({
     );
 }
 
-const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-};
-
-function LoanTiersTab({ providers, selectedProviderId, onUpdateProviders }: {
-    providers: LoanProvider[];
-    selectedProviderId: string;
-    onUpdateProviders: (providers: LoanProvider[]) => void;
-}) {
-    const [isLoading, setIsLoading] = useState(false);
-    const { toast } = useToast();
-
-    const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
-    const themeColor = selectedProvider?.colorHex || '#fdb913';
-    
-    const tiers = selectedProvider?.loanAmountTiers || [];
-
-    const handleTierChange = (index: number, field: keyof LoanAmountTier, value: string) => {
-        const newTiers = produce(tiers, draft => {
-            (draft[index] as any)[field] = value === '' ? 0 : parseFloat(value);
-        });
-
-        // Auto-adjust the next tier's "fromScore"
-        if (field === 'toScore' && index < newTiers.length - 1) {
-            newTiers[index + 1].fromScore = newTiers[index].toScore + 1;
-        }
-
-        const updatedProviders = produce(providers, draft => {
-            const provider = draft.find(p => p.id === selectedProviderId);
-            if (provider) {
-                provider.loanAmountTiers = newTiers;
-            }
-        });
-        onUpdateProviders(updatedProviders);
-    };
-
-    const handleAddTier = () => {
-        const lastTier = tiers[tiers.length - 1];
-        const newFromScore = lastTier ? lastTier.toScore + 1 : 0;
-        
-        const newTier: LoanAmountTier = {
-            id: `tier-${Date.now()}`,
-            providerId: selectedProviderId,
-            fromScore: newFromScore,
-            toScore: newFromScore + 9,
-            loanAmount: 0
-        };
-
-        const updatedProviders = produce(providers, draft => {
-            const provider = draft.find(p => p.id === selectedProviderId);
-            if (provider) {
-                if (!provider.loanAmountTiers) provider.loanAmountTiers = [];
-                provider.loanAmountTiers.push(newTier);
-            }
-        });
-        onUpdateProviders(updatedProviders);
-    };
-
-    const handleRemoveTier = (index: number) => {
-        const newTiers = tiers.filter((_, i) => i !== index);
-        const updatedProviders = produce(providers, draft => {
-            const provider = draft.find(p => p.id === selectedProviderId);
-            if (provider) {
-                provider.loanAmountTiers = newTiers;
-            }
-        });
-        onUpdateProviders(updatedProviders);
-    };
-
-    const handleSaveTiers = async () => {
-        // Validation
-        for (let i = 0; i < tiers.length; i++) {
-            if (tiers[i].fromScore > tiers[i].toScore) {
-                toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
-                return;
-            }
-            if (i > 0 && tiers[i].fromScore <= tiers[i-1].toScore) {
-                 toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
-                return;
-            }
-        }
-
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/settings/loan-amount-tiers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ providerId: selectedProviderId, tiers: tiers.map(t => ({...t, id: String(t.id).startsWith('tier-') ? undefined : t.id})) }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save loan tiers.');
-            }
-
-            const savedTiers = await response.json();
-            const updatedProviders = produce(providers, draft => {
-                const provider = draft.find(p => p.id === selectedProviderId);
-                if (provider) {
-                    provider.loanAmountTiers = savedTiers;
-                }
-            });
-            onUpdateProviders(updatedProviders);
-            
-            toast({ title: 'Success', description: 'Loan amount tiers have been saved successfully.' });
-        } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Loan Amount Tiers</CardTitle>
-                <CardDescription>Define the maximum loan amount a customer can receive based on their calculated credit score.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-4">
-                    {tiers.map((tier, index) => (
-                        <div key={tier.id} className="flex items-center gap-4 p-2 rounded-md bg-muted/50">
-                            <Label className="w-20">From Score</Label>
-                            <Input
-                                type="number"
-                                value={tier.fromScore}
-                                onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
-                                className="w-28"
-                                disabled={index > 0} // Only first "from" is editable
-                            />
-                            <Label className="w-16">To Score</Label>
-                             <Input
-                                type="number"
-                                value={tier.toScore}
-                                onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
-                                className="w-28"
-                            />
-                            <Label className="w-24">Loan Amount</Label>
-                             <Input
-                                type="number"
-                                value={tier.loanAmount}
-                                onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
-                                className="flex-1"
-                            />
-                            <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                    ))}
-                     <Button variant="outline" onClick={handleAddTier} className="w-full">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
-                    </Button>
-                </div>
-            </CardContent>
-            <CardFooter>
-                 <Button onClick={handleSaveTiers} style={{ backgroundColor: themeColor }} className="text-white ml-auto" disabled={isLoading}>
-                    {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save Tiers
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
 interface CreditScoreEngineClientProps {
     providers: LoanProvider[];
     initialScoringParameters: ScoringParameter[];
@@ -934,7 +772,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             <Tabs defaultValue="rules" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="rules">Rules</TabsTrigger>
-                    <TabsTrigger value="loanTiers">Loan Tiers</TabsTrigger>
                     <TabsTrigger value="parameters">Custom Parameters</TabsTrigger>
                 </TabsList>
                 <TabsContent value="rules" className="space-y-4">
@@ -945,13 +782,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                         selectedProviderId={selectedProviderId}
                         initialHistory={initialHistory}
                         customParams={customParams}
-                    />
-                </TabsContent>
-                <TabsContent value="loanTiers">
-                    <LoanTiersTab
-                        providers={providers}
-                        selectedProviderId={selectedProviderId}
-                        onUpdateProviders={setProviders}
                     />
                 </TabsContent>
                 <TabsContent value="parameters">

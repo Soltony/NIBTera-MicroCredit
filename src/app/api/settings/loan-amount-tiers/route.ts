@@ -14,7 +14,7 @@ const tierSchema = z.object({
 });
 
 const requestSchema = z.object({
-  providerId: z.string(),
+  productId: z.string(),
   tiers: z.array(tierSchema),
 });
 
@@ -31,8 +31,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
 
-        const { providerId, tiers } = validation.data;
-        const numericProviderId = Number(providerId);
+        const { productId, tiers } = validation.data;
+        const numericProductId = Number(productId);
 
         const dataSource = await getConnectedDataSource();
         const manager = dataSource.manager;
@@ -40,8 +40,8 @@ export async function POST(req: Request) {
         await manager.transaction(async (transactionalEntityManager) => {
             const tierRepo = transactionalEntityManager.getRepository(LoanAmountTier);
             
-            // Delete existing tiers for this provider
-            await tierRepo.delete({ providerId: numericProviderId });
+            // Delete existing tiers for this product
+            await tierRepo.delete({ productId: numericProductId });
 
             if (tiers.length === 0) {
                 return; // Just deleted everything
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
             // Create new tiers
             const newTiers = tiers.map(tier => {
                 return tierRepo.create({
-                    providerId: numericProviderId,
+                    productId: numericProductId,
                     fromScore: tier.fromScore,
                     toScore: tier.toScore,
                     loanAmount: tier.loanAmount,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
 
         // Fetch and return the newly saved tiers
         const savedTiers = await manager.getRepository(LoanAmountTier).find({
-            where: { providerId: numericProviderId },
+            where: { productId: numericProductId },
             order: { fromScore: 'ASC' },
         });
 

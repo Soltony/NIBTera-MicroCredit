@@ -21,8 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2 } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn } from '@/lib/types';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save } from 'lucide-react';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -482,6 +482,135 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
     );
 };
 
+function LoanTiersForm({ product, onUpdate, color }: {
+    product: LoanProduct;
+    onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
+    color?: string;
+}) {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const tiers = product.loanAmountTiers || [];
+
+    const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
+        const newTiers = produce(tiers, draft => {
+            (draft[index] as any)[field] = value === '' ? 0 : parseFloat(value);
+        });
+
+        // Auto-adjust the next tier's "fromScore"
+        if (field === 'toScore' && index < newTiers.length - 1) {
+             const fromScoreValue = (newTiers[index].toScore ?? 0) + 1;
+             (newTiers[index + 1] as any).fromScore = fromScoreValue;
+        }
+
+        onUpdate({ loanAmountTiers: newTiers });
+    };
+
+    const handleAddTier = () => {
+        const lastTier = tiers[tiers.length - 1];
+        const newFromScore = lastTier ? (lastTier.toScore ?? 0) + 1 : 0;
+        
+        const newTier: LoanAmountTier = {
+            id: `tier-${Date.now()}`,
+            productId: product.id,
+            fromScore: newFromScore,
+            toScore: newFromScore + 9,
+            loanAmount: 0
+        };
+
+        onUpdate({ loanAmountTiers: [...tiers, newTier]});
+    };
+
+    const handleRemoveTier = (index: number) => {
+        const newTiers = tiers.filter((_, i) => i !== index);
+        onUpdate({ loanAmountTiers: newTiers });
+    };
+    
+    const handleSaveTiers = async () => {
+        // Validation
+        for (let i = 0; i < tiers.length; i++) {
+            if ((tiers[i].fromScore ?? 0) > (tiers[i].toScore ?? 0)) {
+                toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
+                return;
+            }
+            if (i > 0 && (tiers[i].fromScore ?? 0) <= (tiers[i-1].toScore ?? 0)) {
+                 toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
+                return;
+            }
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/settings/loan-amount-tiers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: product.id, tiers: tiers.map(t => ({...t, id: String(t.id).startsWith('tier-') ? undefined : t.id})) }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save loan tiers.');
+            }
+
+            const savedTiers = await response.json();
+            onUpdate({ loanAmountTiers: savedTiers });
+            
+            toast({ title: 'Success', description: 'Loan amount tiers have been saved successfully.' });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Loan Amount Tiers</CardTitle>
+                <CardDescription>Define loan amounts based on credit scores for this product.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 {tiers.map((tier, index) => (
+                    <div key={tier.id} className="flex items-center gap-4 p-2 rounded-md bg-muted/50">
+                        <Label className="w-20">From Score</Label>
+                        <Input
+                            type="number"
+                            value={tier.fromScore ?? ''}
+                            onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
+                            className="w-28"
+                            disabled={index > 0} // Only first "from" is editable
+                        />
+                        <Label className="w-16">To Score</Label>
+                         <Input
+                            type="number"
+                            value={tier.toScore ?? ''}
+                            onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
+                            className="w-28"
+                        />
+                        <Label className="w-24">Loan Amount</Label>
+                         <Input
+                            type="number"
+                            value={tier.loanAmount ?? ''}
+                            onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
+                            className="flex-1"
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                ))}
+                 <Button variant="outline" onClick={handleAddTier} className="w-full">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
+                </Button>
+            </CardContent>
+            <CardFooter>
+                 <Button onClick={handleSaveTiers} style={{ backgroundColor: color }} className="text-white ml-auto" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save Tiers for {product.name}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
 function ConfigurationTab({ initialProviders, onUpdateProviders }: { 
     initialProviders: LoanProvider[],
     onUpdateProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
@@ -753,6 +882,14 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                                             )}
                                         </div>
                                     )}
+                                    
+                                    <div className="pt-4">
+                                        <LoanTiersForm
+                                            product={product}
+                                            onUpdate={(updatedProductData) => handleProductChange(provider.id, product.id, updatedProductData)}
+                                            color={provider.colorHex}
+                                        />
+                                    </div>
 
                                </CardContent>
                                <CardFooter>
@@ -1035,7 +1172,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
             <Tabs defaultValue="providers" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
-                    <TabsTrigger value="configuration">Fee Configuration</TabsTrigger>
+                    <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
                     <TabsTrigger value="data-provisioning">Data Provisioning</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">

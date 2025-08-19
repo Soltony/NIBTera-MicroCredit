@@ -32,7 +32,7 @@ export interface DataProvisioningConfig {
 
 export interface LoanAmountTier {
     id: string;
-    providerId: string;
+    productId: string;
     fromScore: number;
     toScore: number;
     loanAmount: number;
@@ -45,7 +45,6 @@ export interface LoanProvider {
   icon: string;
   products: LoanProduct[];
   dataProvisioningConfigs?: DataProvisioningConfig[];
-  loanAmountTiers?: LoanAmountTier[];
   color?: string;
   colorHex?: string;
   displayOrder: number;
@@ -61,6 +60,7 @@ export interface LoanProduct {
   serviceFee: FeeRule;
   dailyFee: FeeRule;
   penaltyRules: PenaltyRule[];
+  loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
   serviceFeeEnabled?: boolean;

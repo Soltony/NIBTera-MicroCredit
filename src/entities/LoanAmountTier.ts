@@ -10,20 +10,20 @@ import {
   Index,
 } from 'typeorm';
 import { IsNotEmpty, IsNumber, Min } from 'class-validator';
-import type { LoanProvider } from './LoanProvider';
+import type { LoanProduct } from './LoanProduct';
 
 @Entity({ name: 'loan_amount_tiers' })
-@Index(['providerId', 'fromScore'], { unique: true })
+@Index(['productId', 'fromScore'], { unique: true })
 export class LoanAmountTier {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
   id!: number;
 
-  @Column({ name: 'provider_id' })
-  providerId!: number;
+  @Column({ name: 'product_id' })
+  productId!: number;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.loanAmountTiers)
-  @JoinColumn({ name: 'provider_id' })
-  provider!: LoanProvider;
+  @ManyToOne('LoanProduct', (product: LoanProduct) => product.loanAmountTiers)
+  @JoinColumn({ name: 'product_id' })
+  product!: LoanProduct;
 
   @Column({ type: 'number', name: 'from_score' })
   @IsNumber()
