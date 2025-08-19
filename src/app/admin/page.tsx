@@ -1,9 +1,11 @@
+'use client';
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import { getUserFromSession } from '@/lib/user';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { getConnectedDataSource } from '@/data-source';
 import { MoreThanOrEqual, LessThan, FindOptionsWhere } from 'typeorm';
+import { useState, useEffect } from 'react';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,8 +149,17 @@ async function getDashboardData() {
 }
 
 
-export default async function AdminDashboard() {
-    const data = await getDashboardData();
+export default function AdminDashboard() {
+    const [data, setData] = useState<any>(null);
+
+    useEffect(() => {
+        getDashboardData().then(setData);
+    }, []);
+
+    if (!data) {
+        // You can return a loading spinner here
+        return <div>Loading...</div>;
+    }
 
     return <DashboardClient initialData={data} />;
 }

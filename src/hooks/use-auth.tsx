@@ -8,10 +8,10 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import type { getCurrentUser } from '@/lib/session';
+import type { User } from '@/lib/types';
 
 // Define a user type that matches the structure returned by getUserFromSession
-export type AuthenticatedUser = Awaited<ReturnType<typeof getUserFromSession>>;
+export type AuthenticatedUser = User | null;
 
 interface AuthContextType {
   currentUser: AuthenticatedUser | null;
