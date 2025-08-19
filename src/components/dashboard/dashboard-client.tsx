@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -10,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
+import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History, RefreshCw } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -101,22 +100,50 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     router.push(`/check-eligibility?${params.toString()}`);
   }
 
-  const handleProviderSelect = async (providerId: string) => {
+  const handleProviderSelect = (providerId: string) => {
     setSelectedProviderId(providerId);
-
-    // When provider changes, we don't know the eligibility for their products yet.
-    // So we reset the max loan limit. The new limit will be calculated
-    // when the user clicks 'Apply' for a specific product.
-    setCurrentMaxLoanLimit(0); 
 
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', providerId);
-    // Remove old max and error params as they are no longer relevant
     params.delete('max');
     params.delete('error');
     router.push(`/loan?${params.toString()}`, { scroll: false });
+    
+    // Automatically recalculate for the new provider
+    recalculateForProvider(providerId);
   }
   
+    const recalculateForProvider = async (providerId: string) => {
+        if (!customerId) return;
+        const provider = providers.find(p => p.id === providerId);
+        const firstProduct = provider?.products.find(p => p.status === 'Active');
+
+        if (!provider || !firstProduct) {
+            setCurrentMaxLoanLimit(0);
+            return;
+        }
+
+        setIsRecalculating(true);
+        try {
+            const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(provider.id), Number(firstProduct.id));
+            setCurrentMaxLoanLimit(maxLoanAmount);
+             toast({
+                title: 'Limit Updated',
+                description: `Your loan limit for ${provider.name} has been updated.`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Error Recalculating',
+                description: 'Could not update loan limit.',
+                variant: 'destructive'
+            });
+            setCurrentMaxLoanLimit(0);
+        } finally {
+            setIsRecalculating(false);
+        }
+    };
+
+
   const handleRepay = (loan: LoanDetails) => {
     setRepayingLoan(loan);
     setIsRepayDialogOpen(true);
@@ -220,6 +247,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                         availableToBorrow={availableToBorrow}
                         color={selectedProvider?.colorHex}
                         isLoading={isRecalculating}
+                        onRecalculate={() => selectedProviderId && recalculateForProvider(selectedProviderId)}
                     />
                   )}
               

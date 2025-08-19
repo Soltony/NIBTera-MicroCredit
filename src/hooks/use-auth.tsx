@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, {
@@ -115,7 +114,7 @@ export const AuthProvider = ({ children, initialUser = null }: AuthProviderProps
       isLoading,
       refetchUser,
     }),
-    [currentUser, login, logout, isLoading, refetchUser, setCurrentUser]
+    [currentUser, login, logout, isLoading, refetchUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
