@@ -92,11 +92,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         toast({ title: 'Error', description: 'Customer ID not found.', variant: 'destructive'});
         return;
     }
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams();
     params.set('providerId', selectedProviderId);
-    params.set('productId', productId);
+    params.set('product', productId);
     params.set('customerId', customerId);
-    router.push(`/check-eligibility?${params.toString()}`);
+    params.set('max', String(currentMaxLoanLimit));
+    router.push(`/apply?${params.toString()}`);
   }
 
   const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
