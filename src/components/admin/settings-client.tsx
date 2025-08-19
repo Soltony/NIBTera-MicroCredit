@@ -22,8 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier, DailyFeeRule } from '@/lib/types';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save, FileClock } from 'lucide-react';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier, DailyFeeRule, DataProvisioningUpload } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -51,6 +51,8 @@ import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { format } from 'date-fns';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -222,7 +224,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules'> & { icon?: string }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId'> & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -662,7 +664,6 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
 }) {
     const { toast } = useToast();
     const { currentUser } = useAuth();
-    const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
     
     const visibleProviders = useMemo(() => {
         if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
@@ -670,16 +671,6 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
         }
         return initialProviders.filter(p => p.id === currentUser.providerId);
     }, [initialProviders, currentUser]);
-
-    visibleProviders.forEach(p => {
-        if (p.products) {
-            p.products.forEach(prod => {
-                if (!fileInputRefs.current[prod.id]) {
-                    fileInputRefs.current[prod.id] = React.createRef<HTMLInputElement>();
-                }
-            });
-        }
-    });
 
     const handleProductChange = (providerId: string, productId: string, updatedProduct: Partial<LoanProduct>) => {
         onUpdateProviders(produce(draft => {
@@ -728,7 +719,7 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(product)
+                body: JSON.stringify({ ...product, providerId: undefined }) // Don't send providerId in body for update
             });
             if (!response.ok) {
                 const errorData = await response.json();
@@ -740,106 +731,6 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
         }
     };
     
-    const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>, product: LoanProduct) => {
-        const file = event.target.files?.[0];
-        const provider = initialProviders.find(p => p.id === product.providerId);
-        const config = provider?.dataProvisioningConfigs?.find(c => c.id === product.dataProvisioningConfigId);
-    
-        if (!file || !config) {
-            toast({
-                title: 'Configuration Error',
-                description: 'No data provisioning configuration found for this product.',
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = e.target?.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
-                if (jsonData.length < 2) {
-                    throw new Error("Excel file must contain a header row and at least one data row.");
-                }
-
-                const headers = jsonData[0] as string[];
-                const expectedHeaders = config.columns.map(c => c.name);
-                
-                // 1. Validate Headers
-                if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
-                    throw new Error(`Header mismatch. Expected headers: ${expectedHeaders.join(', ')}.`);
-                }
-                
-                const dataRows = jsonData.slice(1);
-
-                // 2. Validate Data Types
-                for (let i = 0; i < dataRows.length; i++) {
-                    const row = dataRows[i] as any[];
-                    for (let j = 0; j < config.columns.length; j++) {
-                        const cellValue = row[j];
-                        const columnConfig = config.columns[j];
-
-                        if (cellValue === null || cellValue === undefined) continue; // Allow empty cells
-
-                        switch (columnConfig.type) {
-                            case 'number':
-                                if (typeof cellValue !== 'number' || isNaN(cellValue)) {
-                                    throw new Error(`Invalid number found in row ${i + 2}, column "${columnConfig.name}".`);
-                                }
-                                break;
-                            case 'date':
-                                // XLSX can parse dates into numbers (Excel date serial numbers) or strings.
-                                if (typeof cellValue !== 'number' && (typeof cellValue !== 'string' || isNaN(Date.parse(cellValue)))) {
-                                     // We can also try to parse excel date number
-                                     if(typeof cellValue === 'number') {
-                                         const date = XLSX.SSF.parse_date_code(cellValue);
-                                         if(!date) throw new Error(`Invalid date found in row ${i + 2}, column "${columnConfig.name}".`);
-                                     } else {
-                                        throw new Error(`Invalid date found in row ${i + 2}, column "${columnConfig.name}".`);
-                                     }
-                                }
-                                break;
-                            case 'string':
-                                // All data can be represented as a string, so no specific check needed unless there are constraints.
-                                break;
-                        }
-                    }
-                }
-
-                toast({
-                    title: 'Validation Successful',
-                    description: `File validated successfully. ${dataRows.length} rows are ready for processing.`,
-                });
-
-            } catch (error: any) {
-                 toast({
-                    title: 'Validation Failed',
-                    description: error.message,
-                    variant: 'destructive',
-                });
-            } finally {
-                // Reset file input
-                if (event.target) {
-                    event.target.value = '';
-                }
-            }
-        };
-        reader.onerror = () => {
-            toast({
-                title: 'Error Reading File',
-                description: 'Could not read the selected file.',
-                variant: 'destructive',
-            });
-        };
-        reader.readAsBinaryString(file);
-    };
-
-
     if (visibleProviders.length === 0) {
         return (
             <Card>
@@ -939,58 +830,6 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center justify-between border-b pb-4 pt-4">
-                                        <Label htmlFor={`dataProvisioningEnabled-${product.id}`} className="font-medium">Data Provisioning</Label>
-                                        <Switch 
-                                            id={`dataProvisioningEnabled-${product.id}`}
-                                            checked={!!product.dataProvisioningEnabled}
-                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { dataProvisioningEnabled: checked, dataProvisioningConfigId: checked ? product.dataProvisioningConfigId : null })}
-                                            className="data-[state=checked]:bg-[--provider-color]"
-                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
-                                        />
-                                    </div>
-                                    {product.dataProvisioningEnabled && (
-                                        <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
-                                            <div>
-                                                <Label className="font-medium text-sm">Data Type</Label>
-                                                <Select
-                                                    value={product.dataProvisioningConfigId || ''}
-                                                    onValueChange={(value) => handleProductChange(provider.id, product.id, { dataProvisioningConfigId: value })}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select a data type..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {provider.dataProvisioningConfigs?.map(config => (
-                                                            <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            
-                                            {product.dataProvisioningConfigId && (
-                                                <div className="flex items-center justify-between pt-4 border-t">
-                                                    <p className="text-sm text-muted-foreground">Upload data for this loan product.</p>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        onClick={() => fileInputRefs.current[product.id]?.current?.click()}
-                                                    >
-                                                        <Upload className="h-4 w-4 mr-2"/>
-                                                        Upload from Excel
-                                                    </Button>
-                                                    <input
-                                                        type="file"
-                                                        ref={fileInputRefs.current[product.id]}
-                                                        className="hidden"
-                                                        accept=".xlsx, .xls"
-                                                        onChange={(e) => handleExcelUpload(e, product)}
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    
                                     <div className="pt-4">
                                         <LoanTiersForm
                                             product={product}
@@ -1030,6 +869,8 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
     const [editingConfig, setEditingConfig] = useState<DataProvisioningConfig | null>(null);
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
     const [deletingConfigId, setDeletingConfigId] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
 
     useEffect(() => {
         if (!selectedProviderId && initialProviders.length > 0) {
@@ -1093,7 +934,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                     if (isEditing) {
                         const index = provider.dataProvisioningConfigs.findIndex(c => c.id === savedConfig.id);
                         if (index !== -1) {
-                            provider.dataProvisioningConfigs[index] = savedConfig;
+                            provider.dataProvisioningConfigs[index] = { ...provider.dataProvisioningConfigs[index], ...savedConfig };
                         }
                     } else {
                         provider.dataProvisioningConfigs.push(savedConfig);
@@ -1107,6 +948,85 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
     };
     
     const selectedProvider = useMemo(() => initialProviders.find(p => p.id === selectedProviderId), [initialProviders, selectedProviderId]);
+
+    selectedProvider?.dataProvisioningConfigs?.forEach(config => {
+        if (!fileInputRefs.current[config.id]) {
+            fileInputRefs.current[config.id] = React.createRef<HTMLInputElement>();
+        }
+    });
+
+    const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>, config: DataProvisioningConfig) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            setIsUploading(true);
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (jsonData.length < 2) throw new Error("Excel file must contain a header row and at least one data row.");
+
+                const headers = jsonData[0] as string[];
+                const expectedHeaders = config.columns.map(c => c.name);
+                if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
+                    throw new Error(`Header mismatch. Expected headers: ${expectedHeaders.join(', ')}.`);
+                }
+                
+                const dataRows = jsonData.slice(1);
+
+                // Send to backend
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('configId', config.id);
+                formData.append('rowCount', String(dataRows.length));
+
+                const response = await fetch('/api/settings/data-provisioning-uploads', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to upload file.');
+                }
+                
+                const newUpload = await response.json();
+                
+                onUpdateProviders(produce(draft => {
+                    const provider = draft.find(p => p.id === selectedProviderId);
+                    const cfg = provider?.dataProvisioningConfigs?.find(c => c.id === config.id);
+                    if (cfg) {
+                        if (!cfg.uploads) cfg.uploads = [];
+                        cfg.uploads.unshift(newUpload);
+                    }
+                }));
+
+                toast({
+                    title: 'Upload Successful',
+                    description: `File "${file.name}" uploaded and recorded successfully.`,
+                });
+
+            } catch (error: any) {
+                 toast({
+                    title: 'Upload Failed',
+                    description: error.message,
+                    variant: 'destructive',
+                });
+            } finally {
+                setIsUploading(false);
+                if (event.target) event.target.value = '';
+            }
+        };
+        reader.onerror = () => {
+            toast({ title: 'Error Reading File', description: 'Could not read the selected file.', variant: 'destructive' });
+        };
+        reader.readAsBinaryString(file);
+    };
 
     return (
         <>
@@ -1145,9 +1065,61 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                               <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                               <h4 className="font-medium mb-2">Columns</h4>
+                               <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
                                     {config.columns.map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span></li>)}
                                </ul>
+                               <Separator />
+                               <div className="mt-4">
+                                   <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-medium">Upload History</h4>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={isUploading}
+                                            onClick={() => fileInputRefs.current[config.id]?.current?.click()}
+                                        >
+                                            {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
+                                            Upload File
+                                        </Button>
+                                        <input
+                                            type="file"
+                                            ref={fileInputRefs.current[config.id]}
+                                            className="hidden"
+                                            accept=".xlsx, .xls"
+                                            onChange={(e) => handleExcelUpload(e, config)}
+                                        />
+                                   </div>
+                                   <div className="border rounded-md">
+                                       <Table>
+                                           <TableHeader>
+                                               <TableRow>
+                                                   <TableHead>File Name</TableHead>
+                                                   <TableHead>Rows</TableHead>
+                                                   <TableHead>Uploaded By</TableHead>
+                                                   <TableHead>Date</TableHead>
+                                               </TableRow>
+                                           </TableHeader>
+                                           <TableBody>
+                                               {config.uploads && config.uploads.length > 0 ? (
+                                                   config.uploads.map(upload => (
+                                                        <TableRow key={upload.id}>
+                                                            <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
+                                                            <TableCell>{upload.rowCount}</TableCell>
+                                                            <TableCell>{upload.uploadedBy}</TableCell>
+                                                            <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                                                        </TableRow>
+                                                   ))
+                                               ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
+                                                    </TableRow>
+                                               )}
+                                           </TableBody>
+                                       </Table>
+                                   </div>
+                               </div>
                             </CardContent>
                         </Card>
                     ))}

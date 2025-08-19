@@ -27,11 +27,21 @@ export interface DataColumn {
     type: 'string' | 'number' | 'date';
 }
 
+export interface DataProvisioningUpload {
+    id: string;
+    configId: string;
+    fileName: string;
+    rowCount: number;
+    uploadedAt: string;
+    uploadedBy: string;
+}
+
 export interface DataProvisioningConfig {
     id: string;
     providerId: string;
     name: string;
     columns: DataColumn[];
+    uploads?: DataProvisioningUpload[];
 }
 
 export interface LoanAmountTier {
@@ -56,6 +66,7 @@ export interface LoanProvider {
 
 export interface LoanProduct {
   id:string;
+  providerId: string;
   name: string;
   description: string;
   icon: string;
