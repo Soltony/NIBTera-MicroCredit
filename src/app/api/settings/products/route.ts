@@ -14,6 +14,7 @@ export async function POST(req: Request) {
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
+        
         const validation = createProductSchema.safeParse(body);
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
@@ -47,9 +48,9 @@ export async function POST(req: Request) {
             minLoan: savedProduct.minLoan,
             maxLoan: savedProduct.maxLoan,
             status: savedProduct.status,
-            serviceFee: JSON.parse(savedProduct.serviceFee),
-            dailyFee: JSON.parse(savedProduct.dailyFee),
-            penaltyRules: JSON.parse(savedProduct.penaltyRules),
+            serviceFee: typeof savedProduct.serviceFee === 'string' ? JSON.parse(savedProduct.serviceFee) : savedProduct.serviceFee,
+            dailyFee: typeof savedProduct.dailyFee === 'string' ? JSON.parse(savedProduct.dailyFee) : savedProduct.dailyFee,
+            penaltyRules: typeof savedProduct.penaltyRules === 'string' ? JSON.parse(savedProduct.penaltyRules) : savedProduct.penaltyRules,
             serviceFeeEnabled: savedProduct.serviceFeeEnabled,
             dailyFeeEnabled: savedProduct.dailyFeeEnabled,
             penaltyRulesEnabled: savedProduct.penaltyRulesEnabled,
@@ -117,9 +118,9 @@ export async function PUT(req: Request) {
         // Parse JSON fields for the response
         const responseProduct = {
             ...updatedProduct,
-            serviceFee: JSON.parse(updatedProduct.serviceFee),
-            dailyFee: JSON.parse(updatedProduct.dailyFee),
-            penaltyRules: JSON.parse(updatedProduct.penaltyRules)
+            serviceFee: typeof updatedProduct.serviceFee === 'string' ? JSON.parse(updatedProduct.serviceFee) : updatedProduct.serviceFee,
+            dailyFee: typeof updatedProduct.dailyFee === 'string' ? JSON.parse(updatedProduct.dailyFee) : updatedProduct.dailyFee,
+            penaltyRules: typeof updatedProduct.penaltyRules === 'string' ? JSON.parse(updatedProduct.penaltyRules) : updatedProduct.penaltyRules
         };
 
 
