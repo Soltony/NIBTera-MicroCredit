@@ -194,6 +194,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                 id="allowMultipleActiveLoans"
                 checked={allowMultipleActiveLoans}
                 onCheckedChange={setAllowMultipleActiveLoans}
+                className="data-[state=checked]:bg-[--provider-color]"
+                style={{'--provider-color': primaryColor} as React.CSSProperties}
               />
             </div>
           </div>
