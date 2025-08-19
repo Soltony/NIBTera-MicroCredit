@@ -147,8 +147,14 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }
   
   const handleRepay = (loan: LoanDetails) => {
-    setRepayingLoan(loan);
-    setIsRepayDialogOpen(true);
+    // Find the full product details to pass to the dialog
+    const productForLoan = selectedProvider?.products.find(p => p.name === loan.productName);
+    if (productForLoan) {
+        setRepayingLoan({ ...loan, product: productForLoan });
+        setIsRepayDialogOpen(true);
+    } else {
+        toast({ title: 'Error', description: 'Could not find product details for this loan.', variant: 'destructive' });
+    }
   }
 
   const handleConfirmRepayment = async (amount: number) => {
@@ -310,11 +316,10 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
             isOpen={isRepayDialogOpen}
             onClose={() => setIsRepayDialogOpen(false)}
             onConfirm={handleConfirmRepayment}
-            loan={{...repayingLoan, product: providers.find(p => p.id === selectedProviderId)?.products.find(prod => prod.name === repayingLoan.productName)}}
+            loan={repayingLoan}
             providerColor={selectedProvider?.colorHex}
         />
       )}
     </>
   );
 }
-
