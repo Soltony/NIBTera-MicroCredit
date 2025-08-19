@@ -20,6 +20,8 @@ import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
 import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -189,6 +191,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const handleBack = () => {
     router.push('/check-eligibility/select-customer');
   }
+  
+  const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
+
 
   return (
     <>
@@ -203,6 +208,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                   {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
               </h1>
             </div>
+             <div className="ml-auto">
+                <Button variant="ghost" onClick={() => router.push(`/history?${searchParams.toString()}`)} className="text-primary-foreground hover:bg-white/20 hover:text-primary-foreground">
+                    <History className="mr-2 h-4 w-4" /> View Full History
+                </Button>
+             </div>
           </div>
         </header>
         <main className="flex-1">
@@ -249,46 +259,73 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     />
                   )}
               
-                  <div className="grid gap-8 grid-cols-1">
-                      <div>
-                          <Card className="shadow-sm rounded-lg">
+                  <div className="grid gap-8 grid-cols-1 md:grid-cols-3">
+                      <div className="md:col-span-2">
+                        {selectedProvider && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Available Loan Products</CardTitle>
+                                    <CardDescription>Select a product from {selectedProvider.name} to apply.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {selectedProvider.products
+                                        .filter(p => p.status === 'Active')
+                                        .map((product) => (
+                                        <ProductCard 
+                                            key={product.id}
+                                            product={{
+                                                ...product,
+                                                availableLimit: Math.min(product.maxLoan || 0, availableToBorrow)
+                                            }}
+                                            providerColor={selectedProvider.colorHex}
+                                            activeLoan={activeLoansByProduct[product.name]}
+                                            onApply={() => handleApply(product.id)}
+                                            onRepay={handleRepay}
+                                            IconDisplayComponent={IconDisplay}
+                                        />
+                                    ))}
+                                </CardContent>
+                            </Card>
+                        )}
+                      </div>
+                       <div className="md:col-span-1">
+                          <Card>
                             <CardHeader>
-                                <CardTitle>Loan History</CardTitle>
-                                <CardDescription>View your past and active loans.</CardDescription>
+                                <CardTitle>Recent Activity</CardTitle>
+                                <CardDescription>Your most recent loans.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Button className="w-full" variant="outline" onClick={() => router.push(`/history?${searchParams.toString()}`)}>
-                                    <History className="mr-2 h-4 w-4" /> View Full Loan History
-                                </Button>
+                                {loanHistory.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {loanHistory.slice(0, 5).map((loan, index) => {
+                                             const provider = getProviderForLoan(loan);
+                                             const statusColor = loan.repaymentStatus === 'Paid' ? 'text-green-500' : 'text-red-500';
+                                            return (
+                                            <React.Fragment key={loan.id}>
+                                                <div className="flex items-center">
+                                                    <Avatar className="h-9 w-9">
+                                                        <div className="w-full h-full flex items-center justify-center rounded-full" style={{backgroundColor: provider?.colorHex || '#ccc'}}>
+                                                            <IconDisplay iconName={provider?.icon || 'Building2'} className="h-5 w-5 text-white" />
+                                                        </div>
+                                                    </Avatar>
+                                                    <div className="ml-4 space-y-1">
+                                                        <p className="text-sm font-medium leading-none">{loan.providerName}</p>
+                                                        <p className="text-xs text-muted-foreground">{loan.productName}</p>
+                                                    </div>
+                                                    <div className="ml-auto font-medium text-right">
+                                                        <p>{formatCurrency(loan.loanAmount)}</p>
+                                                         <p className={cn("text-xs", statusColor)}>{loan.repaymentStatus}</p>
+                                                    </div>
+                                                </div>
+                                                {index < loanHistory.slice(0, 5).length - 1 && <Separator />}
+                                            </React.Fragment>
+                                        )})}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground text-center py-8">No loan history found.</p>
+                                )}
                             </CardContent>
                           </Card>
-                      </div>
-                      <div>
-                      {selectedProvider && (
-                          <Card>
-                              <CardHeader>
-                                  <CardTitle>Available Loan Products</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                  {selectedProvider.products
-                                    .filter(p => p.status === 'Active')
-                                    .map((product) => (
-                                      <ProductCard 
-                                          key={product.id}
-                                          product={{
-                                            ...product,
-                                            availableLimit: Math.min(product.maxLoan || 0, availableToBorrow)
-                                          }}
-                                          providerColor={selectedProvider.colorHex}
-                                          activeLoan={activeLoansByProduct[product.name]}
-                                          onApply={() => handleApply(product.id)}
-                                          onRepay={handleRepay}
-                                          IconDisplayComponent={IconDisplay}
-                                      />
-                                  ))}
-                              </CardContent>
-                          </Card>
-                      )}
                       </div>
                   </div>
               </div>
@@ -307,3 +344,4 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
+
