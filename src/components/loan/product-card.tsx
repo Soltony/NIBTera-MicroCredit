@@ -27,7 +27,7 @@ interface ProductCardProps {
     providerColor?: string;
     activeLoan?: LoanDetails;
     onApply: () => void;
-    onRepay: (loan: LoanDetails) => void;
+    onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
 }
 
@@ -91,7 +91,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                     {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}
                                 </p>
                             </div>
-                            <Button onClick={() => onRepay(activeLoan)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
+                            <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
                             <div>

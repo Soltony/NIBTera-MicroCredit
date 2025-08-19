@@ -44,7 +44,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
-  const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
+  const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   
   const isEligible = !eligibilityError;
@@ -95,10 +95,10 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         toast({ title: 'Error', description: 'Customer ID not found.', variant: 'destructive'});
         return;
     }
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
-    params.set('customerId', customerId);
+    // params.set('customerId', customerId); // This is already in searchParams
     params.set('max', String(currentMaxLoanLimit));
     router.push(`/apply?${params.toString()}`);
   }
@@ -146,24 +146,18 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     }
   }
   
-  const handleRepay = (loan: LoanDetails) => {
-    // Find the full product details to pass to the dialog
-    const productForLoan = selectedProvider?.products.find(p => p.name === loan.productName);
-    if (productForLoan) {
-        setRepayingLoan({ ...loan, product: productForLoan });
-        setIsRepayDialogOpen(true);
-    } else {
-        toast({ title: 'Error', description: 'Could not find product details for this loan.', variant: 'destructive' });
-    }
+  const handleRepay = (loan: LoanDetails, balanceDue: number) => {
+    setRepayingLoanInfo({ loan, balanceDue });
+    setIsRepayDialogOpen(true);
   }
 
   const handleConfirmRepayment = async (amount: number) => {
-    if (!repayingLoan) return;
+    if (!repayingLoanInfo) return;
     try {
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loanId: repayingLoan.id, amount }),
+        body: JSON.stringify({ loanId: repayingLoanInfo.loan.id, amount }),
       });
 
       if (!response.ok) {
@@ -191,7 +185,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       });
     } finally {
       setIsRepayDialogOpen(false);
-      setRepayingLoan(null);
+      setRepayingLoanInfo(null);
     }
   }
 
@@ -311,12 +305,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
           </div>
         </main>
       </div>
-      {repayingLoan && (
+      {repayingLoanInfo && (
         <RepaymentDialog
             isOpen={isRepayDialogOpen}
             onClose={() => setIsRepayDialogOpen(false)}
             onConfirm={handleConfirmRepayment}
-            loan={repayingLoan}
+            loan={repayingLoanInfo.loan}
+            totalBalanceDue={repayingLoanInfo.balanceDue}
             providerColor={selectedProvider?.colorHex}
         />
       )}
