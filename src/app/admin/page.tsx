@@ -1,4 +1,3 @@
-
 'use client';
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
