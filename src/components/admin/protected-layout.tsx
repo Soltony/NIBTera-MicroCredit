@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -34,10 +33,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Logo } from '@/components/icons';
 import { useAuth } from '@/hooks/use-auth';
 import type { LoanProvider } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Logo } from '@/components/icons';
 
 
 // Function to convert hex to HSL

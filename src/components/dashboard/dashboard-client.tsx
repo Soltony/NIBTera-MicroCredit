@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -241,11 +242,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     </Alert>
                   )}
 
-                  {isEligible && (
+                  {isEligible && selectedProvider && (
                     <LoanSummaryCard
                         maxLoanLimit={currentMaxLoanLimit}
                         availableToBorrow={availableToBorrow}
-                        color={selectedProvider?.colorHex}
+                        color={selectedProvider.colorHex}
                         isLoading={isRecalculating}
                         onRecalculate={() => selectedProviderId && recalculateForProvider(selectedProviderId)}
                     />

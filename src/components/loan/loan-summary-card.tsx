@@ -18,7 +18,7 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb913', isLoading = false, onRecalculate }: LoanSummaryCardProps) {
+export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color, isLoading = false, onRecalculate }: LoanSummaryCardProps) {
     const [isMaxLimitVisible, setIsMaxLimitVisible] = useState(true);
     const [isAvailableVisible, setIsAvailableVisible] = useState(true);
 
@@ -37,10 +37,12 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         return formatCurrency(amount);
     }
 
+  const displayColor = color || '#fdb913';
+
   return (
     <div 
       className="relative p-6 rounded-2xl text-primary-foreground shadow-lg flex flex-col justify-between min-h-[180px] overflow-hidden"
-      style={{ backgroundColor: color }}
+      style={{ backgroundColor: displayColor }}
     >
       <div className="absolute inset-0 z-0 opacity-10">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
