@@ -2,23 +2,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
-import { Button } from '../ui/button';
 
 interface LoanSummaryCardProps {
   maxLoanLimit: number;
   availableToBorrow: number;
   color?: string;
   isLoading?: boolean;
-  onRecalculate?: () => void;
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
-export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color, isLoading = false, onRecalculate }: LoanSummaryCardProps) {
+export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color, isLoading = false }: LoanSummaryCardProps) {
     const [isMaxLimitVisible, setIsMaxLimitVisible] = useState(true);
     const [isAvailableVisible, setIsAvailableVisible] = useState(true);
 
@@ -55,20 +53,6 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color, isLoad
         </svg>
       </div>
       
-       {onRecalculate && (
-            <Button
-                onClick={onRecalculate}
-                variant="ghost"
-                size="icon"
-                className="absolute top-4 right-4 z-20 h-8 w-8 hover:bg-white/20"
-                disabled={isLoading}
-                aria-label="Recalculate Limit"
-            >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
-        )}
-
-
       <div className="relative z-10 flex flex-col justify-between h-full">
         <div>
             <div className="flex items-center gap-2">

@@ -42,15 +42,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
-  const [isRecalculating, setIsRecalculating] = useState(false);
   
   const isEligible = !eligibilityError;
 
-  const initialMaxLoan = useMemo(() => {
+  const maxLoanLimit = useMemo(() => {
     return searchParams.has('max') ? parseFloat(searchParams.get('max')!) : 0;
   }, [searchParams]);
-
-  const [currentMaxLoanLimit, setCurrentMaxLoanLimit] = useState(initialMaxLoan);
 
 
   useEffect(() => {
@@ -69,10 +66,10 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
     
     const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const availableToBorrow = Math.max(0, currentMaxLoanLimit - totalBorrowed);
+    const availableToBorrow = Math.max(0, maxLoanLimit - totalBorrowed);
 
     return { totalBorrowed, availableToBorrow };
-  }, [currentMaxLoanLimit, loanHistory]);
+  }, [maxLoanLimit, loanHistory]);
 
   const activeLoansByProduct = useMemo(() => {
       const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
@@ -86,7 +83,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
 
   const selectedProvider = useMemo(() => {
-    return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
+    return providers.find(p => p.id === selectedProviderId) || providers[0];
   }, [selectedProviderId, providers]);
 
   const handleApply = (productId: string) => {
@@ -106,44 +103,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', providerId);
+    // Reset eligibility results when changing provider
     params.delete('max');
     params.delete('error');
     router.push(`/loan?${params.toString()}`, { scroll: false });
-    
-    // Automatically recalculate for the new provider
-    recalculateForProvider(providerId);
   }
-  
-    const recalculateForProvider = async (providerId: string) => {
-        if (!customerId) return;
-        const provider = providers.find(p => p.id === providerId);
-        const firstProduct = provider?.products.find(p => p.status === 'Active');
-
-        if (!provider || !firstProduct) {
-            setCurrentMaxLoanLimit(0);
-            return;
-        }
-
-        setIsRecalculating(true);
-        try {
-            const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(provider.id), Number(firstProduct.id));
-            setCurrentMaxLoanLimit(maxLoanAmount);
-             toast({
-                title: 'Limit Updated',
-                description: `Your loan limit for ${provider.name} has been updated.`,
-            });
-        } catch (error) {
-            toast({
-                title: 'Error Recalculating',
-                description: 'Could not update loan limit.',
-                variant: 'destructive'
-            });
-            setCurrentMaxLoanLimit(0);
-        } finally {
-            setIsRecalculating(false);
-        }
-    };
-
 
   const handleRepay = (loan: LoanDetails) => {
     setRepayingLoan(loan);
@@ -222,7 +186,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                       style={{ color: selectedProviderId === provider.id ? provider.colorHex : 'transparent' }}
                                   >
                                       <div className={cn("h-16 w-16 rounded-full bg-card flex items-center justify-center transition-all shadow-md hover:shadow-lg", selectedProviderId === provider.id ? 'shadow-lg' : '')}>
-                                          {isRecalculating && selectedProviderId === provider.id ? <Loader2 className="h-8 w-8 animate-spin" /> : <IconDisplay iconName={provider.icon} className="h-8 w-8 text-muted-foreground" />}
+                                          <IconDisplay iconName={provider.icon} className="h-8 w-8 text-muted-foreground" />
                                       </div>
                                   </div>
                                   <span className={cn(
@@ -244,11 +208,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
                   {isEligible && selectedProvider && (
                     <LoanSummaryCard
-                        maxLoanLimit={currentMaxLoanLimit}
+                        maxLoanLimit={maxLoanLimit}
                         availableToBorrow={availableToBorrow}
                         color={selectedProvider.colorHex}
-                        isLoading={isRecalculating}
-                        onRecalculate={() => selectedProviderId && recalculateForProvider(selectedProviderId)}
                     />
                   )}
               
