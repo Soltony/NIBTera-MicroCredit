@@ -13,6 +13,7 @@ import {
 import { IsNotEmpty, Length } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
 import type { LoanProduct } from './LoanProduct';
+import type { DataProvisioningUpload } from './DataProvisioningUpload';
 
 
 @Entity({ name: 'data_provisioning_configs' })
@@ -38,6 +39,9 @@ export class DataProvisioningConfig {
 
   @OneToMany('LoanProduct', (product: LoanProduct) => product.dataProvisioningConfig)
   loanProducts!: LoanProduct[];
+
+  @OneToMany('DataProvisioningUpload', (upload: DataProvisioningUpload) => upload.config)
+  uploads!: DataProvisioningUpload[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

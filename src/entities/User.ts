@@ -8,10 +8,12 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 import { IsEmail, IsNotEmpty, Length } from 'class-validator';
 import type { Role } from './Role';
 import type { LoanProvider } from './LoanProvider';
+import type { DataProvisioningUpload } from './DataProvisioningUpload';
 
 @Entity({ name: 'users' })
 export class User {
@@ -50,6 +52,9 @@ export class User {
   @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.users, { nullable: true })
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
+
+  @OneToMany('DataProvisioningUpload', (upload: DataProvisioningUpload) => upload.uploadedByUser)
+  dataProvisioningUploads!: DataProvisioningUpload[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

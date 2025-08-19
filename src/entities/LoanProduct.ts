@@ -13,6 +13,7 @@ import { IsNotEmpty, Length, IsNumber, IsBoolean, IsOptional, IsString } from 'c
 import type { LoanProvider } from './LoanProvider';
 import type { LoanDetails } from './LoanDetails';
 import type { DataProvisioningConfig } from './DataProvisioningConfig';
+import type { LoanAmountTier } from './LoanAmountTier';
 
 
 @Entity({ name: 'loan_products' })
@@ -83,6 +84,9 @@ export class LoanProduct {
 
   @OneToMany('LoanDetails', (loan: LoanDetails) => loan.product)
   loans!: LoanDetails[];
+  
+  @OneToMany('LoanAmountTier', (tier: LoanAmountTier) => tier.product)
+  loanAmountTiers!: LoanAmountTier[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

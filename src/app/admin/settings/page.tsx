@@ -27,12 +27,12 @@ async function getProviders(): Promise<LoanProviderType[]> {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
-            relations: ['products', 'dataProvisioningConfigs'],
+            relations: ['products', 'products.loanAmountTiers', 'dataProvisioningConfigs', 'dataProvisioningConfigs.uploads', 'dataProvisioningConfigs.uploads.uploadedByUser'],
             order: {
                 displayOrder: 'ASC',
                 products: {
                     name: 'ASC'
-                }
+                },
             }
         });
 
@@ -52,8 +52,9 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 minLoan: prod.minLoan ?? 0,
                 maxLoan: prod.maxLoan ?? 0,
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
-                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
-                penaltyRules: safeJsonParse(prod.penaltyRules, []),
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0, calculationBase: 'principal' }),
+                penaltyRules: safeJsonParse(prod.penaltyRules, []).map((rule: any) => ({ ...rule, toDay: rule.toDay === Infinity ? null : rule.toDay })),
+                loanAmountTiers: prod.loanAmountTiers ? prod.loanAmountTiers.map(tier => ({...tier, id: String(tier.id)})).sort((a,b) => a.fromScore - b.fromScore) : [],
                 status: prod.status as 'Active' | 'Disabled',
                 serviceFeeEnabled: !!prod.serviceFeeEnabled,
                 dailyFeeEnabled: !!prod.dailyFeeEnabled,
@@ -66,6 +67,14 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 providerId: String(dpc.providerId),
                 name: dpc.name,
                 columns: safeJsonParse(dpc.columns, []),
+                uploads: dpc.uploads.map(upload => ({
+                    id: String(upload.id),
+                    configId: String(upload.configId),
+                    fileName: upload.fileName,
+                    rowCount: upload.rowCount,
+                    uploadedAt: upload.uploadedAt.toISOString(),
+                    uploadedBy: upload.uploadedByUser.fullName,
+                })).sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()),
             })),
         })) as LoanProviderType[];
     } catch(e) {

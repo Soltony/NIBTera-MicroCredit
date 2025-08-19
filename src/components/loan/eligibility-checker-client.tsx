@@ -22,6 +22,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Logo } from '../icons';
+import type { LoanProvider } from '@/lib/types';
 
 interface CustomerData {
   id: string;
@@ -34,6 +35,7 @@ interface CustomerData {
 
 interface EligibilityCheckerClientProps {
   customers: CustomerData[];
+  providers: LoanProvider[];
 }
 
 const formatCurrency = (amount: number) => {
@@ -41,13 +43,13 @@ const formatCurrency = (amount: number) => {
 };
 
 
-export function EligibilityCheckerClient({ customers }: EligibilityCheckerClientProps) {
+export function EligibilityCheckerClient({ customers, providers }: EligibilityCheckerClientProps) {
   const router = useRouter();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   
   const handleCheckEligibility = () => {
     if (selectedCustomerId) {
-      router.push(`/check-eligibility?customerId=${selectedCustomerId}`);
+        router.push(`/loan?customerId=${selectedCustomerId}`);
     } else {
       alert('Please select a customer first.');
     }
@@ -71,7 +73,7 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>
                         <CardDescription>
-                            Choose one of the mock customer profiles below to check their loan eligibility.
+                            Choose one of the mock customer profiles to check their loan eligibility across all providers.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -117,7 +119,7 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
                         style={{ backgroundColor: nibBankColor }}
                         className="text-white"
                     >
-                        Check Eligibility for Selected Customer
+                        Check Eligibility
                     </Button>
                 </div>
             </div>

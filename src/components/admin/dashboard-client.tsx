@@ -264,7 +264,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   </TableHeader>
                   <TableBody>
                     {productOverview.map((product) => (
-                        <TableRow key={product.name}>
+                        <TableRow key={`${product.provider}-${product.name}`}>
                             <TableCell>{product.name}</TableCell>
                             <TableCell>{product.provider}</TableCell>
                             <TableCell>{product.active}</TableCell>

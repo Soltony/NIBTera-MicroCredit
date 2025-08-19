@@ -9,10 +9,14 @@ export interface FeeRule {
     value: number | '';
 }
 
+export interface DailyFeeRule extends FeeRule {
+    calculationBase?: 'principal' | 'compound';
+}
+
 export interface PenaltyRule {
     id: string;
     fromDay: number | '';
-    toDay: number | Infinity | '';
+    toDay: number | Infinity | '' | null;
     type: 'fixed' | 'percentageOfPrincipal';
     value: number | '';
 }
@@ -23,11 +27,29 @@ export interface DataColumn {
     type: 'string' | 'number' | 'date';
 }
 
+export interface DataProvisioningUpload {
+    id: string;
+    configId: string;
+    fileName: string;
+    rowCount: number;
+    uploadedAt: string;
+    uploadedBy: string;
+}
+
 export interface DataProvisioningConfig {
     id: string;
     providerId: string;
     name: string;
     columns: DataColumn[];
+    uploads?: DataProvisioningUpload[];
+}
+
+export interface LoanAmountTier {
+    id: string;
+    productId: string;
+    fromScore: number;
+    toScore: number;
+    loanAmount: number;
 }
 
 
@@ -44,14 +66,16 @@ export interface LoanProvider {
 
 export interface LoanProduct {
   id:string;
+  providerId: string;
   name: string;
   description: string;
   icon: string;
   minLoan?: number;
   maxLoan?: number;
   serviceFee: FeeRule;
-  dailyFee: FeeRule;
+  dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];
+  loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
   serviceFeeEnabled?: boolean;

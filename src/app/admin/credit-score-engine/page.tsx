@@ -10,20 +10,20 @@ async function getProviders() {
         const providerRepo = dataSource.getRepository('LoanProvider');
         const providers = await providerRepo.find({
             relations: ['products'],
+             order: {
+                displayOrder: 'ASC',
+            }
         });
         return providers.map(p => ({
+            ...p,
             id: String(p.id),
-            name: p.name,
-            colorHex: p.colorHex,
-            displayOrder: p.displayOrder,
-            icon: p.icon,
             products: p.products.map(prod => ({
                 ...prod,
                 id: String(prod.id),
                 serviceFee: JSON.parse(prod.serviceFee),
                 dailyFee: JSON.parse(prod.dailyFee),
                 penaltyRules: JSON.parse(prod.penaltyRules),
-            }))
+            })),
         })) as any[];
     } catch(e) {
         console.error(e);

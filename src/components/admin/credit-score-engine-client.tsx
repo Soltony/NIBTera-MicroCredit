@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -113,7 +112,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
                 <Select value={rule.field} onValueChange={(value) => onUpdate({ ...rule, field: value })}>
-                    <SelectTrigger className={cn("w-1/4 focus:ring-[--ring-color]", !rule.field.trim() && 'border-destructive')}>
+                    <SelectTrigger className={cn("w-1/4 shadow-sm focus:ring-2 focus:ring-[--ring-color]", !rule.field.trim() && 'border-destructive')}>
                         <SelectValue placeholder="Select Field" />
                     </SelectTrigger>
                     <SelectContent>
@@ -123,7 +122,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     </SelectContent>
                 </Select>
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                    <SelectTrigger className="w-1/4 focus:ring-[--ring-color]">
+                    <SelectTrigger className="w-1/4 shadow-sm focus:ring-2 focus:ring-[--ring-color]">
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -143,14 +142,14 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                             placeholder="Min"
                             value={min}
                             onChange={handleRangeChange('min')}
-                            className={cn("focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                            className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                         <span>-</span>
                         <Input
                             placeholder="Max"
                             value={max}
                             onChange={handleRangeChange('max')}
-                            className={cn("focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                            className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
                         />
                     </div>
                 ) : (
@@ -158,7 +157,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                         placeholder="e.g., 30"
                         value={rule.value || ''}
                         onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                        className={cn("w-1/4 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
+                        className={cn("w-1/4 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
                     />
                 )}
                 
@@ -167,7 +166,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     placeholder="Score"
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
-                    className="w-1/4 focus-visible:ring-[--ring-color]"
+                    className="w-1/4 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]"
                 />
                 <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground">
                     <Trash2 className="h-4 w-4" />
@@ -703,7 +702,8 @@ interface CreditScoreEngineClientProps {
     initialHistory: ScoringHistoryItem[];
 }
 
-export function CreditScoreEngineClient({ providers, initialScoringParameters, initialHistory }: CreditScoreEngineClientProps) {
+export function CreditScoreEngineClient({ providers: initialProviders, initialScoringParameters, initialHistory }: CreditScoreEngineClientProps) {
+    const [providers, setProviders] = useState(initialProviders);
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
     const [parameters, setParameters] = useState<ScoringParameter[]>(initialScoringParameters);
     const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);

@@ -29,8 +29,17 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         if (daysSinceStart > 0) {
             if (dailyFeeRule.type === 'fixed') {
                 totalDebt += Number(dailyFeeRule.value) * daysSinceStart;
-            } else { // percentage
-                totalDebt += principal * (Number(dailyFeeRule.value) / 100) * daysSinceStart;
+            } else if (dailyFeeRule.type === 'percentage') {
+                if (dailyFeeRule.calculationBase === 'compound') {
+                    // Compounding interest: calculate day by day
+                    let compoundedBalance = totalDebt;
+                    for (let i = 0; i < daysSinceStart; i++) {
+                        compoundedBalance += compoundedBalance * (Number(dailyFeeRule.value) / 100);
+                    }
+                    totalDebt = compoundedBalance;
+                } else { // Simple interest on principal
+                    totalDebt += principal * (Number(dailyFeeRule.value) / 100) * daysSinceStart;
+                }
             }
         }
     }
@@ -42,7 +51,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         
         penaltyRules.forEach(rule => {
              const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
-             const toDay = rule.toDay === '' || rule.toDay === Infinity ? Infinity : Number(rule.toDay);
+             const toDay = rule.toDay === '' || rule.toDay === null || rule.toDay === Infinity ? Infinity : Number(rule.toDay);
              const value = rule.value === '' ? 0 : Number(rule.value);
 
              if (daysOverdue >= fromDay) {

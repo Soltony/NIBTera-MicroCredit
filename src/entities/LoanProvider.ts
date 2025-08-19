@@ -16,7 +16,6 @@ import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory'
 import type { CustomParameter } from './CustomParameter';
 import type { DataProvisioningConfig } from './DataProvisioningConfig';
 
-
 @Entity({ name: 'loan_providers' })
 export class LoanProvider {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
@@ -59,7 +58,6 @@ export class LoanProvider {
 
   @OneToMany('DataProvisioningConfig', (config: DataProvisioningConfig) => config.provider)
   dataProvisioningConfigs!: DataProvisioningConfig[];
-
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

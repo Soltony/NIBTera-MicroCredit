@@ -15,6 +15,8 @@ function EligibilityCheck() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get('customerId');
+  const providerId = searchParams.get('providerId');
+  const productId = searchParams.get('productId'); // Get the product ID from URL
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,42 +40,41 @@ function EligibilityCheck() {
 
   useEffect(() => {
     const performCheck = async () => {
-      if (providers.length === 0 || !customerId) return;
+      if (providers.length === 0 || !customerId || !productId || !providerId) return;
 
-      const providerIdFromUrl = searchParams.get('providerId');
-      const targetProvider = providers.find(p => p.id === providerIdFromUrl) || providers[0];
+      const targetProvider = providers.find(p => p.id === providerId);
 
       if (!targetProvider) {
-        setError("Could not find any available loan providers.");
+        setError("Could not find the specified loan provider.");
         setIsLoading(false);
         return;
       }
       
       setCheckingProvider(targetProvider);
-      const providerId = Number(targetProvider.id);
+      const numericProviderId = Number(targetProvider.id);
 
       setIsLoading(true);
       setError(null);
       
-      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), providerId);
+      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(Number(customerId), numericProviderId, Number(productId));
 
-      const params = new URLSearchParams();
-      params.set('providerId', String(providerId));
-      params.set('customerId', customerId);
+      const params = new URLSearchParams(searchParams.toString());
 
       if (isEligible) {
           params.set('max', String(maxLoanAmount));
+          params.set('step', 'calculator');
+          router.push(`/apply?${params.toString()}`);
       } else {
         params.set('error', reason);
+        router.push(`/loan?${params.toString()}`);
       }
       
-      router.push(`/loan?${params.toString()}`);
     };
 
-    if(providers.length > 0 && customerId) {
+    if(providers.length > 0 && customerId && productId && providerId) {
         performCheck();
     }
-  }, [providers, router, customerId, searchParams]);
+  }, [providers, router, customerId, productId, searchParams, providerId]);
 
 
   return (
