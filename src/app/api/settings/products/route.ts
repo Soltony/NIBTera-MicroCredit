@@ -37,14 +37,27 @@ export async function POST(req: Request) {
         });
         const savedProduct = await productRepo.save(newProductEntity);
         
-        // After saving, the JSON fields might be objects or strings depending on the DB driver.
-        // This robustly handles both cases to create a consistent response.
+        // Construct a clean response object to avoid circular references
         const responseProduct = {
-            ...savedProduct,
+            id: String(savedProduct.id),
+            providerId: String(savedProduct.providerId),
+            name: savedProduct.name,
+            description: savedProduct.description,
+            icon: savedProduct.icon,
+            minLoan: savedProduct.minLoan,
+            maxLoan: savedProduct.maxLoan,
+            status: savedProduct.status,
             serviceFee: typeof savedProduct.serviceFee === 'string' ? JSON.parse(savedProduct.serviceFee) : savedProduct.serviceFee,
             dailyFee: typeof savedProduct.dailyFee === 'string' ? JSON.parse(savedProduct.dailyFee) : savedProduct.dailyFee,
             penaltyRules: typeof savedProduct.penaltyRules === 'string' ? JSON.parse(savedProduct.penaltyRules) : savedProduct.penaltyRules,
+            serviceFeeEnabled: savedProduct.serviceFeeEnabled,
+            dailyFeeEnabled: savedProduct.dailyFeeEnabled,
+            penaltyRulesEnabled: savedProduct.penaltyRulesEnabled,
+            dataProvisioningEnabled: savedProduct.dataProvisioningEnabled,
+            dataProvisioningConfigId: savedProduct.dataProvisioningConfigId ? String(savedProduct.dataProvisioningConfigId) : null,
+            loanAmountTiers: [], // Initialize as empty array
         };
+
 
         return NextResponse.json(responseProduct, { status: 201 });
     } catch (error) {
