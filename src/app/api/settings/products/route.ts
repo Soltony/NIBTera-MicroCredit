@@ -28,7 +28,7 @@ export async function POST(req: Request) {
             status: 'Active',
             // Initialize fee/penalty structures as empty/default JSON strings
             serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
-            dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
+            dailyFee: JSON.stringify({ type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: '[]',
             serviceFeeEnabled: false,
             dailyFeeEnabled: false,
@@ -38,7 +38,8 @@ export async function POST(req: Request) {
         });
         const savedProduct = await productRepo.save(newProductEntity);
         
-        // Construct a clean response object to avoid circular references
+        // Construct a clean response object to avoid circular references and parsing errors.
+        // This only contains the data the client needs to update its state.
         const responseProduct = {
             id: String(savedProduct.id),
             providerId: String(savedProduct.providerId),
@@ -48,15 +49,15 @@ export async function POST(req: Request) {
             minLoan: savedProduct.minLoan,
             maxLoan: savedProduct.maxLoan,
             status: savedProduct.status,
-            serviceFee: typeof savedProduct.serviceFee === 'string' ? JSON.parse(savedProduct.serviceFee) : savedProduct.serviceFee,
-            dailyFee: typeof savedProduct.dailyFee === 'string' ? JSON.parse(savedProduct.dailyFee) : savedProduct.dailyFee,
-            penaltyRules: typeof savedProduct.penaltyRules === 'string' ? JSON.parse(savedProduct.penaltyRules) : savedProduct.penaltyRules,
-            serviceFeeEnabled: savedProduct.serviceFeeEnabled,
-            dailyFeeEnabled: savedProduct.dailyFeeEnabled,
-            penaltyRulesEnabled: savedProduct.penaltyRulesEnabled,
-            dataProvisioningEnabled: savedProduct.dataProvisioningEnabled,
-            dataProvisioningConfigId: savedProduct.dataProvisioningConfigId ? String(savedProduct.dataProvisioningConfigId) : null,
-            loanAmountTiers: [], // Initialize as empty array
+            serviceFee: { type: 'percentage', value: 0 },
+            dailyFee: { type: 'percentage', value: 0, calculationBase: 'principal' },
+            penaltyRules: [],
+            loanAmountTiers: [],
+            serviceFeeEnabled: false,
+            dailyFeeEnabled: false,
+            penaltyRulesEnabled: false,
+            dataProvisioningEnabled: false,
+            dataProvisioningConfigId: null,
         };
 
 
