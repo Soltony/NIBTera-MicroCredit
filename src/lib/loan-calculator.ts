@@ -12,7 +12,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
 
     let totalDebt = principal;
 
-    // 1. Service Fee
+    // 1. Service Fee (One-time charge)
     const serviceFeeRule = loanProduct.serviceFeeEnabled ? loanProduct.serviceFee : undefined;
     if (serviceFeeRule && serviceFeeRule.value) {
         if (serviceFeeRule.type === 'fixed') {
@@ -22,31 +22,33 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         }
     }
 
-    // 2. Daily Fee (Interest)
+    // 2. Daily Fee (Interest) - Calculated only up to the due date.
     const dailyFeeRule = loanProduct.dailyFeeEnabled ? loanProduct.dailyFee : undefined;
     if (dailyFeeRule && dailyFeeRule.value) {
-        const daysSinceStart = differenceInDays(finalDate, loanStartDate);
-        if (daysSinceStart > 0) {
+        // Calculate days from start to the earlier of today or due date.
+        const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
+        const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
+
+        if (daysForInterest > 0) {
             if (dailyFeeRule.type === 'fixed') {
-                totalDebt += Number(dailyFeeRule.value) * daysSinceStart;
+                totalDebt += Number(dailyFeeRule.value) * daysForInterest;
             } else if (dailyFeeRule.type === 'percentage') {
                 if (dailyFeeRule.calculationBase === 'compound') {
-                    // Compounding interest: calculate day by day
                     let compoundedBalance = totalDebt;
-                    for (let i = 0; i < daysSinceStart; i++) {
+                    for (let i = 0; i < daysForInterest; i++) {
                         compoundedBalance += compoundedBalance * (Number(dailyFeeRule.value) / 100);
                     }
                     totalDebt = compoundedBalance;
                 } else { // Simple interest on principal
-                    totalDebt += principal * (Number(dailyFeeRule.value) / 100) * daysSinceStart;
+                    totalDebt += principal * (Number(dailyFeeRule.value) / 100) * daysForInterest;
                 }
             }
         }
     }
 
-    // 3. Penalty
+    // 3. Penalty - Calculated only if overdue.
     const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
-    if (penaltyRules && finalDate > dueDate) {
+    if (penaltyRules.length > 0 && finalDate > dueDate) {
         const daysOverdue = differenceInDays(finalDate, dueDate);
         
         penaltyRules.forEach(rule => {
@@ -59,10 +61,8 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                  
                  if (applicableDaysInTier > 0) {
                     if (rule.type === 'fixed') {
-                        // Fixed amount is a one-time charge for entering the tier
                         totalDebt += value;
                     } else { // percentageOfPrincipal
-                        // Percentage is applied daily for the duration in the tier
                         totalDebt += principal * (value / 100) * applicableDaysInTier;
                     }
                  }
