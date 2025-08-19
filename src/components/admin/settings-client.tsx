@@ -541,12 +541,12 @@ function LoanTiersForm({ product, onUpdate, color }: {
 
     const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
         const newTiers = produce(tiers, draft => {
-            (draft[index] as any)[field] = value === '' ? 0 : parseFloat(value);
+            (draft[index] as any)[field] = value === '' ? '' : value;
         });
 
         // Auto-adjust the next tier's "fromScore"
         if (field === 'toScore' && index < newTiers.length - 1) {
-             const fromScoreValue = (newTiers[index].toScore ?? 0) + 1;
+             const fromScoreValue = (Number(newTiers[index].toScore) || 0) + 1;
              (newTiers[index + 1] as any).fromScore = fromScoreValue;
         }
 
@@ -555,7 +555,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
 
     const handleAddTier = () => {
         const lastTier = tiers[tiers.length - 1];
-        const newFromScore = lastTier ? (lastTier.toScore ?? 0) + 1 : 0;
+        const newFromScore = lastTier ? (Number(lastTier.toScore) || 0) + 1 : 0;
         
         const newTier: LoanAmountTier = {
             id: `tier-${Date.now()}`,
@@ -574,24 +574,43 @@ function LoanTiersForm({ product, onUpdate, color }: {
     };
     
     const handleSaveTiers = async () => {
-        // Validation
-        for (let i = 0; i < tiers.length; i++) {
-            if ((tiers[i].fromScore ?? 0) > (tiers[i].toScore ?? 0)) {
+        // Validation and convert to numbers before sending
+        const tiersToSend = tiers.map((tier, i) => {
+            const fromScore = Number(tier.fromScore);
+            const toScore = Number(tier.toScore);
+            const loanAmount = Number(tier.loanAmount);
+
+            if (isNaN(fromScore) || isNaN(toScore) || isNaN(loanAmount)) {
+                toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, all fields must be valid numbers.`, variant: 'destructive'});
+                throw new Error("Invalid tier data");
+            }
+            if (fromScore > toScore) {
                 toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
-                return;
+                throw new Error("Invalid tier data");
             }
-            if (i > 0 && (tiers[i].fromScore ?? 0) <= (tiers[i-1].toScore ?? 0)) {
-                 toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
-                return;
+            if (i > 0) {
+                const prevToScore = Number(tiers[i-1].toScore);
+                if (fromScore <= prevToScore) {
+                    toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
+                    throw new Error("Invalid tier data");
+                }
             }
-        }
+            return {
+                ...tier,
+                fromScore,
+                toScore,
+                loanAmount,
+                id: String(tier.id).startsWith('tier-') ? undefined : tier.id
+            }
+        });
+
 
         setIsLoading(true);
         try {
             const response = await fetch('/api/settings/loan-amount-tiers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ productId: product.id, tiers: tiers.map(t => ({...t, id: String(t.id).startsWith('tier-') ? undefined : t.id})) }),
+                body: JSON.stringify({ productId: product.id, tiers: tiersToSend }),
             });
 
             if (!response.ok) {
@@ -604,7 +623,10 @@ function LoanTiersForm({ product, onUpdate, color }: {
             
             toast({ title: 'Success', description: 'Loan amount tiers have been saved successfully.' });
         } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+            // Toast is already shown for validation errors
+            if (error.message !== "Invalid tier data") {
+                toast({ title: 'Error', description: error.message, variant: 'destructive' });
+            }
         } finally {
             setIsLoading(false);
         }
