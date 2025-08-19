@@ -46,11 +46,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const isEligible = !eligibilityError;
 
-  const initialMaxLoan = useMemo(() => {
-    return searchParams.has('max') ? parseFloat(searchParams.get('max')!) : 0;
-  }, [searchParams]);
-
-  const [currentMaxLoanLimit, setCurrentMaxLoanLimit] = useState(initialMaxLoan);
+  const [currentMaxLoanLimit, setCurrentMaxLoanLimit] = useState(0);
 
 
   useEffect(() => {
@@ -58,12 +54,14 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }, [initialLoanHistory]);
 
   useEffect(() => {
-    if (providerIdFromUrl) {
-      setSelectedProviderId(providerIdFromUrl);
-    } else if (providers.length > 0) {
-      setSelectedProviderId(providers[0].id);
+    if (providers.length > 0 && customerId) {
+      const providerIdToUse = providerIdFromUrl || providers[0]?.id;
+      if (providerIdToUse) {
+        handleProviderSelect(providerIdToUse, true);
+      }
     }
-  }, [providerIdFromUrl, providers]);
+  }, [providers, customerId, providerIdFromUrl]);
+
   
   const { totalBorrowed, availableToBorrow } = useMemo(() => {
     const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
@@ -101,20 +99,47 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     router.push(`/check-eligibility?${params.toString()}`);
   }
 
-  const handleProviderSelect = async (providerId: string) => {
+  const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
+    if (!customerId) {
+      // Don't do anything if we don't have a customer context.
+      return;
+    }
+    
+    setIsRecalculating(true);
     setSelectedProviderId(providerId);
 
-    // When provider changes, we don't know the eligibility for their products yet.
-    // So we reset the max loan limit. The new limit will be calculated
-    // when the user clicks 'Apply' for a specific product.
-    setCurrentMaxLoanLimit(0); 
+    const provider = providers.find(p => p.id === providerId);
+    if (!provider || provider.products.length === 0) {
+      setCurrentMaxLoanLimit(0);
+      setIsRecalculating(false);
+      return;
+    }
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('providerId', providerId);
-    // Remove old max and error params as they are no longer relevant
-    params.delete('max');
-    params.delete('error');
-    router.push(`/loan?${params.toString()}`, { scroll: false });
+    try {
+      // For now, we check against the first product of the provider.
+      // A more advanced implementation might check all products and take the highest limit.
+      const firstProductId = provider.products[0].id;
+      const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(providerId), Number(firstProductId));
+      setCurrentMaxLoanLimit(maxLoanAmount);
+
+    } catch (error) {
+      console.error("Error recalculating score:", error);
+      setCurrentMaxLoanLimit(0);
+       toast({
+        title: 'Calculation Error',
+        description: "Could not calculate loan limit for this provider.",
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRecalculating(false);
+    }
+    
+    // Only update URL if it's not the initial load based on URL params
+    if (!isInitialLoad) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('providerId', providerId);
+      router.push(`/loan?${params.toString()}`, { scroll: false });
+    }
   }
   
   const handleRepay = (loan: LoanDetails) => {
