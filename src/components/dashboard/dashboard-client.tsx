@@ -257,13 +257,16 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     />
                   )}
               
-                  <Link
-                    href={`/history?${searchParams.toString()}`}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors -my-4"
-                  >
-                    <span className="font-semibold text-foreground">Loan History</span>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </Link>
+                  <div className="flex justify-end">
+                    <Link
+                        href={`/history?${searchParams.toString()}`}
+                        className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors"
+                        style={{ backgroundColor: selectedProvider ? `${selectedProvider.colorHex}20` : '#fdb91320', color: selectedProvider?.colorHex || '#fdb913' }}
+                    >
+                        <span>Loan History</span>
+                        <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
                   
                   <div className="grid gap-8 grid-cols-1">
                       <div className="md:col-span-2">
@@ -314,3 +317,4 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
+
