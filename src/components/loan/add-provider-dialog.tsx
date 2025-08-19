@@ -17,6 +17,7 @@ import { Building2, Landmark, Briefcase, type LucideIcon, Upload } from 'lucide-
 import { cn } from '@/lib/utils';
 import type { LoanProvider } from '@/lib/types';
 import { IconDisplay } from '@/components/icons';
+import { Switch } from '../ui/switch';
 
 interface AddProviderDialogProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState('#2563eb');
   const [displayOrder, setDisplayOrder] = useState(0);
+  const [allowMultipleActiveLoans, setAllowMultipleActiveLoans] = useState(true);
+
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -46,11 +49,13 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setSelectedIconName(provider.icon);
         setSelectedColorHex(provider.colorHex || '#2563eb');
         setDisplayOrder(provider.displayOrder || 0);
+        setAllowMultipleActiveLoans(provider.allowMultipleActiveLoans ?? true);
     } else {
         setProviderName('');
         setSelectedIconName(icons[0].name);
         setSelectedColorHex('#2563eb');
         setDisplayOrder(0);
+        setAllowMultipleActiveLoans(true);
     }
   }, [provider, isOpen]);
 
@@ -82,6 +87,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       icon: selectedIconName,
       colorHex: selectedColorHex,
       displayOrder: Number(displayOrder),
+      allowMultipleActiveLoans: allowMultipleActiveLoans,
     });
     onClose();
   };
@@ -177,6 +183,18 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                     className="p-1 h-10 w-14"
                 />
                 <span className="text-sm font-mono bg-muted px-2 py-1 rounded-md">{selectedColorHex}</span>
+            </div>
+          </div>
+           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="allowMultipleActiveLoans" className="text-right">
+              Allow Multiple Loans
+            </Label>
+            <div className="col-span-3">
+              <Switch
+                id="allowMultipleActiveLoans"
+                checked={allowMultipleActiveLoans}
+                onCheckedChange={setAllowMultipleActiveLoans}
+              />
             </div>
           </div>
           <DialogFooter>

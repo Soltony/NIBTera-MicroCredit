@@ -9,6 +9,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -29,9 +30,10 @@ interface ProductCardProps {
     onApply: () => void;
     onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
+    canApply: boolean;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent }: ProductCardProps) {
+export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, canApply: providerAllowsApply }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
@@ -49,7 +51,18 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApply = (product.availableLimit ?? 0) > 0 && !activeLoan;
+    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && !activeLoan && providerAllowsApply;
+
+    const applyButton = (
+        <Button 
+            onClick={onApply} 
+            style={{ backgroundColor: providerColor }} 
+            className="text-white"
+            disabled={!canApplyForThisProduct}
+        >
+            Apply
+        </Button>
+    );
 
     return (
         <Card className="hover:shadow-lg transition-all duration-300">
@@ -68,14 +81,20 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                            <Button 
-                                onClick={onApply} 
-                                style={{ backgroundColor: providerColor }} 
-                                className="text-white"
-                                disabled={!canApply}
-                            >
-                                Apply
-                            </Button>
+                             providerAllowsApply ? (
+                                applyButton
+                            ) : (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span tabIndex={0}>{applyButton}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>This provider does not allow multiple active loans.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )
                         )}
                     </div>
                 </div>
