@@ -6,6 +6,7 @@ import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { getConnectedDataSource } from '@/data-source';
 import { MoreThanOrEqual, LessThan, FindOptionsWhere } from 'typeorm';
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
