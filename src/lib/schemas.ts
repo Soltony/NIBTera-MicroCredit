@@ -18,6 +18,11 @@ const feeRuleSchema = z.object({
     value: z.number().or(z.string().regex(/^\d*\.?\d*$/).transform(v => v === '' ? '' : Number(v))),
 });
 
+const dailyFeeRuleSchema = feeRuleSchema.extend({
+    calculationBase: z.enum(['principal', 'compound']).optional(),
+});
+
+
 const penaltyRuleSchema = z.object({
     id: z.string(),
     fromDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? '' : Number(v))),
@@ -31,7 +36,7 @@ export const updateProductSchema = productSchema.partial().extend({
   id: z.string(),
   status: z.enum(['Active', 'Disabled']).optional(),
   serviceFee: feeRuleSchema.optional(),
-  dailyFee: feeRuleSchema.optional(),
+  dailyFee: dailyFeeRuleSchema.optional(),
   penaltyRules: z.array(penaltyRuleSchema).optional(),
   serviceFeeEnabled: z.boolean().optional(),
   dailyFeeEnabled: z.boolean().optional(),

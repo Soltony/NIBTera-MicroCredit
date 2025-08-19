@@ -9,6 +9,10 @@ export interface FeeRule {
     value: number | '';
 }
 
+export interface DailyFeeRule extends FeeRule {
+    calculationBase?: 'principal' | 'compound';
+}
+
 export interface PenaltyRule {
     id: string;
     fromDay: number | '';
@@ -58,7 +62,7 @@ export interface LoanProduct {
   minLoan?: number;
   maxLoan?: number;
   serviceFee: FeeRule;
-  dailyFee: FeeRule;
+  dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;

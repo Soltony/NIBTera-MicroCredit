@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier, DailyFeeRule } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -410,7 +410,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     </>;
 }
 
-const FeeInput = ({ label, fee, onChange, color, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; color?: string; isEnabled: boolean; }) => {
+const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
     return (
         <div className="flex items-center gap-2">
             <Label className={cn("w-28", !isEnabled && "text-muted-foreground/50")}>{label}</Label>
@@ -434,6 +434,50 @@ const FeeInput = ({ label, fee, onChange, color, isEnabled }: { label: string; f
                 />
                 {fee.type === 'percentage' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
             </div>
+        </div>
+    );
+};
+
+const DailyFeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: DailyFeeRule; onChange: (fee: DailyFeeRule) => void; isEnabled: boolean; }) => {
+    return (
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+                <Label className={cn("w-28", !isEnabled && "text-muted-foreground/50")}>{label}</Label>
+                <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type, calculationBase: type === 'fixed' ? undefined : fee.calculationBase || 'principal' })} disabled={!isEnabled}>
+                    <SelectTrigger className="w-32" disabled={!isEnabled}>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="percentage">Percentage</SelectItem>
+                        <SelectItem value="fixed">Fixed</SelectItem>
+                    </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                    <Input
+                        type="number"
+                        value={fee.value ?? ''}
+                        onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                        placeholder="Enter value"
+                        className={cn(fee.type === 'percentage' ? "pr-8" : "")}
+                        disabled={!isEnabled}
+                    />
+                    {fee.type === 'percentage' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
+                </div>
+            </div>
+            {isEnabled && fee.type === 'percentage' && (
+                <div className="flex items-center gap-2 pl-[124px]">
+                    <Label className="w-32 text-sm text-muted-foreground">Calculation Base</Label>
+                    <Select value={fee.calculationBase || 'principal'} onValueChange={(base: 'principal' | 'compound') => onChange({ ...fee, calculationBase: base })}>
+                        <SelectTrigger className="flex-1">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="principal">Principal</SelectItem>
+                            <SelectItem value="compound">Compound (Principal + Accrued)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
         </div>
     );
 };
@@ -777,7 +821,6 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                                         label="Fee Details"
                                         fee={product.serviceFee}
                                         onChange={(fee) => handleProductChange(provider.id, product.id, { serviceFee: fee })}
-                                        color={provider.colorHex}
                                         isEnabled={!!product.serviceFeeEnabled}
                                     />
                                     
@@ -791,11 +834,10 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                                             style={{'--provider-color': provider.colorHex} as React.CSSProperties}
                                         />
                                     </div>
-                                     <FeeInput 
+                                     <DailyFeeInput 
                                         label="Fee Details"
                                         fee={product.dailyFee}
                                         onChange={(fee) => handleProductChange(provider.id, product.id, { dailyFee: fee })}
-                                        color={provider.colorHex}
                                         isEnabled={!!product.dailyFeeEnabled}
                                     />
                                     
