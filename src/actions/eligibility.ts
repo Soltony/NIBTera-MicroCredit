@@ -42,7 +42,9 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         monthlyIncome: customer.monthlyIncome,
         gender: customer.gender,
         educationLevel: customer.educationLevel,
-        ...customerLoanHistory
+        // Ensure loan history fields are numeric for proper evaluation
+        totalLoans: Number(customerLoanHistory.totalLoans) || 0,
+        onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
     };
 
     scoringParameters.forEach(param => {
