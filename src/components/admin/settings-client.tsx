@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -701,7 +702,7 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                     product.penaltyRules.push({
                         id: `penalty-${Date.now()}`,
                         fromDay: 1,
-                        toDay: Infinity,
+                        toDay: null,
                         type: 'fixed',
                         value: 0
                     });
@@ -739,40 +740,105 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
         }
     };
     
-    const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>, product: LoanProduct) => {
         const file = event.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = e.target?.result;
-                    const workbook = XLSX.read(data, { type: 'binary' });
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
-                    console.log('Uploaded Excel Data:', json);
-                    toast({
-                        title: 'File Uploaded',
-                        description: `Successfully parsed ${json.length} rows from the Excel file. Check the console for the data.`,
-                    });
-                } catch (error) {
-                     toast({
-                        title: 'Error Parsing File',
-                        description: 'There was an issue reading the Excel file. Please ensure it is a valid format.',
-                        variant: 'destructive',
-                    });
+        const provider = initialProviders.find(p => p.id === product.providerId);
+        const config = provider?.dataProvisioningConfigs?.find(c => c.id === product.dataProvisioningConfigId);
+    
+        if (!file || !config) {
+            toast({
+                title: 'Configuration Error',
+                description: 'No data provisioning configuration found for this product.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (jsonData.length < 2) {
+                    throw new Error("Excel file must contain a header row and at least one data row.");
                 }
-            };
-            reader.onerror = () => {
+
+                const headers = jsonData[0] as string[];
+                const expectedHeaders = config.columns.map(c => c.name);
+                
+                // 1. Validate Headers
+                if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
+                    throw new Error(`Header mismatch. Expected headers: ${expectedHeaders.join(', ')}.`);
+                }
+                
+                const dataRows = jsonData.slice(1);
+
+                // 2. Validate Data Types
+                for (let i = 0; i < dataRows.length; i++) {
+                    const row = dataRows[i] as any[];
+                    for (let j = 0; j < config.columns.length; j++) {
+                        const cellValue = row[j];
+                        const columnConfig = config.columns[j];
+
+                        if (cellValue === null || cellValue === undefined) continue; // Allow empty cells
+
+                        switch (columnConfig.type) {
+                            case 'number':
+                                if (typeof cellValue !== 'number' || isNaN(cellValue)) {
+                                    throw new Error(`Invalid number found in row ${i + 2}, column "${columnConfig.name}".`);
+                                }
+                                break;
+                            case 'date':
+                                // XLSX can parse dates into numbers (Excel date serial numbers) or strings.
+                                if (typeof cellValue !== 'number' && (typeof cellValue !== 'string' || isNaN(Date.parse(cellValue)))) {
+                                     // We can also try to parse excel date number
+                                     if(typeof cellValue === 'number') {
+                                         const date = XLSX.SSF.parse_date_code(cellValue);
+                                         if(!date) throw new Error(`Invalid date found in row ${i + 2}, column "${columnConfig.name}".`);
+                                     } else {
+                                        throw new Error(`Invalid date found in row ${i + 2}, column "${columnConfig.name}".`);
+                                     }
+                                }
+                                break;
+                            case 'string':
+                                // All data can be represented as a string, so no specific check needed unless there are constraints.
+                                break;
+                        }
+                    }
+                }
+
                 toast({
-                    title: 'Error Reading File',
-                    description: 'Could not read the selected file.',
+                    title: 'Validation Successful',
+                    description: `File validated successfully. ${dataRows.length} rows are ready for processing.`,
+                });
+
+            } catch (error: any) {
+                 toast({
+                    title: 'Validation Failed',
+                    description: error.message,
                     variant: 'destructive',
                 });
-            };
-            reader.readAsBinaryString(file);
-        }
+            } finally {
+                // Reset file input
+                if (event.target) {
+                    event.target.value = '';
+                }
+            }
+        };
+        reader.onerror = () => {
+            toast({
+                title: 'Error Reading File',
+                description: 'Could not read the selected file.',
+                variant: 'destructive',
+            });
+        };
+        reader.readAsBinaryString(file);
     };
+
 
     if (visibleProviders.length === 0) {
         return (
@@ -918,7 +984,7 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                                                         ref={fileInputRefs.current[product.id]}
                                                         className="hidden"
                                                         accept=".xlsx, .xls"
-                                                        onChange={handleExcelUpload}
+                                                        onChange={(e) => handleExcelUpload(e, product)}
                                                     />
                                                 </div>
                                             )}
