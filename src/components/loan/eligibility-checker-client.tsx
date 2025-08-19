@@ -47,7 +47,7 @@ export function EligibilityCheckerClient({ customers }: EligibilityCheckerClient
   
   const handleCheckEligibility = () => {
     if (selectedCustomerId) {
-      router.push(`/check-eligibility?customerId=${selectedCustomerId}`);
+      router.push(`/loan?customerId=${selectedCustomerId}`);
     } else {
       alert('Please select a customer first.');
     }
