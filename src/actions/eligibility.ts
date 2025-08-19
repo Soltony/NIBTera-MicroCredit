@@ -9,16 +9,15 @@
 
 import { getConnectedDataSource } from '@/data-source';
 import type { Customer } from '@/entities/Customer';
-import type { LoanProvider } from '@/entities/LoanProvider';
-import type { ScoringParameter } from '@/entities/ScoringParameter';
 import { evaluateCondition } from '@/lib/utils';
 import type { DataSource } from 'typeorm';
+import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 
 async function calculateScoreForProvider(customerId: number, providerId: number): Promise<{score: number; maxLoanAmount: number}> {
     const dataSource = await getConnectedDataSource();
     const customerRepo = dataSource.getRepository('Customer');
-    const providerRepo = dataSource.getRepository('LoanProvider');
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
+    const loanTierRepo = dataSource.getRepository('LoanAmountTier');
 
     const customer = await customerRepo.findOneBy({ id: customerId });
     if (!customer) {
@@ -29,16 +28,6 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         where: { providerId: providerId },
         relations: ['rules']
     });
-    
-    const provider = await providerRepo.findOne({
-        where: { id: providerId },
-        relations: ['products']
-    });
-
-    if (!provider || provider.products.length === 0) {
-        // If no provider or products, return 0 as no loan is possible.
-        return { score: 0, maxLoanAmount: 0 };
-    }
     
     // If a provider has no scoring rules, they are not eligible for a loan from them.
     if (scoringParameters.length === 0) {
@@ -69,27 +58,18 @@ async function calculateScoreForProvider(customerId: number, providerId: number)
         totalWeightedScore += maxScoreForParam * (param.weight / 100);
     });
 
-    // ** FIX: Calculate max score based only on the current provider's parameters **
-    const maxPossibleWeightedScore = scoringParameters.reduce((sum, param) => {
-        const maxRuleScore = Math.max(0, ...param.rules.map(r => r.score));
-        return sum + (maxRuleScore * (param.weight / 100));
-    }, 0);
-    
-    // Calculate the score as a percentage of the maximum possible score
-    const scorePercentage = maxPossibleWeightedScore > 0 ? totalWeightedScore / maxPossibleWeightedScore : 0;
-    
-    // Find the highest loan amount available from any of the provider's ACTIVE products
-    const highestMaxLoanProduct = provider.products
-        .filter(p => p.status === 'Active')
-        .reduce((max, p) => Math.max(max, p.maxLoan || 0), 0);
+    const finalScore = Math.round(totalWeightedScore);
+
+    // Find the loan amount from the tiers based on the calculated score
+    const applicableTier = await loanTierRepo.findOne({
+        where: {
+            providerId: providerId,
+            fromScore: LessThanOrEqual(finalScore),
+            toScore: MoreThanOrEqual(finalScore),
+        }
+    });
         
-    // Calculate the loan amount based on the score percentage
-    const calculatedLoanAmount = Math.round((highestMaxLoanProduct * scorePercentage) / 100) * 100;
-    
-    // Ensure the calculated amount doesn't exceed the product's hard limit.
-    const suggestedLoanAmountMax = Math.min(calculatedLoanAmount, highestMaxLoanProduct);
-        
-    return { score: Math.round(totalWeightedScore), maxLoanAmount: suggestedLoanAmountMax };
+    return { score: finalScore, maxLoanAmount: applicableTier?.loanAmount || 0 };
 }
 
 

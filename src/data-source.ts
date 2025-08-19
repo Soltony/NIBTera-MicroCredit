@@ -14,6 +14,7 @@ import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHist
 import { Customer } from '@/entities/Customer';
 import { CustomParameter } from '@/entities/CustomParameter';
 import { DataProvisioningConfig } from '@/entities/DataProvisioningConfig';
+import { LoanAmountTier } from '@/entities/LoanAmountTier';
 
 const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
@@ -36,6 +37,7 @@ const dataSourceOptions: DataSourceOptions = {
     Customer,
     CustomParameter,
     DataProvisioningConfig,
+    LoanAmountTier,
   ],
   migrations: [],
   subscribers: [],

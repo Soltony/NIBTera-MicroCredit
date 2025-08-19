@@ -30,6 +30,14 @@ export interface DataProvisioningConfig {
     columns: DataColumn[];
 }
 
+export interface LoanAmountTier {
+    id: string;
+    providerId: string;
+    fromScore: number;
+    toScore: number;
+    loanAmount: number;
+}
+
 
 export interface LoanProvider {
   id: string;
@@ -37,6 +45,7 @@ export interface LoanProvider {
   icon: string;
   products: LoanProduct[];
   dataProvisioningConfigs?: DataProvisioningConfig[];
+  loanAmountTiers?: LoanAmountTier[];
   color?: string;
   colorHex?: string;
   displayOrder: number;
