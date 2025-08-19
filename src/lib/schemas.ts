@@ -9,9 +9,18 @@ export const productSchema = z.object({
   maxLoan: z.number().positive(),
 });
 
-export const createProductSchema = productSchema.extend({
+export const createProductSchema = z.object({
   providerId: z.string(),
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional(),
+  icon: z.string().min(1, 'Icon is required'),
+  minLoan: z.number().min(0, 'Min loan cannot be negative'),
+  maxLoan: z.number().min(0, 'Max loan cannot be negative'),
+}).refine(data => data.maxLoan >= data.minLoan, {
+  message: "Max loan must be greater than or equal to min loan",
+  path: ["maxLoan"],
 });
+
 
 const feeRuleSchema = z.object({
     type: z.enum(['fixed', 'percentage']),
