@@ -12,6 +12,7 @@ import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
 import { ScoringConfigurationHistory } from '@/entities/ScoringConfigurationHistory';
 import { Customer } from '@/entities/Customer';
 import { CustomParameter } from '@/entities/CustomParameter';
+import { LoanAmountTier } from '@/entities/LoanAmountTier';
 import bcrypt from 'bcryptjs';
 import type { DeepPartial, EntityManager } from 'typeorm';
 
@@ -81,6 +82,15 @@ class MainSeeder {
         await manager.save(instance);
     }
     return instance;
+  }
+
+  private async createLoanTiers(manager: EntityManager, product: LoanProduct, tiers: DeepPartial<LoanAmountTier>[]) {
+      for (const tier of tiers) {
+          const existing = await manager.findOne(LoanAmountTier, { where: { productId: product.id, fromScore: tier.fromScore }});
+          if (!existing) {
+              await manager.save(LoanAmountTier, { ...tier, productId: product.id });
+          }
+      }
   }
     
     
@@ -173,7 +183,8 @@ class MainSeeder {
           dailyFeeEnabled: true,
           penaltyRulesEnabled: true,
         });
-        await this.findOrCreateProduct(queryRunner.manager, { name: 'Gadget Financing', providerId: nibBank.id }, {
+
+        const gadgetFinancing = await this.findOrCreateProduct(queryRunner.manager, { name: 'Gadget Financing', providerId: nibBank.id }, {
           provider: nibBank,
           name: 'Gadget Financing',
           description: 'Upgrade your devices with easy financing.',
@@ -195,7 +206,7 @@ class MainSeeder {
           colorHex: '#2563eb',
           displayOrder: 2,
         });
-        await this.findOrCreateProduct(queryRunner.manager, { name: 'Personal Loan', providerId: capitalBank.id }, {
+        const personalLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Personal Loan', providerId: capitalBank.id }, {
           provider: capitalBank,
           name: 'Personal Loan',
           description: 'Flexible personal loans for your needs.',
@@ -213,7 +224,7 @@ class MainSeeder {
           dailyFeeEnabled: true,
           penaltyRulesEnabled: true,
         });
-         await this.findOrCreateProduct(queryRunner.manager, { name: 'Home Improvement Loan', providerId: capitalBank.id }, {
+         const homeImprovementLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Home Improvement Loan', providerId: capitalBank.id }, {
           provider: capitalBank,
           name: 'Home Improvement Loan',
           description: 'Finance your home renovation projects.',
@@ -235,7 +246,7 @@ class MainSeeder {
           colorHex: '#16a34a',
           displayOrder: 3,
         });
-         await this.findOrCreateProduct(queryRunner.manager, { name: 'Startup Business Loan', providerId: providusFinancial.id }, {
+         const startupLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Startup Business Loan', providerId: providusFinancial.id }, {
           provider: providusFinancial,
           name: 'Startup Business Loan',
           description: 'Kickstart your new business venture.',
@@ -250,7 +261,7 @@ class MainSeeder {
           dailyFeeEnabled: false,
           penaltyRulesEnabled: false,
         });
-        await this.findOrCreateProduct(queryRunner.manager, { name: 'Personal Auto Loan', providerId: providusFinancial.id }, {
+        const autoLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Personal Auto Loan', providerId: providusFinancial.id }, {
           provider: providusFinancial,
           name: 'Personal Auto Loan',
           description: 'Get behind the wheel of your new car.',
@@ -324,12 +335,13 @@ class MainSeeder {
         const nibAgeParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Age', providerId: nibBank.id }, { providerId: nibBank.id, name: 'Age', weight: 20 });
         await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibAgeParam, field: 'age', condition: '>=', value: '35', score: 20 },
+          { parameter: nibAgeParam, field: 'age', condition: 'between', value: '25-34', score: 10 },
           { parameter: nibAgeParam, field: 'age', condition: '<', value: '25', score: 5 },
         ]);
         const nibHistoryParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Loan History', providerId: nibBank.id }, { providerId: nibBank.id, name: 'Loan History', weight: 30 });
         await queryRunner.manager.save(ScoringParameterRule, [
           { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
-          { parameter: nibHistoryParam, field: 'loanHistoryCount', condition: '<', value: '1', score: 10 },
+          { parameter: nibHistoryParam, field: 'totalLoans', condition: '<', value: '1', score: 10 },
         ]);
         const nibIncomeParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Income Level', providerId: nibBank.id }, { providerId: nibBank.id, name: 'Income Level', weight: 50 });
          await queryRunner.manager.save(ScoringParameterRule, [
@@ -346,14 +358,15 @@ class MainSeeder {
         ]);
         const capEduParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Education Level', providerId: capitalBank.id }, { providerId: capitalBank.id, name: 'Education Level', weight: 30 });
         await queryRunner.manager.save(ScoringParameterRule, [
-            { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Master\'s Degree', score: 40 },
-            { parameter: capEduParam, field: 'educationLevel', condition: '==', value: 'Bachelor\'s Degree', score: 25 },
+            { parameter: capEduParam, field: 'educationLevel', condition: '==', value: "Master's Degree", score: 40 },
+            { parameter: capEduParam, field: 'educationLevel', condition: '==', value: "Bachelor's Degree", score: 25 },
         ]);
         
         // Providus Financial
         const provGenderParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Gender', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'Gender', weight: 10 });
         await queryRunner.manager.save(ScoringParameterRule, [
             { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Female', score: 10 },
+            { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Male', score: 5 },
         ]);
         const provLoanHistoryParam = await this.findOrCreateScoringParameter(queryRunner.manager, { name: 'Loan History', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'Loan History', weight: 90 });
          await queryRunner.manager.save(ScoringParameterRule, [
@@ -363,7 +376,37 @@ class MainSeeder {
 
         console.log('Seeded scoring parameters for all providers.');
 
-        // 6. Seed Customers
+        // 6. Seed Loan Amount Tiers
+        await this.createLoanTiers(queryRunner.manager, quickCashLoan, [
+            { fromScore: 0, toScore: 20, loanAmount: 500 },
+            { fromScore: 21, toScore: 40, loanAmount: 1000 },
+            { fromScore: 41, toScore: 100, loanAmount: 2500 },
+        ]);
+        await this.createLoanTiers(queryRunner.manager, gadgetFinancing, [
+            { fromScore: 0, toScore: 50, loanAmount: 300 },
+            { fromScore: 51, toScore: 100, loanAmount: 1500 },
+        ]);
+        await this.createLoanTiers(queryRunner.manager, personalLoan, [
+            { fromScore: 0, toScore: 25, loanAmount: 400 },
+            { fromScore: 26, toScore: 50, loanAmount: 1000 },
+            { fromScore: 51, toScore: 100, loanAmount: 2000 },
+        ]);
+        await this.createLoanTiers(queryRunner.manager, homeImprovementLoan, [
+            { fromScore: 0, toScore: 60, loanAmount: 10000 },
+            { fromScore: 61, toScore: 100, loanAmount: 50000 },
+        ]);
+        await this.createLoanTiers(queryRunner.manager, startupLoan, [
+            { fromScore: 0, toScore: 70, loanAmount: 10000 },
+            { fromScore: 71, toScore: 100, loanAmount: 100000 },
+        ]);
+        await this.createLoanTiers(queryRunner.manager, autoLoan, [
+            { fromScore: 0, toScore: 30, loanAmount: 5000 },
+            { fromScore: 31, toScore: 70, loanAmount: 15000 },
+            { fromScore: 71, toScore: 100, loanAmount: 30000 },
+        ]);
+        console.log('Seeded loan amount tiers.');
+
+        // 7. Seed Customers
         await this.findOrCreateCustomer(queryRunner.manager, { id: 8 }, {
             id: 8,
             age: 30,
@@ -402,7 +445,7 @@ class MainSeeder {
         });
         console.log('Seeded customers');
 
-        // 7. Seed Custom Parameters
+        // 8. Seed Custom Parameters
         await this.findOrCreateCustomParameter(queryRunner.manager, { name: 'Credit Utilization', providerId: nibBank.id }, {
             providerId: nibBank.id,
             name: 'Credit Utilization'
