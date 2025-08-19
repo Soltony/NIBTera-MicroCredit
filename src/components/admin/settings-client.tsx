@@ -541,15 +541,15 @@ function LoanTiersForm({ product, onUpdate, color }: {
 
     const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
         const newTiers = produce(tiers, draft => {
-            (draft[index] as any)[field] = value === '' ? '' : value;
+            const newTier = { ...draft[index], [field]: value === '' ? '' : value };
+            draft[index] = newTier;
+
+            if (field === 'toScore' && index < draft.length - 1) {
+                const nextTier = { ...draft[index + 1] };
+                nextTier.fromScore = (Number(value) || 0) + 1;
+                draft[index + 1] = nextTier;
+            }
         });
-
-        // Auto-adjust the next tier's "fromScore"
-        if (field === 'toScore' && index < newTiers.length - 1) {
-             const fromScoreValue = (Number(newTiers[index].toScore) || 0) + 1;
-             (newTiers[index + 1] as any).fromScore = fromScoreValue;
-        }
-
         onUpdate({ loanAmountTiers: newTiers });
     };
 
