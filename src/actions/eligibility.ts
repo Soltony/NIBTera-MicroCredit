@@ -38,8 +38,8 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
     const customerLoanHistory = JSON.parse(customer.loanHistory);
     // Combine standard customer fields and dynamic loan history fields into one object for evaluation
     const customerDataForScoring: Record<string, any> = {
-        age: customer.age,
-        monthlyIncome: customer.monthlyIncome,
+        age: Number(customer.age) || 0,
+        monthlyIncome: Number(customer.monthlyIncome) || 0,
         gender: customer.gender,
         educationLevel: customer.educationLevel,
         // Ensure loan history fields are numeric for proper evaluation
