@@ -35,8 +35,8 @@ export class LoanProvider {
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
 
-  @Column({ type: 'boolean', name: 'allow_multiple_active_loans', default: true })
-  allowMultipleActiveLoans!: boolean;
+  @Column({ type: 'number', precision: 1, scale: 0, name: 'allow_multiple_active_loans', default: 1 })
+  allowMultipleActiveLoans!: number;
 
   @OneToMany('User', (user: User) => user.provider)
   users!: User[];
