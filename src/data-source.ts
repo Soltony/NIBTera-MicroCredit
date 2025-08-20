@@ -17,12 +17,15 @@ import { DataProvisioningConfig } from '@/entities/DataProvisioningConfig';
 import { LoanAmountTier } from '@/entities/LoanAmountTier';
 import { DataProvisioningUpload } from '@/entities/DataProvisioningUpload';
 
+const isSeeding = process.env.npm_lifecycle_event === 'seed';
+
 const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
   connectString: process.env.ORACLE_DB_CONNECT_STRING,
   username: process.env.ORACLE_DB_USER,
   password: process.env.ORACLE_DB_PASSWORD,
-  synchronize: false, // This MUST be false for safety
+  synchronize: isSeeding, // Synchronize only when seeding
+  dropSchema: isSeeding, // Drop schema only when seeding
   logging: process.env.NODE_ENV === 'development',
   // Explicitly list all entities to ensure they are always found.
   entities: [
