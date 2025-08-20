@@ -204,9 +204,8 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                     if (index !== -1) {
                         const originalProvider = draft[index];
                         draft[index] = {
-                            ...originalProvider,
-                            ...providerData,
-                            products: originalProvider.products, // Preserve existing products
+                            ...originalProvider, // Keep products and other non-edited fields
+                            ...savedProviderResponse,
                         };
                     }
                 } else {
