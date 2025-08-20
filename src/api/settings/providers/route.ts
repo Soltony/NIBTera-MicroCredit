@@ -16,8 +16,6 @@ const providerSchema = z.object({
     maxGlobalActiveLoans: z.number().int().min(1),
 });
 
-// The ID comes from the client as a string, but the database needs a number.
-// We use transform to handle this conversion during validation.
 const updateProviderSchema = providerSchema.partial().extend({
   id: z.string().transform((val) => Number(val)),
 });
@@ -30,7 +28,6 @@ export async function POST(req: Request) {
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         
-        // Use the base schema for creation
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });

@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNotEmpty, Length, IsAlphanumeric, IsOptional, IsNumber } from 'class-validator';
+import { IsNotEmpty, Length, IsAlphanumeric, IsOptional } from 'class-validator';
 import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
@@ -46,15 +46,10 @@ export class LoanProvider {
     precision: 1,
     scale: 0,
     default: 0,
-    transformer: {
-      to: (value: boolean) => (value ? 1 : 0),
-      from: (value: number) => !!value,
-    },
   })
   allowMultipleProviderLoans!: boolean;
 
   @Column({ name: 'max_concurrent_provider_loans', type: 'number', default: 1 })
-  @IsNumber()
   maxConcurrentProviderLoans!: number;
   
   @Column({
@@ -63,15 +58,10 @@ export class LoanProvider {
     precision: 1,
     scale: 0,
     default: 0,
-    transformer: {
-      to: (value: boolean) => (value ? 1 : 0),
-      from: (value: number) => !!value,
-    },
   })
   allowCrossProviderLoans!: boolean;
 
   @Column({ name: 'max_global_active_loans', type: 'number', default: 1 })
-  @IsNumber()
   maxGlobalActiveLoans!: number;
 
   @OneToMany('User', (user: User) => user.provider)
