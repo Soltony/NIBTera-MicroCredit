@@ -38,6 +38,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState('#2563eb');
   const [displayOrder, setDisplayOrder] = useState(0);
+  const [accountNumber, setAccountNumber] = useState('');
 
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -48,11 +49,13 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setSelectedIconName(provider.icon);
         setSelectedColorHex(provider.colorHex || '#2563eb');
         setDisplayOrder(provider.displayOrder || 0);
+        setAccountNumber(provider.accountNumber || '');
     } else {
         setProviderName('');
         setSelectedIconName(icons[0].name);
         setSelectedColorHex('#2563eb');
         setDisplayOrder(0);
+        setAccountNumber('');
     }
   }, [provider, isOpen]);
 
@@ -84,6 +87,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       icon: selectedIconName,
       colorHex: selectedColorHex,
       displayOrder: Number(displayOrder),
+      accountNumber: accountNumber,
     });
     onClose();
   };
@@ -104,6 +108,20 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               value={providerName}
               onChange={(e) => setProviderName(e.target.value)}
               placeholder="e.g., Acme Financial"
+              required
+              className="col-span-3"
+              style={{'--ring': primaryColor} as React.CSSProperties}
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="account-number" className="text-right">
+              Account No.
+            </Label>
+            <Input
+              id="account-number"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+              placeholder="e.g., 1000123456789"
               required
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}

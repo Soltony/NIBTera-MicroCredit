@@ -11,6 +11,7 @@ const providerSchema = z.object({
     icon: z.string().min(1, 'Icon is required'),
     colorHex: z.string().min(1, 'Color is required'),
     displayOrder: z.number().int(),
+    accountNumber: z.string().min(1, 'Account number is required'),
 });
 
 const updateProviderSchema = providerSchema.partial().extend({

@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNotEmpty, Length } from 'class-validator';
+import { IsNotEmpty, Length, IsAlphanumeric } from 'class-validator';
 import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
@@ -34,6 +34,11 @@ export class LoanProvider {
 
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
+
+  @Column({ type: 'varchar2', length: 255, name: 'account_number', unique: true })
+  @IsNotEmpty()
+  @IsAlphanumeric()
+  accountNumber!: string;
 
   @OneToMany('User', (user: User) => user.provider)
   users!: User[];

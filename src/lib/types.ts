@@ -62,6 +62,7 @@ export interface LoanProvider {
   color?: string;
   colorHex?: string;
   displayOrder: number;
+  accountNumber: string;
 }
 
 export interface LoanProduct {
