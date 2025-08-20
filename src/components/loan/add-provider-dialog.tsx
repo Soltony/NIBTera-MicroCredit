@@ -52,8 +52,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   useEffect(() => {
     if (provider) {
         setFormData({
-            name: provider.name,
-            icon: provider.icon,
+            name: provider.name || '',
+            icon: provider.icon || icons[0].name,
             colorHex: provider.colorHex || '#2563eb',
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || '',
@@ -241,7 +241,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="maxGlobalActiveLoans" className="text-right col-span-3">Max total active loans (all providers)</Label>
-                  <Input id="maxGlobalActiveLoans" type="number" value={formData.maxGlobalActiveLoans} onChange={handleChange} disabled={!formData.allowCrossProviderLoans} className="col-span-1" />
+                  <Input id="maxGlobalActiveLoans" type="number" value={formData.maxGlobalActiveLoans} onChange={handleChange} className="col-span-1" />
               </div>
           </div>
 

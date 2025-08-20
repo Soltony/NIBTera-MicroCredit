@@ -9,7 +9,7 @@ const providerSchema = z.object({
     icon: z.string().min(1, 'Icon is required'),
     colorHex: z.string().min(1, 'Color is required'),
     displayOrder: z.number().int(),
-    accountNumber: z.string().optional(),
+    accountNumber: z.string().optional().nullable(),
     allowMultipleProviderLoans: z.boolean(),
     maxConcurrentProviderLoans: z.number().int().min(1),
     allowCrossProviderLoans: z.boolean(),
@@ -58,9 +58,9 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
         
-        const { id, ...updateData } = validation.data;
+        const { id, ...validatedData } = validation.data;
 
-        await providerRepo.update(id, updateData);
+        await providerRepo.update(id, validatedData);
         const updatedProvider = await providerRepo.findOneBy({id: id});
 
         return NextResponse.json(updatedProvider);
