@@ -55,9 +55,6 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
         
-        // **FIX:** Use the full validated data from Zod for the update.
-        // The `id` will be used to find the record, and the rest of the properties
-        // in `validatedData` will be used for the update.
         const { id, ...validatedData } = validation.data;
 
         await providerRepo.update(id, validatedData);
