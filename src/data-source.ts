@@ -24,8 +24,7 @@ const dataSourceOptions: DataSourceOptions = {
   connectString: process.env.ORACLE_DB_CONNECT_STRING,
   username: process.env.ORACLE_DB_USER,
   password: process.env.ORACLE_DB_PASSWORD,
-  synchronize: isSeeding, // Synchronize only when seeding
-  dropSchema: isSeeding, // Drop schema only when seeding
+  synchronize: isSeeding, // Synchronize only when seeding. This will create tables that don't exist.
   logging: process.env.NODE_ENV === 'development',
   // Explicitly list all entities to ensure they are always found.
   entities: [
