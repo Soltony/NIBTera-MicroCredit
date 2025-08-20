@@ -2,8 +2,6 @@
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
-import { LoanProduct } from '@/entities/LoanProduct';
-import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
 
 const providerSchema = z.object({
@@ -11,16 +9,19 @@ const providerSchema = z.object({
     icon: z.string().min(1, 'Icon is required'),
     colorHex: z.string().min(1, 'Color is required'),
     displayOrder: z.number().int(),
-    accountNumber: z.string().nullable().optional(),
+    accountNumber: z.string().optional(),
     allowMultipleProviderLoans: z.boolean(),
     maxConcurrentProviderLoans: z.number().int().min(1),
     allowCrossProviderLoans: z.boolean(),
     maxGlobalActiveLoans: z.number().int().min(1),
 });
 
+// The ID comes from the client as a string, but the database needs a number.
+// We use transform to handle this conversion during validation.
 const updateProviderSchema = providerSchema.partial().extend({
-    id: z.string(),
+  id: z.string().transform((val) => Number(val)),
 });
+
 
 // POST a new provider
 export async function POST(req: Request) {
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
+        
+        // Use the base schema for creation
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
@@ -49,17 +52,16 @@ export async function PUT(req: Request) {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
+
         const validation = updateProviderSchema.safeParse(body);
-        
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
         
-        const { id, ...validatedData } = validation.data;
+        const { id, ...updateData } = validation.data;
 
-        await providerRepo.update(id, validatedData);
-        
-        const updatedProvider = await providerRepo.findOneBy({id: Number(id)});
+        await providerRepo.update(id, updateData);
+        const updatedProvider = await providerRepo.findOneBy({id: id});
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
@@ -82,14 +84,10 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
         }
 
-        // The database's foreign key constraint will prevent deletion if products exist.
-        // We will catch this specific error and return a user-friendly message.
         await providerRepo.delete(id);
 
         return NextResponse.json({ message: 'Provider deleted successfully' }, { status: 200 });
     } catch (error: any) {
-        // ORA-02292 is the Oracle error code for an integrity constraint violation (foreign key).
-        // This is a more robust way to check than querying the products table first.
         if (error.code === 'ORA-02292' || (error.message && error.message.includes('ORA-02292'))) {
              return NextResponse.json({ error: 'Cannot delete provider. It has associated product(s). Please delete them first.' }, { status: 400 });
         }
