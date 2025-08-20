@@ -22,7 +22,7 @@ import { Switch } from '../ui/switch';
 interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (provider: Omit<LoanProvider, 'products'>) => void;
+  onSave: (provider: Partial<Omit<LoanProvider, 'products'>>) => void;
   provider: LoanProvider | null;
   primaryColor?: string;
 }
@@ -87,7 +87,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       icon: selectedIconName,
       colorHex: selectedColorHex,
       displayOrder: Number(displayOrder),
-      allowMultipleActiveLoans: allowMultipleActiveLoans ? 1 : 0,
+      allowMultipleActiveLoans: allowMultipleActiveLoans,
     });
     onClose();
   };
