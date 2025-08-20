@@ -49,7 +49,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setSelectedIconName(provider.icon);
         setSelectedColorHex(provider.colorHex || '#2563eb');
         setDisplayOrder(provider.displayOrder || 0);
-        setAllowMultipleActiveLoans(provider.allowMultipleActiveLoans ?? true);
+        setAllowMultipleActiveLoans(!!provider.allowMultipleActiveLoans);
     } else {
         setProviderName('');
         setSelectedIconName(icons[0].name);
@@ -87,7 +87,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       icon: selectedIconName,
       colorHex: selectedColorHex,
       displayOrder: Number(displayOrder),
-      allowMultipleActiveLoans: allowMultipleActiveLoans,
+      allowMultipleActiveLoans: !!allowMultipleActiveLoans,
     });
     onClose();
   };
