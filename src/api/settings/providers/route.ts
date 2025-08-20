@@ -60,8 +60,13 @@ export async function PUT(req: Request) {
         
         const { id, ...validatedData } = validation.data;
 
-        await providerRepo.update(id, validatedData);
-        const updatedProvider = await providerRepo.findOneBy({id: id});
+        const existingProvider = await providerRepo.findOneBy({ id });
+        if (!existingProvider) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+        }
+
+        const updatedProvider = providerRepo.merge(existingProvider, validatedData);
+        await providerRepo.save(updatedProvider);
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
