@@ -14,6 +14,7 @@ export async function POST(req: Request) {
         const productRepo = dataSource.getRepository(LoanProduct);
 
         const body = await req.json();
+        
         const validation = createProductSchema.safeParse(body);
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
@@ -21,13 +22,13 @@ export async function POST(req: Request) {
         
         const { providerId, ...productData } = validation.data;
 
-        const newProduct = productRepo.create({
+        const newProductEntity = productRepo.create({
             ...productData,
             providerId: Number(providerId),
             status: 'Active',
             // Initialize fee/penalty structures as empty/default JSON strings
             serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
-            dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
+            dailyFee: JSON.stringify({ type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: '[]',
             serviceFeeEnabled: false,
             dailyFeeEnabled: false,
@@ -35,15 +36,30 @@ export async function POST(req: Request) {
             dataProvisioningEnabled: false,
             dataProvisioningConfigId: null,
         });
-        await productRepo.save(newProduct);
+        const savedProduct = await productRepo.save(newProductEntity);
         
-        // Parse JSON for the response object
+        // Construct a clean response object to avoid circular references and parsing errors.
+        // This only contains the data the client needs to update its state.
         const responseProduct = {
-            ...newProduct,
-            serviceFee: JSON.parse(newProduct.serviceFee),
-            dailyFee: JSON.parse(newProduct.dailyFee),
-            penaltyRules: JSON.parse(newProduct.penaltyRules)
+            id: String(savedProduct.id),
+            providerId: String(savedProduct.providerId),
+            name: savedProduct.name,
+            description: savedProduct.description,
+            icon: savedProduct.icon,
+            minLoan: savedProduct.minLoan,
+            maxLoan: savedProduct.maxLoan,
+            status: savedProduct.status,
+            serviceFee: { type: 'percentage', value: 0 },
+            dailyFee: { type: 'percentage', value: 0, calculationBase: 'principal' },
+            penaltyRules: [],
+            loanAmountTiers: [],
+            serviceFeeEnabled: false,
+            dailyFeeEnabled: false,
+            penaltyRulesEnabled: false,
+            dataProvisioningEnabled: false,
+            dataProvisioningConfigId: null,
         };
+
 
         return NextResponse.json(responseProduct, { status: 201 });
     } catch (error) {
@@ -76,7 +92,12 @@ export async function PUT(req: Request) {
             dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
         }
         if (updateData.penaltyRules) {
-            dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
+            // Convert null 'toDay' to Infinity before stringifying
+            const rules = updateData.penaltyRules.map(rule => ({
+                ...rule,
+                toDay: rule.toDay === null ? Infinity : rule.toDay,
+            }));
+            dataToUpdate.penaltyRules = JSON.stringify(rules);
         }
 
         // Handle the case where data provisioning is disabled
@@ -98,9 +119,9 @@ export async function PUT(req: Request) {
         // Parse JSON fields for the response
         const responseProduct = {
             ...updatedProduct,
-            serviceFee: JSON.parse(updatedProduct.serviceFee),
-            dailyFee: JSON.parse(updatedProduct.dailyFee),
-            penaltyRules: JSON.parse(updatedProduct.penaltyRules)
+            serviceFee: typeof updatedProduct.serviceFee === 'string' ? JSON.parse(updatedProduct.serviceFee) : updatedProduct.serviceFee,
+            dailyFee: typeof updatedProduct.dailyFee === 'string' ? JSON.parse(updatedProduct.dailyFee) : updatedProduct.dailyFee,
+            penaltyRules: typeof updatedProduct.penaltyRules === 'string' ? JSON.parse(updatedProduct.penaltyRules) : updatedProduct.penaltyRules
         };
 
 

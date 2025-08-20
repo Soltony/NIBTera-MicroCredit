@@ -5,8 +5,8 @@ export const productSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   icon: z.string().min(1, 'Icon is required'),
-  minLoan: z.number().positive(),
-  maxLoan: z.number().positive(),
+  minLoan: z.number().positive().nullable(),
+  maxLoan: z.number().positive().nullable(),
 });
 
 export const createProductSchema = z.object({
