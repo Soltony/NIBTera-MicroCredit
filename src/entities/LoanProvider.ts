@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNotEmpty, Length, IsAlphanumeric, IsOptional, IsBoolean, IsNumber } from 'class-validator';
+import { IsNotEmpty, Length, IsAlphanumeric, IsOptional, IsNumber } from 'class-validator';
 import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
@@ -51,7 +51,6 @@ export class LoanProvider {
       from: (value: number) => !!value,
     },
   })
-  @IsBoolean()
   allowMultipleProviderLoans!: boolean;
 
   @Column({ name: 'max_concurrent_provider_loans', type: 'number', default: 1 })
@@ -69,7 +68,6 @@ export class LoanProvider {
       from: (value: number) => !!value,
     },
   })
-  @IsBoolean()
   allowCrossProviderLoans!: boolean;
 
   @Column({ name: 'max_global_active_loans', type: 'number', default: 1 })
