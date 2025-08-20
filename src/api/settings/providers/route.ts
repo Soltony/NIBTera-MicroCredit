@@ -14,7 +14,7 @@ const providerSchema = z.object({
     allowMultipleActiveLoans: z.number().min(0).max(1),
 });
 
-const updateProviderSchema = providerSchema.extend({
+const updateProviderSchema = providerSchema.partial().extend({
     id: z.string(),
 });
 
