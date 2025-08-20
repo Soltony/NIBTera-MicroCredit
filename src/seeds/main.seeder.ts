@@ -99,7 +99,10 @@ class MainSeeder {
     console.log('Database connection initialized.');
     
     try {
-      // Synchronize schema to ensure tables are created
+      // Drop schema to ensure a clean state, then synchronize
+      console.log('Dropping existing schema...');
+      await dataSource.dropDatabase();
+      console.log('Schema dropped.');
       console.log('Synchronizing database schema...');
       await dataSource.synchronize(); 
       console.log('Schema synchronized.');
