@@ -53,9 +53,9 @@ export async function PUT(req: Request) {
         const { id, ...updateData } = validation.data;
 
         await providerRepo.update(id, updateData);
-        const updatedProvider = await providerRepo.findOneBy({id: Number(id)});
+        
+        return NextResponse.json({ message: 'Provider updated successfully' }, { status: 200 });
 
-        return NextResponse.json(updatedProvider);
     } catch (error) {
         console.error('Error updating provider:', error);
         return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
