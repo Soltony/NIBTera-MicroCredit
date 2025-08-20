@@ -50,13 +50,18 @@ export async function PUT(req: Request) {
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
         const validation = updateProviderSchema.safeParse(body);
+        
         if (!validation.success) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
         
-        const { id, ...updateData } = validation.data;
+        // **FIX:** Use the full validated data from Zod for the update.
+        // The `id` will be used to find the record, and the rest of the properties
+        // in `validatedData` will be used for the update.
+        const { id, ...validatedData } = validation.data;
 
-        await providerRepo.update(id, updateData);
+        await providerRepo.update(id, validatedData);
+        
         const updatedProvider = await providerRepo.findOneBy({id: Number(id)});
 
         return NextResponse.json(updatedProvider);
