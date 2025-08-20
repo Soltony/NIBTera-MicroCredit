@@ -33,7 +33,7 @@ interface ProductCardProps {
     canApply: boolean;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, canApply: providerAllowsApply }: ProductCardProps) {
+export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, canApply }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
@@ -51,7 +51,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && !activeLoan && providerAllowsApply;
+    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && !activeLoan && canApply;
 
     const applyButton = (
         <Button 
@@ -81,7 +81,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                             providerAllowsApply ? (
+                             canApply ? (
                                 applyButton
                             ) : (
                                 <TooltipProvider>

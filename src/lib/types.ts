@@ -62,7 +62,6 @@ export interface LoanProvider {
   color?: string;
   colorHex?: string;
   displayOrder: number;
-  allowMultipleActiveLoans: boolean;
 }
 
 export interface LoanProduct {

@@ -296,7 +296,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             onApply={() => handleApply(product.id)}
                                             onRepay={handleRepay}
                                             IconDisplayComponent={IconDisplay}
-                                            canApply={!(!selectedProvider.allowMultipleActiveLoans && customerHasActiveLoanWithProvider)}
+                                            canApply={!customerHasActiveLoanWithProvider}
                                         />
                                     ))}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (

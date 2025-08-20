@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNotEmpty, Length, IsBoolean } from 'class-validator';
+import { IsNotEmpty, Length } from 'class-validator';
 import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
@@ -34,20 +34,6 @@ export class LoanProvider {
 
   @Column({ type: 'number', name: 'display_order', default: 0 })
   displayOrder!: number;
-
-  @Column({
-    name: 'allow_multiple_active_loans',
-    type: 'number',
-    precision: 1,
-    scale: 0,
-    default: 0,
-    transformer: {
-      to: (value: boolean) => (value ? 1 : 0),
-      from: (value: number) => !!value,
-    },
-  })
-  @IsBoolean()
-  allowMultipleActiveLoans!: boolean;
 
   @OneToMany('User', (user: User) => user.provider)
   users!: User[];

@@ -200,12 +200,12 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             
             setProviders(produce(draft => {
                 if (isEditing) {
-                    const index = draft.findIndex(p => p.id === savedProviderResponse.id);
+                    const index = draft.findIndex(p => p.id === providerData.id);
                     if (index !== -1) {
                         const originalProvider = draft[index];
                         draft[index] = {
                             ...originalProvider,
-                            ...savedProviderResponse,
+                            ...providerData,
                             products: originalProvider.products, // Preserve existing products
                         };
                     }
@@ -214,7 +214,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                 }
             }));
 
-            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProviderResponse.name} has been successfully saved.` });
+            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${isEditing ? providerData.name : savedProviderResponse.name} has been successfully saved.` });
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }

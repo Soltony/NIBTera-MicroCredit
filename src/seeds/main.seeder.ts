@@ -164,7 +164,6 @@ class MainSeeder {
           icon: 'Building2',
           colorHex: '#fdb913',
           displayOrder: 1,
-          allowMultipleActiveLoans: true,
         });
 
         const quickCashLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Quick Cash Loan', providerId: nibBank.id }, {
@@ -206,7 +205,6 @@ class MainSeeder {
           icon: 'Building2',
           colorHex: '#2563eb',
           displayOrder: 2,
-          allowMultipleActiveLoans: false,
         });
         const personalLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Personal Loan', providerId: capitalBank.id }, {
           provider: capitalBank,
@@ -247,7 +245,6 @@ class MainSeeder {
           icon: 'Landmark',
           colorHex: '#16a34a',
           displayOrder: 3,
-          allowMultipleActiveLoans: true,
         });
          const startupLoan = await this.findOrCreateProduct(queryRunner.manager, { name: 'Startup Business Loan', providerId: providusFinancial.id }, {
           provider: providusFinancial,
