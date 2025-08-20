@@ -87,8 +87,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       icon: selectedIconName,
       colorHex: selectedColorHex,
       displayOrder: Number(displayOrder),
-      allowMultipleActiveLoans: allowMultipleActiveLoans,
-    });
+      allowMultipleActiveLoans: allowMultipleActiveLoans ? 1 : 0,
+    } as any);
     onClose();
   };
 

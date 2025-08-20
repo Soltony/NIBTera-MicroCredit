@@ -11,7 +11,7 @@ const providerSchema = z.object({
     icon: z.string().min(1, 'Icon is required'),
     colorHex: z.string().min(1, 'Color is required'),
     displayOrder: z.number().int(),
-    allowMultipleActiveLoans: z.boolean().transform(val => (val ? 1 : 0)),
+    allowMultipleActiveLoans: z.number().min(0).max(1),
 });
 
 const updateProviderSchema = providerSchema.extend({
