@@ -81,19 +81,19 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                             canApply ? (
-                                applyButton
-                            ) : (
+                             !canApplyForThisProduct && !activeLoan ? (
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <span tabIndex={0}>{applyButton}</span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>This provider does not allow multiple active loans.</p>
+                                            { !canApply ? <p>This provider does not allow multiple active loans.</p> : <p>Your available credit is too low for this product.</p>}
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
+                            ) : (
+                                applyButton
                             )
                         )}
                     </div>

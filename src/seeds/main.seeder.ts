@@ -17,6 +17,8 @@ import bcrypt from 'bcryptjs';
 import type { DeepPartial, EntityManager, DataSource } from 'typeorm';
 
 class MainSeeder {
+  private dataSource: DataSource | null = null;
+  
   private async findOrCreateRole(manager: EntityManager, findCriteria: { name: string }, createData: DeepPartial<Role>): Promise<Role> {
     let instance = await manager.findOneBy(Role, findCriteria);
     if (!instance) {
@@ -95,15 +97,10 @@ class MainSeeder {
     
     
   public async run(): Promise<void> {
-    let dataSource: DataSource | null = null;
-    try {
-      dataSource = await getConnectedDataSource();
-      console.log('Database connection initialized for seeding.');
-
-      // The 'synchronize: true' in dataSourceOptions will handle creating the schema.
-      console.log('Synchronizing database schema...');
-
-      await dataSource.transaction(async manager => {
+    this.dataSource = await getConnectedDataSource();
+    console.log('Database connection initialized for seeding.');
+    
+    await this.dataSource.transaction(async manager => {
         const salt = await bcrypt.genSalt(10);
 
         // 1. Seed Roles
@@ -159,6 +156,10 @@ class MainSeeder {
           colorHex: '#fdb913',
           displayOrder: 1,
           accountNumber: '1000123456789',
+          allowMultipleProviderLoans: false,
+          maxConcurrentProviderLoans: 1,
+          allowCrossProviderLoans: false,
+          maxGlobalActiveLoans: 1,
         });
 
         const quickCashLoan = await this.findOrCreateProduct(manager, { name: 'Quick Cash Loan', providerId: nibBank.id }, {
@@ -201,6 +202,10 @@ class MainSeeder {
           colorHex: '#2563eb',
           displayOrder: 2,
           accountNumber: '2000987654321',
+          allowMultipleProviderLoans: true,
+          maxConcurrentProviderLoans: 2,
+          allowCrossProviderLoans: false,
+          maxGlobalActiveLoans: 2,
         });
         const personalLoan = await this.findOrCreateProduct(manager, { name: 'Personal Loan', providerId: capitalBank.id }, {
           provider: capitalBank,
@@ -242,6 +247,10 @@ class MainSeeder {
           colorHex: '#16a34a',
           displayOrder: 3,
           accountNumber: '3000112233445',
+          allowMultipleProviderLoans: true,
+          maxConcurrentProviderLoans: 5,
+          allowCrossProviderLoans: true,
+          maxGlobalActiveLoans: 5,
         });
           const startupLoan = await this.findOrCreateProduct(manager, { name: 'Startup Business Loan', providerId: providusFinancial.id }, {
           provider: providusFinancial,
@@ -462,8 +471,8 @@ class MainSeeder {
     } catch (err: any) {
       console.error('Error during seeding transaction, rolling back:', err);
     } finally {
-      if (dataSource && dataSource.isInitialized) {
-        await dataSource.destroy();
+      if (this.dataSource && this.dataSource.isInitialized) {
+        await this.dataSource.destroy();
         console.log('Database connection closed.');
       }
     }

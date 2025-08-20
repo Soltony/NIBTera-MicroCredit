@@ -10,7 +10,7 @@
 import { getConnectedDataSource } from '@/data-source';
 import type { Customer } from '@/entities/Customer';
 import { evaluateCondition } from '@/lib/utils';
-import type { DataSource } from 'typeorm';
+import type { DataSource, In } from 'typeorm';
 import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 
 async function calculateScoreForProvider(customerId: number, providerId: number, productId: number): Promise<{score: number; maxLoanAmount: number}> {
@@ -79,9 +79,10 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
   try {
     const dataSource = await getConnectedDataSource();
     const customerRepo = dataSource.getRepository('Customer');
+    const loanRepo = dataSource.getRepository('LoanDetails');
+    const providerRepo = dataSource.getRepository('LoanProvider');
 
     const customer = await customerRepo.findOneBy({ id: customerId });
-    
     if (!customer) {
       return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
     }
@@ -90,15 +91,41 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     if (customer.age <= 20) {
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
-    
-    // Check if the provider has any scoring rules defined at all. If not, they are not eligible.
+
+    const provider = await providerRepo.findOneBy({ id: providerId });
+    if (!provider) {
+        return { isEligible: false, reason: 'Loan provider not found.', score: 0, maxLoanAmount: 0 };
+    }
+
+    // STEP 2: Check for existing active loans based on provider rules
+    const allActiveLoans = await loanRepo.find({ where: { repaymentStatus: 'Unpaid' } });
+    const activeLoansWithThisProvider = allActiveLoans.filter(l => l.providerId === providerId);
+    const activeLoansWithOtherProviders = allActiveLoans.filter(l => l.providerId !== providerId);
+
+    if (activeLoansWithThisProvider.length > 0 && !provider.allowMultipleProviderLoans) {
+        return { isEligible: false, reason: 'This provider does not allow multiple active loans. Please repay your existing loan first.', score: 0, maxLoanAmount: 0 };
+    }
+
+    if (activeLoansWithThisProvider.length >= provider.maxConcurrentProviderLoans) {
+        return { isEligible: false, reason: `You have reached the maximum of ${provider.maxConcurrentProviderLoans} concurrent loans with this provider.`, score: 0, maxLoanAmount: 0 };
+    }
+
+    if (activeLoansWithOtherProviders.length > 0 && !provider.allowCrossProviderLoans) {
+        return { isEligible: false, reason: 'This provider does not allow loans if you have active loans with other providers.', score: 0, maxLoanAmount: 0 };
+    }
+
+    if (allActiveLoans.length >= provider.maxGlobalActiveLoans) {
+        return { isEligible: false, reason: `You have reached the maximum of ${provider.maxGlobalActiveLoans} total active loans across all providers.`, score: 0, maxLoanAmount: 0 };
+    }
+
+    // STEP 3: Check if the provider has any scoring rules defined at all.
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
     const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    // STEP 2: Credit Score Calculation (if eligible)
+    // STEP 4: Credit Score Calculation
     const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId, productId);
 
     if (maxLoanAmount <= 0) {

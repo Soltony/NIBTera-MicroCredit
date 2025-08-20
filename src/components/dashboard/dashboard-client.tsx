@@ -166,10 +166,18 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       }
       
       const updatedLoan = await response.json();
+      
+      // Need to find the full provider object to add to the updatedLoan
+      const fullProvider = providers.find(p => p.id === String(updatedLoan.providerId));
+
+      const finalLoanObject: LoanDetails = {
+        ...updatedLoan,
+        provider: fullProvider,
+      };
 
       // Update the loan history state with the updated loan
       setLoanHistory(prevHistory => 
-        prevHistory.map(l => l.id === updatedLoan.id ? updatedLoan : l)
+        prevHistory.map(l => l.id === updatedLoan.id ? finalLoanObject : l)
       );
 
       toast({
@@ -197,7 +205,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
   const customerHasActiveLoanWithProvider = useMemo(() => {
       if (!selectedProvider) return false;
-      return loanHistory.some(loan => loan.providerName === selectedProvider.name && loan.repaymentStatus === 'Unpaid');
+      return loanHistory.some(loan => loan.providerId === Number(selectedProvider.id) && loan.repaymentStatus === 'Unpaid');
   }, [loanHistory, selectedProvider]);
 
 
@@ -296,7 +304,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             onApply={() => handleApply(product.id)}
                                             onRepay={handleRepay}
                                             IconDisplayComponent={IconDisplay}
-                                            canApply={!customerHasActiveLoanWithProvider}
+                                            canApply={customerHasActiveLoanWithProvider ? selectedProvider.allowMultipleProviderLoans : true}
                                         />
                                     ))}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (

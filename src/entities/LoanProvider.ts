@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNotEmpty, Length, IsAlphanumeric, IsOptional } from 'class-validator';
+import { IsNotEmpty, Length, IsAlphanumeric, IsOptional, IsBoolean, IsNumber } from 'class-validator';
 import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
@@ -39,6 +39,42 @@ export class LoanProvider {
   @IsOptional()
   @IsAlphanumeric()
   accountNumber!: string;
+
+  @Column({
+    name: 'allow_multiple_provider_loans',
+    type: 'number',
+    precision: 1,
+    scale: 0,
+    default: 0,
+    transformer: {
+      to: (value: boolean) => (value ? 1 : 0),
+      from: (value: number) => !!value,
+    },
+  })
+  @IsBoolean()
+  allowMultipleProviderLoans!: boolean;
+
+  @Column({ name: 'max_concurrent_provider_loans', type: 'number', default: 1 })
+  @IsNumber()
+  maxConcurrentProviderLoans!: number;
+  
+  @Column({
+    name: 'allow_cross_provider_loans',
+    type: 'number',
+    precision: 1,
+    scale: 0,
+    default: 0,
+    transformer: {
+      to: (value: boolean) => (value ? 1 : 0),
+      from: (value: number) => !!value,
+    },
+  })
+  @IsBoolean()
+  allowCrossProviderLoans!: boolean;
+
+  @Column({ name: 'max_global_active_loans', type: 'number', default: 1 })
+  @IsNumber()
+  maxGlobalActiveLoans!: number;
 
   @OneToMany('User', (user: User) => user.provider)
   users!: User[];

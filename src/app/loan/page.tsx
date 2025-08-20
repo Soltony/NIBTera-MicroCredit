@@ -41,6 +41,11 @@ async function getProviders(): Promise<LoanProvider[]> {
             icon: p.icon,
             colorHex: p.colorHex,
             displayOrder: p.displayOrder,
+            accountNumber: p.accountNumber,
+            allowMultipleProviderLoans: p.allowMultipleProviderLoans,
+            maxConcurrentProviderLoans: p.maxConcurrentProviderLoans,
+            allowCrossProviderLoans: p.allowCrossProviderLoans,
+            maxGlobalActiveLoans: p.maxGlobalActiveLoans,
             products: p.products.map(prod => ({
                 id: String(prod.id),
                 name: prod.name,
@@ -77,6 +82,7 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
         // Manually map to plain objects to avoid passing class instances to client components.
         return loans.map(loan => ({
             id: String(loan.id),
+            providerId: loan.providerId,
             providerName: loan.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,

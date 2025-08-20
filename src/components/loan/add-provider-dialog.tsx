@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import type { LoanProvider } from '@/lib/types';
 import { IconDisplay } from '@/components/icons';
 import { Switch } from '../ui/switch';
+import { Separator } from '../ui/separator';
 
 interface AddProviderDialogProps {
   isOpen: boolean;
@@ -34,28 +35,45 @@ const icons: { name: string; component: LucideIcon }[] = [
 ];
 
 export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryColor = '#fdb913' }: AddProviderDialogProps) {
-  const [providerName, setProviderName] = useState('');
-  const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
-  const [selectedColorHex, setSelectedColorHex] = useState('#2563eb');
-  const [displayOrder, setDisplayOrder] = useState(0);
-  const [accountNumber, setAccountNumber] = useState('');
-
+    const [formData, setFormData] = useState({
+        name: '',
+        icon: icons[0].name,
+        colorHex: '#2563eb',
+        displayOrder: 0,
+        accountNumber: '',
+        allowMultipleProviderLoans: false,
+        maxConcurrentProviderLoans: 1,
+        allowCrossProviderLoans: false,
+        maxGlobalActiveLoans: 1,
+    });
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (provider) {
-        setProviderName(provider.name);
-        setSelectedIconName(provider.icon);
-        setSelectedColorHex(provider.colorHex || '#2563eb');
-        setDisplayOrder(provider.displayOrder || 0);
-        setAccountNumber(provider.accountNumber || '');
+        setFormData({
+            name: provider.name,
+            icon: provider.icon,
+            colorHex: provider.colorHex || '#2563eb',
+            displayOrder: provider.displayOrder || 0,
+            accountNumber: provider.accountNumber || '',
+            allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
+            maxConcurrentProviderLoans: provider.maxConcurrentProviderLoans || 1,
+            allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
+            maxGlobalActiveLoans: provider.maxGlobalActiveLoans || 1,
+        });
     } else {
-        setProviderName('');
-        setSelectedIconName(icons[0].name);
-        setSelectedColorHex('#2563eb');
-        setDisplayOrder(0);
-        setAccountNumber('');
+        setFormData({
+            name: '',
+            icon: icons[0].name,
+            colorHex: '#2563eb',
+            displayOrder: 0,
+            accountNumber: '',
+            allowMultipleProviderLoans: false,
+            maxConcurrentProviderLoans: 1,
+            allowCrossProviderLoans: false,
+            maxGlobalActiveLoans: 1,
+        });
     }
   }, [provider, isOpen]);
 
@@ -65,7 +83,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setSelectedIconName(result); // Set the icon name to the data URI
+        setFormData(prev => ({...prev, icon: result}));
       };
       reader.readAsDataURL(file);
     } else {
@@ -74,20 +92,25 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   };
 
   const handleSelectIcon = (name: string) => {
-    setSelectedIconName(name);
+    setFormData(prev => ({...prev, icon: name}));
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { id, value, type } = e.target;
+      setFormData(prev => ({ ...prev, [id]: type === 'number' ? parseInt(value) || 0 : value }));
+  }
+
+  const handleSwitchChange = (id: string, checked: boolean) => {
+      setFormData(prev => ({ ...prev, [id]: checked }));
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (providerName.trim() === '') return;
+    if (formData.name.trim() === '') return;
 
     onSave({
       id: provider?.id,
-      name: providerName,
-      icon: selectedIconName,
-      colorHex: selectedColorHex,
-      displayOrder: Number(displayOrder),
-      accountNumber: accountNumber,
+      ...formData,
     });
     onClose();
   };
@@ -100,13 +123,13 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-6 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="provider-name" className="text-right">
+            <Label htmlFor="name" className="text-right">
               Name
             </Label>
             <Input
-              id="provider-name"
-              value={providerName}
-              onChange={(e) => setProviderName(e.target.value)}
+              id="name"
+              value={formData.name}
+              onChange={handleChange}
               placeholder="e.g., Acme Financial"
               required
               className="col-span-3"
@@ -114,28 +137,27 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="account-number" className="text-right">
+            <Label htmlFor="accountNumber" className="text-right">
               Account No.
             </Label>
             <Input
-              id="account-number"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
+              id="accountNumber"
+              value={formData.accountNumber}
+              onChange={handleChange}
               placeholder="e.g., 1000123456789"
-              required
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}
             />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="display-order" className="text-right">
+            <Label htmlFor="displayOrder" className="text-right">
               Display Order
             </Label>
             <Input
-              id="display-order"
+              id="displayOrder"
               type="number"
-              value={displayOrder}
-              onChange={(e) => setDisplayOrder(Number(e.target.value))}
+              value={formData.displayOrder}
+              onChange={handleChange}
               required
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}
@@ -153,7 +175,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                   onClick={() => handleSelectIcon(name)}
                   className={cn(
                     'h-12 w-12',
-                    selectedIconName === name && 'ring-2'
+                    formData.icon === name && 'ring-2'
                   )}
                   style={{'--ring': primaryColor} as React.CSSProperties}
                 >
@@ -167,12 +189,12 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                     onClick={() => fileInputRef.current?.click()}
                     className={cn(
                         'h-12 w-12',
-                        selectedIconName.startsWith('data:image/') && 'ring-2'
+                        formData.icon.startsWith('data:image/') && 'ring-2'
                     )}
                     style={{'--ring': primaryColor} as React.CSSProperties}
                 >
-                   {selectedIconName.startsWith('data:image/') ? (
-                      <img src={selectedIconName} alt="Custom Icon" className="h-6 w-6" />
+                   {formData.icon.startsWith('data:image/') ? (
+                      <img src={formData.icon} alt="Custom Icon" className="h-6 w-6" />
                     ) : (
                       <Upload className="h-6 w-6" />
                     )}
@@ -190,15 +212,39 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             <Label className="text-right">Color</Label>
             <div className="col-span-3 flex items-center gap-2">
                 <Input
-                    id="color-picker"
+                    id="colorHex"
                     type="color"
-                    value={selectedColorHex}
-                    onChange={(e) => setSelectedColorHex(e.target.value)}
+                    value={formData.colorHex}
+                    onChange={handleChange}
                     className="p-1 h-10 w-14"
                 />
-                <span className="text-sm font-mono bg-muted px-2 py-1 rounded-md">{selectedColorHex}</span>
+                <span className="text-sm font-mono bg-muted px-2 py-1 rounded-md">{formData.colorHex}</span>
             </div>
           </div>
+          
+          <Separator />
+          
+          <div className="space-y-4">
+              <h4 className="font-semibold text-center">Multiple Loan Settings</h4>
+              <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="allowMultipleProviderLoans" className="flex-grow">Allow multiple loans with this provider</Label>
+                  <Switch id="allowMultipleProviderLoans" checked={formData.allowMultipleProviderLoans} onCheckedChange={(checked) => handleSwitchChange('allowMultipleProviderLoans', checked)} />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="maxConcurrentProviderLoans" className="text-right col-span-3">Max concurrent loans with this provider</Label>
+                  <Input id="maxConcurrentProviderLoans" type="number" value={formData.maxConcurrentProviderLoans} onChange={handleChange} disabled={!formData.allowMultipleProviderLoans} className="col-span-1" />
+              </div>
+              
+               <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="allowCrossProviderLoans" className="flex-grow">Allow loan if borrower has loan(s) with another provider</Label>
+                  <Switch id="allowCrossProviderLoans" checked={formData.allowCrossProviderLoans} onCheckedChange={(checked) => handleSwitchChange('allowCrossProviderLoans', checked)} />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="maxGlobalActiveLoans" className="text-right col-span-3">Max total active loans (all providers)</Label>
+                  <Input id="maxGlobalActiveLoans" type="number" value={formData.maxGlobalActiveLoans} onChange={handleChange} disabled={!formData.allowCrossProviderLoans} className="col-span-1" />
+              </div>
+          </div>
+
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">

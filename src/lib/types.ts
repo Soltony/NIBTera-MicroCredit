@@ -63,6 +63,10 @@ export interface LoanProvider {
   colorHex?: string;
   displayOrder: number;
   accountNumber: string;
+  allowMultipleProviderLoans: boolean;
+  maxConcurrentProviderLoans: number;
+  allowCrossProviderLoans: boolean;
+  maxGlobalActiveLoans: number;
 }
 
 export interface LoanProduct {
@@ -108,6 +112,8 @@ export interface LoanDetails {
   penaltyAmount: number;
   // For calculation purposes, not stored in DB
   product?: LoanProduct;
+  provider?: LoanProvider;
+  providerId?: number;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
