@@ -38,7 +38,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [selectedColorHex, setSelectedColorHex] = useState('#2563eb');
   const [displayOrder, setDisplayOrder] = useState(0);
-  const [allowMultipleActiveLoans, setAllowMultipleActiveLoans] = useState(true);
+  const [allowMultipleActiveLoans, setAllowMultipleActiveLoans] = useState(false);
 
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -55,7 +55,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         setSelectedIconName(icons[0].name);
         setSelectedColorHex('#2563eb');
         setDisplayOrder(0);
-        setAllowMultipleActiveLoans(true);
+        setAllowMultipleActiveLoans(false);
     }
   }, [provider, isOpen]);
 
@@ -87,8 +87,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       icon: selectedIconName,
       colorHex: selectedColorHex,
       displayOrder: Number(displayOrder),
-      allowMultipleActiveLoans: allowMultipleActiveLoans ? 1 : 0,
-    } as any);
+      allowMultipleActiveLoans: allowMultipleActiveLoans,
+    });
     onClose();
   };
 
