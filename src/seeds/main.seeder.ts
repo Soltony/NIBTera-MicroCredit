@@ -98,21 +98,34 @@ class MainSeeder {
     const dataSource = await getConnectedDataSource();
     console.log('Database connection initialized.');
     
+    const queryRunner = dataSource.createQueryRunner();
+
     try {
-      // Drop and then synchronize the database schema
-      console.log('Dropping existing schema...');
-      await dataSource.dropDatabase();
-      console.log('Schema dropped.');
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        console.log('Clearing existing application tables...');
+        const entityMetadatas = dataSource.entityMetadatas;
+        // We reverse to respect foreign key constraints during deletion
+        for (const metadata of entityMetadatas.reverse()) {
+            const tableName = metadata.tableName;
+            try {
+                 // Use a more robust check to avoid errors on non-existent tables
+                const tableExists = await queryRunner.hasTable(tableName);
+                if (tableExists) {
+                    await queryRunner.query(`DROP TABLE "${tableName}" CASCADE CONSTRAINTS`);
+                    console.log(`Dropped table: ${tableName}`);
+                }
+            } catch (error: any) {
+                console.warn(`Could not drop table ${tableName}. It might not exist or have other dependencies. Error: ${error.message}`);
+            }
+        }
+        console.log('Finished clearing tables.');
       
       console.log('Synchronizing database schema...');
       await dataSource.synchronize(); 
       console.log('Schema synchronized.');
       
-      const queryRunner = dataSource.createQueryRunner();
-
-      try {
-        console.log('Starting seeding...');
-        await queryRunner.startTransaction();
         
         const salt = await bcrypt.genSalt(10);
 
@@ -481,7 +494,6 @@ class MainSeeder {
     } catch (err) {
       console.error('Error establishing database connection for seeding:', err);
     } finally {
-        const dataSource = await getConnectedDataSource();
         if (dataSource.isInitialized) {
             await dataSource.destroy();
             console.log('Database connection closed.');
