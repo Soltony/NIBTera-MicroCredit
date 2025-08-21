@@ -28,12 +28,12 @@ export class ScoringParameter {
   @Column({ type: 'varchar2', length: 255 })
   @IsNotEmpty()
   @IsString()
-  name!: string; // This will now be the field name, e.g., 'age', 'monthlyIncome'
+  name!: string;
   
   @Column({ type: 'number', default: 0 })
   @IsNumber()
   @Min(0)
-  weight!: number; // This is the maximum score for this parameter
+  weight!: number;
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

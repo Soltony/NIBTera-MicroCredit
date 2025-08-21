@@ -17,15 +17,15 @@ import { DataProvisioningConfig } from '@/entities/DataProvisioningConfig';
 import { LoanAmountTier } from '@/entities/LoanAmountTier';
 import { DataProvisioningUpload } from '@/entities/DataProvisioningUpload';
 
-const isSeeding = process.env.npm_lifecycle_event === 'seed';
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 const dataSourceOptions: DataSourceOptions = {
   type: 'oracle' as const,
   connectString: process.env.ORACLE_DB_CONNECT_STRING,
   username: process.env.ORACLE_DB_USER,
   password: process.env.ORACLE_DB_PASSWORD,
-  synchronize: isSeeding, // Synchronize only when seeding. This will create tables that don't exist.
-  logging: process.env.NODE_ENV === 'development',
+  synchronize: isDevelopment, // Synchronize only in development.
+  logging: isDevelopment,
   // Explicitly list all entities to ensure they are always found.
   entities: [
     User,
