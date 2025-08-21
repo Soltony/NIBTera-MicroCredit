@@ -70,9 +70,6 @@ export class LoanProvider {
   @OneToMany('ScoringParameter', (parameter: ScoringParameter) => parameter.provider, { cascade: true })
   scoringParameters!: ScoringParameter[];
   
-  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.provider, { cascade: true })
-  scoringRules!: ScoringParameterRule[];
-
   @OneToMany(
     'ScoringConfigurationHistory',
     (history: ScoringConfigurationHistory) => history.provider
