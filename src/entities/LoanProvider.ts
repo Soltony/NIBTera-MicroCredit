@@ -38,7 +38,7 @@ export class LoanProvider {
   @Column({ type: 'varchar2', length: 255, name: 'account_number', unique: true, nullable: true })
   @IsOptional()
   @IsAlphanumeric()
-  accountNumber!: string;
+  accountNumber!: string | null;
 
   @Column({
     name: 'allow_multiple_provider_loans',
