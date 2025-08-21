@@ -180,7 +180,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsProviderDialogOpen(true);
     };
 
-    const handleSaveProvider = async (providerData: Omit<LoanProvider, 'id' | 'products'> & { id?: string }) => {
+    const handleSaveProvider = async (providerData: Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'> & { id?: string }) => {
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
@@ -200,11 +200,11 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             
             setProviders(produce(draft => {
                 if (isEditing) {
-                    const index = draft.findIndex(p => p.id === providerData.id);
+                    const index = draft.findIndex(p => p.id === savedProviderResponse.id);
                     if (index !== -1) {
                         const originalProvider = draft[index];
                         draft[index] = {
-                            ...originalProvider, // Keep products and other non-edited fields
+                            ...originalProvider,
                             ...savedProviderResponse,
                         };
                     }

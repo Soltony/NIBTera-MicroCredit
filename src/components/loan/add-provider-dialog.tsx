@@ -23,7 +23,7 @@ import { Separator } from '../ui/separator';
 interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (provider: Partial<Omit<LoanProvider, 'products'>>) => void;
+  onSave: (provider: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => void;
   provider: LoanProvider | null;
   primaryColor?: string;
 }
@@ -40,7 +40,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         icon: icons[0].name,
         colorHex: '#2563eb',
         displayOrder: 0,
-        accountNumber: '',
+        accountNumber: '' as string | null,
         allowMultipleProviderLoans: false,
         maxConcurrentProviderLoans: 1,
         allowCrossProviderLoans: false,
@@ -56,7 +56,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             icon: provider.icon || icons[0].name,
             colorHex: provider.colorHex || '#2563eb',
             displayOrder: provider.displayOrder || 0,
-            accountNumber: provider.accountNumber || '',
+            accountNumber: provider.accountNumber || null,
             allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
             maxConcurrentProviderLoans: provider.maxConcurrentProviderLoans || 1,
             allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
@@ -68,7 +68,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             icon: icons[0].name,
             colorHex: '#2563eb',
             displayOrder: 0,
-            accountNumber: '',
+            accountNumber: null,
             allowMultipleProviderLoans: false,
             maxConcurrentProviderLoans: 1,
             allowCrossProviderLoans: false,
@@ -142,7 +142,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             </Label>
             <Input
               id="accountNumber"
-              value={formData.accountNumber}
+              value={formData.accountNumber || ''}
               onChange={handleChange}
               placeholder="e.g., 1000123456789"
               className="col-span-3"

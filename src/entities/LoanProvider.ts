@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNotEmpty, Length, IsAlphanumeric, IsOptional } from 'class-validator';
+import { IsNotEmpty, Length, IsAlphanumeric, IsOptional, IsBoolean } from 'class-validator';
 import type { User } from './User';
 import type { LoanProduct } from './LoanProduct';
 import type { LoanDetails } from './LoanDetails';
