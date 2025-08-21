@@ -1177,7 +1177,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             setColumns(config.columns);
         } else {
             setName('');
-            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phoneNumber' }]);
+            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phone_number' }]);
         }
     }, [config, isOpen]);
 
@@ -1190,7 +1190,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     col.isIdentifier = i === index ? value : false;
                     // Automatically set dbField based on isIdentifier
                     if (col.isIdentifier) {
-                        col.dbField = 'phoneNumber'; // default to phoneNumber
+                        col.dbField = 'phone_number'; // default to phone_number
                     }
                 });
             } else {
@@ -1200,7 +1200,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     };
 
     const addColumn = () => {
-        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phoneNumber' }]);
+        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phone_number' }]);
     };
 
     const removeColumn = (index: number) => {
@@ -1260,13 +1260,13 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                         <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground">Identifier</Label>
                                     </div>
                                     {col.isIdentifier && (
-                                        <Select value={col.dbField} onValueChange={(value: 'phoneNumber' | 'nationalId') => handleColumnChange(index, 'dbField', value)}>
+                                        <Select value={col.dbField} onValueChange={(value: 'phone_number' | 'national_id') => handleColumnChange(index, 'dbField', value)}>
                                             <SelectTrigger className="w-48">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="phoneNumber">Phone Number</SelectItem>
-                                                <SelectItem value="nationalId">National ID</SelectItem>
+                                                <SelectItem value="phone_number">Phone Number</SelectItem>
+                                                <SelectItem value="national_id">National ID</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     )}
