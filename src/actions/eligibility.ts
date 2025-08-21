@@ -48,8 +48,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
-            // The rule's field should match the parameter's name
-            const inputValue = customerDataForScoring[rule.field];
+            const inputValue = customerDataForScoring[param.name]; // Use param.name as the field key
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;

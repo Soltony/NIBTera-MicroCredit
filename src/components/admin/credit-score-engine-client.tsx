@@ -64,7 +64,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 
-const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string, maxScore: number }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string, maxScore: number }) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -218,10 +218,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             const param = draft.find(p => p.id === paramId);
             if (param) {
                 (param as any)[field] = value;
-                if (field === 'name') {
-                    // When param name changes, update the field in all its rules
-                    param.rules.forEach(rule => rule.field = value);
-                }
             }
         }));
     };
@@ -237,7 +233,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 const newRule: Rule = {
                     id: `rule-${Date.now()}`,
                     parameterId: param.id,
-                    field: param.name, // Rules are for the parameter's field
                     condition: '>',
                     value: '',
                     score: 0,
@@ -383,7 +378,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                     <div className="space-y-1">
                                                         <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
                                                         <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
-                                                            <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" onClick={(e) => e.stopPropagation()}>
+                                                            <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties} onClick={(e) => e.stopPropagation()}>
                                                                 <SelectValue placeholder="Select Parameter Field" />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -411,18 +406,12 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                     </div>
                                      <AccordionContent className="p-4">
                                         <div className="space-y-2">
-                                            <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
-                                                <Label className="w-[150px]">Condition</Label>
-                                                <Label className="flex-1">Value</Label>
-                                                <Label className="w-[100px]">Score</Label>
-                                            </div>
                                             {(param.rules || []).map(rule => (
                                                 <RuleRow 
                                                     key={rule.id}
                                                     rule={rule}
                                                     onUpdate={(updatedRule) => handleUpdateRule(param.id, rule.id, updatedRule)}
                                                     onRemove={() => handleRemoveRule(param.id, rule.id)}
-                                                    availableFields={allAvailableFields}
                                                     color={themeColor}
                                                     maxScore={param.weight}
                                                 />
