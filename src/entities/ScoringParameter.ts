@@ -7,13 +7,13 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany,
+  Index,
 } from 'typeorm';
-import { IsNumber, IsNotEmpty, Min } from 'class-validator';
+import { IsNumber, IsNotEmpty, Min, IsString } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
-import type { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'scoring_parameters' })
+@Index(['providerId', 'name'], { unique: true })
 export class ScoringParameter {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
   id!: number;
@@ -21,23 +21,19 @@ export class ScoringParameter {
   @Column({ name: 'provider_id' })
   providerId!: number;
 
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.scoringParameters)
+  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.scoringParameters, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'provider_id' })
   provider!: LoanProvider;
 
   @Column({ type: 'varchar2', length: 255 })
   @IsNotEmpty()
-  name!: string;
+  @IsString()
+  name!: string; // This will now be the field name, e.g., 'age', 'monthlyIncome'
   
   @Column({ type: 'number', default: 0 })
   @IsNumber()
   @Min(0)
-  weight!: number;
-
-  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, {
-    cascade: true,
-  })
-  rules!: ScoringParameterRule[];
+  weight!: number; // This is the maximum score for this parameter
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

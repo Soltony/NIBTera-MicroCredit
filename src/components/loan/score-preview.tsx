@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { ScoringParameter } from '@/lib/types';
+import type { Rule, ScoringParameter } from '@/lib/types';
 import { evaluateCondition } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -21,24 +21,23 @@ interface FieldInfo {
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
+  rules: Rule[];
   availableFields: FieldInfo[];
   providerColor?: string;
 }
 
-export function ScorePreview({ parameters, availableFields, providerColor = '#fdb913' }: ScorePreviewProps) {
+export function ScorePreview({ parameters, rules, availableFields, providerColor = '#fdb913' }: ScorePreviewProps) {
   const [applicantData, setApplicantData] = useState<Record<string, string>>({});
   const [calculatedScore, setCalculatedScore] = useState<number | null>(null);
 
   const uniqueFieldsInUse = useMemo(() => {
     const fieldsInUse = new Set<string>();
-    parameters.forEach(param => {
-      param.rules.forEach(rule => {
+    rules.forEach(rule => {
         fieldsInUse.add(rule.field);
-      });
     });
 
     return availableFields.filter(field => fieldsInUse.has(field.value));
-  }, [parameters, availableFields]);
+  }, [rules, availableFields]);
 
   const handleInputChange = (field: string, value: string) => {
     setApplicantData(prev => ({ ...prev, [field]: value }));
@@ -50,7 +49,9 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
     
     parameters.forEach(param => {
         let maxScoreForParam = 0;
-        param.rules.forEach(rule => {
+        const relevantRules = rules.filter(rule => rule.field === param.name);
+        
+        relevantRules.forEach(rule => {
             const inputValue = applicantData[rule.field];
             if (inputValue !== undefined) {
                  if (evaluateCondition(inputValue, rule.condition, rule.value)) {
@@ -60,7 +61,10 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
                 }
             }
         });
-        totalScore += maxScoreForParam;
+
+        // The score for a parameter is capped by its weight.
+        const scoreForThisParam = Math.min(maxScoreForParam, param.weight);
+        totalScore += scoreForThisParam;
     });
 
     setCalculatedScore(totalScore);

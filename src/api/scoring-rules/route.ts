@@ -17,80 +17,67 @@ export async function POST(req: Request) {
         const dataSource = await getConnectedDataSource();
         const manager = dataSource.manager;
 
-        const { providerId, parameters } = await req.json() as { providerId: string; parameters: ScoringParameterType[] };
+        const { providerId, parameters, rules } = await req.json() as { providerId: string; parameters: ScoringParameterType[], rules: Rule[] };
 
-        if (!providerId || !parameters) {
-            return NextResponse.json({ error: 'Missing providerId or parameters' }, { status: 400 });
+        if (!providerId || !parameters || !rules) {
+            return NextResponse.json({ error: 'Missing providerId, parameters, or rules' }, { status: 400 });
         }
         
         await manager.transaction(async (transactionalEntityManager) => {
             const paramRepo = transactionalEntityManager.getRepository(ScoringParameter);
             const ruleRepo = transactionalEntityManager.getRepository(ScoringParameterRule);
 
+            // Sync Parameters
             const existingParams = await paramRepo.find({ where: { providerId: Number(providerId) } });
             const incomingParamIds = new Set(parameters.map(p => p.id).filter(id => !String(id).startsWith('param-')));
             const paramsToDelete = existingParams.filter(p => !incomingParamIds.has(String(p.id)));
-
-            if (paramsToDelete.length > 0) {
-                await paramRepo.remove(paramsToDelete);
-            }
+            if (paramsToDelete.length > 0) await paramRepo.remove(paramsToDelete);
 
             for (const param of parameters) {
                 const isNewParam = String(param.id).startsWith('param-');
-                
-                let savedParam: ScoringParameter;
+                const paramData = {
+                    providerId: Number(providerId),
+                    name: param.name,
+                    weight: param.weight,
+                };
                 if (isNewParam) {
-                    savedParam = await paramRepo.save({
-                        providerId: Number(providerId),
-                        name: param.name,
-                        weight: param.weight
-                    });
+                    await paramRepo.save(paramData);
                 } else {
-                    await paramRepo.update(param.id, { name: param.name, weight: param.weight });
-                    savedParam = (await paramRepo.findOneBy({ id: Number(param.id) }))!;
+                    await paramRepo.update(param.id, paramData);
                 }
+            }
 
-                const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
-                const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !String(id).startsWith('rule-')));
-                const rulesToDelete = existingRules.filter(r => !incomingRuleIds.has(String(r.id)));
+            // Sync Rules
+            const existingRules = await ruleRepo.find({ where: { providerId: Number(providerId) } });
+            const incomingRuleIds = new Set(rules.map(r => r.id).filter(id => !String(id).startsWith('rule-')));
+            const rulesToDelete = existingRules.filter(r => !incomingRuleIds.has(String(r.id)));
+            if (rulesToDelete.length > 0) await ruleRepo.remove(rulesToDelete);
 
-                if (rulesToDelete.length > 0) {
-                    await ruleRepo.remove(rulesToDelete);
-                }
+            for (const rule of rules) {
+                const isNewRule = String(rule.id).startsWith('rule-');
+                const ruleData = {
+                    providerId: Number(providerId),
+                    field: rule.field,
+                    condition: rule.condition,
+                    value: String(rule.value),
+                    score: rule.score,
+                };
 
-                for (const rule of param.rules) {
-                    const isNewRule = String(rule.id).startsWith('rule-');
-                    const valueToSave = rule.condition === 'between' ? rule.value : String(parseFloat(rule.value));
-
-                     if (isNewRule) {
-                        await ruleRepo.save({
-                            parameterId: savedParam.id,
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: valueToSave,
-                            score: rule.score,
-                        });
-                    } else {
-                         await ruleRepo.update(rule.id, {
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: valueToSave,
-                            score: rule.score,
-                        });
-                    }
+                 if (isNewRule) {
+                    await ruleRepo.save(ruleData);
+                } else {
+                     await ruleRepo.update(rule.id, ruleData);
                 }
             }
         });
 
-        const finalParams = await manager.getRepository(ScoringParameter).find({
-            where: { providerId: Number(providerId) },
-            relations: ['rules'],
-        });
+        const finalParams = await manager.getRepository(ScoringParameter).find({ where: { providerId: Number(providerId) } });
+        const finalRules = await manager.getRepository(ScoringParameterRule).find({ where: { providerId: Number(providerId) } });
 
-        return NextResponse.json(finalParams, { status: 200 });
+        return NextResponse.json({ savedParameters: finalParams, savedRules: finalRules }, { status: 200 });
 
     } catch (error) {
-        console.error('Error saving scoring parameters:', error);
+        console.error('Error saving scoring configuration:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

@@ -15,6 +15,7 @@ import type { ScoringParameter } from './ScoringParameter';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
 import type { CustomParameter } from './CustomParameter';
 import type { DataProvisioningConfig } from './DataProvisioningConfig';
+import type { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'loan_providers' })
 export class LoanProvider {
@@ -37,7 +38,6 @@ export class LoanProvider {
 
   @Column({ type: 'varchar2', length: 255, name: 'account_number', unique: true, nullable: true })
   @IsOptional()
-  @IsAlphanumeric()
   accountNumber!: string | null;
 
   @Column({
@@ -67,8 +67,11 @@ export class LoanProvider {
   @OneToMany('LoanDetails', (loan: LoanDetails) => loan.provider)
   loans!: LoanDetails[];
 
-  @OneToMany('ScoringParameter', (parameter: ScoringParameter) => parameter.provider)
+  @OneToMany('ScoringParameter', (parameter: ScoringParameter) => parameter.provider, { cascade: true })
   scoringParameters!: ScoringParameter[];
+  
+  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.provider, { cascade: true })
+  scoringRules!: ScoringParameterRule[];
 
   @OneToMany(
     'ScoringConfigurationHistory',

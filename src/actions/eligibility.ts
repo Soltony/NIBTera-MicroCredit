@@ -17,6 +17,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
     const dataSource = await getConnectedDataSource();
     const customerRepo = dataSource.getRepository('Customer');
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
+    const scoringRuleRepo = dataSource.getRepository('ScoringParameterRule');
     const loanTierRepo = dataSource.getRepository('LoanAmountTier');
 
     const customer = await customerRepo.findOneBy({ id: customerId });
@@ -24,13 +25,11 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         throw new Error('Customer not found for score calculation.');
     }
     
-    const scoringParameters = await scoringParamRepo.find({
-        where: { providerId: providerId },
-        relations: ['rules']
-    });
+    const parameters = await scoringParamRepo.find({ where: { providerId: providerId } });
+    const rules = await scoringRuleRepo.find({ where: { providerId: providerId } });
     
-    // If a provider has no scoring rules, they are not eligible for a loan from them.
-    if (scoringParameters.length === 0) {
+    // If a provider has no parameters, they are not eligible for a loan from them.
+    if (parameters.length === 0) {
         return { score: 0, maxLoanAmount: 0 };
     }
     
@@ -47,9 +46,11 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
     };
 
-    scoringParameters.forEach(param => {
+    parameters.forEach(param => {
         let maxScoreForParam = 0;
-        param.rules.forEach(rule => {
+        const relevantRules = rules.filter(rule => rule.field === param.name);
+        
+        relevantRules.forEach(rule => {
             const inputValue = customerDataForScoring[rule.field];
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
@@ -57,6 +58,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
                 }
             }
         });
+        
         // The score for a parameter is capped by its weight.
         const scoreForThisParam = Math.min(maxScoreForParam, param.weight);
         totalScore += scoreForThisParam;
