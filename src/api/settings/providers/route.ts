@@ -83,7 +83,7 @@ export async function PUT(req: Request) {
         }
 
         // Normalize accountNumber
-        if ('accountNumber' in validatedData) {
+        if (Object.prototype.hasOwnProperty.call(validatedData, 'accountNumber')) {
             (validatedData as Partial<LoanProvider>).accountNumber = normalizeAccountNumber(validatedData.accountNumber);
         }
 
