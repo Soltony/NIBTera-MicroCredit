@@ -108,10 +108,14 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     e.preventDefault();
     if (formData.name.trim() === '') return;
 
-    onSave({
+    const dataToSave = {
       id: provider?.id,
       ...formData,
-    });
+    };
+    
+    console.log('[DEBUG] AddProviderDialog: Submitting data', dataToSave);
+
+    onSave(dataToSave);
     onClose();
   };
 

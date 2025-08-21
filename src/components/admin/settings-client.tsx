@@ -181,15 +181,20 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     };
 
     const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => {
+        console.log('[DEBUG] SettingsClient: handleSaveProvider received', providerData);
+        
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
+        const body = JSON.stringify(providerData);
+        
+        console.log(`[DEBUG] SettingsClient: Sending ${method} request to ${endpoint} with body:`, body);
 
         try {
             const response = await fetch(endpoint, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(providerData)
+                body,
             });
             if (!response.ok) {
                  const errorData = await response.json();

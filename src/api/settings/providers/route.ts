@@ -20,7 +20,6 @@ const updateProviderSchema = providerSchema.partial().extend({
   id: z.string().transform((val) => Number(val)),
 });
 
-
 // Helper to normalize accountNumber
 function normalizeAccountNumber(value?: string | null) {
     if (!value || value.trim() === '') return null;
@@ -33,9 +32,12 @@ export async function POST(req: Request) {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
-        
+
+        console.log('[DEBUG] API POST /api/settings/providers - Received body:', body);
+
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
+            console.error('[DEBUG] API POST Validation Error:', validation.error.format());
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
 
@@ -44,9 +46,11 @@ export async function POST(req: Request) {
             accountNumber: normalizeAccountNumber(validation.data.accountNumber),
         };
 
+        console.log('[DEBUG] API POST /api/settings/providers - Validated payload:', payload);
+
         const newProvider = providerRepo.create(payload);
         await providerRepo.save(newProvider);
-        
+
         return NextResponse.json({ ...newProvider, products: [] }, { status: 201 });
     } catch (error) {
         console.error('Error creating provider:', error);
@@ -61,12 +65,17 @@ export async function PUT(req: Request) {
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
 
+        console.log('[DEBUG] API PUT /api/settings/providers - Received body:', body);
+
         const validation = updateProviderSchema.safeParse(body);
         if (!validation.success) {
+            console.error('[DEBUG] API PUT Validation Error:', validation.error.format());
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
         
         const { id, ...validatedData } = validation.data;
+        
+        console.log('[DEBUG] API PUT /api/settings/providers - Validated data:', validatedData);
 
         const existingProvider = await providerRepo.findOneBy({ id });
         if (!existingProvider) {
