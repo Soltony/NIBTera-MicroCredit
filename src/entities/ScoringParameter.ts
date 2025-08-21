@@ -9,7 +9,7 @@ import {
   JoinColumn,
   OneToMany,
 } from 'typeorm';
-import { IsNumber, IsNotEmpty } from 'class-validator';
+import { IsNumber, IsNotEmpty, Min } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
 import type { ScoringParameterRule } from './ScoringParameterRule';
 
@@ -28,6 +28,11 @@ export class ScoringParameter {
   @Column({ type: 'varchar2', length: 255 })
   @IsNotEmpty()
   name!: string;
+  
+  @Column({ type: 'number', default: 0 })
+  @IsNumber()
+  @Min(0)
+  weight!: number;
 
   @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, {
     cascade: true,

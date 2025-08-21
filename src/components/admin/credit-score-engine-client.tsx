@@ -57,7 +57,7 @@ interface CustomParameterType {
 }
 
 
-const validateRule = (rule: Rule): string | null => {
+const validateRule = (rule: Rule, weight: number): string | null => {
     if (!rule.field.trim()) {
         return 'The "Field" name cannot be empty.';
     }
@@ -79,6 +79,9 @@ const validateRule = (rule: Rule): string | null => {
             return 'The "Value" cannot be empty.';
         }
     }
+    if (rule.score > weight) {
+        return `The score for this rule (${rule.score}) cannot exceed the parameter's weight (${weight}).`;
+    }
     return null;
 }
 
@@ -92,7 +95,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 
-const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string; }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, weight }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string; weight: number }) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -106,7 +109,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
         onUpdate({ ...rule, value: `${currentMin}-${currentMax}` });
     }
     
-    const error = validateRule(rule);
+    const error = validateRule(rule, weight);
     
     return (
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
@@ -166,7 +169,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color }: { rule: R
                     placeholder="Score"
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
-                    className="w-1/4 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]"
+                    className={cn("w-1/4 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", rule.score > weight && "border-destructive")}
                 />
                 <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground">
                     <Trash2 className="h-4 w-4" />
@@ -234,7 +237,7 @@ function RulesTab({
 
         for (const param of currentParametersForProvider) {
             for (const rule of param.rules) {
-                const error = validateRule(rule);
+                const error = validateRule(rule, param.weight);
                 if (error) {
                     toast({
                         title: 'Invalid Rule',
@@ -319,6 +322,7 @@ function RulesTab({
             id: `param-${Date.now()}`,
             providerId: selectedProviderId,
             name: 'New Parameter',
+            weight: 20,
             rules: [{ id: `rule-${Date.now()}`, field: '', condition: '>', value: '', score: 10 }],
         };
         setParameters([...parameters, newParam]);
@@ -428,6 +432,16 @@ function RulesTab({
                                 onChange={(e) => handleUpdateParameter(param.id, { name: e.target.value })}
                                 className="text-lg font-semibold w-1/3"
                             />
+                             <div className="flex items-center gap-2">
+                                <Label htmlFor={`weight-${param.id}`} className="text-sm">Weight:</Label>
+                                <Input
+                                    id={`weight-${param.id}`}
+                                    type="number"
+                                    value={param.weight}
+                                    onChange={(e) => handleUpdateParameter(param.id, { weight: parseInt(e.target.value) || 0 })}
+                                    className="w-20"
+                                />
+                            </div>
                         </div>
                             <AlertDialog open={deletingParameterId === param.id} onOpenChange={(isOpen) => !isOpen && setDeletingParameterId(null)}>
                             <AlertDialogTrigger asChild>
@@ -472,6 +486,7 @@ function RulesTab({
                                             onRemove={() => handleRemoveRule(param.id, rule.id)}
                                             availableFields={allAvailableFields}
                                             color={themeColor}
+                                            weight={param.weight}
                                         />
                                     ))}
                                         <Button

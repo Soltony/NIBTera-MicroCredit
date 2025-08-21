@@ -57,7 +57,9 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
                 }
             }
         });
-        totalScore += maxScoreForParam;
+        // The score for a parameter is capped by its weight.
+        const scoreForThisParam = Math.min(maxScoreForParam, param.weight);
+        totalScore += scoreForThisParam;
     });
 
     const finalScore = Math.round(totalScore);

@@ -177,6 +177,7 @@ export interface ScoringParameter {
   id: string;
   providerId: string;
   name: string;
+  weight: number;
   rules: Rule[];
 }
 

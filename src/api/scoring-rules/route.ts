@@ -43,9 +43,10 @@ export async function POST(req: Request) {
                     savedParam = await paramRepo.save({
                         providerId: Number(providerId),
                         name: param.name,
+                        weight: param.weight
                     });
                 } else {
-                    await paramRepo.update(param.id, { name: param.name });
+                    await paramRepo.update(param.id, { name: param.name, weight: param.weight });
                     savedParam = (await paramRepo.findOneBy({ id: Number(param.id) }))!;
                 }
 
