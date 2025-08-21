@@ -62,8 +62,11 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
         }
 
-        const updatedProvider = providerRepo.merge(existingProvider, validatedData);
-        await providerRepo.save(updatedProvider);
+        // Merge the existing data with the validated new data
+        const updatedProviderData = { ...existingProvider, ...validatedData };
+
+        // Save the fully merged object
+        const updatedProvider = await providerRepo.save(updatedProviderData);
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
