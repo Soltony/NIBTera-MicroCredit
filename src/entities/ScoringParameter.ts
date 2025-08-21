@@ -8,9 +8,11 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty, Min, IsString } from 'class-validator';
 import type { LoanProvider } from './LoanProvider';
+import type { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'scoring_parameters' })
 @Index(['providerId', 'name'], { unique: true })
@@ -34,6 +36,9 @@ export class ScoringParameter {
   @IsNumber()
   @Min(0)
   weight!: number;
+
+  @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, { cascade: true, eager: true })
+  rules!: ScoringParameterRule[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

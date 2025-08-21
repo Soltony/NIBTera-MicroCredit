@@ -19,7 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info } from 'lucide-react';
+import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical } from 'lucide-react';
 import type { Rule, ScoringParameter } from '@/lib/types';
 import {
   AlertDialog,
@@ -39,8 +39,6 @@ import type { LoanProduct, LoanProvider } from '@/lib/types';
 import { format } from 'date-fns';
 import { produce } from 'immer';
 import { cn } from '@/lib/utils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '../ui/separator';
 
 
@@ -56,35 +54,6 @@ interface CustomParameterType {
     name: string;
 }
 
-
-const validateRule = (rule: Rule, weight: number): string | null => {
-    if (!rule.field.trim()) {
-        return 'The "Field" name cannot be empty.';
-    }
-    if (rule.condition === 'between') {
-        const parts = rule.value?.split('-') || [];
-        const min = parts[0]?.trim();
-        const max = parts[1]?.trim();
-        if (!min || !max) {
-            return 'For the "between" condition, both a minimum and maximum value are required.';
-        }
-        if (isNaN(parseFloat(min)) || isNaN(parseFloat(max))) {
-             return 'The "between" condition requires numeric min/max values.';
-        }
-         if (parseFloat(min) >= parseFloat(max)) {
-            return 'The minimum value must be less than the maximum value.';
-        }
-    } else {
-        if (!rule.value.trim()) {
-            return 'The "Value" cannot be empty.';
-        }
-    }
-    if (rule.score > weight) {
-        return `The score for this rule (${rule.score}) cannot exceed the parameter's weight (${weight}).`;
-    }
-    return null;
-}
-
 const AVAILABLE_FIELDS = [
     { value: 'age', label: 'Age' },
     { value: 'monthlyIncome', label: 'Monthly Income' },
@@ -95,7 +64,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 
-const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string, maxScore?: number }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; availableFields: {value: string; label: string}[], color?: string, maxScore: number }) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -114,18 +83,8 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }:
     return (
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
-                <Select value={rule.field} onValueChange={(value) => onUpdate({ ...rule, field: value })}>
-                    <SelectTrigger className={cn("w-1/4 shadow-sm focus:ring-2 focus:ring-[--ring-color]", !rule.field.trim() && 'border-destructive')}>
-                        <SelectValue placeholder="Select Field" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {availableFields.map(field => (
-                            <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                    <SelectTrigger className="w-1/4 shadow-sm focus:ring-2 focus:ring-[--ring-color]">
+                    <SelectTrigger className="w-[150px] shadow-sm focus:ring-2 focus:ring-[--ring-color]">
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -140,7 +99,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }:
                 </Select>
 
                 {rule.condition === 'between' ? (
-                    <div className="flex items-center gap-2 w-1/4">
+                    <div className="flex items-center gap-2 flex-1">
                         <Input
                             placeholder="Min"
                             value={min}
@@ -157,10 +116,10 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }:
                     </div>
                 ) : (
                     <Input
-                        placeholder="e.g., 30"
+                        placeholder="e.g., 30 or High School"
                         value={rule.value || ''}
                         onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                        className={cn("w-1/4 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
+                        className={cn("flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
                     />
                 )}
                 
@@ -169,7 +128,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }:
                     placeholder="Score"
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
-                    className={cn("w-1/4 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", isScoreInvalid && 'border-destructive')}
+                    className={cn("w-[100px] shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", isScoreInvalid && 'border-destructive')}
                 />
                 <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground">
                     <Trash2 className="h-4 w-4" />
@@ -180,205 +139,18 @@ const RuleRow = ({ rule, onUpdate, onRemove, availableFields, color, maxScore }:
     );
 };
 
-function RulesTab({ 
-    rules,
-    setRules,
-    parameters,
-    themeColor,
-    selectedProviderId,
-    allAvailableFields
-} : {
-    rules: Rule[],
-    setRules: React.Dispatch<React.SetStateAction<Rule[]>>,
-    parameters: ScoringParameter[],
-    themeColor: string,
-    selectedProviderId: string,
-    allAvailableFields: {value: string; label: string}[]
-}) {
-
-    const handleAddRule = () => {
-        if (!selectedProviderId) return;
-        const newRule: Rule = {
-            id: `rule-${Date.now()}`,
-            providerId: selectedProviderId,
-            field: '',
-            condition: '>',
-            value: '',
-            score: 0,
-        };
-        setRules(prev => [...prev, newRule]);
-    }
-
-    const handleUpdateRule = (ruleId: string, updatedRule: Rule) => {
-        setRules(produce(draft => {
-            const ruleIndex = draft.findIndex(r => r.id === ruleId);
-            if (ruleIndex !== -1) {
-                draft[ruleIndex] = updatedRule;
-            }
-        }));
-    }
-
-    const handleRemoveRule = (ruleId: string) => {
-        setRules(prev => prev.filter(r => r.id !== ruleId));
-    }
-
-    const getParamWeight = (fieldName: string) => {
-        return parameters.find(p => p.name === fieldName)?.weight;
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Scoring Rules</CardTitle>
-                <CardDescription>Define the rules that determine the score for each parameter.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
-                    <Label className="w-1/4">Field</Label>
-                    <Label className="w-1/4">Condition</Label>
-                    <Label className="w-1/4">Value</Label>
-                    <Label className="w-1/4">Score</Label>
-                </div>
-                {rules.map((rule) => (
-                    <RuleRow
-                        key={rule.id}
-                        rule={rule}
-                        onUpdate={(updatedRule) => handleUpdateRule(rule.id, updatedRule)}
-                        onRemove={() => handleRemoveRule(rule.id)}
-                        availableFields={allAvailableFields}
-                        color={themeColor}
-                        maxScore={getParamWeight(rule.field)}
-                    />
-                ))}
-            </CardContent>
-            <CardFooter>
-                 <Button
-                    variant="outline"
-                    className="w-full text-white"
-                    onClick={handleAddRule}
-                    style={{ backgroundColor: themeColor }}
-                    >
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
-function ParametersTab({ 
-    parameters,
-    setParameters,
-    themeColor,
-    selectedProviderId,
-    allAvailableFields,
-}: { 
-    parameters: ScoringParameter[],
-    setParameters: React.Dispatch<React.SetStateAction<ScoringParameter[]>>,
-    themeColor: string,
-    selectedProviderId: string,
-    allAvailableFields: {value: string; label: string}[]
-}) {
-    
-    const handleAddParameter = () => {
-        if (!selectedProviderId) return;
-        const newParam: ScoringParameter = {
-            id: `param-${Date.now()}`,
-            providerId: selectedProviderId,
-            name: '',
-            weight: 10,
-        };
-        setParameters(prev => [...prev, newParam]);
-    };
-
-    const handleUpdateParameter = (paramId: string, field: keyof ScoringParameter, value: any) => {
-        setParameters(produce(draft => {
-            const param = draft.find(p => p.id === paramId);
-            if (param) {
-                (param as any)[field] = value;
-            }
-        }));
-    };
-
-    const handleRemoveParameter = (paramId: string) => {
-        setParameters(prev => prev.filter(p => p.id !== paramId));
-    };
-
-    const totalWeight = useMemo(() => {
-        return parameters.reduce((sum, param) => sum + Number(param.weight || 0), 0);
-    }, [parameters]);
-    
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Parameters & Weights</CardTitle>
-                <CardDescription>
-                    Define the fields to be scored and their maximum weight. The sum of all weights should be 100.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
-                    <Label className="w-3/4">Parameter (Field)</Label>
-                    <Label className="w-1/4">Weight</Label>
-                </div>
-                 {parameters.map(param => (
-                    <div key={param.id} className="flex items-center gap-2">
-                        <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
-                            <SelectTrigger className="w-3/4 shadow-sm focus:ring-2 focus:ring-[--ring-color]">
-                                <SelectValue placeholder="Select Parameter Field" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {allAvailableFields.map(field => (
-                                    <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Input
-                            type="number"
-                            value={param.weight}
-                            onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
-                            className="w-1/4"
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveParameter(param.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                ))}
-            </CardContent>
-             <CardFooter className="flex flex-col items-stretch gap-4">
-                 <Button
-                    variant="outline"
-                    className="w-full text-white"
-                    onClick={handleAddParameter}
-                    style={{ backgroundColor: themeColor }}
-                    >
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
-                </Button>
-                <Separator />
-                <div className="flex justify-end items-baseline gap-4">
-                    <span className="text-sm text-muted-foreground">Total Weight</span>
-                    <span className={cn("text-2xl font-bold", totalWeight !== 100 && 'text-destructive')}>
-                        {totalWeight} / 100
-                    </span>
-                </div>
-                {totalWeight !== 100 && <p className="text-xs text-destructive text-right">The sum of all parameter weights must equal 100.</p>}
-            </CardFooter>
-        </Card>
-    );
-}
-
 
 interface CreditScoreEngineClientProps {
     providers: LoanProvider[];
     initialScoringParameters: ScoringParameter[];
-    initialScoringRules: Rule[];
-    initialHistory: ScoringHistoryItem[];
 }
 
-export function CreditScoreEngineClient({ providers: initialProviders, initialScoringParameters, initialScoringRules, initialHistory }: CreditScoreEngineClientProps) {
+export function CreditScoreEngineClient({ providers: initialProviders, initialScoringParameters }: CreditScoreEngineClientProps) {
     const [providers, setProviders] = useState(initialProviders);
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
     
-    // Global state for all params and rules
+    // Global state for all params
     const [allParameters, setAllParameters] = useState<ScoringParameter[]>(initialScoringParameters);
-    const [allRules, setAllRules] = useState<Rule[]>(initialScoringRules);
     
     const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -413,9 +185,8 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
 
     // Memoized filters for the currently selected provider
     const currentParameters = useMemo(() => allParameters.filter(p => p.providerId === selectedProviderId), [allParameters, selectedProviderId]);
-    const currentRules = useMemo(() => allRules.filter(r => r.providerId === selectedProviderId), [allRules, selectedProviderId]);
     
-    // Memoized setter functions for the current provider
+    // Memoized setter function for the current provider
     const setCurrentParameters = (updater: React.SetStateAction<ScoringParameter[]>) => {
         setAllParameters(prevAll => {
             const otherProviderParams = prevAll.filter(p => p.providerId !== selectedProviderId);
@@ -424,24 +195,87 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             return [...otherProviderParams, ...updated];
         });
     };
-    const setCurrentRules = (updater: React.SetStateAction<Rule[]>) => {
-        setAllRules(prevAll => {
-            const otherProviderRules = prevAll.filter(p => p.providerId !== selectedProviderId);
-            const currentProviderRules = prevAll.filter(p => p.providerId === selectedProviderId);
-            const updated = typeof updater === 'function' ? updater(currentProviderRules) : updater;
-            return [...otherProviderRules, ...updated];
-        });
-    };
     
     const allAvailableFields = useMemo(() => {
         const customFields = customParams.map(p => ({ value: p.name, label: p.name }));
         return [...AVAILABLE_FIELDS, ...customFields];
     }, [customParams]);
+    
+    const handleAddParameter = () => {
+        if (!selectedProviderId) return;
+        const newParam: ScoringParameter = {
+            id: `param-${Date.now()}`,
+            providerId: selectedProviderId,
+            name: '',
+            weight: 10,
+            rules: [],
+        };
+        setCurrentParameters(prev => [...prev, newParam]);
+    };
+    
+    const handleUpdateParameter = (paramId: string, field: 'name' | 'weight', value: any) => {
+        setCurrentParameters(produce(draft => {
+            const param = draft.find(p => p.id === paramId);
+            if (param) {
+                (param as any)[field] = value;
+                if (field === 'name') {
+                    // When param name changes, update the field in all its rules
+                    param.rules.forEach(rule => rule.field = value);
+                }
+            }
+        }));
+    };
+    
+    const handleRemoveParameter = (paramId: string) => {
+        setCurrentParameters(prev => prev.filter(p => p.id !== paramId));
+    };
+
+    const handleAddRule = (paramId: string) => {
+        setCurrentParameters(produce(draft => {
+            const param = draft.find(p => p.id === paramId);
+            if (param) {
+                const newRule: Rule = {
+                    id: `rule-${Date.now()}`,
+                    parameterId: param.id,
+                    field: param.name, // Rules are for the parameter's field
+                    condition: '>',
+                    value: '',
+                    score: 0,
+                };
+                if (!param.rules) param.rules = [];
+                param.rules.push(newRule);
+            }
+        }))
+    }
+
+    const handleUpdateRule = (paramId: string, ruleId: string, updatedRule: Rule) => {
+        setCurrentParameters(produce(draft => {
+            const param = draft.find(p => p.id === paramId);
+            if (param && param.rules) {
+                const ruleIndex = param.rules.findIndex(r => r.id === ruleId);
+                if (ruleIndex !== -1) {
+                    param.rules[ruleIndex] = updatedRule;
+                }
+            }
+        }));
+    };
+
+    const handleRemoveRule = (paramId: string, ruleId: string) => {
+        setCurrentParameters(produce(draft => {
+            const param = draft.find(p => p.id === paramId);
+            if (param && param.rules) {
+                param.rules = param.rules.filter(r => r.id !== ruleId);
+            }
+        }));
+    };
+
+    const totalWeight = useMemo(() => {
+        return currentParameters.reduce((sum, param) => sum + Number(param.weight || 0), 0);
+    }, [currentParameters]);
 
     const handleSave = async () => {
         if (!selectedProviderId) return;
 
-        const totalWeight = currentParameters.reduce((sum, param) => sum + Number(param.weight || 0), 0);
         if (totalWeight !== 100) {
             toast({
                 title: 'Invalid Configuration',
@@ -459,7 +293,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 body: JSON.stringify({ 
                     providerId: selectedProviderId, 
                     parameters: currentParameters,
-                    rules: currentRules,
                 }),
             });
 
@@ -468,10 +301,10 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 throw new Error(errorData.error || 'Failed to save configuration.');
             }
 
-            const { savedParameters, savedRules } = await response.json();
+            const savedParameters = await response.json();
             
+            // Replace the params for the current provider with the saved ones from the server
             setAllParameters(prev => [...prev.filter(p => p.providerId !== selectedProviderId), ...savedParameters]);
-            setAllRules(prev => [...prev.filter(r => r.providerId !== selectedProviderId), ...savedRules]);
             
             toast({
                 title: 'Configuration Saved',
@@ -507,7 +340,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
                     <p className="text-muted-foreground">
-                        Define the parameters and rules used to calculate customer credit scores.
+                        Define the parameters, weights, and rules used to calculate customer credit scores.
                     </p>
                 </div>
                  <div className="flex items-center space-x-4">
@@ -524,32 +357,104 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 </div>
             </div>
             
-            <div className="flex items-center justify-end">
-                <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white" disabled={isLoading}>
-                    {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save Configuration
-                </Button>
-            </div>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Parameters & Rules</CardTitle>
+                        <CardDescription>
+                            Define parameters, their weights, and the rules that assign scores.
+                        </CardDescription>
+                    </div>
+                     <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white" disabled={isLoading}>
+                        {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Configuration
+                    </Button>
+                </CardHeader>
+                <CardContent>
+                    <Accordion type="multiple" className="w-full space-y-2">
+                        {currentParameters.map((param) => (
+                             <AccordionItem value={param.id} key={param.id} className="border-none">
+                                <Card className="overflow-hidden">
+                                     <AccordionTrigger className="p-4 hover:no-underline bg-muted/50">
+                                       <div className="flex items-center gap-4 w-full">
+                                            <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
+                                            <div className="flex-1 grid grid-cols-2 gap-4 items-center">
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
+                                                    <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
+                                                        <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" onClick={(e) => e.stopPropagation()}>
+                                                            <SelectValue placeholder="Select Parameter Field" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {allAvailableFields.map(field => (
+                                                                <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                 <div className="space-y-1">
+                                                    <Label htmlFor={`param-weight-${param.id}`}>Weight</Label>
+                                                    <Input
+                                                        id={`param-weight-${param.id}`}
+                                                        type="number"
+                                                        value={param.weight}
+                                                        onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
+                                                        className="w-full bg-background"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id)}}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                        </div>
+                                    </AccordionTrigger>
+                                     <AccordionContent className="p-4">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+                                                <Label className="w-[150px]">Condition</Label>
+                                                <Label className="flex-1">Value</Label>
+                                                <Label className="w-[100px]">Score</Label>
+                                            </div>
+                                            {(param.rules || []).map(rule => (
+                                                <RuleRow 
+                                                    key={rule.id}
+                                                    rule={rule}
+                                                    onUpdate={(updatedRule) => handleUpdateRule(param.id, rule.id, updatedRule)}
+                                                    onRemove={() => handleRemoveRule(param.id, rule.id)}
+                                                    availableFields={allAvailableFields}
+                                                    color={themeColor}
+                                                    maxScore={param.weight}
+                                                />
+                                            ))}
+                                            <Button variant="outline" className="w-full mt-2" onClick={() => handleAddRule(param.id)}>
+                                                <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
+                                            </Button>
+                                        </div>
+                                     </AccordionContent>
+                                </Card>
+                             </AccordionItem>
+                        ))}
+                    </Accordion>
+                </CardContent>
+                <CardFooter className="flex flex-col items-stretch gap-4">
+                    <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleAddParameter}
+                    >
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
+                    </Button>
+                    <Separator />
+                    <div className="flex justify-end items-baseline gap-4">
+                        <span className="text-sm text-muted-foreground">Total Weight</span>
+                        <span className={cn("text-2xl font-bold", totalWeight !== 100 && 'text-destructive')}>
+                            {totalWeight} / 100
+                        </span>
+                    </div>
+                    {totalWeight !== 100 && <p className="text-xs text-destructive text-right">The sum of all parameter weights must equal 100.</p>}
+                </CardFooter>
+            </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                 <ParametersTab
-                    parameters={currentParameters}
-                    setParameters={setCurrentParameters}
-                    themeColor={themeColor}
-                    selectedProviderId={selectedProviderId}
-                    allAvailableFields={allAvailableFields}
-                />
-                <RulesTab
-                    rules={currentRules}
-                    setRules={setCurrentRules}
-                    parameters={currentParameters}
-                    themeColor={themeColor}
-                    selectedProviderId={selectedProviderId}
-                    allAvailableFields={allAvailableFields}
-                />
-            </div>
-
-            <ScorePreview parameters={currentParameters} rules={currentRules} availableFields={allAvailableFields} providerColor={themeColor} />
+            <ScorePreview parameters={currentParameters} availableFields={allAvailableFields} providerColor={themeColor} />
         </div>
     );
 }

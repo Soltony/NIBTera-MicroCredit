@@ -35,75 +35,25 @@ async function getScoringParameters() {
     try {
         const dataSource = await getConnectedDataSource();
         const paramRepo = dataSource.getRepository('ScoringParameter');
+        // Eager loading on the entity will fetch the rules
         const params = await paramRepo.find();
         
         // Map to a serializable format that matches our client-side type
         return params.map(p => ({
+            ...p,
             id: String(p.id),
             providerId: String(p.providerId),
-            name: p.name,
-            weight: p.weight,
+            rules: p.rules.map(r => ({ ...r, id: String(r.id) }))
         }));
     } catch(e) {
         console.error(e);
         return [];
     }
 }
-
-async function getScoringRules() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const ruleRepo = dataSource.getRepository('ScoringParameterRule');
-        const rules = await ruleRepo.find();
-        return rules.map(r => ({
-            id: String(r.id),
-            providerId: String(r.providerId),
-            field: r.field,
-            condition: r.condition,
-            value: r.value,
-            score: r.score,
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
-}
-
-
-async function getHistory() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
-        const history = await historyRepo.find({
-            take: 20, // Fetch more history items if needed
-            order: {
-                savedAt: 'DESC',
-            },
-            relations: ['appliedProducts'],
-        });
-        
-        return history.map(h => ({
-            id: String(h.id),
-            providerId: String(h.providerId),
-            parameters: JSON.parse(h.parameters),
-            appliedProducts: h.appliedProducts.map(p => ({
-                id: String(p.id),
-                name: p.name,
-            })),
-        }));
-
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
-}
-
 
 export default async function CreditScoreEnginePage() {
     const providers = await getProviders();
     const scoringParameters = await getScoringParameters();
-    const scoringRules = await getScoringRules();
-    const history = await getHistory();
 
-    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters as any} initialScoringRules={scoringRules as any} initialHistory={history as any} />;
+    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters as any} />;
 }

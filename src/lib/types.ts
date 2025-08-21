@@ -167,7 +167,7 @@ export interface TransactionProduct {
 // Type for Scoring Engine
 export interface Rule {
   id: string;
-  providerId: string;
+  parameterId: string;
   field: string;
   condition: string;
   value: string;
@@ -179,6 +179,7 @@ export interface ScoringParameter {
   providerId: string;
   name: string;
   weight: number;
+  rules: Rule[];
 }
 
 // Type for Legacy Scoring Config page

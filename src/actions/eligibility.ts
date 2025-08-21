@@ -17,7 +17,6 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
     const dataSource = await getConnectedDataSource();
     const customerRepo = dataSource.getRepository('Customer');
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
-    const scoringRuleRepo = dataSource.getRepository('ScoringParameterRule');
     const loanTierRepo = dataSource.getRepository('LoanAmountTier');
 
     const customer = await customerRepo.findOneBy({ id: customerId });
@@ -25,32 +24,31 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         throw new Error('Customer not found for score calculation.');
     }
     
+    // Eager loading in the entity should bring the rules
     const parameters = await scoringParamRepo.find({ where: { providerId: providerId } });
-    const rules = await scoringRuleRepo.find({ where: { providerId: providerId } });
     
-    // If a provider has no parameters, they are not eligible for a loan from them.
     if (parameters.length === 0) {
         return { score: 0, maxLoanAmount: 0 };
     }
     
     let totalScore = 0;
     const customerLoanHistory = JSON.parse(customer.loanHistory);
-    // Combine standard customer fields and dynamic loan history fields into one object for evaluation
+
     const customerDataForScoring: Record<string, any> = {
         age: Number(customer.age) || 0,
         monthlyIncome: Number(customer.monthlyIncome) || 0,
         gender: customer.gender,
         educationLevel: customer.educationLevel,
-        // Ensure loan history fields are numeric for proper evaluation
         totalLoans: Number(customerLoanHistory.totalLoans) || 0,
         onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
     };
 
     parameters.forEach(param => {
         let maxScoreForParam = 0;
-        const relevantRules = rules.filter(rule => rule.field === param.name);
+        const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
+            // The rule's field should match the parameter's name
             const inputValue = customerDataForScoring[rule.field];
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
@@ -66,7 +64,6 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
 
     const finalScore = Math.round(totalScore);
 
-    // Find the loan amount from the tiers based on the calculated score for the specific product
     const applicableTier = await loanTierRepo.findOne({
         where: {
             productId: productId,
@@ -91,7 +88,6 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
       return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    // STEP 1: Basic Eligibility Check
     if (customer.age <= 20) {
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
@@ -101,7 +97,6 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
         return { isEligible: false, reason: 'Loan provider not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    // STEP 2: Check for existing active loans based on provider rules
     const allActiveLoans = await loanRepo.find({ where: { repaymentStatus: 'Unpaid' } });
     const activeLoansWithThisProvider = allActiveLoans.filter(l => l.providerId === providerId);
     const activeLoansWithOtherProviders = allActiveLoans.filter(l => l.providerId !== providerId);
@@ -114,14 +109,12 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
         return { isEligible: false, reason: 'This provider does not allow loans if you have active loans with other providers.', score: 0, maxLoanAmount: 0 };
     }
 
-    // STEP 3: Check if the provider has any scoring rules defined at all.
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
     const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    // STEP 4: Credit Score Calculation
     const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId, productId);
 
     if (maxLoanAmount <= 0) {

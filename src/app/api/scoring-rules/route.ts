@@ -32,51 +32,57 @@ export async function POST(req: Request) {
             const paramsToDelete = existingParams.filter(p => !incomingParamIds.has(String(p.id)));
 
             if (paramsToDelete.length > 0) {
+                // TypeORM will cascade delete the rules associated with these parameters
                 await paramRepo.remove(paramsToDelete);
             }
 
             for (const param of parameters) {
                 const isNewParam = String(param.id).startsWith('param-');
                 
+                const paramEntity = new ScoringParameter();
+                paramEntity.providerId = Number(providerId);
+                paramEntity.name = param.name;
+                paramEntity.weight = param.weight;
+
                 let savedParam: ScoringParameter;
                 if (isNewParam) {
-                    savedParam = await paramRepo.save({
-                        providerId: Number(providerId),
-                        name: param.name,
-                        weight: param.weight
-                    });
+                    savedParam = await paramRepo.save(paramEntity);
                 } else {
                     await paramRepo.update(param.id, { name: param.name, weight: param.weight });
                     savedParam = (await paramRepo.findOneBy({ id: Number(param.id) }))!;
                 }
 
+                // Sync rules for this parameter
                 const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
-                const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !String(id).startsWith('rule-')));
+                const incomingRuleIds = new Set((param.rules || []).map(r => r.id).filter(id => !String(id).startsWith('rule-')));
                 const rulesToDelete = existingRules.filter(r => !incomingRuleIds.has(String(r.id)));
 
                 if (rulesToDelete.length > 0) {
                     await ruleRepo.remove(rulesToDelete);
                 }
+                
+                if (param.rules) {
+                    for (const rule of param.rules) {
+                        const isNewRule = String(rule.id).startsWith('rule-');
+                        const valueToSave = rule.value;
 
-                for (const rule of param.rules) {
-                    const isNewRule = String(rule.id).startsWith('rule-');
-                    const valueToSave = rule.condition === 'between' ? rule.value : String(parseFloat(rule.value));
+                        const ruleEntity = new ScoringParameterRule();
+                        ruleEntity.parameterId = savedParam.id;
+                        ruleEntity.field = rule.field;
+                        ruleEntity.condition = rule.condition;
+                        ruleEntity.value = valueToSave;
+                        ruleEntity.score = rule.score;
 
-                     if (isNewRule) {
-                        await ruleRepo.save({
-                            parameterId: savedParam.id,
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: valueToSave,
-                            score: rule.score,
-                        });
-                    } else {
-                         await ruleRepo.update(rule.id, {
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: valueToSave,
-                            score: rule.score,
-                        });
+                        if (isNewRule) {
+                            await ruleRepo.save(ruleEntity);
+                        } else {
+                            await ruleRepo.update(rule.id, {
+                                field: rule.field,
+                                condition: rule.condition,
+                                value: valueToSave,
+                                score: rule.score,
+                            });
+                        }
                     }
                 }
             }
@@ -84,7 +90,7 @@ export async function POST(req: Request) {
 
         const finalParams = await manager.getRepository(ScoringParameter).find({
             where: { providerId: Number(providerId) },
-            relations: ['rules'],
+            relations: ['rules'], // Eager loading might already do this, but being explicit is safer
         });
 
         return NextResponse.json(finalParams, { status: 200 });

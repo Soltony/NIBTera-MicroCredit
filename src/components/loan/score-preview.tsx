@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Rule, ScoringParameter } from '@/lib/types';
+import type { ScoringParameter } from '@/lib/types';
 import { evaluateCondition } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -21,23 +21,22 @@ interface FieldInfo {
 
 interface ScorePreviewProps {
   parameters: ScoringParameter[];
-  rules: Rule[];
   availableFields: FieldInfo[];
   providerColor?: string;
 }
 
-export function ScorePreview({ parameters, rules, availableFields, providerColor = '#fdb913' }: ScorePreviewProps) {
+export function ScorePreview({ parameters, availableFields, providerColor = '#fdb913' }: ScorePreviewProps) {
   const [applicantData, setApplicantData] = useState<Record<string, string>>({});
   const [calculatedScore, setCalculatedScore] = useState<number | null>(null);
 
   const uniqueFieldsInUse = useMemo(() => {
     const fieldsInUse = new Set<string>();
-    rules.forEach(rule => {
-        fieldsInUse.add(rule.field);
+    parameters.forEach(param => {
+        fieldsInUse.add(param.name);
     });
 
     return availableFields.filter(field => fieldsInUse.has(field.value));
-  }, [rules, availableFields]);
+  }, [parameters, availableFields]);
 
   const handleInputChange = (field: string, value: string) => {
     setApplicantData(prev => ({ ...prev, [field]: value }));
@@ -49,7 +48,7 @@ export function ScorePreview({ parameters, rules, availableFields, providerColor
     
     parameters.forEach(param => {
         let maxScoreForParam = 0;
-        const relevantRules = rules.filter(rule => rule.field === param.name);
+        const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
             const inputValue = applicantData[rule.field];
@@ -67,7 +66,7 @@ export function ScorePreview({ parameters, rules, availableFields, providerColor
         totalScore += scoreForThisParam;
     });
 
-    setCalculatedScore(totalScore);
+    setCalculatedScore(Math.round(totalScore));
   };
   
   const getFieldInfo = (fieldName: string): FieldInfo | undefined => {
@@ -120,7 +119,7 @@ export function ScorePreview({ parameters, rules, availableFields, providerColor
             })}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">No fields are currently used in the scoring rules.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No parameters defined for this provider yet.</p>
         )}
         <div className="flex items-center justify-between">
             <Button onClick={handleCalculateScore} style={{ backgroundColor: providerColor }} className="text-white" disabled={uniqueFieldsInUse.length === 0}>Calculate Score</Button>

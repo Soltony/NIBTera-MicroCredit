@@ -9,19 +9,19 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { IsNumber, IsNotEmpty } from 'class-validator';
-import type { LoanProvider } from './LoanProvider';
+import type { ScoringParameter } from './ScoringParameter';
 
 @Entity({ name: 'scoring_parameter_rules' })
 export class ScoringParameterRule {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
   id!: number;
 
-  @Column({ name: 'provider_id' })
-  providerId!: number;
+  @Column({ name: 'parameter_id' })
+  parameterId!: number;
   
-  @ManyToOne('LoanProvider', (provider: LoanProvider) => provider.scoringRules, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'provider_id' })
-  provider!: LoanProvider;
+  @ManyToOne('ScoringParameter', (parameter: ScoringParameter) => parameter.rules, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'parameter_id' })
+  parameter!: ScoringParameter;
 
   @Column({ type: 'varchar2', length: 255 })
   @IsNotEmpty()
