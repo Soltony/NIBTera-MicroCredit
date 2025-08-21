@@ -64,9 +64,7 @@ export interface LoanProvider {
   displayOrder: number;
   accountNumber: string | null;
   allowMultipleProviderLoans: boolean;
-  maxConcurrentProviderLoans: number;
   allowCrossProviderLoans: boolean;
-  maxGlobalActiveLoans: number;
 }
 
 export interface LoanProduct {

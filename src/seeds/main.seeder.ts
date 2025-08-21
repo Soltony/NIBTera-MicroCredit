@@ -158,9 +158,7 @@ class MainSeeder {
               displayOrder: 1,
               accountNumber: '1000123456789',
               allowMultipleProviderLoans: false,
-              maxConcurrentProviderLoans: 1,
               allowCrossProviderLoans: false,
-              maxGlobalActiveLoans: 1,
             });
 
             const quickCashLoan = await this.findOrCreateProduct(manager, { name: 'Quick Cash Loan', providerId: nibBank.id }, {
@@ -204,9 +202,7 @@ class MainSeeder {
               displayOrder: 2,
               accountNumber: '2000987654321',
               allowMultipleProviderLoans: true,
-              maxConcurrentProviderLoans: 2,
               allowCrossProviderLoans: false,
-              maxGlobalActiveLoans: 2,
             });
             const personalLoan = await this.findOrCreateProduct(manager, { name: 'Personal Loan', providerId: capitalBank.id }, {
               provider: capitalBank,
@@ -249,9 +245,7 @@ class MainSeeder {
               displayOrder: 3,
               accountNumber: '3000112233445',
               allowMultipleProviderLoans: true,
-              maxConcurrentProviderLoans: 5,
               allowCrossProviderLoans: true,
-              maxGlobalActiveLoans: 5,
             });
               const startupLoan = await this.findOrCreateProduct(manager, { name: 'Startup Business Loan', providerId: providusFinancial.id }, {
               provider: providusFinancial,

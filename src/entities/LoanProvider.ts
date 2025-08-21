@@ -48,9 +48,6 @@ export class LoanProvider {
     default: 0,
   })
   allowMultipleProviderLoans!: boolean;
-
-  @Column({ name: 'max_concurrent_provider_loans', type: 'number', default: 1 })
-  maxConcurrentProviderLoans!: number;
   
   @Column({
     name: 'allow_cross_provider_loans',
@@ -60,9 +57,6 @@ export class LoanProvider {
     default: 0,
   })
   allowCrossProviderLoans!: boolean;
-
-  @Column({ name: 'max_global_active_loans', type: 'number', default: 1 })
-  maxGlobalActiveLoans!: number;
 
   @OneToMany('User', (user: User) => user.provider)
   users!: User[];

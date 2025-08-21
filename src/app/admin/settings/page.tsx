@@ -45,9 +45,7 @@ async function getProviders(): Promise<LoanProviderType[]> {
             displayOrder: p.displayOrder,
             accountNumber: p.accountNumber,
             allowMultipleProviderLoans: p.allowMultipleProviderLoans,
-            maxConcurrentProviderLoans: p.maxConcurrentProviderLoans,
             allowCrossProviderLoans: p.allowCrossProviderLoans,
-            maxGlobalActiveLoans: p.maxGlobalActiveLoans,
             products: p.products.map(prod => ({
                 id: String(prod.id),
                 providerId: String(p.id),

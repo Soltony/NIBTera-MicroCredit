@@ -42,9 +42,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         displayOrder: 0,
         accountNumber: '' as string | null,
         allowMultipleProviderLoans: false,
-        maxConcurrentProviderLoans: 1,
         allowCrossProviderLoans: false,
-        maxGlobalActiveLoans: 1,
     });
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -58,9 +56,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
             allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
-            maxConcurrentProviderLoans: provider.maxConcurrentProviderLoans || 1,
             allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
-            maxGlobalActiveLoans: provider.maxGlobalActiveLoans || 1,
         });
     } else {
         setFormData({
@@ -70,9 +66,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: 0,
             accountNumber: null,
             allowMultipleProviderLoans: false,
-            maxConcurrentProviderLoans: 1,
             allowCrossProviderLoans: false,
-            maxGlobalActiveLoans: 1,
         });
     }
   }, [provider, isOpen]);
@@ -108,7 +102,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     e.preventDefault();
     if (formData.name.trim() === '') return;
 
-    const dataToSave = {
+    const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>> & { id?: string } = {
       id: provider?.id,
       ...formData,
     };
@@ -234,18 +228,10 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                   <Label htmlFor="allowMultipleProviderLoans" className="flex-grow">Allow multiple loans with this provider</Label>
                   <Switch id="allowMultipleProviderLoans" checked={formData.allowMultipleProviderLoans} onCheckedChange={(checked) => handleSwitchChange('allowMultipleProviderLoans', checked)} />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="maxConcurrentProviderLoans" className="text-right col-span-3">Max concurrent loans with this provider</Label>
-                  <Input id="maxConcurrentProviderLoans" type="number" value={formData.maxConcurrentProviderLoans} onChange={handleChange} disabled={!formData.allowMultipleProviderLoans} className="col-span-1" />
-              </div>
               
                <div className="flex items-center justify-between space-x-2">
                   <Label htmlFor="allowCrossProviderLoans" className="flex-grow">Allow loan if borrower has loan(s) with another provider</Label>
                   <Switch id="allowCrossProviderLoans" checked={formData.allowCrossProviderLoans} onCheckedChange={(checked) => handleSwitchChange('allowCrossProviderLoans', checked)} />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="maxGlobalActiveLoans" className="text-right col-span-3">Max total active loans (all providers)</Label>
-                  <Input id="maxGlobalActiveLoans" type="number" value={formData.maxGlobalActiveLoans} onChange={handleChange} className="col-span-1" />
               </div>
           </div>
 

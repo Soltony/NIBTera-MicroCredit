@@ -11,9 +11,7 @@ const providerSchema = z.object({
     displayOrder: z.number().int(),
     accountNumber: z.string().optional().nullable(),
     allowMultipleProviderLoans: z.boolean(),
-    maxConcurrentProviderLoans: z.number().int().min(1),
     allowCrossProviderLoans: z.boolean(),
-    maxGlobalActiveLoans: z.number().int().min(1),
 });
 
 const updateProviderSchema = providerSchema.partial().extend({

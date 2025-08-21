@@ -106,16 +106,8 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
         return { isEligible: false, reason: 'This provider does not allow multiple active loans. Please repay your existing loan first.', score: 0, maxLoanAmount: 0 };
     }
 
-    if (activeLoansWithThisProvider.length >= provider.maxConcurrentProviderLoans) {
-        return { isEligible: false, reason: `You have reached the maximum of ${provider.maxConcurrentProviderLoans} concurrent loans with this provider.`, score: 0, maxLoanAmount: 0 };
-    }
-
     if (activeLoansWithOtherProviders.length > 0 && !provider.allowCrossProviderLoans) {
         return { isEligible: false, reason: 'This provider does not allow loans if you have active loans with other providers.', score: 0, maxLoanAmount: 0 };
-    }
-
-    if (allActiveLoans.length >= provider.maxGlobalActiveLoans) {
-        return { isEligible: false, reason: `You have reached the maximum of ${provider.maxGlobalActiveLoans} total active loans across all providers.`, score: 0, maxLoanAmount: 0 };
     }
 
     // STEP 3: Check if the provider has any scoring rules defined at all.
