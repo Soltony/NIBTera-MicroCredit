@@ -333,46 +333,52 @@ class MainSeeder {
 
             // 5. Seed Scoring Parameters for all providers
             // NIb Bank
-            const nibAgeParam = await this.findOrCreateScoringParameter(manager, { name: 'Age', providerId: nibBank.id }, { providerId: nibBank.id, name: 'Age' });
+            await this.findOrCreateScoringParameter(manager, { name: 'age', providerId: nibBank.id }, { providerId: nibBank.id, name: 'age', weight: 20 });
             await manager.save(ScoringParameterRule, [
-              { parameter: nibAgeParam, field: 'age', condition: '>=', value: '35', score: 20 },
-              { parameter: nibAgeParam, field: 'age', condition: 'between', value: '25-34', score: 10 },
-              { parameter: nibAgeParam, field: 'age', condition: '<', value: '25', score: 5 },
+              { providerId: nibBank.id, field: 'age', condition: '>=', value: '35', score: 20 },
+              { providerId: nibBank.id, field: 'age', condition: 'between', value: '25-34', score: 10 },
+              { providerId: nibBank.id, field: 'age', condition: '<', value: '25', score: 5 },
             ]);
-            const nibHistoryParam = await this.findOrCreateScoringParameter(manager, { name: 'Loan History', providerId: nibBank.id }, { providerId: nibBank.id, name: 'Loan History' });
+            await this.findOrCreateScoringParameter(manager, { name: 'onTimeRepayments', providerId: nibBank.id }, { providerId: nibBank.id, name: 'onTimeRepayments', weight: 30 });
             await manager.save(ScoringParameterRule, [
-              { parameter: nibHistoryParam, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
-              { parameter: nibHistoryParam, field: 'totalLoans', condition: '<', value: '1', score: 10 },
+              { providerId: nibBank.id, field: 'onTimeRepayments', condition: '>', value: '5', score: 30 },
             ]);
-            const nibIncomeParam = await this.findOrCreateScoringParameter(manager, { name: 'Income Level', providerId: nibBank.id }, { providerId: nibBank.id, name: 'Income Level' });
-              await manager.save(ScoringParameterRule, [
-              { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
-              { parameter: nibIncomeParam, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
+             await this.findOrCreateScoringParameter(manager, { name: 'totalLoans', providerId: nibBank.id }, { providerId: nibBank.id, name: 'totalLoans', weight: 10 });
+            await manager.save(ScoringParameterRule, [
+              { providerId: nibBank.id, field: 'totalLoans', condition: '<', value: '1', score: 10 },
+            ]);
+            await this.findOrCreateScoringParameter(manager, { name: 'monthlyIncome', providerId: nibBank.id }, { providerId: nibBank.id, name: 'monthlyIncome', weight: 40 });
+            await manager.save(ScoringParameterRule, [
+              { providerId: nibBank.id, field: 'monthlyIncome', condition: '>', value: '5000', score: 40 },
+              { providerId: nibBank.id, field: 'monthlyIncome', condition: '<=', value: '2000', score: 15 },
             ]);
 
             // Capital Bank
-            const capIncomeParam = await this.findOrCreateScoringParameter(manager, { name: 'Income Level', providerId: capitalBank.id }, { providerId: capitalBank.id, name: 'Income Level' });
+            await this.findOrCreateScoringParameter(manager, { name: 'monthlyIncome', providerId: capitalBank.id }, { providerId: capitalBank.id, name: 'monthlyIncome', weight: 50 });
             await manager.save(ScoringParameterRule, [
-                { parameter: capIncomeParam, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
-                { parameter: capIncomeParam, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
-                { parameter: capIncomeParam, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
+                { providerId: capitalBank.id, field: 'monthlyIncome', condition: '>=', value: '10000', score: 50 },
+                { providerId: capitalBank.id, field: 'monthlyIncome', condition: 'between', value: '4000-9999', score: 30 },
+                { providerId: capitalBank.id, field: 'monthlyIncome', condition: '<', value: '4000', score: 10 },
             ]);
-            const capEduParam = await this.findOrCreateScoringParameter(manager, { name: 'Education Level', providerId: capitalBank.id }, { providerId: capitalBank.id, name: 'Education Level' });
+            await this.findOrCreateScoringParameter(manager, { name: 'educationLevel', providerId: capitalBank.id }, { providerId: capitalBank.id, name: 'educationLevel', weight: 50 });
             await manager.save(ScoringParameterRule, [
-                { parameter: capEduParam, field: 'educationLevel', condition: '==', value: "Master's Degree", score: 40 },
-                { parameter: capEduParam, field: 'educationLevel', condition: '==', value: "Bachelor's Degree", score: 25 },
+                { providerId: capitalBank.id, field: 'educationLevel', condition: '==', value: "Master's Degree", score: 40 },
+                { providerId: capitalBank.id, field: 'educationLevel', condition: '==', value: "Bachelor's Degree", score: 25 },
             ]);
             
             // Providus Financial
-            const provGenderParam = await this.findOrCreateScoringParameter(manager, { name: 'Gender', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'Gender' });
+            await this.findOrCreateScoringParameter(manager, { name: 'gender', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'gender', weight: 10 });
             await manager.save(ScoringParameterRule, [
-                { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Female', score: 10 },
-                { parameter: provGenderParam, field: 'gender', condition: '==', value: 'Male', score: 5 },
+                { providerId: providusFinancial.id, field: 'gender', condition: '==', value: 'Female', score: 10 },
+                { providerId: providusFinancial.id, field: 'gender', condition: '==', value: 'Male', score: 5 },
             ]);
-            const provLoanHistoryParam = await this.findOrCreateScoringParameter(manager, { name: 'Loan History', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'Loan History' });
+            await this.findOrCreateScoringParameter(manager, { name: 'onTimeRepayments', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'onTimeRepayments', weight: 50 });
               await manager.save(ScoringParameterRule, [
-                { parameter: provLoanHistoryParam, field: 'onTimeRepayments', condition: '>=', value: '10', score: 100 },
-                { parameter: provLoanHistoryParam, field: 'totalLoans', condition: '>', value: '5', score: 60 },
+                { providerId: providusFinancial.id, field: 'onTimeRepayments', condition: '>=', value: '10', score: 50 },
+            ]);
+            await this.findOrCreateScoringParameter(manager, { name: 'totalLoans', providerId: providusFinancial.id }, { providerId: providusFinancial.id, name: 'totalLoans', weight: 40 });
+              await manager.save(ScoringParameterRule, [
+                { providerId: providusFinancial.id, field: 'totalLoans', condition: '>', value: '5', score: 40 },
             ]);
 
             console.log('Seeded scoring parameters for all providers.');
