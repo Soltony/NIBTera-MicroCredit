@@ -29,7 +29,7 @@ export class ScoringConfigurationHistory {
 
   @ManyToMany('LoanProduct')
   @JoinTable({
-    name: '_scoring_config_history_to_products',
+    name: 'scoring_history_applied_products',
     joinColumn: {
       name: 'scoring_config_history_id',
       referencedColumnName: 'id',

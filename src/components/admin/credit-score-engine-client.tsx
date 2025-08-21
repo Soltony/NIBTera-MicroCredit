@@ -31,6 +31,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { ScorePreview } from '@/components/loan/score-preview';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -153,7 +162,12 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     const [allParameters, setAllParameters] = useState<ScoringParameter[]>(initialScoringParameters);
     
     const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+    const [scoringHistory, setScoringHistory] = useState<ScoringHistoryItem[]>([]);
+    const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
+    const [selectedProducts, setSelectedProducts] = useState<Record<string, boolean>>({});
+
     const { toast } = useToast();
 
     useEffect(() => {
@@ -165,17 +179,27 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     useEffect(() => {
         const fetchProviderData = async () => {
             if (!selectedProviderId) return;
-            setIsLoading(true);
+            setIsSaving(true);
+            setIsHistoryLoading(true);
             try {
-                const customParamsResponse = await fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`);
+                const [customParamsResponse, historyResponse] = await Promise.all([
+                    fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`),
+                    fetch(`/api/scoring-history?providerId=${selectedProviderId}`)
+                ]);
+
                 if (!customParamsResponse.ok) throw new Error('Failed to fetch custom parameters');
                 const customParamsData = await customParamsResponse.json();
                 setCustomParams(customParamsData);
 
+                if (!historyResponse.ok) throw new Error('Failed to fetch scoring history');
+                const historyData = await historyResponse.json();
+                setScoringHistory(historyData);
+
             } catch (error) {
                 toast({ title: "Error", description: "Could not fetch configuration data.", variant: "destructive" });
             } finally {
-                setIsLoading(false);
+                setIsSaving(false);
+                setIsHistoryLoading(false);
             }
         };
         fetchProviderData();
@@ -269,21 +293,38 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
         return currentParameters.reduce((sum, param) => sum + Number(param.weight || 0), 0);
     }, [currentParameters]);
 
-    const handleSave = async () => {
-        if (!selectedProviderId) return;
-
+    const handleOpenSaveDialog = () => {
         if (totalWeight !== 100) {
-            toast({
+             toast({
                 title: 'Invalid Configuration',
                 description: 'The sum of all parameter weights must be exactly 100.',
                 variant: 'destructive',
             });
             return;
         }
+        setIsApplyDialogOpen(true);
+    };
 
-        setIsLoading(true);
+    const handleSaveAndApply = async () => {
+        if (!selectedProviderId) return;
+        
+        const appliedProductIds = Object.entries(selectedProducts)
+            .filter(([, isSelected]) => isSelected)
+            .map(([productId]) => productId);
+
+        if (appliedProductIds.length === 0) {
+            toast({
+                title: 'No Products Selected',
+                description: 'Please select at least one product to apply this configuration to.',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        setIsSaving(true);
         try {
-            const response = await fetch('/api/scoring-rules', {
+            // Step 1: Save the rules
+            const rulesResponse = await fetch('/api/scoring-rules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -291,20 +332,29 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                     parameters: currentParameters,
                 }),
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save configuration.');
-            }
-
-            const savedParameters = await response.json();
+            if (!rulesResponse.ok) throw new Error((await rulesResponse.json()).error || 'Failed to save rules.');
+            const savedParameters = await rulesResponse.json();
             
-            // Replace the params for the current provider with the saved ones from the server
+            // Step 2: Save history record
+            const historyResponse = await fetch('/api/scoring-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    providerId: selectedProviderId,
+                    parameters: savedParameters,
+                    appliedProductIds,
+                })
+            });
+             if (!historyResponse.ok) throw new Error((await historyResponse.json()).error || 'Failed to save history.');
+            const newHistoryItem = await historyResponse.json();
+            
+            // Update client state
             setAllParameters(prev => [...prev.filter(p => p.providerId !== selectedProviderId), ...savedParameters]);
+            setScoringHistory(prev => [newHistoryItem, ...prev]);
             
             toast({
-                title: 'Configuration Saved',
-                description: 'Your credit scoring engine has been successfully saved.',
+                title: 'Configuration Saved & Applied',
+                description: `Rules have been applied to ${appliedProductIds.length} product(s).`,
             });
 
         } catch (error: any) {
@@ -314,7 +364,9 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 variant: 'destructive',
             });
         } finally {
-            setIsLoading(false);
+            setIsSaving(false);
+            setIsApplyDialogOpen(false);
+            setSelectedProducts({});
         }
     }
 
@@ -329,6 +381,8 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             </div>
         );
     }
+    
+    const currentProvider = providers.find(p => p.id === selectedProviderId);
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -361,8 +415,8 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                             Define parameters, their weights, and the rules that assign scores.
                         </CardDescription>
                     </div>
-                     <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white" disabled={isLoading}>
-                        {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                     <Button onClick={handleOpenSaveDialog} style={{ backgroundColor: themeColor }} className="text-white" disabled={isSaving}>
+                        {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Configuration
                     </Button>
                 </CardHeader>
@@ -447,6 +501,59 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             </Card>
 
             <ScorePreview parameters={currentParameters} availableFields={allAvailableFields} providerColor={themeColor} />
+            
+             <Card>
+                <CardHeader>
+                    <CardTitle>Configuration History</CardTitle>
+                    <CardDescription>View past scoring configurations for this provider.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isHistoryLoading ? <div className="text-center p-8"><Loader className="h-6 w-6 animate-spin mx-auto"/></div> :
+                    scoringHistory.length > 0 ? (
+                        <ul className="space-y-4">
+                        {scoringHistory.map(item => (
+                            <li key={item.id} className="p-4 border rounded-md">
+                                <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
+                                <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.name).join(', ') || 'N/A'}</span></p>
+                            </li>
+                        ))}
+                        </ul>
+                    ) : <p className="text-sm text-muted-foreground text-center p-8">No history found.</p>
+                    }
+                </CardContent>
+            </Card>
+
+            <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Apply Configuration to Products</DialogTitle>
+                        <DialogDescription>
+                            Select the loan products you want to apply this new scoring configuration to. This will be saved as a new version in the history.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-2">
+                        {currentProvider?.products.map(product => (
+                             <div key={product.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`product-${product.id}`}
+                                    checked={selectedProducts[product.id] || false}
+                                    onCheckedChange={(checked) =>
+                                        setSelectedProducts(prev => ({...prev, [product.id]: !!checked}))
+                                    }
+                                />
+                                <Label htmlFor={`product-${product.id}`}>{product.name}</Label>
+                            </div>
+                        ))}
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button onClick={handleSaveAndApply} style={{backgroundColor: themeColor}} className="text-white" disabled={isSaving}>
+                             {isSaving && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                             Save and Apply
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
