@@ -6,10 +6,12 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { IsNotEmpty, IsNumber } from 'class-validator';
 import type { DataProvisioningConfig } from './DataProvisioningConfig';
 import type { User } from './User';
+import type { ProvisionedData } from './ProvisionedData';
 
 @Entity({ name: 'data_provisioning_uploads' })
 export class DataProvisioningUpload {
@@ -37,6 +39,9 @@ export class DataProvisioningUpload {
   @ManyToOne('User', (user: User) => user.dataProvisioningUploads)
   @JoinColumn({ name: 'uploaded_by_user_id' })
   uploadedByUser!: User;
+
+  @OneToMany('ProvisionedData', (data: ProvisionedData) => data.upload, { cascade: true })
+  provisionedData!: ProvisionedData[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'uploaded_at' })
   uploadedAt!: Date;

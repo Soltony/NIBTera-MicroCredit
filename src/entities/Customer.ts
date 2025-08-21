@@ -5,13 +5,24 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
-import { IsNumber, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsNumber, IsNotEmpty, IsEnum, IsOptional, IsString } from 'class-validator';
+import type { ProvisionedData } from './ProvisionedData';
 
 @Entity({ name: 'customers' })
 export class Customer {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
   id!: number;
+
+  @Column({ type: 'varchar2', length: 255, name: 'phone_number', unique: true })
+  @IsNotEmpty()
+  phoneNumber!: string;
+  
+  @Column({ type: 'varchar2', length: 255, name: 'national_id', unique: true, nullable: true })
+  @IsOptional()
+  @IsString()
+  nationalId?: string;
 
   @Column({ type: 'number' })
   @IsNumber()
@@ -36,6 +47,9 @@ export class Customer {
   @Column({ type: 'varchar2', length: 255, name: 'education_level' })
   @IsNotEmpty()
   educationLevel!: string;
+
+  @OneToMany('ProvisionedData', (data: ProvisionedData) => data.customer)
+  provisionedDataEntries!: ProvisionedData[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt!: Date;

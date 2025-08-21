@@ -19,6 +19,8 @@ async function getCustomers() {
             educationLevel: c.educationLevel,
             loanHistory: JSON.parse(c.loanHistory),
             transactionHistory: JSON.parse(c.transactionHistory),
+            phoneNumber: c.phoneNumber,
+            nationalId: c.nationalId,
         }));
     } catch(e) {
         console.error(e);

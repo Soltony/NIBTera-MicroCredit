@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save, FileClock } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save, FileClock, ShieldQuestion } from 'lucide-react';
 import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier, DailyFeeRule, DataProvisioningUpload } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -181,15 +181,11 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     };
 
     const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => {
-        console.log('[DEBUG] SettingsClient: handleSaveProvider received', providerData);
-        
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
         const body = JSON.stringify(providerData);
         
-        console.log(`[DEBUG] SettingsClient: Sending ${method} request to ${endpoint} with body:`, body);
-
         try {
             const response = await fetch(endpoint, {
                 method,
@@ -198,7 +194,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             });
             if (!response.ok) {
                  const errorData = await response.json();
-                 throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'add'} provider`);
+                 throw new Error(errorData.error?.message || `Failed to ${isEditing ? 'update' : 'add'} provider`);
             }
             
             const savedProviderResponse = await response.json();
@@ -986,31 +982,14 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
         const file = event.target.files?.[0];
         if (!file) return;
 
+        setIsUploading(true);
         const reader = new FileReader();
         reader.onload = async (e) => {
-            setIsUploading(true);
             try {
-                const data = e.target?.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                if (jsonData.length < 2) throw new Error("Excel file must contain a header row and at least one data row.");
-
-                const headers = jsonData[0] as string[];
-                const expectedHeaders = config.columns.map(c => c.name);
-                if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
-                    throw new Error(`Header mismatch. Expected headers: ${expectedHeaders.join(', ')}.`);
-                }
-                
-                const dataRows = jsonData.slice(1);
-
-                // Send to backend
+                // Here we just pass the file to the backend, which will handle parsing and validation
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('configId', config.id);
-                formData.append('rowCount', String(dataRows.length));
 
                 const response = await fetch('/api/settings/data-provisioning-uploads', {
                     method: 'POST',
@@ -1050,9 +1029,11 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
             }
         };
         reader.onerror = () => {
+             setIsUploading(false);
             toast({ title: 'Error Reading File', description: 'Could not read the selected file.', variant: 'destructive' });
         };
-        reader.readAsBinaryString(file);
+        // This just reads the file for sending, not parsing on client
+        reader.readAsArrayBuffer(file);
     };
 
     return (
@@ -1094,7 +1075,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                             <CardContent>
                                <h4 className="font-medium mb-2">Columns</h4>
                                <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                                    {config.columns.map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span></li>)}
+                                    {config.columns.map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
                                </ul>
                                <Separator />
                                <div className="mt-4">
@@ -1196,18 +1177,30 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             setColumns(config.columns);
         } else {
             setName('');
-            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string' }]);
+            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phoneNumber' }]);
         }
     }, [config, isOpen]);
 
-    const handleColumnChange = (index: number, field: keyof DataColumn, value: string) => {
+    const handleColumnChange = (index: number, field: keyof DataColumn, value: string | boolean) => {
         setColumns(produce(draft => {
-            (draft[index] as any)[field] = value;
+            const currentColumn = draft[index];
+            if (typeof value === 'boolean' && field === 'isIdentifier') {
+                // Ensure only one identifier is selected at a time
+                draft.forEach((col, i) => {
+                    col.isIdentifier = i === index ? value : false;
+                    // Automatically set dbField based on isIdentifier
+                    if (col.isIdentifier) {
+                        col.dbField = 'phoneNumber'; // default to phoneNumber
+                    }
+                });
+            } else {
+                (currentColumn as any)[field] = value;
+            }
         }));
     };
 
     const addColumn = () => {
-        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string' }]);
+        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phoneNumber' }]);
     };
 
     const removeColumn = (index: number) => {
@@ -1216,13 +1209,18 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // Validation: ensure at least one identifier is set
+        if (!columns.some(c => c.isIdentifier)) {
+            alert('Please mark one column as the customer identifier.');
+            return;
+        }
         onSave({ id: config?.id || '', name, columns });
         onClose();
     };
 
     return (
          <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{config ? 'Edit' : 'Add'} Data Type</DialogTitle>
                 </DialogHeader>
@@ -1253,6 +1251,25 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                         </SelectContent>
                                     </Select>
                                     <Button type="button" variant="ghost" size="icon" onClick={() => removeColumn(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`is-identifier-${col.id}`}
+                                            checked={col.isIdentifier}
+                                            onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                        />
+                                        <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground">Identifier</Label>
+                                    </div>
+                                    {col.isIdentifier && (
+                                        <Select value={col.dbField} onValueChange={(value: 'phoneNumber' | 'nationalId') => handleColumnChange(index, 'dbField', value)}>
+                                            <SelectTrigger className="w-48">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="phoneNumber">Phone Number</SelectItem>
+                                                <SelectItem value="nationalId">National ID</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
                                 </div>
                             ))}
                         </div>

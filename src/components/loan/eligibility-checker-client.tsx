@@ -31,6 +31,8 @@ interface CustomerData {
   gender: string;
   educationLevel: string;
   loanHistory: { totalLoans: number; onTimeRepayments: number };
+  phoneNumber: string;
+  nationalId?: string;
 }
 
 interface EligibilityCheckerClientProps {
@@ -68,7 +70,7 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
             </div>
         </header>
         <main className="flex-1 py-8 md:py-12">
-            <div className="container max-w-4xl">
+            <div className="container max-w-6xl">
                  <Card>
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>
@@ -83,6 +85,8 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                                     <TableRow>
                                         <TableHead className="w-[50px]"></TableHead>
                                         <TableHead>Customer ID</TableHead>
+                                        <TableHead>Phone Number</TableHead>
+                                        <TableHead>National ID</TableHead>
                                         <TableHead>Age</TableHead>
                                         <TableHead>Gender</TableHead>
                                         <TableHead>Education</TableHead>
@@ -99,6 +103,8 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                                             <TableCell>
                                                 <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
                                             </TableCell>
+                                            <TableCell>{customer.phoneNumber}</TableCell>
+                                            <TableCell>{customer.nationalId || 'N/A'}</TableCell>
                                             <TableCell>{customer.age}</TableCell>
                                             <TableCell>{customer.gender}</TableCell>
                                             <TableCell>{customer.educationLevel}</TableCell>

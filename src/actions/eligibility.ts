@@ -9,6 +9,7 @@
 
 import { getConnectedDataSource } from '@/data-source';
 import type { Customer } from '@/entities/Customer';
+import { ProvisionedData } from '@/entities/ProvisionedData';
 import { evaluateCondition } from '@/lib/utils';
 import type { DataSource, In } from 'typeorm';
 import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
@@ -18,6 +19,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
     const customerRepo = dataSource.getRepository('Customer');
     const scoringParamRepo = dataSource.getRepository('ScoringParameter');
     const loanTierRepo = dataSource.getRepository('LoanAmountTier');
+    const provisionedDataRepo = dataSource.getRepository(ProvisionedData);
 
     const customer = await customerRepo.findOneBy({ id: customerId });
     if (!customer) {
@@ -31,6 +33,19 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         return { score: 0, maxLoanAmount: 0 };
     }
     
+    // Fetch latest provisioned data for this customer
+    const provisionedDataEntries = await provisionedDataRepo.find({
+        where: { customerId },
+        order: { createdAt: 'DESC' },
+    });
+
+    const latestProvisionedData: Record<string, any> = {};
+    // Merge entries, allowing newer uploads to overwrite older ones.
+    for (const entry of provisionedDataEntries) {
+        const data = JSON.parse(entry.data);
+        Object.assign(latestProvisionedData, data);
+    }
+    
     let totalScore = 0;
     const customerLoanHistory = JSON.parse(customer.loanHistory);
 
@@ -41,6 +56,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         educationLevel: customer.educationLevel,
         totalLoans: Number(customerLoanHistory.totalLoans) || 0,
         onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
+        ...latestProvisionedData, // Merge in the provisioned data
     };
 
     parameters.forEach(param => {
@@ -48,7 +64,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
-            const inputValue = customerDataForScoring[param.name]; // Use param.name as the field key
+            const inputValue = customerDataForScoring[rule.field];
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;

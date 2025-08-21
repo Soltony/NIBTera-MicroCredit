@@ -25,6 +25,8 @@ export interface DataColumn {
     id: string;
     name: string;
     type: 'string' | 'number' | 'date';
+    isIdentifier: boolean;
+    dbField: 'phoneNumber' | 'nationalId';
 }
 
 export interface DataProvisioningUpload {

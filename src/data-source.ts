@@ -16,6 +16,7 @@ import { CustomParameter } from '@/entities/CustomParameter';
 import { DataProvisioningConfig } from '@/entities/DataProvisioningConfig';
 import { LoanAmountTier } from '@/entities/LoanAmountTier';
 import { DataProvisioningUpload } from '@/entities/DataProvisioningUpload';
+import { ProvisionedData } from '@/entities/ProvisionedData';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -42,6 +43,7 @@ const dataSourceOptions: DataSourceOptions = {
     DataProvisioningConfig,
     LoanAmountTier,
     DataProvisioningUpload,
+    ProvisionedData,
   ],
   migrations: [],
   subscribers: [],
