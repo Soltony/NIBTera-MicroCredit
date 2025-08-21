@@ -62,7 +62,7 @@ export interface LoanProvider {
   color?: string;
   colorHex?: string;
   displayOrder: number;
-  accountNumber: string;
+  accountNumber: string | null;
   allowMultipleProviderLoans: boolean;
   maxConcurrentProviderLoans: number;
   allowCrossProviderLoans: boolean;

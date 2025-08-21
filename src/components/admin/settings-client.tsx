@@ -180,7 +180,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsProviderDialogOpen(true);
     };
 
-    const handleSaveProvider = async (providerData: Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'> & { id?: string }) => {
+    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => {
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
