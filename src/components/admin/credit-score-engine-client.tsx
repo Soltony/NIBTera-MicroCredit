@@ -233,6 +233,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 const newRule: Rule = {
                     id: `rule-${Date.now()}`,
                     parameterId: param.id,
+                    field: param.name, // Default rule field to parameter name
                     condition: '>',
                     value: '',
                     score: 0,
@@ -370,15 +371,15 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                         {currentParameters.map((param) => (
                              <AccordionItem value={param.id} key={param.id} className="border-none">
                                 <Card className="overflow-hidden">
-                                     <div className="flex items-center p-4 bg-muted/50">
-                                         <AccordionTrigger className="flex-1 p-0 hover:no-underline">
-                                           <div className="flex items-center gap-4 w-full">
-                                                <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
-                                                <div className="flex-1 grid grid-cols-2 gap-4 items-center">
+                                    <div className="flex items-center p-4 bg-muted/50">
+                                        <div className="flex items-center gap-4 w-full">
+                                            <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
+                                            <AccordionTrigger className="flex-1 p-0 hover:no-underline">
+                                                 <div className="flex-1 grid grid-cols-2 gap-4 items-center" onClick={(e) => e.stopPropagation()}>
                                                     <div className="space-y-1">
                                                         <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
                                                         <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
-                                                            <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties} onClick={(e) => e.stopPropagation()}>
+                                                            <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties}>
                                                                 <SelectValue placeholder="Select Parameter Field" />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -396,12 +397,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                             value={param.weight}
                                                             onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
                                                             className="w-full bg-background"
-                                                            onClick={(e) => e.stopPropagation()}
                                                         />
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </AccordionTrigger>
+                                            </AccordionTrigger>
+                                        </div>
                                         <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id)}}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                     </div>
                                      <AccordionContent className="p-4">
@@ -449,3 +449,4 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
         </div>
     );
 }
+
