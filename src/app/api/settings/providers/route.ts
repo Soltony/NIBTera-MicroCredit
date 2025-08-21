@@ -2,8 +2,6 @@
 import { NextResponse } from 'next/server';
 import { getConnectedDataSource } from '@/data-source';
 import { LoanProvider } from '@/entities/LoanProvider';
-import { LoanProduct } from '@/entities/LoanProduct';
-import { In, DataSource } from 'typeorm';
 import { z } from 'zod';
 
 const providerSchema = z.object({
@@ -11,11 +9,22 @@ const providerSchema = z.object({
     icon: z.string().min(1, 'Icon is required'),
     colorHex: z.string().min(1, 'Color is required'),
     displayOrder: z.number().int(),
+    accountNumber: z.string().optional().nullable(),
+    allowMultipleProviderLoans: z.boolean(),
+    maxConcurrentProviderLoans: z.number().int().min(1),
+    allowCrossProviderLoans: z.boolean(),
+    maxGlobalActiveLoans: z.number().int().min(1),
 });
 
-const updateProviderSchema = providerSchema.extend({
-    id: z.string(),
+const updateProviderSchema = providerSchema.partial().extend({
+  id: z.string().transform((val) => Number(val)),
 });
+
+// Helper to normalize accountNumber
+function normalizeAccountNumber(value?: string | null) {
+    if (!value || value.trim() === '') return null;
+    return value.trim();
+}
 
 // POST a new provider
 export async function POST(req: Request) {
@@ -23,14 +32,25 @@ export async function POST(req: Request) {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
+
+        console.log('[DEBUG] API POST /api/settings/providers - Received body:', body);
+
         const validation = providerSchema.safeParse(body);
         if (!validation.success) {
+            console.error('[DEBUG] API POST Validation Error:', validation.error.format());
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
 
-        const newProvider = providerRepo.create(validation.data);
+        const payload = {
+            ...validation.data,
+            accountNumber: normalizeAccountNumber(validation.data.accountNumber),
+        };
+
+        console.log('[DEBUG] API POST /api/settings/providers - Validated payload:', payload);
+
+        const newProvider = providerRepo.create(payload);
         await providerRepo.save(newProvider);
-        
+
         return NextResponse.json({ ...newProvider, products: [] }, { status: 201 });
     } catch (error) {
         console.error('Error creating provider:', error);
@@ -44,15 +64,31 @@ export async function PUT(req: Request) {
         const dataSource = await getConnectedDataSource();
         const providerRepo = dataSource.getRepository(LoanProvider);
         const body = await req.json();
+
+        console.log('[DEBUG] API PUT /api/settings/providers - Received body:', body);
+
         const validation = updateProviderSchema.safeParse(body);
         if (!validation.success) {
+            console.error('[DEBUG] API PUT Validation Error:', validation.error.format());
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
         
-        const { id, ...updateData } = validation.data;
+        const { id, ...validatedData } = validation.data;
+        
+        console.log('[DEBUG] API PUT /api/settings/providers - Validated data:', validatedData);
 
-        await providerRepo.update(id, updateData);
-        const updatedProvider = await providerRepo.findOneBy({id: Number(id)});
+        const existingProvider = await providerRepo.findOneBy({ id });
+        if (!existingProvider) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+        }
+
+        // Normalize accountNumber
+        if (Object.prototype.hasOwnProperty.call(validatedData, 'accountNumber')) {
+            (validatedData as Partial<LoanProvider>).accountNumber = normalizeAccountNumber(validatedData.accountNumber);
+        }
+
+        const updatedProvider = providerRepo.merge(existingProvider, validatedData);
+        await providerRepo.save(updatedProvider);
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
@@ -75,14 +111,10 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
         }
 
-        // The database's foreign key constraint will prevent deletion if products exist.
-        // We will catch this specific error and return a user-friendly message.
         await providerRepo.delete(id);
 
         return NextResponse.json({ message: 'Provider deleted successfully' }, { status: 200 });
     } catch (error: any) {
-        // ORA-02292 is the Oracle error code for an integrity constraint violation (foreign key).
-        // This is a more robust way to check than querying the products table first.
         if (error.code === 'ORA-02292' || (error.message && error.message.includes('ORA-02292'))) {
              return NextResponse.json({ error: 'Cannot delete provider. It has associated product(s). Please delete them first.' }, { status: 400 });
         }
