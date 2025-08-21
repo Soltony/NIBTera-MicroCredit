@@ -67,20 +67,20 @@ async function getProviders(): Promise<LoanProviderType[]> {
                 dataProvisioningEnabled: !!prod.dataProvisioningEnabled,
                 dataProvisioningConfigId: prod.dataProvisioningConfigId ? String(prod.dataProvisioningConfigId) : null,
             })),
-            dataProvisioningConfigs: p.dataProvisioningConfigs.map(dpc => ({
+            dataProvisioningConfigs: p.dataProvisioningConfigs ? p.dataProvisioningConfigs.map(dpc => ({
                 id: String(dpc.id),
                 providerId: String(dpc.providerId),
                 name: dpc.name,
                 columns: safeJsonParse(dpc.columns, []),
-                uploads: dpc.uploads.map(upload => ({
+                uploads: dpc.uploads ? dpc.uploads.map(upload => ({
                     id: String(upload.id),
                     configId: String(upload.configId),
                     fileName: upload.fileName,
                     rowCount: upload.rowCount,
                     uploadedAt: upload.uploadedAt.toISOString(),
                     uploadedBy: upload.uploadedByUser.fullName,
-                })).sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()),
-            })),
+                })).sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()) : [],
+            })) : [],
         })) as LoanProviderType[];
     } catch(e) {
         console.error(e);
