@@ -375,38 +375,40 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                         {currentParameters.map((param) => (
                              <AccordionItem value={param.id} key={param.id} className="border-none">
                                 <Card className="overflow-hidden">
-                                     <AccordionTrigger className="p-4 hover:no-underline bg-muted/50">
-                                       <div className="flex items-center gap-4 w-full">
-                                            <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
-                                            <div className="flex-1 grid grid-cols-2 gap-4 items-center">
-                                                <div className="space-y-1">
-                                                    <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
-                                                    <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
-                                                        <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" onClick={(e) => e.stopPropagation()}>
-                                                            <SelectValue placeholder="Select Parameter Field" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {allAvailableFields.map(field => (
-                                                                <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                 <div className="space-y-1">
-                                                    <Label htmlFor={`param-weight-${param.id}`}>Weight</Label>
-                                                    <Input
-                                                        id={`param-weight-${param.id}`}
-                                                        type="number"
-                                                        value={param.weight}
-                                                        onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
-                                                        className="w-full bg-background"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    />
+                                     <div className="flex items-center p-4 bg-muted/50">
+                                         <AccordionTrigger className="flex-1 p-0 hover:no-underline">
+                                           <div className="flex items-center gap-4 w-full">
+                                                <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
+                                                <div className="flex-1 grid grid-cols-2 gap-4 items-center">
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
+                                                        <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
+                                                            <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" onClick={(e) => e.stopPropagation()}>
+                                                                <SelectValue placeholder="Select Parameter Field" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {allAvailableFields.map(field => (
+                                                                    <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                     <div className="space-y-1">
+                                                        <Label htmlFor={`param-weight-${param.id}`}>Weight</Label>
+                                                        <Input
+                                                            id={`param-weight-${param.id}`}
+                                                            type="number"
+                                                            value={param.weight}
+                                                            onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
+                                                            className="w-full bg-background"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id)}}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                        </div>
-                                    </AccordionTrigger>
+                                        </AccordionTrigger>
+                                        <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id)}}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                    </div>
                                      <AccordionContent className="p-4">
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
