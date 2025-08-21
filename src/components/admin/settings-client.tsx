@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -349,7 +348,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                                     <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
                                         <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
+                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </>
@@ -1188,10 +1187,6 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 // Ensure only one identifier is selected at a time
                 draft.forEach((col, i) => {
                     col.isIdentifier = i === index ? value : false;
-                    // Automatically set dbField based on isIdentifier
-                    if (col.isIdentifier) {
-                        col.dbField = 'phone_number'; // default to phone_number
-                    }
                 });
             } else {
                 (currentColumn as any)[field] = value;
@@ -1312,3 +1307,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
