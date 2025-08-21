@@ -21,6 +21,12 @@ const updateProviderSchema = providerSchema.partial().extend({
 });
 
 
+// Helper to normalize accountNumber
+function normalizeAccountNumber(value?: string | null) {
+    if (!value || value.trim() === '') return null;
+    return value.trim();
+}
+
 // POST a new provider
 export async function POST(req: Request) {
     try {
@@ -33,7 +39,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: validation.error.format() }, { status: 400 });
         }
 
-        const newProvider = providerRepo.create(validation.data);
+        const payload = {
+            ...validation.data,
+            accountNumber: normalizeAccountNumber(validation.data.accountNumber),
+        };
+
+        const newProvider = providerRepo.create(payload);
         await providerRepo.save(newProvider);
         
         return NextResponse.json({ ...newProvider, products: [] }, { status: 201 });
@@ -62,11 +73,13 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
         }
 
-        // Merge the existing data with the validated new data
-        const updatedProviderData = { ...existingProvider, ...validatedData };
+        // Normalize accountNumber
+        if ('accountNumber' in validatedData) {
+            (validatedData as Partial<LoanProvider>).accountNumber = normalizeAccountNumber(validatedData.accountNumber);
+        }
 
-        // Save the fully merged object
-        const updatedProvider = await providerRepo.save(updatedProviderData);
+        const updatedProvider = providerRepo.merge(existingProvider, validatedData);
+        await providerRepo.save(updatedProvider);
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
