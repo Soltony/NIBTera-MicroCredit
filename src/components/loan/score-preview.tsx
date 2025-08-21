@@ -46,7 +46,7 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
   };
 
   const handleCalculateScore = () => {
-    let totalWeightedScore = 0;
+    let totalScore = 0;
     
     parameters.forEach(param => {
         let maxScoreForParam = 0;
@@ -60,10 +60,10 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
                 }
             }
         });
-        totalWeightedScore += maxScoreForParam * (param.weight / 100);
+        totalScore += maxScoreForParam;
     });
 
-    setCalculatedScore(totalWeightedScore);
+    setCalculatedScore(totalScore);
   };
   
   const getFieldInfo = (fieldName: string): FieldInfo | undefined => {
@@ -75,7 +75,7 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
       <CardHeader>
         <CardTitle>Preview Score Calculation</CardTitle>
         <CardDescription>
-          Enter sample applicant data to see the calculated score based on the current rules and weights.
+          Enter sample applicant data to see the calculated score based on the current rules.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -122,7 +122,7 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
             <Button onClick={handleCalculateScore} style={{ backgroundColor: providerColor }} className="text-white" disabled={uniqueFieldsInUse.length === 0}>Calculate Score</Button>
             {calculatedScore !== null && (
                 <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Calculated Weighted Score</p>
+                    <p className="text-sm text-muted-foreground">Calculated Score</p>
                     <p className="text-3xl font-bold">{calculatedScore.toFixed(0)}</p>
                 </div>
             )}

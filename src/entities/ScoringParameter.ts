@@ -29,10 +29,6 @@ export class ScoringParameter {
   @IsNotEmpty()
   name!: string;
 
-  @Column({ type: 'number' })
-  @IsNumber()
-  weight!: number;
-
   @OneToMany('ScoringParameterRule', (rule: ScoringParameterRule) => rule.parameter, {
     cascade: true,
   })

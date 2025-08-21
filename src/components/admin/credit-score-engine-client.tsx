@@ -224,11 +224,6 @@ function RulesTab({
     const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
     const themeColor = selectedProvider?.colorHex || '#fdb913';
 
-    const totalWeight = React.useMemo(() => {
-        if (!currentParametersForProvider) return 0;
-        return currentParametersForProvider.reduce((sum, param) => sum + param.weight, 0);
-    }, [currentParametersForProvider]);
-
     const allAvailableFields = useMemo(() => {
         const customFields = customParams.map(p => ({ value: p.name, label: p.name }));
         return [...AVAILABLE_FIELDS, ...customFields];
@@ -249,15 +244,6 @@ function RulesTab({
                     return;
                 }
             }
-        }
-        
-        if (totalWeight > 100) {
-            toast({
-                title: 'Invalid Configuration',
-                description: 'The total weight of all parameters cannot exceed 100%.',
-                variant: 'destructive',
-            });
-            return;
         }
         
         setIsLoading(true);
@@ -302,18 +288,10 @@ function RulesTab({
                 ...prev
             ].slice(0, 5));
             
-            if (totalWeight < 100) {
-                toast({
-                    title: 'Configuration Warning',
-                    description: `The total weight is ${totalWeight}%, which is less than 100%. The configuration is saved but may not be optimal.`,
-                    variant: 'default',
-                });
-            } else {
-                 toast({
-                    title: 'Configuration Saved',
-                    description: 'Your credit scoring engine parameters have been successfully saved.',
-                });
-            }
+             toast({
+                title: 'Configuration Saved',
+                description: 'Your credit scoring engine parameters have been successfully saved.',
+            });
 
         } catch (error: any) {
              toast({
@@ -341,7 +319,6 @@ function RulesTab({
             id: `param-${Date.now()}`,
             providerId: selectedProviderId,
             name: 'New Parameter',
-            weight: 10,
             rules: [{ id: `rule-${Date.now()}`, field: '', condition: '>', value: '', score: 10 }],
         };
         setParameters([...parameters, newParam]);
@@ -406,15 +383,7 @@ function RulesTab({
     };
     
     return <>
-        <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium">Total Weight:</span>
-                    <span className={`text-lg font-bold ${totalWeight > 100 ? 'text-red-500' : ''}`}>
-                        {totalWeight}%
-                    </span>
-                </div>
-            </div>
+        <div className="flex items-center justify-end">
             <div className="flex items-center gap-4">
                 <Button onClick={handleSave} style={{ backgroundColor: themeColor }} className="text-white" disabled={isLoading}>
                     {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -459,16 +428,6 @@ function RulesTab({
                                 onChange={(e) => handleUpdateParameter(param.id, { name: e.target.value })}
                                 className="text-lg font-semibold w-1/3"
                             />
-                            <div className="flex items-center gap-2">
-                                    <Label>Weight:</Label>
-                                    <Input
-                                    type="number"
-                                    placeholder="%"
-                                    value={param.weight}
-                                    onChange={(e) => handleUpdateParameter(param.id, { weight: parseInt(e.target.value) || 0 })}
-                                    className="w-20"
-                                />
-                            </div>
                         </div>
                             <AlertDialog open={deletingParameterId === param.id} onOpenChange={(isOpen) => !isOpen && setDeletingParameterId(null)}>
                             <AlertDialogTrigger asChild>

@@ -34,7 +34,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
         return { score: 0, maxLoanAmount: 0 };
     }
     
-    let totalWeightedScore = 0;
+    let totalScore = 0;
     const customerLoanHistory = JSON.parse(customer.loanHistory);
     // Combine standard customer fields and dynamic loan history fields into one object for evaluation
     const customerDataForScoring: Record<string, any> = {
@@ -57,10 +57,10 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
                 }
             }
         });
-        totalWeightedScore += maxScoreForParam * (param.weight / 100);
+        totalScore += maxScoreForParam;
     });
 
-    const finalScore = Math.round(totalWeightedScore);
+    const finalScore = Math.round(totalScore);
 
     // Find the loan amount from the tiers based on the calculated score for the specific product
     const applicableTier = await loanTierRepo.findOne({
