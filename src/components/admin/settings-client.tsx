@@ -224,7 +224,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId'> & { icon?: string }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' | 'providerId'> & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -930,7 +930,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
         }
     };
     
-    const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId'>) => {
+    const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId' | 'id'> & { id?: string }) => {
         const isEditing = !!config.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/data-provisioning';
@@ -1092,7 +1092,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                                         </Button>
                                         <input
                                             type="file"
-                                            ref={fileInputRefs.current[config.id]}
+                                            ref={fileInputRefs.current[config.id]},
                                             className="hidden"
                                             accept=".xlsx, .xls"
                                             onChange={(e) => handleExcelUpload(e, config)}
@@ -1164,7 +1164,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
 function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (config: Omit<DataProvisioningConfig, 'providerId'>) => void;
+    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id'> & { id?: string }) => void;
     config: DataProvisioningConfig | null;
 }) {
     const [name, setName] = useState('');
@@ -1216,7 +1216,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             return;
         }
 
-        onSave({ id: config?.id || '', name, columns });
+        onSave({ id: config?.id, name, columns });
         onClose();
     };
 
@@ -1313,3 +1313,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
