@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -52,6 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -929,7 +931,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
             }));
             toast({ title: "Success", description: "Data type deleted successfully." });
         } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: 'destructive' });
+             toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
             setDeletingConfigId(null);
         }
