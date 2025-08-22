@@ -167,6 +167,10 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
 
     const { toast } = useToast();
     
+    useEffect(() => {
+        setProviders(initialProviders);
+    }, [initialProviders]);
+    
     const themeColor = useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
