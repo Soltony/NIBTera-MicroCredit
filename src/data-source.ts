@@ -26,7 +26,7 @@ const dataSourceOptions: DataSourceOptions = {
   username: process.env.ORACLE_DB_USER,
   password: process.env.ORACLE_DB_PASSWORD,
   schema: process.env.ORACLE_DB_USER, // Explicitly set the schema to the username
-  synchronize: true, // This will create the database schema on every application launch.
+  synchronize: false, // This will create the database schema on every application launch.
   logging: isDevelopment,
   // Explicitly list all entities to ensure they are always found.
   entities: [
