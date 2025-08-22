@@ -1,5 +1,6 @@
 
 import 'reflect-metadata';
+import 'dotenv/config'; // Load environment variables
 import { getConnectedDataSource } from '@/data-source';
 import { Role } from '@/entities/Role';
 import { User } from '@/entities/User';
