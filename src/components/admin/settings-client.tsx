@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -228,7 +227,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' | 'providerId'> & { icon?: string }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' > & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -416,7 +415,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         </AlertDialogContent>
       </AlertDialog>
     </>
-  );
+    );
 }
 
 const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
@@ -911,7 +910,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
     const handleOpenDialog = (config: DataProvisioningConfig | null = null) => {
         setEditingConfig(config);
         setIsConfigDialogOpen(true);
-    }
+    };
     
     const handleDelete = async (configId: string) => {
         try {
@@ -1098,7 +1097,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                                         </Button>
                                         <input
                                             type="file"
-                                            ref={fileInputRefs.current[config.id]},
+                                            ref={fileInputRefs.current[config.id]}
                                             className="hidden"
                                             accept=".xlsx, .xls"
                                             onChange={(e) => handleExcelUpload(e, config)}
