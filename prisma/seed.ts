@@ -105,10 +105,10 @@ async function main() {
   
   await prisma.loanAmountTier.createMany({
       data: [
-          { productId: personalLoan.id, fromScore: 0, toScore: 300, loanAmount: 1000 },
-          { productId: personalLoan.id, fromScore: 301, toScore: 500, loanAmount: 5000 },
-          { productId: personalLoan.id, fromScore: 501, toScore: 700, loanAmount: 25000 },
-          { productId: personalLoan.id, fromScore: 701, toScore: 1000, loanAmount: 50000 },
+          { productName: personalLoan.name, providerId: personalLoan.providerId, fromScore: 0, toScore: 300, loanAmount: 1000 },
+          { productName: personalLoan.name, providerId: personalLoan.providerId, fromScore: 301, toScore: 500, loanAmount: 5000 },
+          { productName: personalLoan.name, providerId: personalLoan.providerId, fromScore: 501, toScore: 700, loanAmount: 25000 },
+          { productName: personalLoan.name, providerId: personalLoan.providerId, fromScore: 701, toScore: 1000, loanAmount: 50000 },
       ]
   });
 
