@@ -1176,7 +1176,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             setColumns(config.columns);
         } else {
             setName('');
-            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phone_number' }]);
+            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: true, dbField: 'ID' }]);
         }
     }, [config, isOpen]);
 
@@ -1195,7 +1195,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     };
 
     const addColumn = () => {
-        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'phone_number' }]);
+        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'ID' }]);
     };
 
     const removeColumn = (index: number) => {
@@ -1209,6 +1209,13 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             alert('Please mark one column as the customer identifier.');
             return;
         }
+        // Ensure the identifier uses the 'ID' dbField
+        const identifierColumn = columns.find(c => c.isIdentifier);
+        if (identifierColumn && identifierColumn.dbField !== 'ID') {
+            alert('The identifier column must use the "Customer ID" database field.');
+            return;
+        }
+
         onSave({ id: config?.id || '', name, columns });
         onClose();
     };
@@ -1255,13 +1262,12 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                         <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground">Identifier</Label>
                                     </div>
                                     {col.isIdentifier && (
-                                        <Select value={col.dbField} onValueChange={(value: 'phone_number' | 'national_id') => handleColumnChange(index, 'dbField', value)}>
+                                        <Select value={col.dbField} onValueChange={(value: 'ID') => handleColumnChange(index, 'dbField', value)}>
                                             <SelectTrigger className="w-48">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="phone_number">Phone Number</SelectItem>
-                                                <SelectItem value="national_id">National ID</SelectItem>
+                                                <SelectItem value="ID">Customer ID</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     )}

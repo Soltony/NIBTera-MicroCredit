@@ -26,7 +26,7 @@ export interface DataColumn {
     name: string;
     type: 'string' | 'number' | 'date';
     isIdentifier: boolean;
-    dbField: 'phoneNumber' | 'nationalId';
+    dbField: 'ID'; // Only ID is supported now
 }
 
 export interface DataProvisioningUpload {

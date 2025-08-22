@@ -15,15 +15,6 @@ export class Customer {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
   ID!: number;
 
-  @Column({ type: 'varchar2', length: 255, unique: true })
-  @IsNotEmpty()
-  PHONE_NUMBER!: string;
-  
-  @Column({ type: 'varchar2', length: 255, unique: true, nullable: true })
-  @IsOptional()
-  @IsString()
-  NATIONAL_ID?: string;
-
   @Column({ type: 'number' })
   @IsNumber()
   AGE!: number;

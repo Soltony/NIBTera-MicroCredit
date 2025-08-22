@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
             const dbFieldName = customerIdentifierColumn.dbField;
             const whereClause = { [dbFieldName]: In(identifiers) };
             
-            const customers = await customerRepo.find({ where: whereClause });
+            const customers = await customerRepo.find({ where: whereClause as any });
             
             const customerMap = new Map(customers.map(c => [c[dbFieldName as keyof Customer], c]));
 
