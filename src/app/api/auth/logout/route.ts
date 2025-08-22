@@ -1,2 +1,8 @@
 
-// This file is now empty as TypeORM entities have been removed.
+import { deleteSession } from '@/lib/session';
+import { NextResponse } from 'next/server';
+
+export async function POST() {
+  deleteSession();
+  return NextResponse.json({ success: true });
+}
