@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
@@ -32,6 +32,15 @@ interface DashboardClientProps {
   providers: LoanProvider[];
   initialLoanHistory: LoanDetails[];
 }
+
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
 
 export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
@@ -98,7 +107,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
-    // params.set('customerId', customerId); // This is already in searchParams
     params.set('max', String(currentMaxLoanLimit));
     router.push(`/apply?${params.toString()}`);
   }
@@ -122,8 +130,8 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     try {
       // For now, we check against the first product of the provider.
       // A more advanced implementation might check all products and take the highest limit.
-      const firstProductId = provider.products[0].id;
-      const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(providerId), Number(firstProductId));
+      const firstProductId = provider.products[0].name;
+      const { maxLoanAmount } = await recalculateScoreAndLoanLimit(customerId, providerId, firstProductId);
       setCurrentMaxLoanLimit(maxLoanAmount);
 
     } catch (error) {
@@ -165,19 +173,22 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         throw new Error(errorData.error || 'Failed to process payment.');
       }
       
-      const updatedLoan = await response.json();
-      
-      // Need to find the full provider object to add to the updatedLoan
-      const fullProvider = providers.find(p => p.id === String(updatedLoan.providerId));
+      const updatedLoanData = await response.json();
 
       const finalLoanObject: LoanDetails = {
-        ...updatedLoan,
-        provider: fullProvider,
+        ...updatedLoanData,
+        providerName: repayingLoanInfo.loan.providerName,
+        productName: repayingLoanInfo.loan.productName,
+        product: repayingLoanInfo.loan.product,
+        provider: repayingLoanInfo.loan.provider,
+        disbursedDate: new Date(updatedLoanData.disbursedDate),
+        dueDate: new Date(updatedLoanData.dueDate),
+        payments: updatedLoanData.payments,
       };
 
       // Update the loan history state with the updated loan
       setLoanHistory(prevHistory => 
-        prevHistory.map(l => l.id === updatedLoan.id ? finalLoanObject : l)
+        prevHistory.map(l => l.id === updatedLoanData.id ? finalLoanObject : l)
       );
 
       toast({
@@ -205,7 +216,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
   const customerHasActiveLoanWithProvider = useMemo(() => {
       if (!selectedProvider) return false;
-      return loanHistory.some(loan => loan.providerId === Number(selectedProvider.id) && loan.repaymentStatus === 'Unpaid');
+      return loanHistory.some(loan => loan.providerId === selectedProvider.id && loan.repaymentStatus === 'Unpaid');
   }, [loanHistory, selectedProvider]);
 
 

@@ -43,7 +43,7 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
     }
     
     let totalScore = 0;
-    const customerLoanHistory = JSON.parse(customer.loanHistory);
+    const customerLoanHistory = JSON.parse(customer.loanHistory as string);
 
     const customerDataForScoring: Record<string, any> = {
         age: Number(customer.age) || 0,
@@ -78,7 +78,7 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
         where: {
             product: {
                 providerId: providerId,
-                id: productId
+                name: productId,
             },
             fromScore: { lte: finalScore },
             toScore: { gte: finalScore },
@@ -143,7 +143,11 @@ export async function recalculateScoreAndLoanLimit(customerId: string, providerI
         if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
-        return await calculateScoreForProvider(customerId, providerId, productId);
+        const product = await prisma.loanProduct.findUnique({ where: { name_providerId: { name: productId, providerId } } });
+        if (!product) {
+            return { score: 0, maxLoanAmount: 0 };
+        }
+        return await calculateScoreForProvider(customerId, providerId, product.name);
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };
