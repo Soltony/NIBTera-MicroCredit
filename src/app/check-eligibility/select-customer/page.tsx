@@ -1,14 +1,20 @@
 
 import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-client';
+import prisma from '@/lib/prisma';
+import type { LoanProvider } from '@/lib/types';
+
 
 async function getCustomers() {
-    // Database removed, returning empty array.
-    return [];
+    const customers = await prisma.customer.findMany();
+    return customers.map(c => ({
+        ...c,
+        loanHistory: JSON.parse(c.loanHistory as string),
+    }))
 }
 
 async function getProviders() {
-    // Database removed, returning empty array.
-    return [];
+    const providers = await prisma.loanProvider.findMany();
+    return providers as LoanProvider[];
 }
 
 export default async function SelectCustomerPage() {

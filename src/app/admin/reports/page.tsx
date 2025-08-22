@@ -1,6 +1,8 @@
 
 import { ReportsClient } from '@/components/admin/reports-client';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +10,7 @@ export interface ReportLoan {
     id: string;
     loanAmount: number;
     serviceFee: number;
-    interestRate: number;
+    interestRate: number; // Note: We don't store a single rate, this will be indicative.
     disbursedDate: Date;
     dueDate: Date;
     penaltyAmount: number;
@@ -19,13 +21,58 @@ export interface ReportLoan {
     paymentsCount: number;
 }
 
-async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProviderType[] }> {
-    // Database removed, returning empty arrays.
-    return { loans: [], providers: [] };
+async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[], providers: LoanProviderType[] }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { loanProvider: true }
+    });
+
+    const providerFilter = (user?.role === 'Super Admin' || user?.role === 'Admin')
+        ? {}
+        : { providerId: user?.loanProvider?.id };
+
+    const loans = await prisma.loan.findMany({
+        where: providerFilter,
+        include: {
+            provider: true,
+            product: true,
+            _count: {
+                select: { payments: true }
+            }
+        },
+        orderBy: {
+            disbursedDate: 'desc'
+        }
+    });
+
+    const allProviders = await prisma.loanProvider.findMany();
+
+    return {
+        loans: loans.map(l => ({
+            id: l.id,
+            loanAmount: l.loanAmount,
+            serviceFee: l.serviceFee,
+            interestRate: 0, // Placeholder, as interest is dynamic daily fee
+            disbursedDate: l.disbursedDate,
+            dueDate: l.dueDate,
+            penaltyAmount: l.penaltyAmount,
+            repaymentStatus: l.repaymentStatus,
+            repaidAmount: l.repaidAmount,
+            providerName: l.provider.name,
+            productName: l.product.name,
+            paymentsCount: l._count.payments,
+        })),
+        providers: allProviders as LoanProviderType[]
+    };
 }
 
 
 export default async function AdminReportsPage() {
-    const { loans, providers } = await getLoanReportData();
+    const user = await getUserFromSession();
+     if (!user) {
+        return <div>Not authenticated</div>;
+    }
+
+    const { loans, providers } = await getLoanReportData(user.id);
     return <ReportsClient initialLoans={loans} providers={providers} />;
 }
