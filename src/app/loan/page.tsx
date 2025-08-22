@@ -1,9 +1,9 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import { getConnectedDataSource } from '@/data-source';
 import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import prisma from '@/lib/prisma';
 
 // Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -17,26 +17,24 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
 
 async function getProviders(): Promise<LoanProvider[]> {
     try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
-        const providers = await providerRepo.find({
-            relations: ['products'],
-            where: {
+        const providers = await prisma.loanProvider.findMany({
+            include: {
                 products: {
-                    status: 'Active'
+                    where: {
+                        status: 'Active'
+                    },
+                    orderBy: {
+                        name: 'asc'
+                    }
                 }
             },
-            order: {
-                displayOrder: 'ASC',
-                products: {
-                    name: 'ASC'
-                }
+            orderBy: {
+                displayOrder: 'asc'
             }
         });
 
-        // Manually map to plain objects to avoid passing class instances to client components.
         return providers.map(p => ({
-            id: String(p.id),
+            id: p.id,
             name: p.name,
             icon: p.icon,
             colorHex: p.colorHex,
@@ -45,7 +43,8 @@ async function getProviders(): Promise<LoanProvider[]> {
             allowMultipleProviderLoans: p.allowMultipleProviderLoans,
             allowCrossProviderLoans: p.allowCrossProviderLoans,
             products: p.products.map(prod => ({
-                id: String(prod.id),
+                id: prod.id,
+                providerId: p.id,
                 name: prod.name,
                 description: prod.description,
                 icon: prod.icon,
@@ -65,21 +64,23 @@ async function getProviders(): Promise<LoanProvider[]> {
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
     try {
-        const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository('LoanDetails');
-        const loans = await loanRepo.find({
-            relations: ['provider', 'product', 'payments'],
-            order: {
-                disbursedDate: 'DESC',
+        const loans = await prisma.loan.findMany({
+            include: {
+                provider: true,
+                product: true,
                 payments: {
-                    date: 'ASC'
+                    orderBy: {
+                        date: 'asc'
+                    }
                 }
             },
+            orderBy: {
+                disbursedDate: 'desc'
+            }
         });
 
-        // Manually map to plain objects to avoid passing class instances to client components.
         return loans.map(loan => ({
-            id: String(loan.id),
+            id: loan.id,
             providerId: loan.providerId,
             providerName: loan.provider.name,
             productName: loan.product.name,
@@ -92,13 +93,14 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
             penaltyAmount: loan.penaltyAmount,
             product: {
               ...loan.product,
-              id: String(loan.product.id),
+              id: loan.product.id,
+              providerId: loan.product.providerId,
               serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
               dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
               penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
             },
             payments: loan.payments.map(p => ({
-                id: String(p.id),
+                id: p.id,
                 amount: p.amount,
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,

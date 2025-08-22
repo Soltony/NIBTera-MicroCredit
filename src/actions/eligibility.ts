@@ -7,56 +7,52 @@
  * - recalculateScoreAndLoanLimit - Calculates a credit score for a given provider and returns the max loan amount.
  */
 
-import { getConnectedDataSource } from '@/data-source';
-import type { Customer } from '@/entities/Customer';
-import { ProvisionedData } from '@/entities/ProvisionedData';
+import prisma from '@/lib/prisma';
+import type { Customer } from '@prisma/client';
 import { evaluateCondition } from '@/lib/utils';
-import type { DataSource, In } from 'typeorm';
-import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 
-async function calculateScoreForProvider(customerId: number, providerId: number, productId: number): Promise<{score: number; maxLoanAmount: number}> {
-    const dataSource = await getConnectedDataSource();
-    const customerRepo = dataSource.getRepository('Customer');
-    const scoringParamRepo = dataSource.getRepository('ScoringParameter');
-    const loanTierRepo = dataSource.getRepository('LoanAmountTier');
-    const provisionedDataRepo = dataSource.getRepository(ProvisionedData);
 
-    const customer = await customerRepo.findOneBy({ ID: customerId });
+async function calculateScoreForProvider(customerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) {
         throw new Error('Customer not found for score calculation.');
     }
     
-    // Eager loading in the entity should bring the rules
-    const parameters = await scoringParamRepo.find({ where: { providerId: providerId } });
+    const parameters: ScoringParameterType[] = await prisma.scoringParameter.findMany({
+        where: { providerId },
+        include: {
+            rules: true,
+        },
+    });
     
     if (parameters.length === 0) {
         return { score: 0, maxLoanAmount: 0 };
     }
     
     // Fetch latest provisioned data for this customer
-    const provisionedDataEntries = await provisionedDataRepo.find({
+    const provisionedDataEntries = await prisma.provisionedData.findMany({
         where: { customerId },
-        order: { createdAt: 'DESC' },
+        orderBy: { createdAt: 'desc' },
     });
 
     const latestProvisionedData: Record<string, any> = {};
-    // Merge entries, allowing newer uploads to overwrite older ones.
     for (const entry of provisionedDataEntries) {
         const data = JSON.parse(entry.data);
         Object.assign(latestProvisionedData, data);
     }
     
     let totalScore = 0;
-    const customerLoanHistory = JSON.parse(customer.LOAN_HISTORY);
+    const customerLoanHistory = JSON.parse(customer.loanHistory);
 
     const customerDataForScoring: Record<string, any> = {
-        age: Number(customer.AGE) || 0,
-        monthlyIncome: Number(customer.MONTHLY_INCOME) || 0,
-        gender: customer.GENDER,
-        educationLevel: customer.EDUCATION_LEVEL,
+        age: Number(customer.age) || 0,
+        monthlyIncome: Number(customer.monthlyIncome) || 0,
+        gender: customer.gender,
+        educationLevel: customer.educationLevel,
         totalLoans: Number(customerLoanHistory.totalLoans) || 0,
         onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
-        ...latestProvisionedData, // Merge in the provisioned data
+        ...latestProvisionedData,
     };
 
     parameters.forEach(param => {
@@ -72,18 +68,20 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
             }
         });
         
-        // The score for a parameter is capped by its weight.
         const scoreForThisParam = Math.min(maxScoreForParam, param.weight);
         totalScore += scoreForThisParam;
     });
 
     const finalScore = Math.round(totalScore);
 
-    const applicableTier = await loanTierRepo.findOne({
+    const applicableTier = await prisma.loanAmountTier.findFirst({
         where: {
-            productId: productId,
-            fromScore: LessThanOrEqual(finalScore),
-            toScore: MoreThanOrEqual(finalScore),
+            product: {
+                providerId: providerId,
+                id: productId
+            },
+            fromScore: { lte: finalScore },
+            toScore: { gte: finalScore },
         }
     });
         
@@ -91,28 +89,23 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
 }
 
 
-export async function checkLoanEligibility(customerId: number, providerId: number, productId: number): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
+export async function checkLoanEligibility(customerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
-    const dataSource = await getConnectedDataSource();
-    const customerRepo = dataSource.getRepository('Customer');
-    const loanRepo = dataSource.getRepository('LoanDetails');
-    const providerRepo = dataSource.getRepository('LoanProvider');
-
-    const customer = await customerRepo.findOneBy({ ID: customerId });
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) {
       return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    if (customer.AGE <= 20) {
+    if (customer.age <= 20) {
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
 
-    const provider = await providerRepo.findOneBy({ id: providerId });
+    const provider = await prisma.loanProvider.findUnique({ where: { id: providerId } });
     if (!provider) {
         return { isEligible: false, reason: 'Loan provider not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    const allActiveLoans = await loanRepo.find({ where: { repaymentStatus: 'Unpaid' } });
+    const allActiveLoans = await prisma.loan.findMany({ where: { repaymentStatus: 'Unpaid' } });
     const activeLoansWithThisProvider = allActiveLoans.filter(l => l.providerId === providerId);
     const activeLoansWithOtherProviders = allActiveLoans.filter(l => l.providerId !== providerId);
 
@@ -124,8 +117,7 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
         return { isEligible: false, reason: 'This provider does not allow loans if you have active loans with other providers.', score: 0, maxLoanAmount: 0 };
     }
 
-    const scoringParamRepo = dataSource.getRepository('ScoringParameter');
-    const scoringParameterCount = await scoringParamRepo.count({ where: { providerId } });
+    const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
@@ -145,11 +137,10 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
 }
 
 
-export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number, productId: number): Promise<{score: number, maxLoanAmount: number}> {
+export async function recalculateScoreAndLoanLimit(customerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
     try {
-        const dataSource = await getConnectedDataSource();
-        const customer = await dataSource.getRepository('Customer').findOneBy({ ID: customerId });
-        if (!customer || customer.AGE <= 20) {
+        const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+        if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
         return await calculateScoreForProvider(customerId, providerId, productId);
