@@ -1,18 +1,2 @@
 
-import { NextResponse } from 'next/server';
-import { getUserFromSession as getCurrentUser } from '@/lib/user';
-
-export const dynamic = 'force-dynamic';
-
-export async function GET() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    return NextResponse.json(user);
-  } catch (error) {
-    console.error('API User Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
+// This file is now empty as TypeORM entities have been removed.
