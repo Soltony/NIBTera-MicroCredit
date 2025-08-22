@@ -18,9 +18,8 @@ async function getCustomers() {
             gender: c.gender,
             educationLevel: c.educationLevel,
             loanHistory: JSON.parse(c.loanHistory),
-            transactionHistory: JSON.parse(c.transactionHistory),
-            phoneNumber: c.phoneNumber,
-            nationalId: c.nationalId,
+            phone_number: c.phone_number,
+            national_id: c.national_id,
         }));
     } catch(e) {
         console.error(e);

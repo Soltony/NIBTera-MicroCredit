@@ -31,8 +31,8 @@ interface CustomerData {
   gender: string;
   educationLevel: string;
   loanHistory: { totalLoans: number; onTimeRepayments: number };
-  phoneNumber: string;
-  nationalId?: string;
+  phone_number: string;
+  national_id?: string;
 }
 
 interface EligibilityCheckerClientProps {
@@ -103,8 +103,8 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                                             <TableCell>
                                                 <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
                                             </TableCell>
-                                            <TableCell>{customer.phoneNumber}</TableCell>
-                                            <TableCell>{customer.nationalId || 'N/A'}</TableCell>
+                                            <TableCell>{customer.phone_number}</TableCell>
+                                            <TableCell>{customer.national_id || 'N/A'}</TableCell>
                                             <TableCell>{customer.age}</TableCell>
                                             <TableCell>{customer.gender}</TableCell>
                                             <TableCell>{customer.educationLevel}</TableCell>

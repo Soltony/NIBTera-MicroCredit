@@ -17,12 +17,12 @@ export class Customer {
 
   @Column({ type: 'varchar2', length: 255, name: 'phone_number', unique: true })
   @IsNotEmpty()
-  phoneNumber!: string;
+  phone_number!: string;
   
   @Column({ type: 'varchar2', length: 255, name: 'national_id', unique: true, nullable: true })
   @IsOptional()
   @IsString()
-  nationalId?: string;
+  national_id?: string;
 
   @Column({ type: 'number' })
   @IsNumber()

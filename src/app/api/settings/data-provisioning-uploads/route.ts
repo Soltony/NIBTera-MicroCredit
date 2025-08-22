@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
             // Fetch existing customers to avoid N+1 queries
             const identifiers = jsonData.map(row => String(row[customerIdentifierColumn.name])).filter(Boolean);
             const customers = await customerRepo.find({ where: { [customerIdentifierColumn.dbField]: In(identifiers) } });
-            const customerMap = new Map(customers.map(c => [c[customerIdentifierColumn.dbField as keyof Customer], c]));
+            const customerMap = new Map(customers.map(c => [c[customerIdentifierColumn.dbField as 'phone_number' | 'national_id'], c]));
 
             const dataToInsert: ProvisionedData[] = [];
             for (const row of jsonData) {
