@@ -32,6 +32,11 @@ export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
         const { id, ...dataToUpdate } = body;
+        
+        if (!id) {
+            return NextResponse.json({ error: 'Provider ID is required for update.' }, { status: 400 });
+        }
+
         const updatedProvider = await prisma.loanProvider.update({
             where: { id },
             data: dataToUpdate,
