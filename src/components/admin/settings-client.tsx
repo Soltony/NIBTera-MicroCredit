@@ -324,97 +324,99 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     }, [providers, currentUser]);
 
 
-    return <>
-        <div className="flex items-center justify-between space-y-2 mb-4">
-            <div/>
-             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+    return (
+    <>
+      <div className="flex items-center justify-between space-y-2 mb-4">
+        <div></div>
+        {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+          <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
+            <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+          </Button>
+        )}
+      </div>
+      <Accordion type="multiple" className="w-full space-y-4">
+        {visibleProviders.map((provider) => (
+          <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+            <div className="flex items-center w-full p-4">
+              <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
+                <div className="flex items-center gap-4">
+                  <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                  <div>
+                    <div className="text-lg font-semibold">{provider.name}</div>
+                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <div className="flex items-center gap-2 ml-auto pl-4">
+                {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                  <>
+                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id }); }}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+                <AccordionTrigger className="p-2">
+                  <span className="sr-only">Toggle</span>
+                </AccordionTrigger>
+              </div>
+            </div>
+            <AccordionContent className="p-4 border-t">
+              <div className="space-y-6">
+                {provider.products.map(product => (
+                  <ProductSettingsForm 
+                    key={product.id}
+                    providerId={provider.id}
+                    product={{...product, icon: product.icon || 'PersonStanding'}} 
+                    providerColor={provider.colorHex} 
+                    onSave={handleSaveProduct}
+                    onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
+                  />
+                ))}
+                <Button 
+                  variant="outline" 
+                  className="w-full hover:text-white"
+                  onClick={() => handleOpenAddProductDialog(provider.id)}
+                  onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
+                  onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
                 </Button>
-            )}
-        </div>
-        <Accordion type="multiple" className="w-full space-y-4">
-            {visibleProviders.map((provider) => (
-                <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                     <div className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
-                           <div className="flex items-center gap-4">
-                                <IconDisplay iconName={provider.icon} className="h-6 w-6" />
-                                <div>
-                                    <div className="text-lg font-semibold">{provider.name}</div>
-                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
-                                </div>
-                            </div>
-                        </AccordionTrigger>
-                         <div className="flex items-center gap-2 ml-auto pl-4">
-                            {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                                <>
-                                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            )}
-                             <AccordionTrigger className="p-2">
-                               <span className="sr-only">Toggle</span>
-                            </AccordionTrigger>
-                        </div>
-                    </div>
-                    <AccordionContent className="p-4 border-t">
-                        <div className="space-y-6">
-                            {provider.products.map(product => (
-                                 <ProductSettingsForm 
-                                    key={product.id}
-                                    providerId={provider.id}
-                                    product={{...product, icon: product.icon || 'PersonStanding'}} 
-                                    providerColor={provider.colorHex} 
-                                    onSave={handleSaveProduct}
-                                    onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                                 />
-                            ))}
-                            <Button 
-                                variant="outline" 
-                                className="w-full hover:text-white"
-                                onClick={() => handleOpenAddProductDialog(provider.id)}
-                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
-                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
-                            >
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
-                            </Button>
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-            ))}
-        </Accordion>
-        <AddProviderDialog
-            isOpen={isProviderDialogOpen}
-            onClose={() => setIsProviderDialogOpen(false)}
-            onSave={handleSaveProvider}
-            provider={editingProvider}
-            primaryColor={themeColor}
-        />
-        <AddProductDialog
-            isOpen={isAddProductDialogOpen}
-            onClose={() => setIsAddProductDialogOpen(false)}
-            onAddProduct={handleAddProduct}
-        />
-         <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the selected item. If it has associated data (like products or loans), this action might be blocked.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    </>;
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+      <AddProviderDialog
+        isOpen={isProviderDialogOpen}
+        onClose={() => setIsProviderDialogOpen(false)}
+        onSave={handleSaveProvider}
+        provider={editingProvider}
+        primaryColor={themeColor}
+      />
+      <AddProductDialog
+        isOpen={isAddProductDialogOpen}
+        onClose={() => setIsAddProductDialogOpen(false)}
+        onAddProduct={handleAddProduct}
+      />
+      <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the selected item. If it has associated data (like products or loans), this action might be blocked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
 }
 
 const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
@@ -1317,5 +1319,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
