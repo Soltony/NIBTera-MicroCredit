@@ -1,5 +1,5 @@
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -30,16 +30,16 @@ async function main() {
     update: {},
     create: {
       name: 'Super Admin',
-      permissions: permissions.superAdmin as unknown as Prisma.JsonObject,
+      permissions: JSON.stringify(permissions.superAdmin),
     },
   });
 
-  const loanProviderRole = await prisma.role.upsert({
+  await prisma.role.upsert({
     where: { name: 'Loan Provider' },
     update: {},
     create: {
       name: 'Loan Provider',
-      permissions: permissions.loanProvider as unknown as Prisma.JsonObject,
+      permissions: JSON.stringify(permissions.loanProvider),
     },
   });
 
@@ -56,7 +56,11 @@ async function main() {
       phoneNumber: '0900000000',
       password: hashedPassword,
       status: 'Active',
-      roleId: superAdminRole.id,
+      role: {
+        connect: {
+          name: 'Super Admin',
+        }
+      }
     },
   });
   console.log('Admin user seeded.');
@@ -88,14 +92,14 @@ async function main() {
       maxLoan: 50000,
       status: 'Active',
       serviceFeeEnabled: true,
-      serviceFee: { type: 'percentage', value: 2 },
+      serviceFee: JSON.stringify({ type: 'percentage', value: 2 }),
       dailyFeeEnabled: true,
-      dailyFee: { type: 'percentage', value: 0.1, calculationBase: 'principal' },
+      dailyFee: JSON.stringify({ type: 'percentage', value: 0.1, calculationBase: 'principal' }),
       penaltyRulesEnabled: true,
-      penaltyRules: [
+      penaltyRules: JSON.stringify([
         { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50 },
         { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5 },
-      ],
+      ]),
     },
   });
   
@@ -105,8 +109,7 @@ async function main() {
           { productId: personalLoan.id, fromScore: 301, toScore: 500, loanAmount: 5000 },
           { productId: personalLoan.id, fromScore: 501, toScore: 700, loanAmount: 25000 },
           { productId: personalLoan.id, fromScore: 701, toScore: 1000, loanAmount: 50000 },
-      ],
-      skipDuplicates: true
+      ]
   });
 
 
@@ -122,7 +125,7 @@ async function main() {
             gender: 'Male',
             monthlyIncome: 5000,
             educationLevel: 'Graduate',
-            loanHistory: { totalLoans: 5, onTimeRepayments: 5 },
+            loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
         },
     });
 
@@ -135,7 +138,7 @@ async function main() {
             gender: 'Female',
             monthlyIncome: 3000,
             educationLevel: 'High School',
-            loanHistory: { totalLoans: 2, onTimeRepayments: 1 },
+            loanHistory: JSON.stringify({ totalLoans: 2, onTimeRepayments: 1 }),
         },
     });
     console.log('Customers seeded.');
