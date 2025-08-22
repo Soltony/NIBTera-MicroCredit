@@ -1,7 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getSession, getUserFromSession } from '@/lib/session';
+import { getSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
 
 // This is a simplified version and does not handle file storage.

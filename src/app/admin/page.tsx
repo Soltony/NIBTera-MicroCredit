@@ -2,7 +2,7 @@
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import prisma from '@/lib/prisma';
 import type { LoanProvider } from '@/lib/types';
-import { getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 import { startOfToday, subDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic';

@@ -2,7 +2,7 @@
 import { AuthProvider } from '@/hooks/use-auth';
 import { ProtectedLayout } from '@/components/admin/protected-layout';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
-import { getSession, getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';

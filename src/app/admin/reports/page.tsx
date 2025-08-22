@@ -2,7 +2,7 @@
 import { ReportsClient } from '@/components/admin/reports-client';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 
 export const dynamic = 'force-dynamic';
 

@@ -2,7 +2,7 @@
 import { SettingsClient } from '@/components/admin/settings-client';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 
 async function getProviders(userId: string): Promise<LoanProviderType[]> {
     const user = await prisma.user.findUnique({
