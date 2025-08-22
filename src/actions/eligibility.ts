@@ -21,7 +21,7 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
     const loanTierRepo = dataSource.getRepository('LoanAmountTier');
     const provisionedDataRepo = dataSource.getRepository(ProvisionedData);
 
-    const customer = await customerRepo.findOneBy({ id: customerId });
+    const customer = await customerRepo.findOneBy({ ID: customerId });
     if (!customer) {
         throw new Error('Customer not found for score calculation.');
     }
@@ -47,13 +47,13 @@ async function calculateScoreForProvider(customerId: number, providerId: number,
     }
     
     let totalScore = 0;
-    const customerLoanHistory = JSON.parse(customer.loanHistory);
+    const customerLoanHistory = JSON.parse(customer.LOAN_HISTORY);
 
     const customerDataForScoring: Record<string, any> = {
-        age: Number(customer.age) || 0,
-        monthlyIncome: Number(customer.monthlyIncome) || 0,
-        gender: customer.gender,
-        educationLevel: customer.educationLevel,
+        age: Number(customer.AGE) || 0,
+        monthlyIncome: Number(customer.MONTHLY_INCOME) || 0,
+        gender: customer.GENDER,
+        educationLevel: customer.EDUCATION_LEVEL,
         totalLoans: Number(customerLoanHistory.totalLoans) || 0,
         onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
         ...latestProvisionedData, // Merge in the provisioned data
@@ -98,12 +98,12 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
     const loanRepo = dataSource.getRepository('LoanDetails');
     const providerRepo = dataSource.getRepository('LoanProvider');
 
-    const customer = await customerRepo.findOneBy({ id: customerId });
+    const customer = await customerRepo.findOneBy({ ID: customerId });
     if (!customer) {
       return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    if (customer.age <= 20) {
+    if (customer.AGE <= 20) {
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
 
@@ -148,8 +148,8 @@ export async function checkLoanEligibility(customerId: number, providerId: numbe
 export async function recalculateScoreAndLoanLimit(customerId: number, providerId: number, productId: number): Promise<{score: number, maxLoanAmount: number}> {
     try {
         const dataSource = await getConnectedDataSource();
-        const customer = await dataSource.getRepository('Customer').findOneBy({ id: customerId });
-        if (!customer || customer.age <= 20) {
+        const customer = await dataSource.getRepository('Customer').findOneBy({ ID: customerId });
+        if (!customer || customer.AGE <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
         return await calculateScoreForProvider(customerId, providerId, productId);

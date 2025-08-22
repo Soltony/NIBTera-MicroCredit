@@ -12,14 +12,14 @@ async function getCustomers() {
         
         // Map to plain objects
         return customers.map(c => ({
-            id: String(c.id),
-            age: c.age,
-            monthlyIncome: c.monthlyIncome,
-            gender: c.gender,
-            educationLevel: c.educationLevel,
-            loanHistory: JSON.parse(c.loanHistory),
-            phone_number: c.phone_number,
-            national_id: c.national_id,
+            id: String(c.ID),
+            age: c.AGE,
+            monthlyIncome: c.MONTHLY_INCOME,
+            gender: c.GENDER,
+            educationLevel: c.EDUCATION_LEVEL,
+            loanHistory: JSON.parse(c.LOAN_HISTORY),
+            phone_number: c.PHONE_NUMBER,
+            national_id: c.NATIONAL_ID,
         }));
     } catch(e) {
         console.error(e);

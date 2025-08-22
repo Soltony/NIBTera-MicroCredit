@@ -13,47 +13,47 @@ import type { ProvisionedData } from './ProvisionedData';
 @Entity({ name: 'customers' })
 export class Customer {
   @PrimaryGeneratedColumn('increment', { name: 'id' })
-  id!: number;
+  ID!: number;
 
-  @Column({ type: 'varchar2', length: 255, name: 'phone_number', unique: true })
+  @Column({ type: 'varchar2', length: 255, unique: true })
   @IsNotEmpty()
-  phone_number!: string;
+  PHONE_NUMBER!: string;
   
-  @Column({ type: 'varchar2', length: 255, name: 'national_id', unique: true, nullable: true })
+  @Column({ type: 'varchar2', length: 255, unique: true, nullable: true })
   @IsOptional()
   @IsString()
-  national_id?: string;
+  NATIONAL_ID?: string;
 
   @Column({ type: 'number' })
   @IsNumber()
-  age!: number;
+  AGE!: number;
 
   @Column({ type: 'number', name: 'monthly_income', precision: 10, scale: 2 })
   @IsNumber()
-  monthlyIncome!: number;
+  MONTHLY_INCOME!: number;
 
   @Column({ type: 'clob', name: 'transaction_history' })
   @IsNotEmpty()
-  transactionHistory!: string; // Stored as JSON string
+  TRANSACTION_HISTORY!: string; // Stored as JSON string
 
   @Column({ type: 'varchar2', length: 50 })
   @IsEnum(['Male', 'Female', 'Other'])
-  gender!: string;
+  GENDER!: string;
 
   @Column({ type: 'clob', name: 'loan_history' })
   @IsNotEmpty()
-  loanHistory!: string; // Stored as JSON string
+  LOAN_HISTORY!: string; // Stored as JSON string
 
   @Column({ type: 'varchar2', length: 255, name: 'education_level' })
   @IsNotEmpty()
-  educationLevel!: string;
+  EDUCATION_LEVEL!: string;
 
   @OneToMany('ProvisionedData', (data: ProvisionedData) => data.customer)
   provisionedDataEntries!: ProvisionedData[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
-  createdAt!: Date;
+  CREATED_AT!: Date;
 
   @UpdateDateColumn({ type: 'timestamp', name: 'updated_at' })
-  updatedAt!: Date;
+  UPDATED_AT!: Date;
 }

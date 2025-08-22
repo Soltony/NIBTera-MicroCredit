@@ -60,7 +60,7 @@ class MainSeeder {
     return instance;
   }
 
-  private async findOrCreateCustomer(manager: EntityManager, findCriteria: { phone_number: string }, createData: DeepPartial<Customer>): Promise<Customer> {
+  private async findOrCreateCustomer(manager: EntityManager, findCriteria: { PHONE_NUMBER: string }, createData: DeepPartial<Customer>): Promise<Customer> {
     let instance = await manager.findOneBy(Customer, findCriteria);
     if (!instance) {
         instance = manager.create(Customer, createData);
@@ -425,45 +425,45 @@ class MainSeeder {
             console.log('Seeded loan amount tiers.');
 
             // 7. Seed Customers
-            await this.findOrCreateCustomer(manager, { phone_number: '251911111111' }, {
-                age: 30,
-                monthlyIncome: 5500,
-                transactionHistory: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
-                gender: 'Male',
-                loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
-                educationLevel: "Bachelor's Degree",
-                phone_number: '251911111111',
-                national_id: 'G/12345/67'
+            await this.findOrCreateCustomer(manager, { PHONE_NUMBER: '251911111111' }, {
+                AGE: 30,
+                MONTHLY_INCOME: 5500,
+                TRANSACTION_HISTORY: JSON.stringify({ transactions: 150, averageBalance: 2000 }),
+                GENDER: 'Male',
+                LOAN_HISTORY: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
+                EDUCATION_LEVEL: "Bachelor's Degree",
+                PHONE_NUMBER: '251911111111',
+                NATIONAL_ID: 'G/12345/67'
             });
-            await this.findOrCreateCustomer(manager, { phone_number: '251922222222' }, {
-                age: 22,
-                monthlyIncome: 2500,
-                transactionHistory: JSON.stringify({ transactions: 50, averageBalance: 500 }),
-                gender: 'Female',
-                loanHistory: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
-                educationLevel: 'High School',
-                phone_number: '251922222222',
-                national_id: 'G/65432/10'
+            await this.findOrCreateCustomer(manager, { PHONE_NUMBER: '251922222222' }, {
+                AGE: 22,
+                MONTHLY_INCOME: 2500,
+                TRANSACTION_HISTORY: JSON.stringify({ transactions: 50, averageBalance: 500 }),
+                GENDER: 'Female',
+                LOAN_HISTORY: JSON.stringify({ totalLoans: 1, onTimeRepayments: 0 }),
+                EDUCATION_LEVEL: 'High School',
+                PHONE_NUMBER: '251922222222',
+                NATIONAL_ID: 'G/65432/10'
             });
-            await this.findOrCreateCustomer(manager, { phone_number: '251933333333' }, {
-                age: 45,
-                monthlyIncome: 15000,
-                transactionHistory: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
-                gender: 'Female',
-                loanHistory: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
-                educationLevel: "Master's Degree",
-                phone_number: '251933333333',
-                national_id: 'G/98765/43'
+            await this.findOrCreateCustomer(manager, { PHONE_NUMBER: '251933333333' }, {
+                AGE: 45,
+                MONTHLY_INCOME: 15000,
+                TRANSACTION_HISTORY: JSON.stringify({ transactions: 300, averageBalance: 10000 }),
+                GENDER: 'Female',
+                LOAN_HISTORY: JSON.stringify({ totalLoans: 10, onTimeRepayments: 10 }),
+                EDUCATION_LEVEL: "Master's Degree",
+                PHONE_NUMBER: '251933333333',
+                NATIONAL_ID: 'G/98765/43'
             });
-            await this.findOrCreateCustomer(manager, { phone_number: '251944444444' }, {
-                age: 19,
-                monthlyIncome: 1000,
-                transactionHistory: JSON.stringify({ transactions: 20, averageBalance: 300 }),
-                gender: 'Male',
-                loanHistory: JSON.stringify({ totalLoans: 0, onTimeRepayments: 0 }),
-                educationLevel: "Student",
-                phone_number: '251944444444',
-                national_id: 'G/24680/13'
+            await this.findOrCreateCustomer(manager, { PHONE_NUMBER: '251944444444' }, {
+                AGE: 19,
+                MONTHLY_INCOME: 1000,
+                TRANSACTION_HISTORY: JSON.stringify({ transactions: 20, averageBalance: 300 }),
+                GENDER: 'Male',
+                LOAN_HISTORY: JSON.stringify({ totalLoans: 0, onTimeRepayments: 0 }),
+                EDUCATION_LEVEL: "Student",
+                PHONE_NUMBER: '251944444444',
+                NATIONAL_ID: 'G/24680/13'
             });
             console.log('Seeded customers');
 
