@@ -25,7 +25,8 @@ const dataSourceOptions: DataSourceOptions = {
   connectString: process.env.ORACLE_DB_CONNECT_STRING,
   username: process.env.ORACLE_DB_USER,
   password: process.env.ORACLE_DB_PASSWORD,
-  synchronize: false, // Synchronize only in development.
+  schema: process.env.ORACLE_DB_USER, // Explicitly set the schema to the username
+  synchronize: false,
   logging: isDevelopment,
   // Explicitly list all entities to ensure they are always found.
   entities: [
