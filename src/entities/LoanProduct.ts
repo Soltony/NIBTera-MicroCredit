@@ -65,7 +65,7 @@ export class LoanProduct {
   @IsBoolean()
   penaltyRulesEnabled!: boolean;
 
-  @Column({ type: 'number', precision: 1, scale: 0, name: 'data_provisioning_enabled', default: 0 })
+  @Column({ type: 'number', precision: 1, scale: 0, name: 'data_provisioning_enabled', nullable: true, default: 0 })
   dataProvisioningEnabled?: boolean;
 
   @Column({ type: 'number', name: 'data_provisioning_config_id', nullable: true })

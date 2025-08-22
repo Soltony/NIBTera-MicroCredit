@@ -15,7 +15,6 @@ import type { ScoringParameter } from './ScoringParameter';
 import type { ScoringConfigurationHistory } from './ScoringConfigurationHistory';
 import type { CustomParameter } from './CustomParameter';
 import type { DataProvisioningConfig } from './DataProvisioningConfig';
-import type { ScoringParameterRule } from './ScoringParameterRule';
 
 @Entity({ name: 'loan_providers' })
 export class LoanProvider {
@@ -45,6 +44,7 @@ export class LoanProvider {
     type: 'number',
     precision: 1,
     scale: 0,
+    nullable: true, 
     default: 0,
   })
   allowMultipleProviderLoans!: boolean;
@@ -54,6 +54,7 @@ export class LoanProvider {
     type: 'number',
     precision: 1,
     scale: 0,
+    nullable: true,
     default: 0,
   })
   allowCrossProviderLoans!: boolean;
