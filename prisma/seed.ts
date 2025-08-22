@@ -1,5 +1,5 @@
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -58,7 +58,7 @@ async function main() {
       status: 'Active',
       role: {
         connect: {
-          name: 'Super Admin',
+          id: superAdminRole.id,
         }
       }
     },
