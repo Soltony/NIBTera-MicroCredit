@@ -1,54 +1,14 @@
 
 import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-client';
-import { getConnectedDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import type { Customer } from '@/entities/Customer';
 
 async function getCustomers() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const customerRepo = dataSource.getRepository('Customer');
-        const customers = await customerRepo.find();
-        
-        // Map to plain objects
-        return customers.map(c => ({
-            id: String(c.ID),
-            age: c.AGE,
-            monthlyIncome: c.MONTHLY_INCOME,
-            gender: c.GENDER,
-            educationLevel: c.EDUCATION_LEVEL,
-            loanHistory: JSON.parse(c.LOAN_HISTORY),
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
+    // Database removed, returning empty array.
+    return [];
 }
 
 async function getProviders() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
-        const providers = await providerRepo.find({
-            relations: ['products'],
-            order: {
-                displayOrder: 'ASC'
-            }
-        });
-        
-        // Map the icon string to a name that can be looked up on the client
-        return providers.map(p => ({
-            ...p,
-            id: String(p.id),
-            products: p.products.map(prod => ({
-                ...prod,
-                id: String(prod.id),
-            }))
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
+    // Database removed, returning empty array.
+    return [];
 }
 
 export default async function SelectCustomerPage() {
