@@ -1,10 +1,6 @@
 
 import { ReportsClient } from '@/components/admin/reports-client';
-import { getUserFromSession } from '@/lib/user';
-import { getConnectedDataSource } from '@/data-source';
-import type { LoanDetails } from '@/entities/LoanDetails';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
-import type { FindOptionsWhere } from 'typeorm';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,58 +20,8 @@ export interface ReportLoan {
 }
 
 async function getLoanReportData(): Promise<{ loans: ReportLoan[], providers: LoanProviderType[] }> {
-    try {
-        const currentUser = await getUserFromSession();
-        const dataSource = await getConnectedDataSource();
-        
-        const loanRepo = dataSource.getRepository('LoanDetails');
-        const providerRepo = dataSource.getRepository('LoanProvider');
-
-        const whereClause: FindOptionsWhere<LoanDetails> = {};
-        if (currentUser?.role === 'Loan Provider' && currentUser.providerId) {
-            whereClause.providerId = Number(currentUser.providerId);
-        }
-
-        const loans = await loanRepo.find({
-            where: whereClause,
-            relations: ['provider', 'product', 'payments'],
-            order: {
-                disbursedDate: 'DESC',
-            },
-        });
-
-        const loansToReturn: ReportLoan[] = loans.map(loan => ({
-            id: String(loan.id),
-            loanAmount: loan.loanAmount,
-            serviceFee: loan.serviceFee,
-            interestRate: 0, // This was missing, let's keep it but maybe it should be calculated.
-            disbursedDate: loan.disbursedDate,
-            dueDate: loan.dueDate,
-            penaltyAmount: loan.penaltyAmount,
-            repaymentStatus: loan.repaymentStatus,
-            repaidAmount: loan.repaidAmount,
-            providerName: loan.provider.name,
-            productName: loan.product.name,
-            paymentsCount: loan.payments.length,
-        }));
-
-        const providers = await providerRepo.find();
-        
-        return { 
-            loans: loansToReturn, 
-            providers: providers.map(p => ({
-                id: String(p.id),
-                name: p.name,
-                icon: p.icon,
-                colorHex: p.colorHex,
-                displayOrder: p.displayOrder,
-                products: []
-            })) as any
-        };
-    } catch(e) {
-        console.error(e);
-        return { loans: [], providers: [] };
-    }
+    // Database removed, returning empty arrays.
+    return { loans: [], providers: [] };
 }
 
 

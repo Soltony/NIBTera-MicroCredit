@@ -1,48 +1,8 @@
 
 'use server';
 
-import { getConnectedDataSource } from '@/data-source';
-import { getSession } from './session';
-import type { User } from '@/entities/User';
-import type { DataSource } from 'typeorm';
+// This file is now empty as the database and TypeORM have been removed.
 
 export async function getUserFromSession() {
-  const session = await getSession();
-  if (!session?.userId) return null;
-
-  try {
-    const dataSource = await getConnectedDataSource();
-    const userRepo = dataSource.getRepository('User');
-    
-    // Ensure userId is a valid number before querying
-    const userId = Number(session.userId);
-    if (isNaN(userId)) {
-      console.error('Invalid user ID in session:', session.userId);
-      return null;
-    }
-    
-    const user = await userRepo.findOne({
-      where: {id: userId},
-      relations: ['role', 'provider'],
-    });
-
-    if (!user) return null;
-
-    // Destructure and create a plain object to pass to client components
-    const {password, ...userWithoutPassword} = user;
-
-    return {
-      id: String(userWithoutPassword.id),
-      fullName: userWithoutPassword.fullName,
-      email: userWithoutPassword.email,
-      phoneNumber: userWithoutPassword.phoneNumber,
-      status: userWithoutPassword.status,
-      role: userWithoutPassword.role.name,
-      providerId: userWithoutPassword.providerId ? String(userWithoutPassword.providerId) : undefined,
-      providerName: userWithoutPassword.provider?.name || '',
-    };
-  } catch (error) {
-    console.error('Database error while fetching user:', error);
-    return null;
-  }
+  return null;
 }

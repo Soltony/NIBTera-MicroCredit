@@ -3,56 +3,10 @@ import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import type { LoanProvider } from '@/lib/types';
 import { ApplyClient } from './client';
-import { getConnectedDataSource } from '@/data-source';
-import type { DataSource } from 'typeorm';
-
-// Helper function to safely parse JSON from DB
-const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
-    if (!jsonString) return defaultValue;
-    try {
-        return JSON.parse(jsonString);
-    } catch (e) {
-        return defaultValue;
-    }
-};
 
 async function getProvider(providerId: string): Promise<LoanProvider | null> {
-    if (!providerId) return null;
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
-        
-        const provider = await providerRepo.findOne({
-            where: { id: Number(providerId) },
-            relations: ['products'],
-        });
-
-        if (!provider) return null;
-
-        // Convert to plain object for client component
-        return {
-            id: String(provider.id),
-            name: provider.name,
-            icon: provider.icon,
-            colorHex: provider.colorHex,
-            displayOrder: provider.displayOrder,
-            products: provider.products.map(prod => ({
-                id: String(prod.id),
-                name: prod.name,
-                description: prod.description,
-                icon: prod.icon,
-                minLoan: prod.minLoan,
-                maxLoan: prod.maxLoan,
-                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
-                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
-                penaltyRules: safeJsonParse(prod.penaltyRules, []),
-                status: prod.status as 'Active' | 'Disabled'
-            }))
-        } as any;
-    } catch(e) {
-        console.error(e);
-        return null;
-    }
+    // Database removed, returning null.
+    return null;
 }
 
 
