@@ -4,10 +4,11 @@
 import React from 'react';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct, Payment } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
@@ -20,6 +21,8 @@ import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
 import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -29,6 +32,15 @@ interface DashboardClientProps {
   providers: LoanProvider[];
   initialLoanHistory: LoanDetails[];
 }
+
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
 
 export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
@@ -41,7 +53,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [selectedProviderId, setSelectedProviderId] = useState(providerIdFromUrl ?? providers[0]?.id);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
-  const [repayingLoan, setRepayingLoan] = useState<LoanDetails | null>(null);
+  const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   
   const isEligible = !eligibilityError;
@@ -92,11 +104,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         toast({ title: 'Error', description: 'Customer ID not found.', variant: 'destructive'});
         return;
     }
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
-    params.set('productId', productId);
-    params.set('customerId', customerId);
-    router.push(`/check-eligibility?${params.toString()}`);
+    params.set('product', productId);
+    params.set('max', String(currentMaxLoanLimit));
+    router.push(`/apply?${params.toString()}`);
   }
 
   const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
@@ -118,8 +130,8 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     try {
       // For now, we check against the first product of the provider.
       // A more advanced implementation might check all products and take the highest limit.
-      const firstProductId = provider.products[0].id;
-      const { maxLoanAmount } = await recalculateScoreAndLoanLimit(Number(customerId), Number(providerId), Number(firstProductId));
+      const firstProductId = provider.products[0].name;
+      const { maxLoanAmount } = await recalculateScoreAndLoanLimit(customerId, providerId, firstProductId);
       setCurrentMaxLoanLimit(maxLoanAmount);
 
     } catch (error) {
@@ -142,18 +154,18 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     }
   }
   
-  const handleRepay = (loan: LoanDetails) => {
-    setRepayingLoan(loan);
+  const handleRepay = (loan: LoanDetails, balanceDue: number) => {
+    setRepayingLoanInfo({ loan, balanceDue });
     setIsRepayDialogOpen(true);
   }
 
   const handleConfirmRepayment = async (amount: number) => {
-    if (!repayingLoan) return;
+    if (!repayingLoanInfo) return;
     try {
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loanId: repayingLoan.id, amount }),
+        body: JSON.stringify({ loanId: repayingLoanInfo.loan.id, amount }),
       });
 
       if (!response.ok) {
@@ -161,11 +173,22 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         throw new Error(errorData.error || 'Failed to process payment.');
       }
       
-      const updatedLoan = await response.json();
+      const updatedLoanData = await response.json();
+
+      const finalLoanObject: LoanDetails = {
+        ...updatedLoanData,
+        providerName: repayingLoanInfo.loan.providerName,
+        productName: repayingLoanInfo.loan.productName,
+        product: repayingLoanInfo.loan.product,
+        provider: repayingLoanInfo.loan.provider,
+        disbursedDate: new Date(updatedLoanData.disbursedDate),
+        dueDate: new Date(updatedLoanData.dueDate),
+        payments: updatedLoanData.payments,
+      };
 
       // Update the loan history state with the updated loan
       setLoanHistory(prevHistory => 
-        prevHistory.map(l => l.id === updatedLoan.id ? updatedLoan : l)
+        prevHistory.map(l => l.id === updatedLoanData.id ? finalLoanObject : l)
       );
 
       toast({
@@ -181,13 +204,21 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       });
     } finally {
       setIsRepayDialogOpen(false);
-      setRepayingLoan(null);
+      setRepayingLoanInfo(null);
     }
   }
 
   const handleBack = () => {
     router.push('/check-eligibility/select-customer');
   }
+  
+  const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
+
+  const customerHasActiveLoanWithProvider = useMemo(() => {
+      if (!selectedProvider) return false;
+      return loanHistory.some(loan => loan.providerId === selectedProvider.id && loan.repaymentStatus === 'Unpaid');
+  }, [loanHistory, selectedProvider]);
+
 
   return (
     <>
@@ -202,6 +233,8 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                   {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
               </h1>
             </div>
+             <div className="ml-auto">
+             </div>
           </div>
         </header>
         <main className="flex-1">
@@ -248,58 +281,62 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     />
                   )}
               
+                  <div className="flex justify-end">
+                    <Link
+                        href={`/history?${searchParams.toString()}`}
+                        className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors"
+                        style={{ backgroundColor: selectedProvider ? `${selectedProvider.colorHex}20` : '#fdb91320', color: selectedProvider?.colorHex || '#fdb913' }}
+                    >
+                        <span>Loan History</span>
+                        <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                  
                   <div className="grid gap-8 grid-cols-1">
-                      <div>
-                          <Card className="shadow-sm rounded-lg">
-                            <CardHeader>
-                                <CardTitle>Loan History</CardTitle>
-                                <CardDescription>View your past and active loans.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <Button className="w-full" variant="outline" onClick={() => router.push(`/history?${searchParams.toString()}`)}>
-                                    <History className="mr-2 h-4 w-4" /> View Full Loan History
-                                </Button>
-                            </CardContent>
-                          </Card>
-                      </div>
-                      <div>
-                      {selectedProvider && (
-                          <Card>
-                              <CardHeader>
-                                  <CardTitle>Available Loan Products</CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                  {selectedProvider.products
-                                    .filter(p => p.status === 'Active')
-                                    .map((product) => (
-                                      <ProductCard 
-                                          key={product.id}
-                                          product={{
-                                            ...product,
-                                            availableLimit: Math.min(product.maxLoan || 0, availableToBorrow)
-                                          }}
-                                          providerColor={selectedProvider.colorHex}
-                                          activeLoan={activeLoansByProduct[product.name]}
-                                          onApply={() => handleApply(product.id)}
-                                          onRepay={handleRepay}
-                                          IconDisplayComponent={IconDisplay}
-                                      />
-                                  ))}
-                              </CardContent>
-                          </Card>
-                      )}
+                      <div className="md:col-span-2">
+                        {selectedProvider && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Available Loan Products</CardTitle>
+                                    <CardDescription>Select a product from {selectedProvider.name} to apply.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {selectedProvider.products
+                                        .filter(p => p.status === 'Active')
+                                        .map((product) => (
+                                        <ProductCard 
+                                            key={product.id}
+                                            product={{
+                                                ...product,
+                                                availableLimit: Math.min(product.maxLoan || 0, availableToBorrow)
+                                            }}
+                                            providerColor={selectedProvider.colorHex}
+                                            activeLoan={activeLoansByProduct[product.name]}
+                                            onApply={() => handleApply(product.id)}
+                                            onRepay={handleRepay}
+                                            IconDisplayComponent={IconDisplay}
+                                            canApply={customerHasActiveLoanWithProvider ? selectedProvider.allowMultipleProviderLoans : true}
+                                        />
+                                    ))}
+                                    {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (
+                                        <p className="text-sm text-muted-foreground text-center py-8">No active loan products available from this provider.</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
                       </div>
                   </div>
               </div>
           </div>
         </main>
       </div>
-      {repayingLoan && (
+      {repayingLoanInfo && (
         <RepaymentDialog
             isOpen={isRepayDialogOpen}
             onClose={() => setIsRepayDialogOpen(false)}
             onConfirm={handleConfirmRepayment}
-            loan={{...repayingLoan, product: providers.find(p => p.id === selectedProviderId)?.products.find(prod => prod.name === repayingLoan.productName)}}
+            loan={repayingLoanInfo.loan}
+            totalBalanceDue={repayingLoanInfo.balanceDue}
             providerColor={selectedProvider?.colorHex}
         />
       )}

@@ -25,6 +25,8 @@ export interface DataColumn {
     id: string;
     name: string;
     type: 'string' | 'number' | 'date';
+    isIdentifier: boolean;
+    dbField: 'ID'; // Only ID is supported now
 }
 
 export interface DataProvisioningUpload {
@@ -62,6 +64,9 @@ export interface LoanProvider {
   color?: string;
   colorHex?: string;
   displayOrder: number;
+  accountNumber: string | null;
+  allowMultipleProviderLoans: boolean;
+  allowCrossProviderLoans: boolean;
 }
 
 export interface LoanProduct {
@@ -107,6 +112,8 @@ export interface LoanDetails {
   penaltyAmount: number;
   // For calculation purposes, not stored in DB
   product?: LoanProduct;
+  provider?: LoanProvider;
+  providerId?: number;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
@@ -162,6 +169,7 @@ export interface TransactionProduct {
 // Type for Scoring Engine
 export interface Rule {
   id: string;
+  parameterId: string;
   field: string;
   condition: string;
   value: string;

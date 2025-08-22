@@ -1,98 +1,58 @@
 
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
-import { getConnectedDataSource } from '@/data-source';
-import type { LoanProvider as LoanProviderType, ScoringParameter as ScoringParameterType } from '@/lib/types';
-import type { DataSource } from 'typeorm';
+import prisma from '@/lib/prisma';
+import type { LoanProvider, ScoringParameter } from '@/lib/types';
+import { getServerSession } from 'next-auth';
 
-async function getProviders() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
-        const providers = await providerRepo.find({
-            relations: ['products'],
-             order: {
-                displayOrder: 'ASC',
+
+async function getProviders(userId: string): Promise<LoanProvider[]> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { loanProvider: true }
+    });
+
+    const whereClause = (user?.role === 'Super Admin' || user?.role === 'Admin')
+        ? {}
+        : { id: user?.loanProvider?.id };
+
+    const providers = await prisma.loanProvider.findMany({
+        where: whereClause,
+        include: {
+            products: true,
+        },
+        orderBy: {
+            displayOrder: 'asc'
+        }
+    });
+    return providers as LoanProvider[];
+}
+
+async function getScoringParameters(providerIds: string[]): Promise<ScoringParameter[]> {
+    const parameters = await prisma.scoringParameter.findMany({
+        where: {
+            providerId: {
+                in: providerIds,
             }
-        });
-        return providers.map(p => ({
-            ...p,
-            id: String(p.id),
-            products: p.products.map(prod => ({
-                ...prod,
-                id: String(prod.id),
-                serviceFee: JSON.parse(prod.serviceFee),
-                dailyFee: JSON.parse(prod.dailyFee),
-                penaltyRules: JSON.parse(prod.penaltyRules),
-            })),
-        })) as any[];
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
-}
-
-async function getScoringParameters() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const paramRepo = dataSource.getRepository('ScoringParameter');
-        const params = await paramRepo.find({
-            relations: ['rules'],
-        });
-        
-        // Map to a serializable format that matches our client-side type
-        return params.map(p => ({
-            id: String(p.id),
-            providerId: String(p.providerId),
-            name: p.name,
-            weight: p.weight,
-            rules: p.rules.map(r => ({
-                id: String(r.id),
-                field: r.field,
-                condition: r.condition,
-                value: r.value,
-                score: r.score,
-            })),
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
-}
-
-async function getHistory() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const historyRepo = dataSource.getRepository('ScoringConfigurationHistory');
-        const history = await historyRepo.find({
-            take: 20, // Fetch more history items if needed
-            order: {
-                savedAt: 'DESC',
-            },
-            relations: ['appliedProducts'],
-        });
-        
-        return history.map(h => ({
-            id: String(h.id),
-            providerId: String(h.providerId),
-            parameters: JSON.parse(h.parameters),
-            savedAt: h.savedAt.toISOString(),
-            appliedProducts: h.appliedProducts.map(p => ({
-                id: String(p.id),
-                name: p.name,
-            })),
-        }));
-
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
+        },
+        include: {
+            rules: true,
+        },
+    });
+    return parameters as ScoringParameter[];
 }
 
 
 export default async function CreditScoreEnginePage() {
-    const providers = await getProviders();
-    const scoringParameters = await getScoringParameters() as ScoringParameterType[];
-    const history = await getHistory();
+    // Session fetching will be replaced with a real auth solution
+    const session = { user: { id: '1' } }; // Mock session
+    
+    if (!session?.user?.id) {
+        return <div>Not authenticated</div>;
+    }
 
-    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters} initialHistory={history as any} />;
+    const providers = await getProviders(session.user.id);
+    const providerIds = providers.map(p => p.id);
+    const scoringParameters = await getScoringParameters(providerIds);
+
+    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters} />;
 }

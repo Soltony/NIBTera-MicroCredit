@@ -1,12 +1,11 @@
 
 import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import type { LoanProvider } from '@/lib/types';
+import type { LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
 import { ApplyClient } from './client';
-import { getConnectedDataSource } from '@/data-source';
-import type { DataSource } from 'typeorm';
+import prisma from '@/lib/prisma';
+import { notFound } from 'next/navigation';
 
-// Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
     if (!jsonString) return defaultValue;
     try {
@@ -17,47 +16,48 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
 };
 
 async function getProvider(providerId: string): Promise<LoanProvider | null> {
-    if (!providerId) return null;
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
-        
-        const provider = await providerRepo.findOne({
-            where: { id: Number(providerId) },
-            relations: ['products'],
-        });
+    const provider = await prisma.loanProvider.findUnique({
+        where: { id: providerId },
+        include: {
+            products: {
+                where: {
+                    status: 'Active'
+                },
+                orderBy: {
+                    name: 'asc'
+                }
+            }
+        }
+    });
 
-        if (!provider) return null;
+    if (!provider) return null;
 
-        // Convert to plain object for client component
-        return {
-            id: String(provider.id),
-            name: provider.name,
-            icon: provider.icon,
-            colorHex: provider.colorHex,
-            displayOrder: provider.displayOrder,
-            products: provider.products.map(prod => ({
-                id: String(prod.id),
-                name: prod.name,
-                description: prod.description,
-                icon: prod.icon,
-                minLoan: prod.minLoan,
-                maxLoan: prod.maxLoan,
-                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
-                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
-                penaltyRules: safeJsonParse(prod.penaltyRules, []),
-                status: prod.status as 'Active' | 'Disabled'
-            }))
-        } as any;
-    } catch(e) {
-        console.error(e);
-        return null;
-    }
+    return {
+        id: provider.id,
+        name: provider.name,
+        icon: provider.icon,
+        colorHex: provider.colorHex,
+        displayOrder: provider.displayOrder,
+        accountNumber: provider.accountNumber,
+        allowMultipleProviderLoans: provider.allowMultipleProviderLoans,
+        allowCrossProviderLoans: provider.allowCrossProviderLoans,
+        products: provider.products.map(prod => ({
+            ...prod,
+            serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
+            dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
+            penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
+        }))
+    } as LoanProvider;
 }
 
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
     const providerId = searchParams.providerId as string;
+
+    if (!providerId) {
+        notFound();
+    }
+    
     const selectedProvider = await getProvider(providerId);
 
     if (!selectedProvider) {

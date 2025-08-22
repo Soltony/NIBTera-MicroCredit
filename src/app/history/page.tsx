@@ -1,64 +1,38 @@
 
-import { getConnectedDataSource } from '@/data-source';
-import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanDetails, LoanProvider } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { HistoryClient } from '@/components/history/history-client';
-
-// Helper function to safely parse JSON from DB
-const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
-    if (!jsonString) return defaultValue;
-    try {
-        return JSON.parse(jsonString);
-    } catch (e) {
-        return defaultValue;
-    }
-};
-
+import prisma from '@/lib/prisma';
 
 async function getProviders(): Promise<LoanProvider[]> {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
-        const providers = await providerRepo.find({
-             order: {
-                displayOrder: 'ASC',
-            }
-        });
-
-        // Manually map to plain objects to avoid passing class instances to client components.
-        return providers.map(p => ({
-            id: String(p.id),
-            name: p.name,
-            icon: p.icon,
-            colorHex: p.colorHex,
-            displayOrder: p.displayOrder,
-            products: []
-        })) as LoanProvider[];
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
+    const providers = await prisma.loanProvider.findMany({
+        orderBy: { displayOrder: 'asc' }
+    });
+    return providers as LoanProvider[];
 }
 
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
     try {
-        const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository('LoanDetails');
-        const loans = await loanRepo.find({
-            relations: ['provider', 'product', 'payments'],
-            order: {
-                disbursedDate: 'DESC',
+        const loans = await prisma.loan.findMany({
+            include: {
+                provider: true,
+                product: true,
                 payments: {
-                    date: 'ASC'
+                    orderBy: {
+                        date: 'asc'
+                    }
                 }
             },
+            orderBy: {
+                disbursedDate: 'desc'
+            }
         });
 
-        // Manually map to plain objects to avoid passing class instances to client components.
         return loans.map(loan => ({
-            id: String(loan.id),
+            id: loan.id,
+            providerId: loan.providerId,
             providerName: loan.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
@@ -70,13 +44,12 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
             penaltyAmount: loan.penaltyAmount,
             product: {
               ...loan.product,
-              id: String(loan.product.id),
-              serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
-              dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
-              penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
+              serviceFee: JSON.parse(loan.product.serviceFee as string),
+              dailyFee: JSON.parse(loan.product.dailyFee as string),
+              penaltyRules: JSON.parse(loan.product.penaltyRules as string),
             },
             payments: loan.payments.map(p => ({
-                id: String(p.id),
+                id: p.id,
                 amount: p.amount,
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
@@ -103,4 +76,3 @@ export default async function HistoryPage() {
         </Suspense>
     );
 }
-

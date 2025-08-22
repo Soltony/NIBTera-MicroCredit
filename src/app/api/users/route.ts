@@ -1,122 +1,135 @@
 
-import { NextResponse } from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { User } from '@/entities/User';
-import { Role } from '@/entities/Role';
-import { LoanProvider } from '@/entities/LoanProvider';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { FindOptionsWhere, Or, DataSource } from 'typeorm';
+import { z } from 'zod';
+import { getSession } from '@/lib/session';
 
-// GET all users
+const userSchema = z.object({
+  fullName: z.string().min(1, 'Full name is required'),
+  email: z.string().email('Invalid email address'),
+  phoneNumber: z.string().min(1, 'Phone number is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters long').optional(),
+  role: z.string(), // Role name, will be connected by ID
+  providerId: z.string().nullable().optional(),
+  status: z.enum(['Active', 'Inactive']),
+});
+
 export async function GET() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository(User);
-        const users = await userRepo.find({
-            relations: ['provider', 'role'],
-        });
-        
-        const usersToReturn = users.map(user => {
-            const { password, ...userWithoutPassword } = user;
-            return {
-                ...userWithoutPassword,
-                id: String(user.id),
-                providerId: user.providerId ? String(user.providerId) : null,
-                providerName: user.provider?.name || '',
-                role: user.role.name,
-            };
-        });
-        return NextResponse.json(usersToReturn);
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
-    }
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        role: true,
+        loanProvider: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const formattedUsers = users.map(user => ({
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      role: user.role.name,
+      providerName: user.loanProvider?.name || 'N/A',
+      providerId: user.loanProvider?.id,
+      status: user.status,
+    }));
+
+    return NextResponse.json(formattedUsers);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }
 
-// POST a new user
-export async function POST(req: Request) {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository(User);
-        const roleRepo = dataSource.getRepository(Role);
-        
-        const { fullName, email, phoneNumber, password, role, providerId, status } = await req.json();
-
-        if (!fullName || !email || !phoneNumber || !password || !role || !status) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-        }
-        
-        const existingUser = await userRepo.findOne({
-            where: [{ email }, { phoneNumber }],
-        });
-
-        if (existingUser) {
-            return NextResponse.json({ error: 'User with this email or phone number already exists.' }, { status: 409 });
-        }
-        
-        const userRole = await roleRepo.findOneBy({ name: role });
-        if (!userRole) {
-            return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const newUser = userRepo.create({
-            fullName,
-            email,
-            phoneNumber,
-            password: hashedPassword,
-            roleName: userRole.name,
-            providerId: providerId ? Number(providerId) : null,
-            status,
-        });
-        await userRepo.save(newUser);
-
-        const { password: _, ...userToReturn } = newUser;
-        return NextResponse.json(userToReturn, { status: 201 });
-    } catch (error) {
-        console.error('Error creating user:', error);
-        return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+
+    const body = await req.json();
+    const { password, role: roleName, ...userData } = userSchema.parse(body);
+
+    if (!password) {
+      return NextResponse.json({ error: 'Password is required for new users.' }, { status: 400 });
+    }
+
+    const role = await prisma.role.findUnique({ where: { name: roleName }});
+    if (!role) {
+      return NextResponse.json({ error: 'Invalid role selected.' }, { status: 400 });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        ...userData,
+        password: hashedPassword,
+        roleId: role.id,
+      },
+    });
+
+    return NextResponse.json(newUser, { status: 201 });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }
 
-// PUT (update) a user
-export async function PUT(req: Request) {
-     try {
-        const dataSource = await getConnectedDataSource();
-        const userRepo = dataSource.getRepository(User);
-        const roleRepo = dataSource.getRepository(Role);
-        
-        const { id, ...updateData } = await req.json();
-
-        if (!id) {
-            return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-        }
-        
-        const dataToUpdate: Partial<User> = { ...updateData };
-
-        if (updateData.role) {
-            const userRole = await roleRepo.findOneBy({ name: updateData.role });
-            if (!userRole) {
-                 return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
-            }
-            dataToUpdate.roleName = userRole.name;
-        }
-        
-        if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'providerId')) {
-          dataToUpdate.providerId = dataToUpdate.providerId ? Number(dataToUpdate.providerId) : null;
-        }
-        
-        delete (dataToUpdate as any).role;
-
-
-        await userRepo.update(id, dataToUpdate as any);
-        const updatedUser = await userRepo.findOneBy({id: Number(id)});
-
-        const { password, ...userToReturn } = updatedUser!;
-        return NextResponse.json(userToReturn);
-    } catch (error) {
-        console.error('Error updating user:', error);
-        return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+
+    const body = await req.json();
+    const { id, role: roleName, ...userData } = body;
+
+    if (!id) {
+        return NextResponse.json({ error: 'User ID is required for an update.' }, { status: 400 });
+    }
+
+    let dataToUpdate: any = { ...userData };
+
+    if (roleName) {
+        const role = await prisma.role.findUnique({ where: { name: roleName }});
+        if (!role) {
+            return NextResponse.json({ error: 'Invalid role selected.' }, { status: 400 });
+        }
+        dataToUpdate.roleId = role.id;
+    }
+    
+    // Ensure providerId is handled correctly
+    if (userData.providerId === null) {
+        dataToUpdate.loanProvider = {
+            disconnect: true
+        }
+        delete dataToUpdate.providerId;
+    } else if (userData.providerId) {
+        dataToUpdate.loanProvider = {
+            connect: { id: userData.providerId }
+        }
+        delete dataToUpdate.providerId;
+    }
+
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+
+    return NextResponse.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }

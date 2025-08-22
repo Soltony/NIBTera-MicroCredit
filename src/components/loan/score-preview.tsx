@@ -32,9 +32,7 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
   const uniqueFieldsInUse = useMemo(() => {
     const fieldsInUse = new Set<string>();
     parameters.forEach(param => {
-      param.rules.forEach(rule => {
-        fieldsInUse.add(rule.field);
-      });
+        fieldsInUse.add(param.name);
     });
 
     return availableFields.filter(field => fieldsInUse.has(field.value));
@@ -46,11 +44,13 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
   };
 
   const handleCalculateScore = () => {
-    let totalWeightedScore = 0;
+    let totalScore = 0;
     
     parameters.forEach(param => {
         let maxScoreForParam = 0;
-        param.rules.forEach(rule => {
+        const relevantRules = param.rules || [];
+        
+        relevantRules.forEach(rule => {
             const inputValue = applicantData[rule.field];
             if (inputValue !== undefined) {
                  if (evaluateCondition(inputValue, rule.condition, rule.value)) {
@@ -60,10 +60,13 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
                 }
             }
         });
-        totalWeightedScore += maxScoreForParam * (param.weight / 100);
+
+        // The score for a parameter is capped by its weight.
+        const scoreForThisParam = Math.min(maxScoreForParam, param.weight);
+        totalScore += scoreForThisParam;
     });
 
-    setCalculatedScore(totalWeightedScore);
+    setCalculatedScore(Math.round(totalScore));
   };
   
   const getFieldInfo = (fieldName: string): FieldInfo | undefined => {
@@ -75,7 +78,7 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
       <CardHeader>
         <CardTitle>Preview Score Calculation</CardTitle>
         <CardDescription>
-          Enter sample applicant data to see the calculated score based on the current rules and weights.
+          Enter sample applicant data to see the calculated score based on the current rules.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -116,13 +119,13 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
             })}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">No fields are currently used in the scoring rules.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No parameters defined for this provider yet.</p>
         )}
         <div className="flex items-center justify-between">
             <Button onClick={handleCalculateScore} style={{ backgroundColor: providerColor }} className="text-white" disabled={uniqueFieldsInUse.length === 0}>Calculate Score</Button>
             {calculatedScore !== null && (
                 <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Calculated Weighted Score</p>
+                    <p className="text-sm text-muted-foreground">Calculated Score</p>
                     <p className="text-3xl font-bold">{calculatedScore.toFixed(0)}</p>
                 </div>
             )}

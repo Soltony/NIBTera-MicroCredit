@@ -22,7 +22,7 @@ import { IconDisplay } from '@/components/icons';
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules'>) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId'> & {providerId: string}) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [
@@ -62,13 +62,14 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     e.preventDefault();
     if (productName.trim() === '') return;
 
+    // The parent component will add the providerId
     onAddProduct({
       name: productName,
       description,
       icon: selectedIconName,
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
-    });
+    } as any);
     
     // Reset form
     setProductName('');

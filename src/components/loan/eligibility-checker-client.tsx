@@ -68,7 +68,7 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
             </div>
         </header>
         <main className="flex-1 py-8 md:py-12">
-            <div className="container max-w-4xl">
+            <div className="container max-w-6xl">
                  <Card>
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>

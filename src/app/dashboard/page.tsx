@@ -1,42 +1,44 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import { getConnectedDataSource } from '@/data-source';
 import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import prisma from '@/lib/prisma';
+
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
 
 async function getProviders(): Promise<LoanProvider[]> {
     try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository('LoanProvider');
-        const providers = await providerRepo.find({
-            relations: ['products'],
-            order: {
-                displayOrder: 'ASC',
+        const providers = await prisma.loanProvider.findMany({
+            include: {
                 products: {
-                    name: 'ASC'
+                    where: {
+                        status: 'Active'
+                    },
+                    orderBy: {
+                        name: 'asc'
+                    }
                 }
+            },
+            orderBy: {
+                displayOrder: 'asc'
             }
         });
 
-        // Manually map to plain objects to avoid passing class instances to client components.
         return providers.map(p => ({
-            id: String(p.id),
-            name: p.name,
-            icon: p.icon,
-            colorHex: p.colorHex,
-            displayOrder: p.displayOrder,
+            ...p,
             products: p.products.map(prod => ({
-                id: String(prod.id),
-                name: prod.name,
-                description: prod.description,
-                icon: prod.icon,
-                minLoan: prod.minLoan,
-                maxLoan: prod.maxLoan,
-                serviceFee: JSON.parse(prod.serviceFee),
-                dailyFee: JSON.parse(prod.dailyFee),
-                penaltyRules: JSON.parse(prod.penaltyRules),
-                status: prod.status as 'Active' | 'Disabled',
+                ...prod,
+                serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
+                dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
+                penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
             }))
         })) as LoanProvider[];
     } catch(e) {
@@ -46,22 +48,25 @@ async function getProviders(): Promise<LoanProvider[]> {
 }
 
 async function getLoanHistory(): Promise<LoanDetails[]> {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository('LoanDetails');
-        const loans = await loanRepo.find({
-            relations: ['provider', 'product', 'payments'],
-            order: {
-                disbursedDate: 'DESC',
+     try {
+        const loans = await prisma.loan.findMany({
+            include: {
+                provider: true,
+                product: true,
                 payments: {
-                    date: 'ASC'
+                    orderBy: {
+                        date: 'asc'
+                    }
                 }
             },
+            orderBy: {
+                disbursedDate: 'desc'
+            }
         });
 
-        // Manually map to plain objects to avoid passing class instances to client components.
         return loans.map(loan => ({
-            id: String(loan.id),
+            id: loan.id,
+            providerId: loan.providerId,
             providerName: loan.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
@@ -73,13 +78,12 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
             penaltyAmount: loan.penaltyAmount,
             product: {
               ...loan.product,
-              id: String(loan.product.id),
-              serviceFee: JSON.parse(loan.product.serviceFee),
-              dailyFee: JSON.parse(loan.product.dailyFee),
-              penaltyRules: JSON.parse(loan.product.penaltyRules),
+              serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
+              dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
+              penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
             },
             payments: loan.payments.map(p => ({
-                id: String(p.id),
+                id: p.id,
                 amount: p.amount,
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,

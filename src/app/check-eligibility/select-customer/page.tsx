@@ -1,55 +1,20 @@
 
 import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-client';
-import { getConnectedDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import type { Customer } from '@/entities/Customer';
+import prisma from '@/lib/prisma';
+import type { LoanProvider } from '@/lib/types';
+
 
 async function getCustomers() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const customerRepo = dataSource.getRepository('Customer');
-        const customers = await customerRepo.find();
-        
-        // Map to plain objects
-        return customers.map(c => ({
-            id: String(c.id),
-            age: c.age,
-            monthlyIncome: c.monthlyIncome,
-            gender: c.gender,
-            educationLevel: c.educationLevel,
-            loanHistory: JSON.parse(c.loanHistory),
-            transactionHistory: JSON.parse(c.transactionHistory),
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
+    const customers = await prisma.customer.findMany();
+    return customers.map(c => ({
+        ...c,
+        loanHistory: JSON.parse(c.loanHistory as string),
+    }))
 }
 
 async function getProviders() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
-        const providers = await providerRepo.find({
-            relations: ['products'],
-            order: {
-                displayOrder: 'ASC'
-            }
-        });
-        
-        // Map the icon string to a name that can be looked up on the client
-        return providers.map(p => ({
-            ...p,
-            id: String(p.id),
-            products: p.products.map(prod => ({
-                ...prod,
-                id: String(prod.id),
-            }))
-        }));
-    } catch(e) {
-        console.error(e);
-        return [];
-    }
+    const providers = await prisma.loanProvider.findMany();
+    return providers as LoanProvider[];
 }
 
 export default async function SelectCustomerPage() {

@@ -1,113 +1,124 @@
 
-import { NextResponse } from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { Role } from '@/entities/Role';
-import { User } from '@/entities/User';
-import { In, DataSource } from 'typeorm';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/session';
+import { z } from 'zod';
 
-// GET all roles
+const permissionsSchema = z.record(z.string(), z.object({
+  create: z.boolean(),
+  read: z.boolean(),
+  update: z.boolean(),
+  delete: z.boolean(),
+}));
+
+const roleSchema = z.object({
+  name: z.string().min(1, 'Role name is required'),
+  permissions: permissionsSchema,
+});
+
+
 export async function GET() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
-        const roles = await roleRepo.find();
-        return NextResponse.json(roles.map(r => ({...r, id: String(r.id), permissions: JSON.parse(r.permissions) })));
-    } catch (error) {
-        console.error('Error fetching roles:', error);
-        return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
-    }
+  try {
+    const roles = await prisma.role.findMany({
+        orderBy: {
+            name: 'asc'
+        }
+    });
+    
+    // Prisma stores permissions as a JSON string, so we need to parse it.
+    const formattedRoles = roles.map(role => ({
+        ...role,
+        permissions: JSON.parse(role.permissions),
+    }));
+
+    return NextResponse.json(formattedRoles);
+  } catch (error) {
+    console.error('Error fetching roles:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }
 
-// POST a new role
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
-        const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
-        const { name, permissions } = await req.json();
-
-        if (!name || !permissions) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        const session = await getSession();
+        if (!session?.userId) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
+
+        const body = await req.json();
+        const { name, permissions } = roleSchema.parse(body);
         
-        const existingRole = await roleRepo.findOne({
-            where: { name },
+        const newRole = await prisma.role.create({
+            data: {
+                name,
+                permissions: JSON.stringify(permissions),
+            },
         });
 
-        if (existingRole) {
-            return NextResponse.json({ error: 'Role with this name already exists.' }, { status: 409 });
-        }
-
-        const newRole = roleRepo.create({
-            name,
-            permissions: JSON.stringify(permissions),
-        });
-        await roleRepo.save(newRole);
-
-        return NextResponse.json(newRole, { status: 201 });
+        return NextResponse.json({ ...newRole, permissions }, { status: 201 });
     } catch (error) {
         console.error('Error creating role:', error);
-        return NextResponse.json({ error: 'Failed to create role' }, { status: 500 });
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: error.errors }, { status: 400 });
+        }
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
-// PUT (update) a role
-export async function PUT(req: Request) {
-     try {
-        const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
-        const { id, ...updateData } = await req.json();
-
-        if (!id) {
-            return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
-        }
-        
-        if (updateData.permissions) {
-            updateData.permissions = JSON.stringify(updateData.permissions);
-        }
-
-        await roleRepo.update(id, updateData);
-        const updatedRole = await roleRepo.findOneBy({id: Number(id)});
-
-
-        return NextResponse.json(updatedRole);
-    } catch (error) {
-        console.error('Error updating role:', error);
-        return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
-    }
-}
-
-// DELETE a role
-export async function DELETE(req: Request) {
+export async function PUT(req: NextRequest) {
     try {
-        const dataSource = await getConnectedDataSource();
-        const roleRepo = dataSource.getRepository(Role);
-        const userRepo = dataSource.getRepository(User);
-        const { id } = await req.json();
-
-        if (!id) {
-            return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
-        }
-        
-        const roleToDelete = await roleRepo.findOneBy({id: Number(id)});
-        if (!roleToDelete) {
-             return NextResponse.json({ error: 'Role not found' }, { status: 404 });
+        const session = await getSession();
+        if (!session?.userId) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
 
-        // Check if any users are assigned to this role
-        const usersInRole = await userRepo.count({
-            where: { roleName: roleToDelete.name },
+        const body = await req.json();
+        const { id, name, permissions } = roleSchema.extend({ id: z.string() }).parse(body);
+
+        const updatedRole = await prisma.role.update({
+            where: { id },
+            data: {
+                name,
+                permissions: JSON.stringify(permissions),
+            },
         });
 
-        if (usersInRole > 0) {
+        return NextResponse.json({ ...updatedRole, permissions });
+    } catch (error) {
+        console.error('Error updating role:', error);
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: error.errors }, { status: 400 });
+        }
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const session = await getSession();
+        if (!session?.userId) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+        }
+
+        const { id } = await req.json();
+        if (!id) {
+            return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
+        }
+        
+        // Check if any user is assigned to this role
+        const usersWithRole = await prisma.user.count({ where: { roleId: id } });
+        if (usersWithRole > 0) {
             return NextResponse.json({ error: 'Cannot delete role. It is currently assigned to one or more users.' }, { status: 400 });
         }
 
+        await prisma.role.delete({
+            where: { id },
+        });
 
-        await roleRepo.delete(id);
+        return NextResponse.json({ message: 'Role deleted successfully' });
 
-        return NextResponse.json({ message: 'Role deleted successfully' }, { status: 200 });
     } catch (error) {
         console.error('Error deleting role:', error);
-        return NextResponse.json({ error: 'Failed to delete role' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

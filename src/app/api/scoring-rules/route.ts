@@ -1,96 +1,54 @@
 
-import { NextResponse } from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { ScoringParameter } from '@/entities/ScoringParameter';
-import { ScoringParameterRule } from '@/entities/ScoringParameterRule';
-import type { ScoringParameter as ScoringParameterType, Rule } from '@/lib/types';
-import { getUserFromSession } from '@/lib/user';
-import { In, DataSource } from 'typeorm';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/session';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     try {
-        const currentUser = await getUserFromSession();
-        if (!currentUser || (currentUser.role !== 'Super Admin' && currentUser.role !== 'Loan Manager')) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const dataSource = await getConnectedDataSource();
-        const manager = dataSource.manager;
-
-        const { providerId, parameters } = await req.json() as { providerId: string; parameters: ScoringParameterType[] };
-
+        const { providerId, parameters } = await req.json();
         if (!providerId || !parameters) {
-            return NextResponse.json({ error: 'Missing providerId or parameters' }, { status: 400 });
+            return NextResponse.json({ error: 'providerId and parameters are required' }, { status: 400 });
         }
-        
-        await manager.transaction(async (transactionalEntityManager) => {
-            const paramRepo = transactionalEntityManager.getRepository(ScoringParameter);
-            const ruleRepo = transactionalEntityManager.getRepository(ScoringParameterRule);
 
-            const existingParams = await paramRepo.find({ where: { providerId: Number(providerId) } });
-            const incomingParamIds = new Set(parameters.map(p => p.id).filter(id => !String(id).startsWith('param-')));
-            const paramsToDelete = existingParams.filter(p => !incomingParamIds.has(String(p.id)));
+        // Use a transaction to delete old rules and create new ones
+        const transaction = await prisma.$transaction(async (tx) => {
+            // Delete all existing rules for this provider
+            await tx.scoringParameter.deleteMany({ where: { providerId } });
 
-            if (paramsToDelete.length > 0) {
-                await paramRepo.remove(paramsToDelete);
-            }
-
+            // Create new parameters and their rules
+            const createdParameters = [];
             for (const param of parameters) {
-                const isNewParam = String(param.id).startsWith('param-');
-                
-                let savedParam: ScoringParameter;
-                if (isNewParam) {
-                    savedParam = await paramRepo.save({
-                        providerId: Number(providerId),
+                const newParam = await tx.scoringParameter.create({
+                    data: {
+                        providerId: providerId,
                         name: param.name,
-                        weight: param.weight
-                    });
-                } else {
-                    await paramRepo.update(param.id, { name: param.name, weight: param.weight });
-                    savedParam = (await paramRepo.findOneBy({ id: Number(param.id) }))!;
-                }
-
-                const existingRules = await ruleRepo.find({ where: { parameterId: savedParam.id } });
-                const incomingRuleIds = new Set(param.rules.map(r => r.id).filter(id => !String(id).startsWith('rule-')));
-                const rulesToDelete = existingRules.filter(r => !incomingRuleIds.has(String(r.id)));
-
-                if (rulesToDelete.length > 0) {
-                    await ruleRepo.remove(rulesToDelete);
-                }
-
-                for (const rule of param.rules) {
-                    const isNewRule = String(rule.id).startsWith('rule-');
-                    const valueToSave = rule.condition === 'between' ? rule.value : String(parseFloat(rule.value));
-
-                     if (isNewRule) {
-                        await ruleRepo.save({
-                            parameterId: savedParam.id,
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: valueToSave,
-                            score: rule.score,
-                        });
-                    } else {
-                         await ruleRepo.update(rule.id, {
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: valueToSave,
-                            score: rule.score,
-                        });
-                    }
-                }
+                        weight: param.weight,
+                        rules: {
+                            create: param.rules.map((rule: any) => ({
+                                field: rule.field,
+                                condition: rule.condition,
+                                value: String(rule.value),
+                                score: rule.score,
+                            })),
+                        },
+                    },
+                    include: {
+                        rules: true,
+                    },
+                });
+                createdParameters.push(newParam);
             }
+            return createdParameters;
         });
 
-        const finalParams = await manager.getRepository(ScoringParameter).find({
-            where: { providerId: Number(providerId) },
-            relations: ['rules'],
-        });
-
-        return NextResponse.json(finalParams, { status: 200 });
-
+        return NextResponse.json(transaction, { status: 201 });
     } catch (error) {
-        console.error('Error saving scoring parameters:', error);
+        console.error('Error saving scoring rules:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

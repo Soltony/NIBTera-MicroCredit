@@ -18,35 +18,26 @@ interface RepaymentDialogProps {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: (amount: number) => void;
-    loan: LoanDetails & { product?: LoanProduct };
+    loan: LoanDetails;
+    totalBalanceDue: number;
     providerColor?: string;
 }
 
-export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColor = '#fdb913' }: RepaymentDialogProps) {
+export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913' }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
 
-    const totalAmountToRepay = useMemo(() => {
-        if (!loan.product) return 0;
-        return calculateTotalRepayable(loan, loan.product, new Date());
-    }, [loan]);
-
-    const balanceDue = useMemo(() => {
-        return totalAmountToRepay - (loan.repaidAmount || 0);
-    },[totalAmountToRepay, loan.repaidAmount]);
-
-
     useEffect(() => {
         if (isOpen) {
-            setAmount(balanceDue.toFixed(2));
+            setAmount(totalBalanceDue.toFixed(2));
             setError('');
         }
-    }, [isOpen, balanceDue]);
+    }, [isOpen, totalBalanceDue]);
 
     const remainingAmount = useMemo(() => {
         const enteredAmount = parseFloat(amount) || 0;
-        return balanceDue - enteredAmount;
-    }, [amount, balanceDue]);
+        return totalBalanceDue - enteredAmount;
+    }, [amount, totalBalanceDue]);
 
     const validateAmount = (value: string) => {
         const numericAmount = parseFloat(value);
@@ -54,8 +45,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
             setError('Please enter a valid amount.');
             return false;
         }
-        if (numericAmount > balanceDue + 0.01) { // Add tolerance
-            setError(`Amount cannot be more than the balance due of ${formatCurrency(balanceDue)}.`);
+        if (numericAmount > totalBalanceDue + 0.01) { // Add tolerance
+            setError(`Amount cannot be more than the balance due of ${formatCurrency(totalBalanceDue)}.`);
             return false;
         }
         setError('');
@@ -119,7 +110,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, providerColo
                         <p className="text-sm text-destructive text-center">{error}</p>
                     ) : (
                         <div className="text-center text-sm text-muted-foreground">
-                            <p>Total amount to be repaid: {formatCurrency(balanceDue)}</p>
+                            <p>Total amount to be repaid: {formatCurrency(totalBalanceDue)}</p>
                             <p>Remaining amount: {formatCurrency(remainingAmount)}</p>
                         </div>
                     )}

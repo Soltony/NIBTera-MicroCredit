@@ -9,6 +9,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -27,11 +28,12 @@ interface ProductCardProps {
     providerColor?: string;
     activeLoan?: LoanDetails;
     onApply: () => void;
-    onRepay: (loan: LoanDetails) => void;
+    onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
+    canApply: boolean;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent }: ProductCardProps) {
+export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, canApply }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
@@ -49,7 +51,18 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApply = (product.availableLimit ?? 0) > 0 && !activeLoan;
+    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && !activeLoan && canApply;
+
+    const applyButton = (
+        <Button 
+            onClick={onApply} 
+            style={{ backgroundColor: providerColor }} 
+            className="text-white"
+            disabled={!canApplyForThisProduct}
+        >
+            Apply
+        </Button>
+    );
 
     return (
         <Card className="hover:shadow-lg transition-all duration-300">
@@ -68,14 +81,20 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                            <Button 
-                                onClick={onApply} 
-                                style={{ backgroundColor: providerColor }} 
-                                className="text-white"
-                                disabled={!canApply}
-                            >
-                                Apply
-                            </Button>
+                             !canApplyForThisProduct && !activeLoan ? (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span tabIndex={0}>{applyButton}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            { !canApply ? <p>This provider does not allow multiple active loans.</p> : <p>Your available credit is too low for this product.</p>}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            ) : (
+                                applyButton
+                            )
                         )}
                     </div>
                 </div>
@@ -91,7 +110,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                     {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}
                                 </p>
                             </div>
-                            <Button onClick={() => onRepay(activeLoan)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
+                            <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
                             <div>

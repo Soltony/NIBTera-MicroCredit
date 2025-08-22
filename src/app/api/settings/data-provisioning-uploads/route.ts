@@ -1,55 +1,87 @@
 
-import { NextResponse } from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { DataProvisioningUpload } from '@/entities/DataProvisioningUpload';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
-import type { NextRequest } from 'next/server';
+import * as XLSX from 'xlsx';
+
+// This is a simplified version and does not handle file storage.
+// It parses the file in memory, validates it, and stores the data.
+// For large files, a streaming approach and storing the file in a bucket would be better.
 
 export async function POST(req: NextRequest) {
-    try {
-        const currentUser = await getUserFromSession();
-        if (!currentUser) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const session = await getSession();
+    const user = await getUserFromSession();
+    if (!session?.userId || !user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
 
+    try {
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
-        const configId = formData.get('configId') as string;
-        const rowCount = formData.get('rowCount') as string;
+        const configId = formData.get('configId') as string | null;
 
-        if (!file || !configId || !rowCount) {
-            return NextResponse.json({ error: 'Missing file, configId, or rowCount.' }, { status: 400 });
+        if (!file || !configId) {
+            return NextResponse.json({ error: 'File and configId are required' }, { status: 400 });
         }
 
-        const dataSource = await getConnectedDataSource();
-        const uploadRepo = dataSource.getRepository(DataProvisioningUpload);
-
-        // Here you would typically save the file to a storage service like S3/GCS.
-        // For this app, we will just record the upload event in the database.
-
-        const newUpload = uploadRepo.create({
-            configId: Number(configId),
-            fileName: file.name,
-            rowCount: Number(rowCount),
-            uploadedByUserId: Number(currentUser.id),
+        const config = await prisma.dataProvisioningConfig.findUnique({
+            where: { id: configId }
         });
 
-        const savedUpload = await uploadRepo.save(newUpload);
+        if (!config) {
+            return NextResponse.json({ error: 'Data Provisioning Config not found' }, { status: 404 });
+        }
 
-        // Fetch the user to include their name in the response
-        const userRepo = dataSource.getRepository('User');
-        const user = await userRepo.findOneBy({ id: Number(currentUser.id) });
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
 
-        return NextResponse.json({
-            ...savedUpload,
-            id: String(savedUpload.id),
-            configId: String(savedUpload.configId),
-            uploadedAt: savedUpload.uploadedAt.toISOString(),
-            uploadedBy: user?.fullName || 'Unknown User',
-        }, { status: 201 });
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        const headers = jsonData[0];
+        const rows = jsonData.slice(1);
+        const configColumns = JSON.parse(config.columns as string);
+        const idColumnName = configColumns.find((c: any) => c.isIdentifier)?.name;
+
+        if (!idColumnName) {
+            return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
+        }
+
+        const dataToInsert = rows.map(row => {
+            const rowData: { [key: string]: any } = {};
+            headers.forEach((header, index) => {
+                rowData[String(header)] = row[index];
+            });
+
+            return {
+                customerId: String(rowData[idColumnName]),
+                configId: configId,
+                data: JSON.stringify(rowData)
+            };
+        });
+        
+        // Batch create provisioned data
+        await prisma.provisionedData.createMany({
+            data: dataToInsert,
+            skipDuplicates: true // This assumes customerId + configId is a unique pair
+        });
+
+        const newUpload = await prisma.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: file.name,
+                rowCount: rows.length,
+                uploadedBy: user.fullName || user.email,
+            }
+        });
+
+        return NextResponse.json(newUpload, { status: 201 });
 
     } catch (error) {
-        console.error('Error uploading file record:', error);
-        return NextResponse.json({ error: 'Failed to record file upload' }, { status: 500 });
+        console.error('Error uploading provisioning data:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

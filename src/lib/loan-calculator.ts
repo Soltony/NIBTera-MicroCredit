@@ -12,46 +12,49 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
 
     let totalDebt = principal;
 
-    // 1. Service Fee
+    // 1. Service Fee (One-time charge)
     const serviceFeeRule = loanProduct.serviceFeeEnabled ? loanProduct.serviceFee : undefined;
     if (serviceFeeRule && serviceFeeRule.value) {
+        const feeValue = typeof serviceFeeRule.value === 'string' ? parseFloat(serviceFeeRule.value) : serviceFeeRule.value;
         if (serviceFeeRule.type === 'fixed') {
-            totalDebt += Number(serviceFeeRule.value);
+            totalDebt += feeValue;
         } else { // percentage
-            totalDebt += principal * (Number(serviceFeeRule.value) / 100);
+            totalDebt += principal * (feeValue / 100);
         }
     }
 
-    // 2. Daily Fee (Interest)
+    // 2. Daily Fee (Interest) - Calculated only up to the due date.
     const dailyFeeRule = loanProduct.dailyFeeEnabled ? loanProduct.dailyFee : undefined;
     if (dailyFeeRule && dailyFeeRule.value) {
-        const daysSinceStart = differenceInDays(finalDate, loanStartDate);
-        if (daysSinceStart > 0) {
+        const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
+        const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
+        const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
+
+        if (daysForInterest > 0) {
             if (dailyFeeRule.type === 'fixed') {
-                totalDebt += Number(dailyFeeRule.value) * daysSinceStart;
+                totalDebt += feeValue * daysForInterest;
             } else if (dailyFeeRule.type === 'percentage') {
+                const baseForDailyFee = dailyFeeRule.calculationBase === 'compound' ? totalDebt : principal;
                 if (dailyFeeRule.calculationBase === 'compound') {
-                    // Compounding interest: calculate day by day
-                    let compoundedBalance = totalDebt;
-                    for (let i = 0; i < daysSinceStart; i++) {
-                        compoundedBalance += compoundedBalance * (Number(dailyFeeRule.value) / 100);
+                    for (let i = 0; i < daysForInterest; i++) {
+                        totalDebt += totalDebt * (feeValue / 100);
                     }
-                    totalDebt = compoundedBalance;
                 } else { // Simple interest on principal
-                    totalDebt += principal * (Number(dailyFeeRule.value) / 100) * daysSinceStart;
+                    totalDebt += principal * (feeValue / 100) * daysForInterest;
                 }
             }
         }
     }
 
-    // 3. Penalty
+    // 3. Penalty - Calculated only if overdue.
     const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
-    if (penaltyRules && finalDate > dueDate) {
+    if (penaltyRules.length > 0 && finalDate > dueDate) {
         const daysOverdue = differenceInDays(finalDate, dueDate);
         
         penaltyRules.forEach(rule => {
              const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
-             const toDay = rule.toDay === '' || rule.toDay === null || rule.toDay === Infinity ? Infinity : Number(rule.toDay);
+             const toDayRaw = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
+             const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;
              const value = rule.value === '' ? 0 : Number(rule.value);
 
              if (daysOverdue >= fromDay) {
@@ -59,10 +62,10 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                  
                  if (applicableDaysInTier > 0) {
                     if (rule.type === 'fixed') {
-                        // Fixed amount is a one-time charge for entering the tier
+                        // Fixed penalty is a one-time charge for entering the tier
                         totalDebt += value;
                     } else { // percentageOfPrincipal
-                        // Percentage is applied daily for the duration in the tier
+                        // Percentage penalty is per day within the tier
                         totalDebt += principal * (value / 100) * applicableDaysInTier;
                     }
                  }

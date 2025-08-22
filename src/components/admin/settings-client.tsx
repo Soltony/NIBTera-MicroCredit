@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -22,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save, FileClock } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save, FileClock, ShieldQuestion } from 'lucide-react';
 import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier, DailyFeeRule, DataProvisioningUpload } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -54,6 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -168,6 +168,10 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
 
     const { toast } = useToast();
     
+    useEffect(() => {
+        setProviders(initialProviders);
+    }, [initialProviders]);
+    
     const themeColor = useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
@@ -180,20 +184,21 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsProviderDialogOpen(true);
     };
 
-    const handleSaveProvider = async (providerData: Omit<LoanProvider, 'id' | 'products'> & { id?: string }) => {
+    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => {
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
-
+        const body = JSON.stringify(providerData);
+        
         try {
             const response = await fetch(endpoint, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(providerData)
+                body,
             });
             if (!response.ok) {
                  const errorData = await response.json();
-                 throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'add'} provider`);
+                 throw new Error(errorData.error?.message || `Failed to ${isEditing ? 'update' : 'add'} provider`);
             }
             
             const savedProviderResponse = await response.json();
@@ -206,7 +211,6 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                         draft[index] = {
                             ...originalProvider,
                             ...savedProviderResponse,
-                            products: originalProvider.products, // Preserve existing products
                         };
                     }
                 } else {
@@ -214,7 +218,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                 }
             }));
 
-            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${savedProviderResponse.name} has been successfully saved.` });
+            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${isEditing ? providerData.name : savedProviderResponse.name} has been successfully saved.` });
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
@@ -225,7 +229,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
         setIsAddProductDialogOpen(true);
     };
 
-    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId'> & { icon?: string }) => {
+    const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' > & { icon?: string }) => {
         if (!selectedProviderId) return;
 
         try {
@@ -321,97 +325,99 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     }, [providers, currentUser]);
 
 
-    return <>
-        <div className="flex items-center justify-between space-y-2 mb-4">
-            <div/>
-             {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+    return (
+    <>
+      <div className="flex items-center justify-between space-y-2 mb-4">
+        <div></div>
+        {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+          <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
+            <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+          </Button>
+        )}
+      </div>
+      <Accordion type="multiple" className="w-full space-y-4">
+        {visibleProviders.map((provider) => (
+          <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+            <div className="flex items-center w-full p-4">
+              <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
+                <div className="flex items-center gap-4">
+                  <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                  <div>
+                    <div className="text-lg font-semibold">{provider.name}</div>
+                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <div className="flex items-center gap-2 ml-auto pl-4">
+                {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                  <>
+                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id }); }}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+                <AccordionTrigger className="p-2">
+                  <span className="sr-only">Toggle</span>
+                </AccordionTrigger>
+              </div>
+            </div>
+            <AccordionContent className="p-4 border-t">
+              <div className="space-y-6">
+                {provider.products.map(product => (
+                  <ProductSettingsForm 
+                    key={product.id}
+                    providerId={provider.id}
+                    product={{...product, icon: product.icon || 'PersonStanding'}} 
+                    providerColor={provider.colorHex} 
+                    onSave={handleSaveProduct}
+                    onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
+                  />
+                ))}
+                <Button 
+                  variant="outline" 
+                  className="w-full hover:text-white"
+                  onClick={() => handleOpenAddProductDialog(provider.id)}
+                  onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
+                  onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
                 </Button>
-            )}
-        </div>
-        <Accordion type="multiple" className="w-full space-y-4">
-            {visibleProviders.map((provider) => (
-                <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                     <div className="flex items-center w-full p-4">
-                        <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
-                           <div className="flex items-center gap-4">
-                                <IconDisplay iconName={provider.icon} className="h-6 w-6" />
-                                <div>
-                                    <div className="text-lg font-semibold">{provider.name}</div>
-                                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
-                                </div>
-                            </div>
-                        </AccordionTrigger>
-                         <div className="flex items-center gap-2 ml-auto pl-4">
-                            {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-                                <>
-                                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id })}}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            )}
-                             <AccordionTrigger className="p-2">
-                               <span className="sr-only">Toggle</span>
-                            </AccordionTrigger>
-                        </div>
-                    </div>
-                    <AccordionContent className="p-4 border-t">
-                        <div className="space-y-6">
-                            {provider.products.map(product => (
-                                 <ProductSettingsForm 
-                                    key={product.id}
-                                    providerId={provider.id}
-                                    product={{...product, icon: product.icon || 'PersonStanding'}} 
-                                    providerColor={provider.colorHex} 
-                                    onSave={handleSaveProduct}
-                                    onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                                 />
-                            ))}
-                            <Button 
-                                variant="outline" 
-                                className="w-full hover:text-white"
-                                onClick={() => handleOpenAddProductDialog(provider.id)}
-                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
-                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
-                            >
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
-                            </Button>
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-            ))}
-        </Accordion>
-        <AddProviderDialog
-            isOpen={isProviderDialogOpen}
-            onClose={() => setIsProviderDialogOpen(false)}
-            onSave={handleSaveProvider}
-            provider={editingProvider}
-            primaryColor={themeColor}
-        />
-        <AddProductDialog
-            isOpen={isAddProductDialogOpen}
-            onClose={() => setIsAddProductDialogOpen(false)}
-            onAddProduct={handleAddProduct}
-        />
-         <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the selected item. If it has associated data (like products or loans), this action might be blocked.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    </>;
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+      <AddProviderDialog
+        isOpen={isProviderDialogOpen}
+        onClose={() => setIsProviderDialogOpen(false)}
+        onSave={handleSaveProvider}
+        provider={editingProvider}
+        primaryColor={themeColor}
+      />
+      <AddProductDialog
+        isOpen={isAddProductDialogOpen}
+        onClose={() => setIsAddProductDialogOpen(false)}
+        onAddProduct={handleAddProduct}
+      />
+      <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the selected item. If it has associated data (like products or loans), this action might be blocked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+    );
 }
 
 const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
@@ -541,15 +547,15 @@ function LoanTiersForm({ product, onUpdate, color }: {
 
     const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
         const newTiers = produce(tiers, draft => {
-            (draft[index] as any)[field] = value === '' ? '' : value;
+            const newTier = { ...draft[index], [field]: value === '' ? '' : value };
+            draft[index] = newTier;
+
+            if (field === 'toScore' && index < draft.length - 1) {
+                const nextTier = { ...draft[index + 1] };
+                nextTier.fromScore = (Number(value) || 0) + 1;
+                draft[index + 1] = nextTier;
+            }
         });
-
-        // Auto-adjust the next tier's "fromScore"
-        if (field === 'toScore' && index < newTiers.length - 1) {
-             const fromScoreValue = (Number(newTiers[index].toScore) || 0) + 1;
-             (newTiers[index + 1] as any).fromScore = fromScoreValue;
-        }
-
         onUpdate({ loanAmountTiers: newTiers });
     };
 
@@ -906,7 +912,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
     const handleOpenDialog = (config: DataProvisioningConfig | null = null) => {
         setEditingConfig(config);
         setIsConfigDialogOpen(true);
-    }
+    };
     
     const handleDelete = async (configId: string) => {
         try {
@@ -925,13 +931,13 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
             }));
             toast({ title: "Success", description: "Data type deleted successfully." });
         } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: 'destructive' });
+             toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
             setDeletingConfigId(null);
         }
     };
     
-    const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId'>) => {
+    const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId' | 'id'> & { id?: string }) => {
         const isEditing = !!config.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/data-provisioning';
@@ -982,31 +988,14 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
         const file = event.target.files?.[0];
         if (!file) return;
 
+        setIsUploading(true);
         const reader = new FileReader();
         reader.onload = async (e) => {
-            setIsUploading(true);
             try {
-                const data = e.target?.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                if (jsonData.length < 2) throw new Error("Excel file must contain a header row and at least one data row.");
-
-                const headers = jsonData[0] as string[];
-                const expectedHeaders = config.columns.map(c => c.name);
-                if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
-                    throw new Error(`Header mismatch. Expected headers: ${expectedHeaders.join(', ')}.`);
-                }
-                
-                const dataRows = jsonData.slice(1);
-
-                // Send to backend
+                // Here we just pass the file to the backend, which will handle parsing and validation
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('configId', config.id);
-                formData.append('rowCount', String(dataRows.length));
 
                 const response = await fetch('/api/settings/data-provisioning-uploads', {
                     method: 'POST',
@@ -1046,9 +1035,11 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
             }
         };
         reader.onerror = () => {
+             setIsUploading(false);
             toast({ title: 'Error Reading File', description: 'Could not read the selected file.', variant: 'destructive' });
         };
-        reader.readAsBinaryString(file);
+        // This just reads the file for sending, not parsing on client
+        reader.readAsArrayBuffer(file);
     };
 
     return (
@@ -1090,7 +1081,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                             <CardContent>
                                <h4 className="font-medium mb-2">Columns</h4>
                                <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                                    {config.columns.map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span></li>)}
+                                    {config.columns.map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
                                </ul>
                                <Separator />
                                <div className="mt-4">
@@ -1180,7 +1171,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
 function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (config: Omit<DataProvisioningConfig, 'providerId'>) => void;
+    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id'> & { id?: string }) => void;
     config: DataProvisioningConfig | null;
 }) {
     const [name, setName] = useState('');
@@ -1192,18 +1183,26 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             setColumns(config.columns);
         } else {
             setName('');
-            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string' }]);
+            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: true, dbField: 'ID' }]);
         }
     }, [config, isOpen]);
 
-    const handleColumnChange = (index: number, field: keyof DataColumn, value: string) => {
+    const handleColumnChange = (index: number, field: keyof DataColumn, value: string | boolean) => {
         setColumns(produce(draft => {
-            (draft[index] as any)[field] = value;
+            const currentColumn = draft[index];
+            if (typeof value === 'boolean' && field === 'isIdentifier') {
+                // Ensure only one identifier is selected at a time
+                draft.forEach((col, i) => {
+                    col.isIdentifier = i === index ? value : false;
+                });
+            } else {
+                (currentColumn as any)[field] = value;
+            }
         }));
     };
 
     const addColumn = () => {
-        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string' }]);
+        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'ID' }]);
     };
 
     const removeColumn = (index: number) => {
@@ -1212,13 +1211,25 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ id: config?.id || '', name, columns });
+        // Validation: ensure at least one identifier is set
+        if (!columns.some(c => c.isIdentifier)) {
+            alert('Please mark one column as the customer identifier.');
+            return;
+        }
+        // Ensure the identifier uses the 'ID' dbField
+        const identifierColumn = columns.find(c => c.isIdentifier);
+        if (identifierColumn && identifierColumn.dbField !== 'ID') {
+            alert('The identifier column must use the "Customer ID" database field.');
+            return;
+        }
+
+        onSave({ id: config?.id, name, columns });
         onClose();
     };
 
     return (
          <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{config ? 'Edit' : 'Add'} Data Type</DialogTitle>
                 </DialogHeader>
@@ -1249,6 +1260,24 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                         </SelectContent>
                                     </Select>
                                     <Button type="button" variant="ghost" size="icon" onClick={() => removeColumn(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`is-identifier-${col.id}`}
+                                            checked={col.isIdentifier}
+                                            onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                        />
+                                        <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground">Identifier</Label>
+                                    </div>
+                                    {col.isIdentifier && (
+                                        <Select value={col.dbField} onValueChange={(value: 'ID') => handleColumnChange(index, 'dbField', value)}>
+                                            <SelectTrigger className="w-48">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="ID">Customer ID</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
                                 </div>
                             ))}
                         </div>

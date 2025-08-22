@@ -1,40 +1,47 @@
 
-import { NextResponse } from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { LoanDetails } from '@/entities/LoanDetails';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { z } from 'zod';
 import { loanSchema } from '@/lib/schemas';
-import type { DataSource } from 'typeorm';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
-        const dataSource = await getConnectedDataSource();
-        const loanRepo = dataSource.getRepository(LoanDetails);
-
         const body = await req.json();
-        const validation = loanSchema.safeParse(body);
+        const data = loanSchema.parse(body);
 
-        if (!validation.success) {
-            console.error('Loan validation error:', validation.error.format());
-            return NextResponse.json({ error: 'Invalid loan data provided.' }, { status: 400 });
-        }
-        
-        const { providerId, productId, ...loanData } = validation.data;
-
-        const newLoan = loanRepo.create({
-            ...loanData,
-            providerId: Number(providerId),
-            productId: Number(productId),
-            disbursedDate: new Date(loanData.disbursedDate),
-            dueDate: new Date(loanData.dueDate),
-            repaidAmount: 0, // Initialize repaidAmount
+        const newLoan = await prisma.loan.create({
+            data: {
+                customerId: "1", // Hardcoded customer for now
+                providerId: data.providerId,
+                productId: data.productId,
+                loanAmount: data.loanAmount,
+                serviceFee: data.serviceFee,
+                penaltyAmount: data.penaltyAmount,
+                disbursedDate: data.disbursedDate,
+                dueDate: data.dueDate,
+                repaymentStatus: data.repaymentStatus,
+                repaidAmount: 0,
+            }
         });
 
-        const savedLoan = await loanRepo.save(newLoan);
-        
-        return NextResponse.json(savedLoan, { status: 201 });
+        // Also update customer's loan history
+        const customer = await prisma.customer.findUnique({ where: { id: "1" } });
+        if (customer) {
+            const loanHistory = JSON.parse(customer.loanHistory);
+            loanHistory.totalLoans += 1;
+            await prisma.customer.update({
+                where: { id: "1" },
+                data: { loanHistory: JSON.stringify(loanHistory) }
+            });
+        }
+
+        return NextResponse.json(newLoan, { status: 201 });
 
     } catch (error) {
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: error.errors }, { status: 400 });
+        }
         console.error('Error creating loan:', error);
-        return NextResponse.json({ error: 'Failed to create loan' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

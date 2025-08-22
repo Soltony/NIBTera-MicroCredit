@@ -1,49 +1,61 @@
 
-import { NextResponse } from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { LoanProvider } from '@/entities/LoanProvider';
-import { Building2, Landmark, Briefcase, Home, PersonStanding } from 'lucide-react';
-import type { DataSource } from 'typeorm';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
-// A helper to map string names to actual icon component names for the client
-const iconNameMap: { [key: string]: string } = {
-  Building2: 'Building2',
-  Landmark: 'Landmark',
-  Briefcase: 'Briefcase',
-  Home: 'Home',
-  PersonStanding: 'PersonStanding',
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
 };
 
-// GET all providers
 export async function GET() {
-    try {
-        const dataSource = await getConnectedDataSource();
-        const providerRepo = dataSource.getRepository(LoanProvider);
-        const providers = await providerRepo.find({
-            relations: ['products'],
-            order: {
-                displayOrder: 'ASC',
-                products: {
-                    name: 'ASC'
+  try {
+    const providers = await prisma.loanProvider.findMany({
+        include: {
+            products: {
+                orderBy: {
+                    name: 'asc'
                 }
             }
-        });
-        
-        // Map the icon string to a name that can be looked up on the client
-        const providersWithIconNames = providers.map(p => ({
-            ...p,
-            id: String(p.id),
-            icon: iconNameMap[p.icon] || 'Building2',
-            products: p.products.map(prod => ({
-                ...prod,
-                id: String(prod.id),
-                icon: iconNameMap[prod.icon] || 'PersonStanding'
-            }))
-        }));
+        },
+        orderBy: {
+            displayOrder: 'asc'
+        }
+    });
+    
+    const formattedProviders = providers.map(p => ({
+        id: p.id,
+        name: p.name,
+        icon: p.icon,
+        colorHex: p.colorHex,
+        displayOrder: p.displayOrder,
+        accountNumber: p.accountNumber,
+        allowMultipleProviderLoans: p.allowMultipleProviderLoans,
+        allowCrossProviderLoans: p.allowCrossProviderLoans,
+        products: p.products.map(prod => ({
+            id: prod.id,
+            providerId: p.id,
+            name: prod.name,
+            description: prod.description,
+            icon: prod.icon,
+            minLoan: prod.minLoan,
+            maxLoan: prod.maxLoan,
+            serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
+            dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
+            penaltyRules: safeJsonParse(prod.penaltyRules, []),
+            status: prod.status,
+            serviceFeeEnabled: prod.serviceFeeEnabled,
+            dailyFeeEnabled: prod.dailyFeeEnabled,
+            penaltyRulesEnabled: prod.penaltyRulesEnabled,
+        }))
+    }));
 
-        return NextResponse.json(providersWithIconNames);
-    } catch (error) {
-        console.error('Error fetching providers:', error);
-        return NextResponse.json({ error: 'Failed to fetch providers' }, { status: 500 });
-    }
+    return NextResponse.json(formattedProviders);
+  } catch (error) {
+    console.error('Error fetching providers:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }

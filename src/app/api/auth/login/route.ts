@@ -1,52 +1,39 @@
 
-import {NextResponse} from 'next/server';
-import { getConnectedDataSource } from '@/data-source';
-import { User } from '@/entities/User';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import {createSession} from '@/lib/session';
+import { createSession } from '@/lib/session';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const dataSource = await getConnectedDataSource();
-    const userRepo = dataSource.getRepository(User);
-
-    const {phoneNumber, password} = await req.json();
+    const { phoneNumber, password } = await req.json();
 
     if (!phoneNumber || !password) {
-      return NextResponse.json(
-        {error: 'Phone number and password are required.'},
-        {status: 400}
-      );
+      return NextResponse.json({ error: 'Phone number and password are required.' }, { status: 400 });
     }
 
-    const user = await userRepo.findOne({
-      where: {phoneNumber},
+    const user = await prisma.user.findFirst({
+      where: { phoneNumber },
+      include: { role: true },
     });
 
-    if (!user || !user.password) {
-      return NextResponse.json(
-        {error: 'Invalid phone number or password.'},
-        {status: 401}
-      );
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return NextResponse.json(
-        {error: 'Invalid phone number or password.'},
-        {status: 401}
-      );
+      return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
-    await createSession(String(user.id));
+    // Create a session for the user
+    await createSession(user.id);
 
-    return NextResponse.json({message: 'Login successful'}, {status: 200});
+    return NextResponse.json({ message: 'Login successful' }, { status: 200 });
+
   } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      {error: 'Internal Server Error'},
-      {status: 500}
-    );
+    console.error('Login Error:', error);
+    return NextResponse.json({ error: 'An internal server error occurred.' }, { status: 500 });
   }
 }
