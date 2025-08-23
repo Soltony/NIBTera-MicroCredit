@@ -113,7 +113,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
   const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
     if (!customerId) {
-      // Don't do anything if we don't have a customer context.
       return;
     }
     
@@ -128,11 +127,15 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     }
 
     try {
-      // For now, we check against the first product of the provider.
-      // A more advanced implementation might check all products and take the highest limit.
-      const firstProductId = provider.products[0].name;
-      const { maxLoanAmount } = await recalculateScoreAndLoanLimit(customerId, providerId, firstProductId);
-      setCurrentMaxLoanLimit(maxLoanAmount);
+      let maxLimit = 0;
+      // Iterate over all products of the provider to find the highest possible loan amount.
+      for (const product of provider.products) {
+        const { maxLoanAmount } = await recalculateScoreAndLoanLimit(customerId, providerId, product.id);
+        if (maxLoanAmount > maxLimit) {
+          maxLimit = maxLoanAmount;
+        }
+      }
+      setCurrentMaxLoanLimit(maxLimit);
 
     } catch (error) {
       console.error("Error recalculating score:", error);
@@ -146,7 +149,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       setIsRecalculating(false);
     }
     
-    // Only update URL if it's not the initial load based on URL params
     if (!isInitialLoad) {
       const params = new URLSearchParams(searchParams.toString());
       params.set('providerId', providerId);

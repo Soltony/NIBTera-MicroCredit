@@ -5,6 +5,16 @@ import { getSession } from '@/lib/session';
 
 // Note: GET method is in /api/providers/route.ts to be public
 
+const defaultLedgerAccounts = [
+    { name: 'Principal Receivable', type: 'Receivable', category: 'Principal' },
+    { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
+    { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    { name: 'Principal Received', type: 'Received', category: 'Principal' },
+    { name: 'Interest Received', type: 'Received', category: 'Interest' },
+    { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+];
+
+
 export async function POST(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
@@ -13,9 +23,25 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const newProvider = await prisma.loanProvider.create({
-            data: body,
+        
+        // Use a transaction to create the provider and its ledger accounts
+        const newProvider = await prisma.$transaction(async (tx) => {
+            const provider = await tx.loanProvider.create({
+                data: body,
+            });
+
+            const accountsToCreate = defaultLedgerAccounts.map(acc => ({
+                ...acc,
+                providerId: provider.id,
+            }));
+
+            await tx.ledgerAccount.createMany({
+                data: accountsToCreate,
+            });
+
+            return provider;
         });
+
         return NextResponse.json(newProvider, { status: 201 });
     } catch (error) {
         console.error('Error creating provider:', error);
@@ -32,6 +58,11 @@ export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
         const { id, ...dataToUpdate } = body;
+        
+        if (!id) {
+            return NextResponse.json({ error: 'Provider ID is required for update.' }, { status: 400 });
+        }
+
         const updatedProvider = await prisma.loanProvider.update({
             where: { id },
             data: dataToUpdate,
