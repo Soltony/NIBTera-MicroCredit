@@ -76,10 +76,7 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
 
     const applicableTier = await prisma.loanAmountTier.findFirst({
         where: {
-            product: {
-                providerId: providerId,
-                name: productId,
-            },
+            productId: productId,
             fromScore: { lte: finalScore },
             toScore: { gte: finalScore },
         }
@@ -143,13 +140,14 @@ export async function recalculateScoreAndLoanLimit(customerId: string, providerI
         if (!customer || customer.age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
-        const product = await prisma.loanProduct.findUnique({ where: { name_providerId: { name: productId, providerId } } });
+        const product = await prisma.loanProduct.findUnique({ where: { id: productId } });
         if (!product) {
             return { score: 0, maxLoanAmount: 0 };
         }
-        return await calculateScoreForProvider(customerId, providerId, product.name);
+        return await calculateScoreForProvider(customerId, providerId, product.id);
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };
     }
 }
+

@@ -130,7 +130,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     try {
       // For now, we check against the first product of the provider.
       // A more advanced implementation might check all products and take the highest limit.
-      const firstProductId = provider.products[0].name;
+      const firstProductId = provider.products[0].id;
       const { maxLoanAmount } = await recalculateScoreAndLoanLimit(customerId, providerId, firstProductId);
       setCurrentMaxLoanLimit(maxLoanAmount);
 
