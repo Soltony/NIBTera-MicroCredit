@@ -251,6 +251,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             setProviders(produce(draft => {
                 const provider = draft.find(p => p.id === selectedProviderId);
                 if (provider) {
+                    if (!provider.products) provider.products = [];
                     provider.products.push(newProduct);
                 }
             }));
@@ -370,7 +371,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             </div>
             <AccordionContent className="p-4 border-t">
               <div className="space-y-6">
-                {provider.products.map(product => (
+                {(provider.products || []).map(product => (
                   <ProductSettingsForm 
                     key={product.id}
                     providerId={provider.id}
@@ -691,11 +692,153 @@ function LoanTiersForm({ product, onUpdate, color }: {
     );
 }
 
+function ProductConfiguration({ product, providerColor, onProductUpdate }: { 
+    product: LoanProduct; 
+    providerColor?: string;
+    onProductUpdate: (updatedProduct: LoanProduct) => void;
+}) {
+    const { toast } = useToast();
+    const [config, setConfig] = useState(product);
+
+    const handleUpdate = (update: Partial<LoanProduct>) => {
+        setConfig(prev => ({...prev, ...update}));
+    };
+
+    const handleAddPenaltyRule = () => {
+        const newRule: PenaltyRule = {
+            id: `penalty-${Date.now()}`,
+            fromDay: 1,
+            toDay: null,
+            type: 'fixed',
+            value: 0
+        };
+        setConfig(prev => ({...prev, penaltyRules: [...prev.penaltyRules, newRule]}));
+    };
+
+    const handleRemovePenaltyRule = (ruleId: string) => {
+        setConfig(prev => ({...prev, penaltyRules: prev.penaltyRules.filter(r => r.id !== ruleId)}));
+    };
+    
+    const handleUpdatePenaltyRule = (ruleId: string, updatedRule: PenaltyRule) => {
+         setConfig(prev => ({
+            ...prev,
+            penaltyRules: prev.penaltyRules.map(r => r.id === ruleId ? updatedRule : r)
+        }));
+    };
+
+    const handleSave = async () => {
+        try {
+            const response = await fetch('/api/settings/products', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save configuration');
+            }
+            const savedProduct = await response.json();
+            onProductUpdate(savedProduct);
+            toast({ title: 'Configuration Saved', description: `Configuration for ${product.name} has been updated.` });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader><CardTitle>{config.name}</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                 <div className="flex items-center justify-between border-b pb-4">
+                    <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
+                    <Switch
+                        id={`serviceFeeEnabled-${config.id}`}
+                        checked={config.serviceFeeEnabled}
+                        onCheckedChange={(checked) => handleUpdate({ serviceFeeEnabled: checked })}
+                        className="data-[state=checked]:bg-[--provider-color]"
+                        style={{'--provider-color': providerColor} as React.CSSProperties}
+                    />
+                </div>
+               <FeeInput 
+                    label="Fee Details"
+                    fee={config.serviceFee}
+                    onChange={(fee) => handleUpdate({ serviceFee: fee })}
+                    isEnabled={!!config.serviceFeeEnabled}
+                />
+                
+                <div className="flex items-center justify-between border-b pb-4 pt-4">
+                    <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
+                    <Switch
+                        id={`dailyFeeEnabled-${config.id}`}
+                        checked={config.dailyFeeEnabled}
+                        onCheckedChange={(checked) => handleUpdate({ dailyFeeEnabled: checked })}
+                        className="data-[state=checked]:bg-[--provider-color]"
+                        style={{'--provider-color': providerColor} as React.CSSProperties}
+                    />
+                </div>
+                 <DailyFeeInput 
+                    label="Fee Details"
+                    fee={config.dailyFee}
+                    onChange={(fee) => handleUpdate({ dailyFee: fee })}
+                    isEnabled={!!config.dailyFeeEnabled}
+                />
+                
+                 <div className="flex items-center justify-between border-b pb-4 pt-4">
+                    <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
+                    <Switch
+                        id={`penaltyRulesEnabled-${config.id}`}
+                        checked={config.penaltyRulesEnabled}
+                        onCheckedChange={(checked) => handleUpdate({ penaltyRulesEnabled: checked })}
+                        className="data-[state=checked]:bg-[--provider-color]"
+                        style={{'--provider-color': providerColor} as React.CSSProperties}
+                    />
+                </div>
+                <div>
+                    <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                        {config.penaltyRules.map((rule) => (
+                            <PenaltyRuleRow
+                                key={rule.id}
+                                rule={rule}
+                                onChange={(updatedRule) => handleUpdatePenaltyRule(rule.id, updatedRule)}
+                                onRemove={() => handleRemovePenaltyRule(rule.id)}
+                                color={providerColor}
+                                isEnabled={!!config.penaltyRulesEnabled}
+                            />
+                        ))}
+                        <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled}>
+                            <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
+                        </Button>
+                    </div>
+                </div>
+                
+                <div className="pt-4">
+                    <LoanTiersForm
+                        product={config}
+                        onUpdate={(updatedProductData) => handleUpdate(updatedProductData)}
+                        color={providerColor}
+                    />
+                </div>
+
+           </CardContent>
+           <CardFooter>
+                <Button 
+                    onClick={handleSave} 
+                    size="sm"
+                    style={{ backgroundColor: providerColor }}
+                    className="text-white ml-auto"
+                >
+                    Save Configuration for {config.name}
+                </Button>
+           </CardFooter>
+       </Card>
+    );
+}
+
+
 function ConfigurationTab({ initialProviders, onUpdateProviders }: { 
     initialProviders: LoanProvider[],
     onUpdateProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
 }) {
-    const { toast } = useToast();
     const { currentUser } = useAuth();
     
     const visibleProviders = useMemo(() => {
@@ -705,63 +848,16 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
         return initialProviders.filter(p => p.id === currentUser.providerId);
     }, [initialProviders, currentUser]);
 
-    const handleProductChange = (providerId: string, productId: string, updatedProduct: Partial<LoanProduct>) => {
+    const handleProductUpdate = (providerId: string, updatedProduct: LoanProduct) => {
         onUpdateProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
-                const product = provider.products.find(p => p.id === productId);
-                if (product) {
-                    Object.assign(product, updatedProduct);
+                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                if (productIndex !== -1) {
+                    provider.products[productIndex] = updatedProduct;
                 }
             }
         }));
-    };
-    
-    const handleAddPenaltyRule = (providerId: string, productId: string) => {
-        onUpdateProviders(produce(draft => {
-             const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                const product = provider.products.find(p => p.id === productId);
-                if (product) {
-                    product.penaltyRules.push({
-                        id: `penalty-${Date.now()}`,
-                        fromDay: 1,
-                        toDay: null,
-                        type: 'fixed',
-                        value: 0
-                    });
-                }
-            }
-        }));
-    };
-    
-    const handleRemovePenaltyRule = (providerId: string, productId: string, ruleId: string) => {
-        onUpdateProviders(produce(draft => {
-            const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                const product = provider.products.find(p => p.id === productId);
-                if (product) {
-                    product.penaltyRules = product.penaltyRules.filter(r => r.id !== ruleId);
-                }
-            }
-        }));
-    };
-
-    const handleSaveFees = async (providerId: string, product: LoanProduct) => {
-        try {
-            const response = await fetch('/api/settings/products', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...product, providerId: undefined }) // Don't send providerId in body for update
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save fees');
-            }
-            toast({ title: 'Fees Saved', description: `Fees for ${product.name} have been updated.` });
-        } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        }
     };
     
     if (visibleProviders.length === 0) {
@@ -792,97 +888,12 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                     </AccordionTrigger>
                     <AccordionContent className="p-4 border-t space-y-6">
                        {(provider.products || []).map(product => (
-                           <Card key={product.id}>
-                               <CardHeader>
-                                   <CardTitle>{product.name}</CardTitle>
-                               </CardHeader>
-                               <CardContent className="space-y-4">
-                                   <div className="flex items-center justify-between border-b pb-4">
-                                        <Label htmlFor={`serviceFeeEnabled-${product.id}`} className="font-medium">Service Fee</Label>
-                                        <Switch
-                                            id={`serviceFeeEnabled-${product.id}`}
-                                            checked={product.serviceFeeEnabled}
-                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { serviceFeeEnabled: checked })}
-                                            className="data-[state=checked]:bg-[--provider-color]"
-                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
-                                        />
-                                    </div>
-                                   <FeeInput 
-                                        label="Fee Details"
-                                        fee={product.serviceFee}
-                                        onChange={(fee) => handleProductChange(provider.id, product.id, { serviceFee: fee })}
-                                        isEnabled={!!product.serviceFeeEnabled}
-                                    />
-                                    
-                                    <div className="flex items-center justify-between border-b pb-4 pt-4">
-                                        <Label htmlFor={`dailyFeeEnabled-${product.id}`} className="font-medium">Daily Fee</Label>
-                                        <Switch
-                                            id={`dailyFeeEnabled-${product.id}`}
-                                            checked={product.dailyFeeEnabled}
-                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { dailyFeeEnabled: checked })}
-                                            className="data-[state=checked]:bg-[--provider-color]"
-                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
-                                        />
-                                    </div>
-                                     <DailyFeeInput 
-                                        label="Fee Details"
-                                        fee={product.dailyFee}
-                                        onChange={(fee) => handleProductChange(provider.id, product.id, { dailyFee: fee })}
-                                        isEnabled={!!product.dailyFeeEnabled}
-                                    />
-                                    
-                                     <div className="flex items-center justify-between border-b pb-4 pt-4">
-                                        <Label htmlFor={`penaltyRulesEnabled-${product.id}`} className="font-medium">Penalty Rules</Label>
-                                        <Switch
-                                            id={`penaltyRulesEnabled-${product.id}`}
-                                            checked={product.penaltyRulesEnabled}
-                                            onCheckedChange={(checked) => handleProductChange(provider.id, product.id, { penaltyRulesEnabled: checked })}
-                                            className="data-[state=checked]:bg-[--provider-color]"
-                                            style={{'--provider-color': provider.colorHex} as React.CSSProperties}
-                                        />
-                                    </div>
-                                    <div>
-                                        <div className="space-y-2 p-4 border rounded-md bg-muted/50">
-                                            {product.penaltyRules.map((rule, index) => (
-                                                <PenaltyRuleRow
-                                                    key={rule.id}
-                                                    rule={rule}
-                                                    onChange={(updatedRule) => handleProductChange(provider.id, product.id, {
-                                                        penaltyRules: produce(product.penaltyRules, draft => {
-                                                            draft[index] = updatedRule;
-                                                        })
-                                                    })}
-                                                    onRemove={() => handleRemovePenaltyRule(provider.id, product.id, rule.id)}
-                                                    color={provider.colorHex}
-                                                    isEnabled={!!product.penaltyRulesEnabled}
-                                                />
-                                            ))}
-                                            <Button variant="outline" size="sm" onClick={() => handleAddPenaltyRule(provider.id, product.id)} disabled={!product.penaltyRulesEnabled}>
-                                                <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="pt-4">
-                                        <LoanTiersForm
-                                            product={product}
-                                            onUpdate={(updatedProductData) => handleProductChange(provider.id, product.id, updatedProductData)}
-                                            color={provider.colorHex}
-                                        />
-                                    </div>
-
-                               </CardContent>
-                               <CardFooter>
-                                    <Button 
-                                        onClick={() => handleSaveFees(provider.id, product)} 
-                                        size="sm"
-                                        style={{ backgroundColor: provider.colorHex }}
-                                        className="text-white ml-auto"
-                                    >
-                                        Save Configuration for {product.name}
-                                    </Button>
-                               </CardFooter>
-                           </Card>
+                            <ProductConfiguration
+                                key={product.id}
+                                product={product}
+                                providerColor={provider.colorHex}
+                                onProductUpdate={(updatedProduct) => handleProductUpdate(provider.id, updatedProduct)}
+                            />
                        ))}
                     </AccordionContent>
                 </AccordionItem>
@@ -1324,3 +1335,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
