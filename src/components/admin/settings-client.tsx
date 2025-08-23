@@ -214,7 +214,11 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                         };
                     }
                 } else {
-                    draft.push(savedProviderResponse);
+                     draft.push({
+                        ...savedProviderResponse,
+                        products: [],
+                        dataProvisioningConfigs: [],
+                    });
                 }
             }));
 
@@ -344,7 +348,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                   <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                   <div>
                     <div className="text-lg font-semibold">{provider.name}</div>
-                    <p className="text-sm text-muted-foreground">{provider.products.length} products</p>
+                    <p className="text-sm text-muted-foreground">{(provider.products || []).length} products</p>
                   </div>
                 </div>
               </AccordionTrigger>
@@ -782,12 +786,12 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                             <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                             <div>
                                 <div className="text-lg font-semibold">{provider.name}</div>
-                                <p className="text-sm text-muted-foreground">{provider.products?.length || 0} products to configure</p>
+                                <p className="text-sm text-muted-foreground">{(provider.products || []).length} products to configure</p>
                             </div>
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 border-t space-y-6">
-                       {provider.products?.map(product => (
+                       {(provider.products || []).map(product => (
                            <Card key={product.id}>
                                <CardHeader>
                                    <CardTitle>{product.name}</CardTitle>
@@ -1081,7 +1085,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                             <CardContent>
                                <h4 className="font-medium mb-2">Columns</h4>
                                <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                                    {config.columns.map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
+                                    {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
                                </ul>
                                <Separator />
                                <div className="mt-4">
