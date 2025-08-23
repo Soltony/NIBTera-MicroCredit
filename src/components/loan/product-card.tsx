@@ -159,10 +159,12 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>
                                 </div>
                             ) : null}
-                            <div>
-                                <p className="text-lg font-semibold">{formatCurrency(product.availableLimit ?? 0)}</p>
-                                <p className="text-xs text-muted-foreground">Available Limit</p>
-                            </div>
+                             {product.availableLimit ? (
+                                <div>
+                                    <p className="text-lg font-semibold">{formatCurrency(product.availableLimit)}</p>
+                                    <p className="text-xs text-muted-foreground">Available Limit</p>
+                                </div>
+                             ) : null}
                         </div>
                     </div>
                 )}
@@ -176,4 +178,3 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         </Card>
     );
 }
-
