@@ -114,7 +114,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
                             <div>
-                                <p className="text-lg font-semibold">{formatCurrency(activeLoan.serviceFee)}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
                              <div>
@@ -136,15 +136,15 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.serviceFeeEnabled ? product.serviceFee : undefined)}</p>
                                 <p className="text-xs text-muted-foreground">Service Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
+                                <p className="text-lg font-semibold">{formatFee(product.dailyFeeEnabled ? product.dailyFee : undefined, ' daily')}</p>
                                 <p className="text-xs text-muted-foreground">Daily Fee</p>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold">{product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rules` : 'N/A'}</p>
+                                <p className="text-lg font-semibold">{product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rules` : 'N/A'}</p>
                                 <p className="text-xs text-muted-foreground">Penalty Rules</p>
                             </div>
                             <div>
@@ -164,3 +164,4 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         </Card>
     );
 }
+
