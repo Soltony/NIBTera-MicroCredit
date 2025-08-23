@@ -67,6 +67,7 @@ export interface LoanProvider {
   accountNumber: string | null;
   allowMultipleProviderLoans: boolean;
   allowCrossProviderLoans: boolean;
+  ledgerAccounts?: LedgerAccount[];
 }
 
 export interface LoanProduct {
@@ -113,7 +114,7 @@ export interface LoanDetails {
   // For calculation purposes, not stored in DB
   product?: LoanProduct;
   provider?: LoanProvider;
-  providerId?: number;
+  providerId?: string;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
@@ -206,4 +207,13 @@ export interface ScoringParameters {
     enabled: boolean;
     values: Record<string, 'Low' | 'Medium' | 'High'>;
   };
+}
+
+export interface LedgerAccount {
+    id: string;
+    providerId: string;
+    name: string;
+    type: 'Receivable' | 'Received';
+    category: 'Principal' | 'Interest' | 'Penalty';
+    balance: number;
 }

@@ -21,6 +21,15 @@ const permissions = {
   },
 };
 
+const defaultLedgerAccounts = [
+    { name: 'Principal Receivable', type: 'Receivable', category: 'Principal' },
+    { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
+    { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    { name: 'Principal Received', type: 'Received', category: 'Principal' },
+    { name: 'Interest Received', type: 'Received', category: 'Interest' },
+    { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+];
+
 async function main() {
   console.log('Start seeding...');
 
@@ -79,6 +88,18 @@ async function main() {
       allowMultipleProviderLoans: false,
     },
   });
+  
+  // Seed Ledger Accounts for NIb Bank
+  const existingAccounts = await prisma.ledgerAccount.count({ where: { providerId: nibBank.id } });
+  if (existingAccounts === 0) {
+      await prisma.ledgerAccount.createMany({
+          data: defaultLedgerAccounts.map(acc => ({
+              ...acc,
+              providerId: nibBank.id,
+          }))
+      });
+      console.log('Ledger accounts for NIb Bank seeded.');
+  }
 
   const personalLoan = await prisma.loanProduct.upsert({
     where: { name_providerId: { name: 'Personal Loan', providerId: nibBank.id } },
