@@ -1,5 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -10,84 +8,120 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String        @id @default(uuid())
+  fullName      String
+  email         String        @unique
+  phoneNumber   String        @unique
+  password      String
+  roleId        String
+  role          Role          @relation(fields: [roleId], references: [id])
+  status        String // "Active", "Inactive"
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  loanProviderId String?
+  loanProvider  LoanProvider? @relation(fields: [loanProviderId], references: [id])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  permissions String
+  users       User[]
+}
+
 model Loan {
-  id              String   @id @default(uuid())
-  customerId      String
-  providerId      String
-  productId       String
-  loanAmount      Float
-  serviceFee      Float
-  penaltyAmount   Float    @default(0)
-  repaidAmount    Float?   @default(0)
-  disbursedDate   DateTime
-  dueDate         DateTime
-  repaymentStatus String
+  id                  String   @id @default(uuid())
+  customerId          String
+  customer            Customer @relation(fields: [customerId], references: [id])
+  provider            LoanProvider @relation(fields: [providerId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  providerId          String
+  product             LoanProduct  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  productId           String
+  loanAmount          Float
+  serviceFee          Float
+  disbursedDate       DateTime @default(now())
+  dueDate             DateTime
+  repaymentStatus     String // "Paid", "Unpaid"
+  repaidAmount        Float?
+  penaltyAmount       Float    @default(0)
+  payments            Payment[]
+}
 
-  customer Customer    @relation(fields: [customerId], references: [id])
-  provider LoanProvider @relation(fields: [providerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product  LoanProduct  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  payments Payment[]
+model Customer {
+    id              String @id @default("1")
+    age             Int
+    gender          String
+    monthlyIncome   Float
+    educationLevel  String
+    loanHistory     String // JSON string: { totalLoans: number, onTimeRepayments: number }
+    loans           Loan[]
+    provisionedData ProvisionedData[]
 }
 
 model LoanProvider {
-  id                        String                        @id @default(uuid())
-  name                      String                        @unique
-  icon                      String
-  colorHex                  String?
-  displayOrder              Int                           @default(0)
-  accountNumber             String?
-  initialBalance            Float                         @default(0)
-  products                  LoanProduct[]
-  users                     User[]
-  scoringParameters         ScoringParameter[]
-  dataProvisioningConfigs   DataProvisioningConfig[]
-  scoringConfigurationHistory ScoringConfigurationHistory[]
-  loans                     Loan[]
+  id                            String                        @id @default(uuid())
+  name                          String                        @unique
+  icon                          String                        @db.Text
+  colorHex                      String?
+  displayOrder                  Int                           @default(0)
+  accountNumber                 String?
+  products                      LoanProduct[]
+  users                         User[]
+  scoringParameters             ScoringParameter[]
+  scoringConfigurationHistory   ScoringConfigurationHistory[]
+  dataProvisioningConfigs       DataProvisioningConfig[]
+  initialBalance                Float?
+  ledgerAccounts                LedgerAccount[]
+  allowMultipleProviderLoans    Boolean                       @default(false)
+  allowCrossProviderLoans       Boolean                       @default(false)
+  loans                         Loan[]
 }
+
 
 model LoanProduct {
   id                            String                        @id @default(uuid())
   providerId                    String
   name                          String
   description                   String?
-  icon                          String
-  minLoan                       Float                         @default(0)
-  maxLoan                       Float                         @default(0)
-  duration                      Int                           @default(30)
-  status                        String                        @default("Active")
+  icon                          String                        @db.Text
+  minLoan                       Float?
+  maxLoan                       Float?
+  duration                      Int?
+  status                        String // "Active", "Disabled"
   allowMultipleLoans            Boolean                       @default(false)
-  serviceFee                    String? // JSON stored as string
-  dailyFee                      String? // JSON stored as string
-  penaltyRules                  String? // JSON stored as string
-  serviceFeeEnabled             Boolean                       @default(false)
-  dailyFeeEnabled               Boolean                       @default(false)
-  penaltyRulesEnabled           Boolean                       @default(false)
-  dataProvisioningEnabled       Boolean                       @default(false)
+  serviceFeeEnabled             Boolean?
+  serviceFee                    String? // JSON string for FeeRule
+  dailyFeeEnabled               Boolean?
+  dailyFee                      String? // JSON string for DailyFeeRule
+  penaltyRulesEnabled           Boolean?
+  penaltyRules                  String? // JSON string for PenaltyRule[]
+  dataProvisioningEnabled       Boolean?
   dataProvisioningConfigId      String?
-  
-  scoringHistories              ProductsOnScoringHistories[]
-  provider                      LoanProvider                  @relation(fields: [providerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  dataProvisioningConfig        DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   loans                         Loan[]
   loanAmountTiers               LoanAmountTier[]
+  scoringHistories              ProductsOnScoringHistories[]
+
+  provider                      LoanProvider                  @relation(fields: [providerId], references: [id])
+  dataProvisioningConfig        DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id])
 
   @@unique([name, providerId])
 }
 
-model LoanAmountTier {
-    id        String      @id @default(uuid())
-    productId String
-    fromScore Int
-    toScore   Int
-    loanAmount Float
-    product   LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+model Payment {
+  id                                String   @id @default(uuid())
+  loanId                            String
+  loan                              Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount                            Float
+  date                              DateTime @default(now())
+  outstandingBalanceBeforePayment   Float?
 }
 
+
 model ProductsOnScoringHistories {
-  product          LoanProduct                 @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product          LoanProduct                 @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId        String
-  scoringHistory   ScoringConfigurationHistory @relation(fields: [scoringHistoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  scoringHistory   ScoringConfigurationHistory @relation(fields: [scoringHistoryId], references: [id], onDelete: Cascade)
   scoringHistoryId String
   assignedAt       DateTime                    @default(now())
   assignedBy       String // User ID
@@ -97,18 +131,18 @@ model ProductsOnScoringHistories {
 
 
 model ScoringConfigurationHistory {
-  id         String      @id @default(uuid())
+  id         String                       @id @default(uuid())
   providerId String
-  provider   LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  parameters String // JSON stored as string
-  savedAt    DateTime      @default(now())
+  provider   LoanProvider                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  parameters String // JSON string of ScoringParameter[]
+  savedAt    DateTime                     @default(now())
   appliedProducts ProductsOnScoringHistories[]
 }
 
 model ScoringParameter {
   id         String @id @default(uuid())
+  provider   LoanProvider @relation(fields: [providerId], references: [id])
   providerId String
-  provider   LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name       String
   weight     Int
   rules      ScoringRule[]
@@ -124,92 +158,57 @@ model ScoringRule {
   score       Int
 }
 
-model Customer {
-  id              String            @id @default(uuid())
-  age             Int
-  gender          String
-  monthlyIncome   Float
-  educationLevel  String
-  loanHistory     String // JSON stored as string
-  provisionedData ProvisionedData[]
-  loans           Loan[]
+model LoanAmountTier {
+  id        String      @id @default(uuid())
+  productId String
+  product   LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fromScore Int
+  toScore   Int
+  loanAmount Float
 }
 
 model ProvisionedData {
-  id         String   @id @default(uuid())
-  customerId String
-  configId   String
-  data       String // JSON stored as string
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  config   DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-
-  @@unique([customerId, configId])
+    id          String      @id @default(uuid())
+    customerId  String
+    customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+    configId    String
+    config      DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+    data        String      @db.Text
+    createdAt   DateTime    @default(now())
+    updatedAt   DateTime    @updatedAt
+    
+    @@unique([customerId, configId])
 }
 
 model DataProvisioningConfig {
-    id          String @id @default(uuid())
-    providerId  String
-    provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-    name        String
-    columns     String // JSON stored as string
-    products    LoanProduct[]
+    id        String @id @default(uuid())
+    providerId String
+    provider  LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+    name      String
+    columns   String @db.Text // JSON string: { name: string, type: 'string'|'number'|'date' }[]
+    products  LoanProduct[]
+    uploads   DataProvisioningUpload[]
     provisionedData ProvisionedData[]
-    uploads     DataProvisioningUpload[]
 }
 
 model DataProvisioningUpload {
-    id          String @id @default(uuid())
+    id          String      @id @default(uuid())
     configId    String
     config      DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
     fileName    String
     rowCount    Int
-    uploadedAt  DateTime @default(now())
+    uploadedAt  DateTime    @default(now())
     uploadedBy  String
 }
 
-model Payment {
-  id                                String   @id @default(uuid())
-  loanId                            String
-  amount                            Float
-  date                              DateTime
-  outstandingBalanceBeforePayment   Float?
-  loan                              Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
-}
-
-model User {
-  id            String        @id @default(uuid())
-  fullName      String
-  email         String        @unique
-  phoneNumber   String        @unique
-  password      String
-  roleId        String
-  status        String        @default("Active")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  loanProviderId String?
-  
-  role          Role          @relation(fields: [roleId], references: [id])
-  loanProvider  LoanProvider? @relation(fields: [loanProviderId], references: [id])
-}
-
-model Role {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  permissions String // JSON stored as string
-  users       User[]
-}
-
 model LedgerAccount {
-  id          String @id @default(uuid())
+  id          String   @id @default(uuid())
   providerId  String
-  provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)  
   name        String
-  type        String // Receivable, Received
-  category    String // Principal, Interest, Penalty
-  balance     Float  @default(0)
-
-  @@unique([providerId, name])
+  type        String   // 'Receivable', 'Received'
+  category    String   // 'Principal', 'Interest', 'Penalty'
+  balance     Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
