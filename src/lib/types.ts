@@ -17,7 +17,7 @@ export interface PenaltyRule {
     id: string;
     fromDay: number | '';
     toDay: number | Infinity | '' | null;
-    type: 'fixed' | 'percentageOfPrincipal';
+    type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound';
     value: number | '';
 }
 
@@ -185,6 +185,13 @@ export interface ScoringParameter {
   name: string;
   weight: number;
   rules: Rule[];
+}
+
+export interface ScoringHistoryItem {
+    id: string;
+    savedAt: Date;
+    parameters: string; // Stored as JSON string
+    appliedProducts: { product: { name: string } }[];
 }
 
 // Type for Legacy Scoring Config page

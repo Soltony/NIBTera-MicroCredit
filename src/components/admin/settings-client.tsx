@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Card,
@@ -527,13 +527,14 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
                 className="w-24"
                 disabled={!isEnabled}
             />
-            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal') => onChange({ ...rule, type })} disabled={!isEnabled}>
+            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound') => onChange({ ...rule, type })} disabled={!isEnabled}>
                 <SelectTrigger className="w-48" disabled={!isEnabled}>
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="fixed">Fixed Amount</SelectItem>
                     <SelectItem value="percentageOfPrincipal">Percentage of Principal</SelectItem>
+                    <SelectItem value="percentageOfCompound">Percentage of Compound</SelectItem>
                 </SelectContent>
             </Select>
              <div className="relative flex-1">
@@ -542,10 +543,10 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
                     value={rule.value ?? ''}
                     onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                     placeholder="Value"
-                    className={cn(rule.type === 'percentageOfPrincipal' ? "pr-8" : "")}
+                    className={cn(rule.type !== 'fixed' ? "pr-8" : "")}
                     disabled={!isEnabled}
                 />
-                 {rule.type === 'percentageOfPrincipal' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
+                 {rule.type !== 'fixed' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
             </div>
             <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive" disabled={!isEnabled}><Trash2 className="h-4 w-4" /></Button>
         </div>
@@ -725,11 +726,14 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
 
     // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
+        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
+        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
+        const penaltyRules = safeParseJson(product, 'penaltyRules', []);
         return {
             ...product,
-            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
-            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
-            penaltyRules: safeParseJson(product, 'penaltyRules', []),
+            serviceFee,
+            dailyFee,
+            penaltyRules,
         };
     }, [product]);
     
@@ -874,9 +878,9 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
 }
 
 
-function ConfigurationTab({ providers, setProviders }: { 
+function ConfigurationTab({ providers, onProductUpdate }: { 
     providers: LoanProvider[],
-    setProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>> 
+    onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
 }) {
     const { currentUser } = useAuth();
     
@@ -886,18 +890,6 @@ function ConfigurationTab({ providers, setProviders }: {
         }
         return providers.filter(p => p.id === currentUser.providerId);
     }, [providers, currentUser]);
-
-    const handleProductUpdate = (providerId: string, updatedProduct: LoanProduct) => {
-        setProviders(produce(draft => {
-            const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
-                if (productIndex !== -1) {
-                    provider.products[productIndex] = updatedProduct;
-                }
-            }
-        }));
-    };
     
     if (visibleProviders.length === 0) {
         return (
@@ -931,7 +923,7 @@ function ConfigurationTab({ providers, setProviders }: {
                                 key={product.id}
                                 product={product}
                                 providerColor={provider.colorHex}
-                                onProductUpdate={(updatedProduct) => handleProductUpdate(provider.id, updatedProduct)}
+                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
                             />
                        ))}
                     </AccordionContent>
@@ -1352,6 +1344,18 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 export function SettingsClient({ initialProviders }: { initialProviders: LoanProvider[]}) {
     const [providers, setProviders] = useState(initialProviders);
 
+    const handleProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                if (productIndex !== -1) {
+                    provider.products[productIndex] = updatedProduct;
+                }
+            }
+        }));
+    }, []);
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
@@ -1365,7 +1369,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                     <ProvidersTab providers={providers} setProviders={setProviders} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} setProviders={setProviders} />
+                     <ConfigurationTab providers={providers} onProductUpdate={handleProductUpdate} />
                 </TabsContent>
                 <TabsContent value="data-provisioning">
                      <DataProvisioningTab providers={providers} setProviders={setProviders} />
@@ -1378,3 +1382,4 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
     
 
     
+
