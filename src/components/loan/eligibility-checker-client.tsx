@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Logo } from '../icons';
 import type { LoanProvider } from '@/lib/types';
+import Link from 'next/link';
 
 interface CustomerData {
   id: string;
@@ -110,56 +111,67 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>
                         <CardDescription>
-                            Choose one of the mock customer profiles to check their loan eligibility across all providers.
+                            Choose one of the customer profiles from your uploaded data to check their loan eligibility.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
-                             <div className="overflow-x-auto">
-                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-[50px]"></TableHead>
-                                            {allColumns.map(key => (
-                                                <TableHead key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>{formatHeader(key)}</TableHead>
-                                            ))}
-                                            <TableHead>Loan History</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {customers.map((customer) => (
-                                            <TableRow key={customer.id}>
-                                                <TableCell>
-                                                    <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
-                                                </TableCell>
-                                                 {allColumns.map(key => (
-                                                    <TableCell key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>
-                                                        {key === 'id' ? 
-                                                            <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
-                                                            : formatValue(key, customer.allData[key])
-                                                        }
-                                                    </TableCell>
-                                                 ))}
-                                                <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} on-time`}</TableCell>
+                        {customers.length > 0 ? (
+                            <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="w-[50px]"></TableHead>
+                                                {allColumns.map(key => (
+                                                    <TableHead key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>{formatHeader(key)}</TableHead>
+                                                ))}
+                                                <TableHead>Loan History</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {customers.map((customer) => (
+                                                <TableRow key={customer.id}>
+                                                    <TableCell>
+                                                        <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
+                                                    </TableCell>
+                                                    {allColumns.map(key => (
+                                                        <TableCell key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>
+                                                            {key === 'id' ? 
+                                                                <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
+                                                                : formatValue(key, customer.allData[key])
+                                                            }
+                                                        </TableCell>
+                                                    ))}
+                                                    <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} on-time`}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </RadioGroup>
+                        ) : (
+                             <div className="flex flex-col items-center justify-center h-64 text-center">
+                                <p className="text-muted-foreground">No customer data found.</p>
+                                <p className="text-sm text-muted-foreground mt-2">
+                                    Please <Link href="/admin/login" className="underline font-medium" style={{color: nibBankColor}}>login to the admin dashboard</Link> to upload customer data.
+                                </p>
                              </div>
-                        </RadioGroup>
+                        )}
                     </CardContent>
                 </Card>
-                <div className="flex justify-end mt-6">
-                    <Button 
-                        onClick={handleCheckEligibility}
-                        disabled={!selectedCustomerId}
-                        size="lg"
-                        style={{ backgroundColor: nibBankColor }}
-                        className="text-white"
-                    >
-                        Check Eligibility
-                    </Button>
-                </div>
+                {customers.length > 0 && (
+                    <div className="flex justify-end mt-6">
+                        <Button 
+                            onClick={handleCheckEligibility}
+                            disabled={!selectedCustomerId}
+                            size="lg"
+                            style={{ backgroundColor: nibBankColor }}
+                            className="text-white"
+                        >
+                            Check Eligibility
+                        </Button>
+                    </div>
+                )}
             </div>
         </main>
     </div>
