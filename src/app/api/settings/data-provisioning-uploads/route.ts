@@ -59,10 +59,38 @@ export async function POST(req: NextRequest) {
                 });
                 
                 const customerId = String(rowData[idColumnName]);
-                const data = JSON.stringify(rowData);
-                
                 if (!customerId) continue;
 
+                // 1. Upsert the customer record first to ensure it exists
+                await tx.customer.upsert({
+                    where: { id: customerId },
+                    update: {
+                        // Map columns from file to customer fields
+                        age: rowData['age'] ? Number(rowData['age']) : undefined,
+                        gender: rowData['gender'] ? String(rowData['gender']) : undefined,
+                        monthlyIncome: rowData['monthlyIncome'] ? Number(rowData['monthlyIncome']) : undefined,
+                        educationLevel: rowData['educationLevel'] ? String(rowData['educationLevel']) : undefined,
+                        loanHistory: (rowData['totalLoans'] || rowData['onTimeRepayments'])
+                            ? JSON.stringify({ 
+                                totalLoans: Number(rowData['totalLoans'] || 0), 
+                                onTimeRepayments: Number(rowData['onTimeRepayments'] || 0) 
+                              })
+                            : undefined,
+                    },
+                    create: {
+                        id: customerId,
+                        age: Number(rowData['age'] || 0),
+                        gender: String(rowData['gender'] || 'Not Specified'),
+                        monthlyIncome: Number(rowData['monthlyIncome'] || 0),
+                        educationLevel: String(rowData['educationLevel'] || 'Not Specified'),
+                        loanHistory: JSON.stringify({ 
+                            totalLoans: Number(rowData['totalLoans'] || 0), 
+                            onTimeRepayments: Number(rowData['onTimeRepayments'] || 0) 
+                        }),
+                    }
+                });
+
+                // 2. Now upsert the provisioned data which has a relation to Customer
                 await tx.provisionedData.upsert({
                     where: {
                         customerId_configId: {
@@ -71,12 +99,12 @@ export async function POST(req: NextRequest) {
                         }
                     },
                     update: {
-                        data: data,
+                        data: JSON.stringify(rowData),
                     },
                     create: {
                         customerId: customerId,
                         configId: configId,
-                        data: data
+                        data: JSON.stringify(rowData)
                     }
                 });
             }
@@ -98,6 +126,9 @@ export async function POST(req: NextRequest) {
         console.error('Error uploading provisioning data:', error);
         if (error.code === 'P2002') { // Handle unique constraint violation if any
              return NextResponse.json({ error: 'Duplicate data entry found in file. Please ensure identifiers are unique within the file.' }, { status: 400 });
+        }
+        if (error.code === 'P2003') { // Foreign key constraint
+            return NextResponse.json({ error: `Foreign key constraint failed. This may be because a customer ID in your file does not exist. The system tried to create it but failed. Please check your data.` }, { status: 400 });
         }
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
