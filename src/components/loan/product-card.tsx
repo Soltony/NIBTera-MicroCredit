@@ -16,11 +16,14 @@ const formatCurrency = (amount: number) => {
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
-    if (!feeRule || feeRule.value === '' || feeRule.value === 0) return 'N/A';
+    if (!feeRule || feeRule.value === '' || feeRule.value === null) return 'N/A';
+    const numericValue = Number(feeRule.value);
+    if (isNaN(numericValue)) return 'N/A';
+
     if (feeRule.type === 'percentage') {
-        return `${feeRule.value}%${suffix || ''}`;
+        return `${numericValue}%${suffix || ''}`;
     }
-    return formatCurrency(Number(feeRule.value));
+    return formatCurrency(numericValue);
 };
 
 interface ProductCardProps {
@@ -113,19 +116,19 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                             <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
-                            {product.serviceFeeEnabled && product.serviceFee?.value ? (
+                            {product.serviceFeeEnabled ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
                             ) : null}
-                             {product.dailyFeeEnabled && product.dailyFee?.value ? (
+                             {product.dailyFeeEnabled ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             ) : null}
-                            {product.penaltyRulesEnabled && product.penaltyRules?.length > 0 ? (
+                            {product.penaltyRulesEnabled ? (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>
@@ -141,24 +144,24 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                 {isExpanded && !activeLoan && (
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                           {product.serviceFeeEnabled && product.serviceFee?.value ? (
+                           {product.serviceFeeEnabled && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
-                           ) : null}
-                            {product.dailyFeeEnabled && product.dailyFee?.value ? (
+                           )}
+                            {product.dailyFeeEnabled && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
-                            ) : null}
-                            {product.penaltyRulesEnabled && product.penaltyRules?.length > 0 ? (
+                            )}
+                            {product.penaltyRulesEnabled && (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>
                                 </div>
-                            ) : null}
+                            )}
                              {product.availableLimit ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatCurrency(product.availableLimit)}</p>
