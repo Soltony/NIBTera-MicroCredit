@@ -49,10 +49,10 @@ export const updateProductSchema = productSchema.partial().extend({
   serviceFee: feeRuleSchema.optional(),
   dailyFee: dailyFeeRuleSchema.optional(),
   penaltyRules: z.array(penaltyRuleSchema).optional(),
-  serviceFeeEnabled: z.boolean().optional(),
-  dailyFeeEnabled: z.boolean().optional(),
-  penaltyRulesEnabled: z.boolean().optional(),
-  dataProvisioningEnabled: z.boolean().optional(),
+  serviceFeeEnabled: z.boolean().nullable().optional(),
+  dailyFeeEnabled: z.boolean().nullable().optional(),
+  penaltyRulesEnabled: z.boolean().nullable().optional(),
+  dataProvisioningEnabled: z.boolean().nullable().optional(),
   dataProvisioningConfigId: z.string().nullable().optional(),
 });
 

@@ -123,6 +123,7 @@ async function main() {
         { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50 },
         { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5 },
       ]),
+      dataProvisioningEnabled: false,
     },
   });
   

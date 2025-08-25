@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
                 serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 penaltyRules: JSON.stringify([]),
+                serviceFeeEnabled: false,
+                dailyFeeEnabled: false,
+                penaltyRulesEnabled: false,
+                dataProvisioningEnabled: false,
             }
         });
         
