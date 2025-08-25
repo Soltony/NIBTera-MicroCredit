@@ -54,6 +54,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
