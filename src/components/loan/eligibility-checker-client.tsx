@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,10 +26,7 @@ import type { LoanProvider } from '@/lib/types';
 
 interface CustomerData {
   id: string;
-  age: number;
-  monthlyIncome: number;
-  gender: string;
-  educationLevel: string;
+  allData: Record<string, any>;
   loanHistory: { totalLoans: number; onTimeRepayments: number };
 }
 
@@ -39,15 +36,36 @@ interface EligibilityCheckerClientProps {
 }
 
 const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    if (amount === null || amount === undefined) return 'N/A';
+    const num = Number(amount);
+    if (isNaN(num)) return String(amount);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+};
+
+const formatValue = (key: string, value: any) => {
+    if (value === null || value === undefined) return 'N/A';
+    if (key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') || key.toLowerCase().includes('amount')) {
+        return formatCurrency(value);
+    }
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+    return String(value);
+};
+
+// Function to create a human-readable label from a key
+const formatHeader = (key: string) => {
+    return key
+        .replace(/([A-Z])/g, ' $1') // insert a space before all caps
+        .replace(/_/g, ' ') // replace underscores with spaces
+        .replace(/\b\w/g, char => char.toUpperCase()); // capitalize the first letter of each word
 };
 
 
 export function EligibilityCheckerClient({ customers, providers }: EligibilityCheckerClientProps) {
   const router = useRouter();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  
+
   const handleCheckEligibility = () => {
     if (selectedCustomerId) {
         router.push(`/loan?customerId=${selectedCustomerId}`);
@@ -55,6 +73,24 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
       alert('Please select a customer first.');
     }
   };
+  
+  const allColumns = useMemo(() => {
+    const columnSet = new Set<string>();
+    customers.forEach(c => {
+        Object.keys(c.allData).forEach(key => columnSet.add(key));
+    });
+    // Define a preferred order
+    const preferredOrder = ['id', 'age', 'gender', 'educationLevel', 'monthlyIncome', 'salary'];
+    const sortedColumns = Array.from(columnSet).sort((a, b) => {
+        const indexA = preferredOrder.indexOf(a);
+        const indexB = preferredOrder.indexOf(b);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return a.localeCompare(b);
+    });
+    return sortedColumns;
+  }, [customers]);
 
   const nibBankColor = '#fdb913';
 
@@ -69,7 +105,7 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
             </div>
         </header>
         <main className="flex-1 py-8 md:py-12">
-            <div className="container max-w-6xl">
+            <div className="container max-w-full">
                  <Card>
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>
@@ -79,36 +115,37 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                     </CardHeader>
                     <CardContent>
                         <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[50px]"></TableHead>
-                                        <TableHead>Customer ID</TableHead>
-                                        <TableHead>Age</TableHead>
-                                        <TableHead>Gender</TableHead>
-                                        <TableHead>Education</TableHead>
-                                        <TableHead>Loan History</TableHead>
-                                        <TableHead className="text-right">Monthly Income</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {customers.map((customer) => (
-                                        <TableRow key={customer.id}>
-                                            <TableCell>
-                                                <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
-                                            </TableCell>
-                                            <TableCell>{customer.age}</TableCell>
-                                            <TableCell>{customer.gender}</TableCell>
-                                            <TableCell>{customer.educationLevel}</TableCell>
-                                            <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} loans paid on time`}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(customer.monthlyIncome)}</TableCell>
+                             <div className="overflow-x-auto">
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[50px]"></TableHead>
+                                            {allColumns.map(key => (
+                                                <TableHead key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>{formatHeader(key)}</TableHead>
+                                            ))}
+                                            <TableHead>Loan History</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {customers.map((customer) => (
+                                            <TableRow key={customer.id}>
+                                                <TableCell>
+                                                    <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
+                                                </TableCell>
+                                                 {allColumns.map(key => (
+                                                    <TableCell key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>
+                                                        {key === 'id' ? 
+                                                            <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
+                                                            : formatValue(key, customer.allData[key])
+                                                        }
+                                                    </TableCell>
+                                                 ))}
+                                                <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} on-time`}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             </div>
                         </RadioGroup>
                     </CardContent>
                 </Card>
