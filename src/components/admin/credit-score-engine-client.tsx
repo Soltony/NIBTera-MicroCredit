@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScorePreview } from '@/components/loan/score-preview';
 import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct, LoanProvider } from '@/lib/types';
 import { format } from 'date-fns';
@@ -455,19 +455,19 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                                 <SelectValue placeholder="Select Parameter Field" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <Select.Group>
-                                                                    <Select.Label>Standard Fields</Select.Label>
+                                                                <SelectGroup>
+                                                                    <SelectLabel>Standard Fields</SelectLabel>
                                                                     {allAvailableFields.standard.map(field => (
                                                                         <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
                                                                     ))}
-                                                                </Select.Group>
+                                                                </SelectGroup>
                                                                 {allAvailableFields.custom.length > 0 && (
-                                                                    <Select.Group>
-                                                                         <Select.Label>Custom Fields</Select.Label>
+                                                                    <SelectGroup>
+                                                                         <SelectLabel>Custom Fields</SelectLabel>
                                                                          {allAvailableFields.custom.map(field => (
                                                                             <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
                                                                         ))}
-                                                                    </Select.Group>
+                                                                    </SelectGroup>
                                                                 )}
                                                             </SelectContent>
                                                         </Select>
