@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,14 +23,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Logo } from '../icons';
 import type { LoanProvider } from '@/lib/types';
+import { ScrollArea } from '../ui/scroll-area';
 
 interface CustomerData {
   id: string;
-  age: number;
-  monthlyIncome: number;
-  gender: string;
-  educationLevel: string;
-  loanHistory: { totalLoans: number; onTimeRepayments: number };
+  [key: string]: any;
 }
 
 interface EligibilityCheckerClientProps {
@@ -39,10 +36,21 @@ interface EligibilityCheckerClientProps {
 }
 
 const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    if (amount === null || amount === undefined || isNaN(Number(amount))) return '$0.00';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount));
 };
 
+const formatValue = (key: string, value: any) => {
+    if (value === null || value === undefined) return 'N/A';
+    const keyLower = key.toLowerCase();
+    if (keyLower.includes('income') || keyLower.includes('salary') || keyLower.includes('amount')) {
+        return formatCurrency(value);
+    }
+    if (typeof value === 'object' && value !== null) {
+        return JSON.stringify(value);
+    }
+    return String(value);
+};
 
 export function EligibilityCheckerClient({ customers, providers }: EligibilityCheckerClientProps) {
   const router = useRouter();
@@ -58,6 +66,19 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
 
   const nibBankColor = '#fdb913';
 
+  const tableHeaders = useMemo(() => {
+    const headers = new Set<string>();
+    customers.forEach(customer => {
+        Object.keys(customer).forEach(key => {
+            if (key !== 'id') {
+                headers.add(key);
+            }
+        });
+    });
+    return Array.from(headers);
+  }, [customers]);
+
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
         <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: nibBankColor }}>
@@ -69,46 +90,51 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
             </div>
         </header>
         <main className="flex-1 py-8 md:py-12">
-            <div className="container max-w-6xl">
+            <div className="container max-w-7xl">
                  <Card>
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>
                         <CardDescription>
-                            Choose one of the mock customer profiles to check their loan eligibility across all providers.
+                            Choose one of the customer profiles from your uploaded data to check their loan eligibility.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[50px]"></TableHead>
-                                        <TableHead>Customer ID</TableHead>
-                                        <TableHead>Age</TableHead>
-                                        <TableHead>Gender</TableHead>
-                                        <TableHead>Education</TableHead>
-                                        <TableHead>Loan History</TableHead>
-                                        <TableHead className="text-right">Monthly Income</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {customers.map((customer) => (
-                                        <TableRow key={customer.id}>
-                                            <TableCell>
-                                                <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
-                                            </TableCell>
-                                            <TableCell>{customer.age}</TableCell>
-                                            <TableCell>{customer.gender}</TableCell>
-                                            <TableCell>{customer.educationLevel}</TableCell>
-                                            <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} loans paid on time`}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(customer.monthlyIncome)}</TableCell>
+                             <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[50px] sticky left-0 bg-card"></TableHead>
+                                            <TableHead className="sticky left-[50px] bg-card">Customer ID</TableHead>
+                                            {tableHeaders.map(header => (
+                                                <TableHead key={header} className="capitalize">{header.replace(/_/g, ' ')}</TableHead>
+                                            ))}
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {customers.map((customer) => (
+                                            <TableRow key={customer.id}>
+                                                <TableCell className="sticky left-0 bg-card">
+                                                    <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
+                                                </TableCell>
+                                                <TableCell className="sticky left-[50px] bg-card">
+                                                    <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
+                                                </TableCell>
+                                                {tableHeaders.map(header => (
+                                                    <TableCell key={`${customer.id}-${header}`}>
+                                                        {formatValue(header, customer[header])}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                                {customers.length === 0 && (
+                                    <div className="flex items-center justify-center h-48">
+                                        <p className="text-muted-foreground">No customer data found. Please upload a file in the Admin Dashboard.</p>
+                                    </div>
+                                )}
+                            </ScrollArea>
                         </RadioGroup>
                     </CardContent>
                 </Card>

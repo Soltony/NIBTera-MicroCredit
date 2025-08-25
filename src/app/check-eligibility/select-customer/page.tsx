@@ -5,11 +5,28 @@ import type { LoanProvider } from '@/lib/types';
 
 
 async function getCustomers() {
-    const customers = await prisma.customer.findMany();
-    return customers.map(c => ({
-        ...c,
-        loanHistory: JSON.parse(c.loanHistory as string),
-    }))
+    const customers = await prisma.customer.findMany({
+        include: {
+            provisionedData: {
+                include: {
+                    config: true
+                }
+            }
+        }
+    });
+
+    // We want to merge the base customer data with all provisioned data fields.
+    return customers.map(c => {
+        const provisionedDataObject = c.provisionedData.reduce((acc, provData) => {
+            const data = JSON.parse(provData.data as string);
+            return { ...acc, ...data };
+        }, {});
+
+        return {
+            id: c.id,
+            ...provisionedDataObject
+        };
+    });
 }
 
 async function getProviders() {
@@ -23,3 +40,4 @@ export default async function SelectCustomerPage() {
     
     return <EligibilityCheckerClient customers={customers as any[]} providers={providers as any[]} />;
 }
+
