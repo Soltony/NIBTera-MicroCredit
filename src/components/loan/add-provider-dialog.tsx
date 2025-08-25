@@ -41,6 +41,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         colorHex: '#2563eb',
         displayOrder: 0,
         accountNumber: '' as string | null,
+        initialBalance: 0,
         allowMultipleProviderLoans: false,
         allowCrossProviderLoans: false,
     });
@@ -55,6 +56,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             colorHex: provider.colorHex || '#2563eb',
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
+            initialBalance: provider.initialBalance || 0,
             allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
             allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
         });
@@ -65,6 +67,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             colorHex: '#2563eb',
             displayOrder: 0,
             accountNumber: null,
+            initialBalance: 0,
             allowMultipleProviderLoans: false,
             allowCrossProviderLoans: false,
         });
@@ -105,6 +108,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>> & { id?: string } = {
       id: provider?.id,
       ...formData,
+      initialBalance: Number(formData.initialBalance)
     };
     
     console.log('[DEBUG] AddProviderDialog: Submitting data', dataToSave);
@@ -143,6 +147,20 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               value={formData.accountNumber || ''}
               onChange={handleChange}
               placeholder="e.g., 1000123456789"
+              className="col-span-3"
+              style={{'--ring': primaryColor} as React.CSSProperties}
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="initialBalance" className="text-right">
+              Initial Balance
+            </Label>
+            <Input
+              id="initialBalance"
+              type="number"
+              value={formData.initialBalance}
+              onChange={handleChange}
+              placeholder="e.g., 100000"
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}
             />
