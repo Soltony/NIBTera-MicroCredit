@@ -67,7 +67,8 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
   const allColumns = useMemo(() => {
     const columnSet = new Set<string>();
     customers.forEach(c => {
-        Object.keys(c.allData).forEach(key => columnSet.add(key));
+        if (!c) return;
+        Object.keys(c).forEach(key => columnSet.add(key));
     });
     // Define a preferred order
     const preferredOrder = ['id', 'age', 'gender', 'educationLevel', 'monthlyIncome', 'salary'];
@@ -87,13 +88,33 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
   const tableHeaders = useMemo(() => {
     const headers = new Set<string>();
     customers.forEach(customer => {
+        if (!customer) return;
         Object.keys(customer).forEach(key => {
             if (key !== 'id') {
                 headers.add(key);
             }
         });
     });
-    return Array.from(headers);
+    const preferredOrder = ['age', 'gender', 'educationLevel', 'monthlyIncome'];
+    const sortedHeaders = Array.from(headers);
+
+    sortedHeaders.sort((a, b) => {
+        const indexA = preferredOrder.indexOf(a);
+        const indexB = preferredOrder.indexOf(b);
+
+        if (indexA !== -1 && indexB !== -1) {
+            return indexA - indexB; // Both are in preferred order
+        }
+        if (indexA !== -1) {
+            return -1; // A is preferred, B is not
+        }
+        if (indexB !== -1) {
+            return 1; // B is preferred, A is not
+        }
+        return a.localeCompare(b); // Neither is preferred, sort alphabetically
+    });
+    
+    return sortedHeaders;
   }, [customers]);
 
 
