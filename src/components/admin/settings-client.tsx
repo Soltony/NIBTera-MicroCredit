@@ -54,6 +54,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -91,6 +92,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                     ...formData,
                     minLoan: parseFloat(String(formData.minLoan)) || 0,
                     maxLoan: parseFloat(String(formData.maxLoan)) || 0,
+                    duration: parseInt(String(formData.duration)) || 30,
                 }),
             });
             if (!response.ok) {
@@ -142,6 +144,17 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                             value={formData.maxLoan ?? ''}
                             onChange={handleChange}
                             placeholder="e.g., 2500"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor={`duration-${product.id}`}>Loan Duration (days)</Label>
+                        <Input
+                            id={`duration-${product.id}`}
+                            name="duration"
+                            type="number"
+                            value={formData.duration ?? ''}
+                            onChange={handleChange}
+                            placeholder="e.g., 30"
                         />
                     </div>
                 </div>

@@ -456,7 +456,9 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                 </div>
                                              </div>
                                         </AccordionTrigger>
-                                        <Button variant="ghost" size="icon" className="ml-4" onClick={() => handleRemoveParameter(param.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                        <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id); }}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
                                     </div>
                                      <AccordionContent className="p-4">
                                         <div className="space-y-2">
@@ -556,3 +558,5 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
         </div>
     );
 }
+
+    

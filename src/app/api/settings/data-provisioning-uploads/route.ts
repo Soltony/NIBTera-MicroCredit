@@ -49,25 +49,39 @@ export async function POST(req: NextRequest) {
         if (!idColumnName) {
             return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
         }
-
-        const dataToInsert = rows.map(row => {
-            const rowData: { [key: string]: any } = {};
-            headers.forEach((header, index) => {
-                rowData[String(header)] = row[index];
-            });
-
-            return {
-                customerId: String(rowData[idColumnName]),
-                configId: configId,
-                data: JSON.stringify(rowData)
-            };
-        });
         
-        // Batch create provisioned data
-        await prisma.provisionedData.createMany({
-            data: dataToInsert,
-            skipDuplicates: true // This assumes customerId + configId is a unique pair
+        // Use transaction to perform all upserts
+        await prisma.$transaction(async (tx) => {
+            for (const row of rows) {
+                const rowData: { [key: string]: any } = {};
+                headers.forEach((header, index) => {
+                    rowData[String(header)] = row[index];
+                });
+                
+                const customerId = String(rowData[idColumnName]);
+                const data = JSON.stringify(rowData);
+                
+                if (!customerId) continue;
+
+                await tx.provisionedData.upsert({
+                    where: {
+                        customerId_configId: {
+                            customerId: customerId,
+                            configId: configId
+                        }
+                    },
+                    update: {
+                        data: data,
+                    },
+                    create: {
+                        customerId: customerId,
+                        configId: configId,
+                        data: data
+                    }
+                });
+            }
         });
+
 
         const newUpload = await prisma.dataProvisioningUpload.create({
             data: {
@@ -80,8 +94,11 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(newUpload, { status: 201 });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error uploading provisioning data:', error);
+        if (error.code === 'P2002') { // Handle unique constraint violation if any
+             return NextResponse.json({ error: 'Duplicate data entry found in file. Please ensure identifiers are unique within the file.' }, { status: 400 });
+        }
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

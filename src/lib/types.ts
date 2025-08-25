@@ -65,6 +65,7 @@ export interface LoanProvider {
   colorHex?: string;
   displayOrder: number;
   accountNumber: string | null;
+  initialBalance: number;
   allowMultipleProviderLoans: boolean;
   allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];
@@ -78,6 +79,7 @@ export interface LoanProduct {
   icon: string;
   minLoan?: number;
   maxLoan?: number;
+  duration?: number;
   serviceFee: FeeRule;
   dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];

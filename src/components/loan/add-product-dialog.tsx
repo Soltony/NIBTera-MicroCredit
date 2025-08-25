@@ -37,6 +37,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [minLoan, setMinLoan] = useState('');
   const [maxLoan, setMaxLoan] = useState('');
+  const [duration, setDuration] = useState('30');
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -69,6 +70,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       icon: selectedIconName,
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
+      duration: parseInt(duration) || 30,
     } as any);
     
     // Reset form
@@ -77,6 +79,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     setSelectedIconName(icons[0].name);
     setMinLoan('');
     setMaxLoan('');
+    setDuration('30');
 
     onClose();
   };
@@ -143,6 +146,10 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="max-loan" className="text-right">Max Loan</Label>
               <Input id="max-loan" type="number" value={maxLoan} onChange={(e) => setMaxLoan(e.target.value)} className="col-span-3" required />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="duration" className="text-right">Duration (days)</Label>
+              <Input id="duration" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="col-span-3" required />
             </div>
           <DialogFooter>
             <DialogClose asChild>
