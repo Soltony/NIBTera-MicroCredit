@@ -773,7 +773,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                                             disabled={isUploading}
                                             onClick={() => fileInputRefs.current[config.id]?.current?.click()}
                                         >
-                                            {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
+                                            {isUploading ? <Loader className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
                                             Upload File
                                         </Button>
                                         <input
