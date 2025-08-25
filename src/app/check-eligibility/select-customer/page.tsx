@@ -7,6 +7,7 @@ import type { LoanProvider } from '@/lib/types';
 async function getCustomers() {
     const customers = await prisma.customer.findMany({
         include: {
+<<<<<<< HEAD
             provisionedData: true,
         },
     });
@@ -29,6 +30,26 @@ async function getCustomers() {
                 monthlyIncome: c.monthlyIncome,
                 ...provisionedDataObject,
             }
+=======
+            provisionedData: {
+                include: {
+                    config: true
+                }
+            }
+        }
+    });
+
+    // We want to merge the base customer data with all provisioned data fields.
+    return customers.map(c => {
+        const provisionedDataObject = c.provisionedData.reduce((acc, provData) => {
+            const data = JSON.parse(provData.data as string);
+            return { ...acc, ...data };
+        }, {});
+
+        return {
+            id: c.id,
+            ...provisionedDataObject
+>>>>>>> c379b7fed59d54b306a49a5ade2d2d6bf27cbd8e
         };
     });
 }

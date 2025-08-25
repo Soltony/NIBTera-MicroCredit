@@ -23,12 +23,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Logo } from '../icons';
 import type { LoanProvider } from '@/lib/types';
-import Link from 'next/link';
+import { ScrollArea } from '../ui/scroll-area';
 
 interface CustomerData {
   id: string;
-  allData: Record<string, any>;
-  loanHistory: { totalLoans: number; onTimeRepayments: number };
+  [key: string]: any;
 }
 
 interface EligibilityCheckerClientProps {
@@ -37,31 +36,21 @@ interface EligibilityCheckerClientProps {
 }
 
 const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined) return 'N/A';
-    const num = Number(amount);
-    if (isNaN(num)) return String(amount);
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+    if (amount === null || amount === undefined || isNaN(Number(amount))) return '$0.00';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount));
 };
 
 const formatValue = (key: string, value: any) => {
     if (value === null || value === undefined) return 'N/A';
-    if (key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') || key.toLowerCase().includes('amount')) {
+    const keyLower = key.toLowerCase();
+    if (keyLower.includes('income') || keyLower.includes('salary') || keyLower.includes('amount')) {
         return formatCurrency(value);
     }
-    if (typeof value === 'object') {
+    if (typeof value === 'object' && value !== null) {
         return JSON.stringify(value);
     }
     return String(value);
 };
-
-// Function to create a human-readable label from a key
-const formatHeader = (key: string) => {
-    return key
-        .replace(/([A-Z])/g, ' $1') // insert a space before all caps
-        .replace(/_/g, ' ') // replace underscores with spaces
-        .replace(/\b\w/g, char => char.toUpperCase()); // capitalize the first letter of each word
-};
-
 
 export function EligibilityCheckerClient({ customers, providers }: EligibilityCheckerClientProps) {
   const router = useRouter();
@@ -95,6 +84,19 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
 
   const nibBankColor = '#fdb913';
 
+  const tableHeaders = useMemo(() => {
+    const headers = new Set<string>();
+    customers.forEach(customer => {
+        Object.keys(customer).forEach(key => {
+            if (key !== 'id') {
+                headers.add(key);
+            }
+        });
+    });
+    return Array.from(headers);
+  }, [customers]);
+
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
         <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: nibBankColor }}>
@@ -106,7 +108,7 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
             </div>
         </header>
         <main className="flex-1 py-8 md:py-12">
-            <div className="container max-w-full">
+            <div className="container max-w-7xl">
                  <Card>
                     <CardHeader>
                         <CardTitle>Select a Customer Profile</CardTitle>
@@ -115,48 +117,43 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {customers.length > 0 ? (
-                            <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="w-[50px]"></TableHead>
-                                                {allColumns.map(key => (
-                                                    <TableHead key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>{formatHeader(key)}</TableHead>
-                                                ))}
-                                                <TableHead>Loan History</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {customers.map((customer) => (
-                                                <TableRow key={customer.id}>
-                                                    <TableCell>
-                                                        <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
-                                                    </TableCell>
-                                                    {allColumns.map(key => (
-                                                        <TableCell key={key} className={key.toLowerCase().includes('income') || key.toLowerCase().includes('salary') ? 'text-right' : ''}>
-                                                            {key === 'id' ? 
-                                                                <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
-                                                                : formatValue(key, customer.allData[key])
-                                                            }
-                                                        </TableCell>
-                                                    ))}
-                                                    <TableCell>{`${customer.loanHistory.onTimeRepayments} / ${customer.loanHistory.totalLoans} on-time`}</TableCell>
-                                                </TableRow>
+                        <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
+                             <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[50px] sticky left-0 bg-card"></TableHead>
+                                            <TableHead className="sticky left-[50px] bg-card">Customer ID</TableHead>
+                                            {tableHeaders.map(header => (
+                                                <TableHead key={header} className="capitalize">{header.replace(/_/g, ' ')}</TableHead>
                                             ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </RadioGroup>
-                        ) : (
-                             <div className="flex flex-col items-center justify-center h-64 text-center">
-                                <p className="text-muted-foreground">No customer data found.</p>
-                                <p className="text-sm text-muted-foreground mt-2">
-                                    Please <Link href="/admin/login" className="underline font-medium" style={{color: nibBankColor}}>login to the admin dashboard</Link> to upload customer data.
-                                </p>
-                             </div>
-                        )}
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {customers.map((customer) => (
+                                            <TableRow key={customer.id}>
+                                                <TableCell className="sticky left-0 bg-card">
+                                                    <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
+                                                </TableCell>
+                                                <TableCell className="sticky left-[50px] bg-card">
+                                                    <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
+                                                </TableCell>
+                                                {tableHeaders.map(header => (
+                                                    <TableCell key={`${customer.id}-${header}`}>
+                                                        {formatValue(header, customer[header])}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                                {customers.length === 0 && (
+                                    <div className="flex items-center justify-center h-48">
+                                        <p className="text-muted-foreground">No customer data found. Please upload a file in the Admin Dashboard.</p>
+                                    </div>
+                                )}
+                            </ScrollArea>
+                        </RadioGroup>
                     </CardContent>
                 </Card>
                 {customers.length > 0 && (
