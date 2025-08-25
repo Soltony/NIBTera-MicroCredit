@@ -2,7 +2,7 @@
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
 import prisma from '@/lib/prisma';
 import type { LoanProvider, ScoringParameter } from '@/lib/types';
-import { getServerSession } from 'next-auth';
+import { getUserFromSession } from '@/lib/user';
 
 
 async function getProviders(userId: string): Promise<LoanProvider[]> {
@@ -19,6 +19,15 @@ async function getProviders(userId: string): Promise<LoanProvider[]> {
         where: whereClause,
         include: {
             products: true,
+            dataProvisioningConfigs: {
+                 include: {
+                    uploads: {
+                        orderBy: {
+                            uploadedAt: 'desc'
+                        }
+                    }
+                }
+            }
         },
         orderBy: {
             displayOrder: 'asc'
@@ -44,13 +53,13 @@ async function getScoringParameters(providerIds: string[]): Promise<ScoringParam
 
 export default async function CreditScoreEnginePage() {
     // Session fetching will be replaced with a real auth solution
-    const session = { user: { id: '1' } }; // Mock session
+    const user = await getUserFromSession();
     
-    if (!session?.user?.id) {
+    if (!user?.id) {
         return <div>Not authenticated</div>;
     }
 
-    const providers = await getProviders(session.user.id);
+    const providers = await getProviders(user.id);
     const providerIds = providers.map(p => p.id);
     const scoringParameters = await getScoringParameters(providerIds);
 
