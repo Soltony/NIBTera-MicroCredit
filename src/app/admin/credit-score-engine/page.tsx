@@ -33,7 +33,23 @@ async function getProviders(userId: string): Promise<LoanProvider[]> {
             displayOrder: 'asc'
         }
     });
-    return providers as LoanProvider[];
+
+    const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+        if (!jsonString) return defaultValue;
+        try {
+            return JSON.parse(jsonString);
+        } catch (e) {
+            return defaultValue;
+        }
+    };
+    
+    return providers.map(p => ({
+        ...p,
+        dataProvisioningConfigs: (p.dataProvisioningConfigs || []).map(config => ({
+            ...config,
+            columns: safeJsonParse(config.columns as string, [])
+        }))
+    })) as LoanProvider[];
 }
 
 async function getScoringParameters(providerIds: string[]): Promise<ScoringParameter[]> {
