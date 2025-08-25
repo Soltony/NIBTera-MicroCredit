@@ -54,7 +54,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
     
     const disbursedDate = new Date();
-    const dueDate = addDays(disbursedDate, 30);
+    const dueDate = addDays(disbursedDate, product.duration || 30);
     
     let serviceFee = 0;
     if (product.serviceFeeEnabled && product.serviceFee && product.serviceFee.value) {

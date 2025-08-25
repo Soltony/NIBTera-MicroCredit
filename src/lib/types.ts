@@ -79,6 +79,7 @@ export interface LoanProduct {
   icon: string;
   minLoan?: number;
   maxLoan?: number;
+  duration?: number;
   serviceFee: FeeRule;
   dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];

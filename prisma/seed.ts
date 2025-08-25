@@ -112,6 +112,7 @@ async function main() {
       icon: 'PersonStanding',
       minLoan: 500,
       maxLoan: 50000,
+      duration: 30,
       status: 'Active',
       serviceFeeEnabled: true,
       serviceFee: JSON.stringify({ type: 'percentage', value: 2 }),

@@ -7,6 +7,7 @@ export const productSchema = z.object({
   icon: z.string().min(1, 'Icon is required'),
   minLoan: z.number().positive().nullable(),
   maxLoan: z.number().positive().nullable(),
+  duration: z.number().int().positive().optional(),
 });
 
 export const createProductSchema = z.object({
@@ -16,6 +17,7 @@ export const createProductSchema = z.object({
   icon: z.string().min(1, 'Icon is required'),
   minLoan: z.number().min(0, 'Min loan cannot be negative'),
   maxLoan: z.number().min(0, 'Max loan cannot be negative'),
+  duration: z.number().int().positive('Duration must be a positive number of days'),
 }).refine(data => data.maxLoan >= data.minLoan, {
   message: "Max loan must be greater than or equal to min loan",
   path: ["maxLoan"],
