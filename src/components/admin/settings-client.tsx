@@ -117,7 +117,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                          <Switch 
                             id={`status-${product.id}`}
                             checked={formData.status === 'Active'} 
-                            onCheckedChange={(checked) => handleSwitchChange('status', checked)}
+                            onCheckedChange={(checked) => handleSwitchChange('status', checked ? 'Active' : 'Disabled')}
                             className="data-[state=checked]:bg-[--provider-color]"
                             style={{'--provider-color': providerColor} as React.CSSProperties}
                         />

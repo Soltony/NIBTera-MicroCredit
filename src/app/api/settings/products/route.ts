@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
                 maxLoan: productData.maxLoan,
                 duration: productData.duration,
                 status: 'Active',
-                allowMultipleLoans: productData.allowMultipleLoans || false,
+                allowMultipleLoans: productData.allowMultipleLoans ?? false,
                 // Default fee structures
                 serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
@@ -59,10 +59,16 @@ export async function PUT(req: NextRequest) {
         
         const dataToUpdate: any = { ...updateData };
 
-        // Stringify JSON fields if they are present
-        if (updateData.serviceFee) dataToUpdate.serviceFee = JSON.stringify(updateData.serviceFee);
-        if (updateData.dailyFee) dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
-        if (updateData.penaltyRules) dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
+        // Stringify JSON fields if they are present and are not already strings
+        if (updateData.serviceFee && typeof updateData.serviceFee !== 'string') {
+            dataToUpdate.serviceFee = JSON.stringify(updateData.serviceFee);
+        }
+        if (updateData.dailyFee && typeof updateData.dailyFee !== 'string') {
+            dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
+        }
+        if (updateData.penaltyRules && typeof updateData.penaltyRules !== 'string') {
+            dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
+        }
         
         const updatedProduct = await prisma.loanProduct.update({
             where: { id },
