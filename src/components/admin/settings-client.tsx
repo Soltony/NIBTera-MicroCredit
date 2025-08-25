@@ -703,17 +703,41 @@ function LoanTiersForm({ product, onUpdate, color }: {
     );
 }
 
+// Helper to safely parse JSON fields that might be strings
+const safeParseJson = (data: any, field: string, defaultValue: any) => {
+    if (data && typeof data[field] === 'string') {
+        try {
+            return JSON.parse(data[field]);
+        } catch (e) {
+            return defaultValue;
+        }
+    }
+    return data?.[field] ?? defaultValue;
+};
+
+
 function ProductConfiguration({ product, providerColor, onProductUpdate }: { 
     product: LoanProduct; 
     providerColor?: string;
     onProductUpdate: (updatedProduct: LoanProduct) => void;
 }) {
     const { toast } = useToast();
-    const [config, setConfig] = useState(product);
+
+    // Ensure JSON fields are parsed on initialization or when product prop changes
+    const parsedProduct = useMemo(() => {
+        return {
+            ...product,
+            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
+            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
+            penaltyRules: safeParseJson(product, 'penaltyRules', []),
+        };
+    }, [product]);
+    
+    const [config, setConfig] = useState(parsedProduct);
 
     useEffect(() => {
-        setConfig(product);
-    }, [product]);
+        setConfig(parsedProduct);
+    }, [parsedProduct]);
 
     const handleUpdate = (update: Partial<LoanProduct>) => {
         setConfig(prev => ({...prev, ...update}));
