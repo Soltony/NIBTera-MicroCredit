@@ -17,7 +17,13 @@ export async function GET(req: NextRequest) {
             orderBy: { savedAt: 'desc' },
             include: {
                 appliedProducts: {
-                    select: { name: true }
+                    select: {
+                        product: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -43,13 +49,22 @@ export async function POST(req: NextRequest) {
                 providerId,
                 parameters: JSON.stringify(parameters),
                 appliedProducts: {
-                    connect: appliedProductIds.map((id: string) => ({ id }))
+                    create: appliedProductIds.map((id: string) => ({
+                        product: { connect: { id } },
+                        assignedBy: session.userId, // This assumes user id is a string
+                    }))
                 }
             },
             include: {
                 appliedProducts: {
-                    select: { name: true }
-                }
+                    select: {
+                        product: {
+                            select: {
+                                name: true,
+                            },
+                        },
+                    },
+                },
             }
         });
         

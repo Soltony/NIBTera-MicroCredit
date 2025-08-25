@@ -55,7 +55,7 @@ export interface ScoringHistoryItem {
     id: string;
     savedAt: Date;
     parameters: ScoringParameter[];
-    appliedProducts: { name: string }[];
+    appliedProducts: { product: { name: string } }[];
 }
 
 interface CustomParameterType {
@@ -515,7 +515,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                         {scoringHistory.map(item => (
                             <li key={item.id} className="p-4 border rounded-md">
                                 <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
-                                <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.name).join(', ') || 'N/A'}</span></p>
+                                <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.product.name).join(', ') || 'N/A'}</span></p>
                             </li>
                         ))}
                         </ul>
@@ -558,5 +558,3 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
         </div>
     );
 }
-
-    
