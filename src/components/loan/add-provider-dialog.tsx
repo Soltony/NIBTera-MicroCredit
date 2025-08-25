@@ -42,8 +42,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         displayOrder: 0,
         accountNumber: '' as string | null,
         initialBalance: 0,
-        allowMultipleProviderLoans: false,
-        allowCrossProviderLoans: false,
     });
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -57,8 +55,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
             initialBalance: provider.initialBalance || 0,
-            allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
-            allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
         });
     } else {
         setFormData({
@@ -68,8 +64,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: 0,
             accountNumber: null,
             initialBalance: 0,
-            allowMultipleProviderLoans: false,
-            allowCrossProviderLoans: false,
         });
     }
   }, [provider, isOpen]);
@@ -97,10 +91,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       setFormData(prev => ({ ...prev, [id]: type === 'number' ? parseInt(value) || 0 : value }));
   }
 
-  const handleSwitchChange = (id: string, checked: boolean) => {
-      setFormData(prev => ({ ...prev, [id]: checked }));
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.name.trim() === '') return;
@@ -111,8 +101,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
       initialBalance: Number(formData.initialBalance)
     };
     
-    console.log('[DEBUG] AddProviderDialog: Submitting data', dataToSave);
-
     onSave(dataToSave);
     onClose();
   };
@@ -236,21 +224,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                 />
                 <span className="text-sm font-mono bg-muted px-2 py-1 rounded-md">{formData.colorHex}</span>
             </div>
-          </div>
-          
-          <Separator />
-          
-          <div className="space-y-4">
-              <h4 className="font-semibold text-center">Multiple Loan Settings</h4>
-              <div className="flex items-center justify-between space-x-2">
-                  <Label htmlFor="allowMultipleProviderLoans" className="flex-grow">Allow multiple loans with this provider</Label>
-                  <Switch id="allowMultipleProviderLoans" checked={formData.allowMultipleProviderLoans} onCheckedChange={(checked) => handleSwitchChange('allowMultipleProviderLoans', checked)} />
-              </div>
-              
-               <div className="flex items-center justify-between space-x-2">
-                  <Label htmlFor="allowCrossProviderLoans" className="flex-grow">Allow loan if borrower has loan(s) with another provider</Label>
-                  <Switch id="allowCrossProviderLoans" checked={formData.allowCrossProviderLoans} onCheckedChange={(checked) => handleSwitchChange('allowCrossProviderLoans', checked)} />
-              </div>
           </div>
 
           <DialogFooter>

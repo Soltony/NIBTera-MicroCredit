@@ -33,10 +33,10 @@ interface ProductCardProps {
     onApply: () => void;
     onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
-    canApply: boolean;
+    customerHasActiveLoan: boolean;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, canApply }: ProductCardProps) {
+export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, customerHasActiveLoan }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
@@ -54,7 +54,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && !activeLoan && canApply;
+    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && (!customerHasActiveLoan || product.allowMultipleLoans);
 
     const applyButton = (
         <Button 
@@ -91,7 +91,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                                             <span tabIndex={0}>{applyButton}</span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            { !canApply ? <p>This provider does not allow multiple active loans.</p> : <p>Your available credit is too low for this product.</p>}
+                                            { (customerHasActiveLoan && !product.allowMultipleLoans) ? <p>You already have an active loan.</p> : <p>Your available credit is too low for this product.</p>}
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>

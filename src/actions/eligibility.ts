@@ -97,23 +97,24 @@ export async function checkLoanEligibility(customerId: string, providerId: strin
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
 
-    const provider = await prisma.loanProvider.findUnique({ where: { id: providerId } });
-    if (!provider) {
-        return { isEligible: false, reason: 'Loan provider not found.', score: 0, maxLoanAmount: 0 };
+    const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
+    if (!product) {
+        return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    const allActiveLoans = await prisma.loan.findMany({ where: { repaymentStatus: 'Unpaid' } });
-    const activeLoansWithThisProvider = allActiveLoans.filter(l => l.providerId === providerId);
-    const activeLoansWithOtherProviders = allActiveLoans.filter(l => l.providerId !== providerId);
-
-    if (activeLoansWithThisProvider.length > 0 && !provider.allowMultipleProviderLoans) {
-        return { isEligible: false, reason: 'This provider does not allow multiple active loans. Please repay your existing loan first.', score: 0, maxLoanAmount: 0 };
+    // Check for active loans if the product doesn't allow multiple loans
+    if (!product.allowMultipleLoans) {
+        const activeLoanCount = await prisma.loan.count({
+            where: { 
+                customerId: customerId,
+                repaymentStatus: 'Unpaid' 
+            }
+        });
+        if (activeLoanCount > 0) {
+            return { isEligible: false, reason: 'You already have an active loan. This product does not allow multiple loans.', score: 0, maxLoanAmount: 0 };
+        }
     }
-
-    if (activeLoansWithOtherProviders.length > 0 && !provider.allowCrossProviderLoans) {
-        return { isEligible: false, reason: 'This provider does not allow loans if you have active loans with other providers.', score: 0, maxLoanAmount: 0 };
-    }
-
+    
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
@@ -150,4 +151,3 @@ export async function recalculateScoreAndLoanLimit(customerId: string, providerI
         return { score: 0, maxLoanAmount: 0 };
     }
 }
-

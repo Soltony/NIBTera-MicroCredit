@@ -33,8 +33,6 @@ export async function GET() {
         colorHex: p.colorHex,
         displayOrder: p.displayOrder,
         accountNumber: p.accountNumber,
-        allowMultipleProviderLoans: p.allowMultipleProviderLoans,
-        allowCrossProviderLoans: p.allowCrossProviderLoans,
         products: p.products.map(prod => ({
             id: prod.id,
             providerId: p.id,
@@ -47,6 +45,7 @@ export async function GET() {
             dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
             penaltyRules: safeJsonParse(prod.penaltyRules, []),
             status: prod.status,
+            allowMultipleLoans: prod.allowMultipleLoans,
             serviceFeeEnabled: prod.serviceFeeEnabled,
             dailyFeeEnabled: prod.dailyFeeEnabled,
             penaltyRulesEnabled: prod.penaltyRulesEnabled,

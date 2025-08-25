@@ -85,8 +85,6 @@ async function main() {
       displayOrder: 1,
       accountNumber: '1000123456789',
       initialBalance: 1000000,
-      allowCrossProviderLoans: true,
-      allowMultipleProviderLoans: false,
     },
   });
   
@@ -114,6 +112,7 @@ async function main() {
       maxLoan: 50000,
       duration: 30,
       status: 'Active',
+      allowMultipleLoans: false,
       serviceFeeEnabled: true,
       serviceFee: JSON.stringify({ type: 'percentage', value: 2 }),
       dailyFeeEnabled: true,

@@ -216,10 +216,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
 
-  const customerHasActiveLoanWithProvider = useMemo(() => {
-      if (!selectedProvider) return false;
-      return loanHistory.some(loan => loan.providerId === selectedProvider.id && loan.repaymentStatus === 'Unpaid');
-  }, [loanHistory, selectedProvider]);
+  const customerHasActiveLoan = useMemo(() => {
+      return loanHistory.some(loan => loan.repaymentStatus === 'Unpaid');
+  }, [loanHistory]);
 
 
   return (
@@ -317,7 +316,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             onApply={() => handleApply(product.id)}
                                             onRepay={handleRepay}
                                             IconDisplayComponent={IconDisplay}
-                                            canApply={customerHasActiveLoanWithProvider ? selectedProvider.allowMultipleProviderLoans : true}
+                                            customerHasActiveLoan={customerHasActiveLoan}
                                         />
                                     ))}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (

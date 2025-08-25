@@ -77,8 +77,8 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         setFormData(prev => ({ ...prev, [name]: value === '' ? null : parseFloat(value) }));
     };
 
-    const handleSwitchChange = (checked: boolean) => {
-        setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
+    const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
+        setFormData(prev => ({...prev, [name]: checked }));
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -117,13 +117,22 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                          <Switch 
                             id={`status-${product.id}`}
                             checked={formData.status === 'Active'} 
-                            onCheckedChange={handleSwitchChange}
+                            onCheckedChange={(checked) => handleSwitchChange('status', checked)}
                             className="data-[state=checked]:bg-[--provider-color]"
                             style={{'--provider-color': providerColor} as React.CSSProperties}
                         />
                         <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
                     </div>
-                     <div />
+                     <div className="flex items-center space-x-2 justify-self-end">
+                         <Label htmlFor={`allowMultipleLoans-${product.id}`}>Allow multiple active loans</Label>
+                         <Switch 
+                            id={`allowMultipleLoans-${product.id}`}
+                            checked={!!formData.allowMultipleLoans} 
+                            onCheckedChange={(checked) => handleSwitchChange('allowMultipleLoans', checked)}
+                            className="data-[state=checked]:bg-[--provider-color]"
+                            style={{'--provider-color': providerColor} as React.CSSProperties}
+                        />
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
                         <Input
@@ -1344,7 +1353,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 export function SettingsClient({ initialProviders }: { initialProviders: LoanProvider[]}) {
     const [providers, setProviders] = useState(initialProviders);
 
-    const handleProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
+    const onProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
         setProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
@@ -1369,7 +1378,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                     <ProvidersTab providers={providers} setProviders={setProviders} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} onProductUpdate={handleProductUpdate} />
+                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} />
                 </TabsContent>
                 <TabsContent value="data-provisioning">
                      <DataProvisioningTab providers={providers} setProviders={setProviders} />
@@ -1378,8 +1387,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
-
-    
-
