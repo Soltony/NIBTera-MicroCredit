@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
-        const headers = jsonData[0];
+        const headers = jsonData[0].map(h => String(h).toLowerCase());
         const rows = jsonData.slice(1);
         const configColumns = JSON.parse(config.columns as string);
         const idColumnName = configColumns.find((c: any) => c.isIdentifier)?.name;
@@ -58,34 +58,55 @@ export async function POST(req: NextRequest) {
                     rowData[String(header)] = row[index];
                 });
                 
-                const customerId = String(rowData[idColumnName]);
+                const customerId = String(rowData[idColumnName.toLowerCase()]);
                 if (!customerId) continue;
+
+                const getNumericValue = (keys: string[]) => {
+                    for (const key of keys) {
+                        if (rowData[key] !== undefined && rowData[key] !== null) {
+                            const num = Number(rowData[key]);
+                            return isNaN(num) ? undefined : num;
+                        }
+                    }
+                    return undefined;
+                };
+
+                const getStringValue = (keys: string[]) => {
+                    for (const key of keys) {
+                        if (rowData[key] !== undefined && rowData[key] !== null) {
+                            return String(rowData[key]);
+                        }
+                    }
+                    return undefined;
+                };
+                
+                const monthlyIncome = getNumericValue(['monthlyincome', 'salary', 'income']);
 
                 // 1. Upsert the customer record first to ensure it exists
                 await tx.customer.upsert({
                     where: { id: customerId },
                     update: {
                         // Map columns from file to customer fields
-                        age: rowData['age'] ? Number(rowData['age']) : undefined,
-                        gender: rowData['gender'] ? String(rowData['gender']) : undefined,
-                        monthlyIncome: rowData['monthlyIncome'] ? Number(rowData['monthlyIncome']) : undefined,
-                        educationLevel: rowData['educationLevel'] ? String(rowData['educationLevel']) : undefined,
-                        loanHistory: (rowData['totalLoans'] || rowData['onTimeRepayments'])
+                        age: getNumericValue(['age']),
+                        gender: getStringValue(['gender']),
+                        monthlyIncome: monthlyIncome,
+                        educationLevel: getStringValue(['educationlevel', 'education']),
+                        loanHistory: (rowData['totalloans'] || rowData['ontimerepayments'])
                             ? JSON.stringify({ 
-                                totalLoans: Number(rowData['totalLoans'] || 0), 
-                                onTimeRepayments: Number(rowData['onTimeRepayments'] || 0) 
+                                totalLoans: Number(rowData['totalloans'] || 0), 
+                                onTimeRepayments: Number(rowData['ontimerepayments'] || 0) 
                               })
                             : undefined,
                     },
                     create: {
                         id: customerId,
-                        age: Number(rowData['age'] || 0),
-                        gender: String(rowData['gender'] || 'Not Specified'),
-                        monthlyIncome: Number(rowData['monthlyIncome'] || 0),
-                        educationLevel: String(rowData['educationLevel'] || 'Not Specified'),
+                        age: getNumericValue(['age']) || 0,
+                        gender: getStringValue(['gender']) || 'Not Specified',
+                        monthlyIncome: monthlyIncome || 0,
+                        educationLevel: getStringValue(['educationlevel', 'education']) || 'Not Specified',
                         loanHistory: JSON.stringify({ 
-                            totalLoans: Number(rowData['totalLoans'] || 0), 
-                            onTimeRepayments: Number(rowData['onTimeRepayments'] || 0) 
+                            totalLoans: Number(rowData['totalloans'] || 0), 
+                            onTimeRepayments: Number(rowData['ontimerepayments'] || 0) 
                         }),
                     }
                 });
