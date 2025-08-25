@@ -3,6 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 
+// Helper to safely parse JSON strings
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
+
+
 // GET all configs for a provider
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -23,7 +34,14 @@ export async function GET(req: NextRequest) {
                 }
             }
         });
-        return NextResponse.json(configs);
+        
+        // Parse the columns from JSON string to an array for each config
+        const formattedConfigs = configs.map(config => ({
+            ...config,
+            columns: safeJsonParse(config.columns as string, [])
+        }));
+
+        return NextResponse.json(formattedConfigs);
     } catch (error) {
         console.error('Error fetching data provisioning configs:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -50,7 +68,7 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        return NextResponse.json({ ...newConfig, columns }, { status: 201 });
+        return NextResponse.json({ ...newConfig, columns: columns }, { status: 201 });
     } catch (error) {
         console.error('Error creating data provisioning config:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -76,7 +94,7 @@ export async function PUT(req: NextRequest) {
             }
         });
         
-        return NextResponse.json({ ...updatedConfig, columns });
+        return NextResponse.json({ ...updatedConfig, columns: columns });
     } catch (error) {
         console.error('Error updating data provisioning config:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

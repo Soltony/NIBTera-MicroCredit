@@ -648,14 +648,23 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                 throw new Error(errorData.error || 'Failed to save config.');
             }
             const savedConfig = await response.json();
+            
+            // Ensure columns are parsed before updating state
+            const parsedConfig = {
+                ...savedConfig,
+                columns: typeof savedConfig.columns === 'string' 
+                    ? JSON.parse(savedConfig.columns) 
+                    : savedConfig.columns
+            };
+
             const newConfigs = produce(configs, draft => {
                 if (isEditing) {
-                    const index = draft.findIndex(c => c.id === savedConfig.id);
+                    const index = draft.findIndex(c => c.id === parsedConfig.id);
                     if (index !== -1) {
-                        draft[index] = { ...draft[index], ...savedConfig };
+                        draft[index] = { ...draft[index], ...parsedConfig };
                     }
                 } else {
-                    draft.push(savedConfig);
+                    draft.push(parsedConfig);
                 }
             });
             setConfigs(newConfigs);
