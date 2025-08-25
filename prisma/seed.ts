@@ -137,35 +137,6 @@ async function main() {
 
 
   console.log('Loan Providers and Products seeded.');
-  
-  // Seed Customers
-    await prisma.customer.upsert({
-        where: { id: '1' },
-        update: {},
-        create: {
-            id: '1',
-            age: 35,
-            gender: 'Male',
-            monthlyIncome: 5000,
-            educationLevel: 'Graduate',
-            loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
-        },
-    });
-
-    await prisma.customer.upsert({
-        where: { id: '2' },
-        update: {},
-        create: {
-            id: '2',
-            age: 28,
-            gender: 'Female',
-            monthlyIncome: 3000,
-            educationLevel: 'High School',
-            loanHistory: JSON.stringify({ totalLoans: 2, onTimeRepayments: 1 }),
-        },
-    });
-    console.log('Customers seeded.');
-
 
   console.log('Seeding finished.');
 }

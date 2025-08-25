@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -18,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import {
   BarChart,
@@ -35,6 +37,7 @@ import {
   Cell,
 } from 'recharts';
 import type { LoanProvider } from '@/lib/types';
+import { FileCheck2 } from 'lucide-react';
 
 interface DashboardData {
     totalLoans: number;
@@ -60,6 +63,7 @@ const formatCurrency = (amount: number) => {
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
   const { currentUser } = useAuth();
+  const router = useRouter();
   
   const themeColor = React.useMemo(() => {
     if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -106,7 +110,18 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+             <Card className="lg:col-span-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Actions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Button onClick={() => router.push('/check-eligibility/select-customer')} className="w-full">
+                        <FileCheck2 className="mr-2 h-4 w-4" />
+                        Check Customer Eligibility
+                    </Button>
+                </CardContent>
+            </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
@@ -150,15 +165,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 <CardContent>
                     <div className="text-2xl font-bold">{atRiskLoans}</div>
                     <p className="text-xs text-muted-foreground">Loans currently overdue</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{totalUsers}</div>
-                    <p className="text-xs text-muted-foreground">All users on the platform</p>
                 </CardContent>
             </Card>
         </div>

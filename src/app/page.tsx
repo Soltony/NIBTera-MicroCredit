@@ -9,7 +9,8 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/check-eligibility/select-customer');
+    // Redirect to the admin login as the primary entry point
+    router.replace('/admin/login');
   }, [router]);
 
   return (
@@ -17,7 +18,7 @@ export default function HomePage() {
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <h2 className="text-xl font-semibold">Loading...</h2>
-        <p className="text-muted-foreground">Please wait a moment.</p>
+        <p className="text-muted-foreground">Redirecting to the admin portal.</p>
       </div>
     </div>
   );
