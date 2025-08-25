@@ -170,8 +170,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     )
 }
 
-function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider[] }) {
-    const [providers, setProviders] = useState(initialProviders);
+function ProvidersTab({ providers, setProviders }: { 
+    providers: LoanProvider[],
+    setProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>> 
+}) {
     const { currentUser } = useAuth();
     const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
     const [editingProvider, setEditingProvider] = useState<LoanProvider | null>(null);
@@ -180,10 +182,6 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     const [deletingId, setDeletingId] = useState<{ type: 'provider' | 'product'; providerId: string; productId?: string } | null>(null);
 
     const { toast } = useToast();
-    
-    useEffect(() => {
-        setProviders(initialProviders);
-    }, [initialProviders]);
     
     const themeColor = useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -713,6 +711,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     const { toast } = useToast();
     const [config, setConfig] = useState(product);
 
+    useEffect(() => {
+        setConfig(product);
+    }, [product]);
+
     const handleUpdate = (update: Partial<LoanProduct>) => {
         setConfig(prev => ({...prev, ...update}));
     };
@@ -848,21 +850,21 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
 }
 
 
-function ConfigurationTab({ initialProviders, onUpdateProviders }: { 
-    initialProviders: LoanProvider[],
-    onUpdateProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
+function ConfigurationTab({ providers, setProviders }: { 
+    providers: LoanProvider[],
+    setProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>> 
 }) {
     const { currentUser } = useAuth();
     
     const visibleProviders = useMemo(() => {
         if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
-            return initialProviders;
+            return providers;
         }
-        return initialProviders.filter(p => p.id === currentUser.providerId);
-    }, [initialProviders, currentUser]);
+        return providers.filter(p => p.id === currentUser.providerId);
+    }, [providers, currentUser]);
 
     const handleProductUpdate = (providerId: string, updatedProduct: LoanProduct) => {
-        onUpdateProviders(produce(draft => {
+        setProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
@@ -915,9 +917,9 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
     );
 }
 
-function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
-    initialProviders: LoanProvider[],
-    onUpdateProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
+function DataProvisioningTab({ providers, setProviders }: {
+    providers: LoanProvider[],
+    setProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
 }) {
     const { currentUser } = useAuth();
     const { toast } = useToast();
@@ -930,11 +932,11 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
     const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
 
     useEffect(() => {
-        if (!selectedProviderId && initialProviders.length > 0) {
-            const providerToSelect = currentUser?.providerId ? currentUser.providerId : initialProviders[0].id;
+        if (!selectedProviderId && providers.length > 0) {
+            const providerToSelect = currentUser?.providerId ? currentUser.providerId : providers[0].id;
             setSelectedProviderId(providerToSelect);
         }
-    }, [initialProviders, selectedProviderId, currentUser]);
+    }, [providers, selectedProviderId, currentUser]);
 
 
     const handleOpenDialog = (config: DataProvisioningConfig | null = null) => {
@@ -951,7 +953,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Failed to delete config.');
             }
-            onUpdateProviders(produce(draft => {
+            setProviders(produce(draft => {
                 const provider = draft.find(p => p.id === selectedProviderId);
                 if (provider && provider.dataProvisioningConfigs) {
                     provider.dataProvisioningConfigs = provider.dataProvisioningConfigs.filter(c => c.id !== configId);
@@ -982,7 +984,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                 throw new Error(errorData.error || 'Failed to save config.');
             }
             const savedConfig = await response.json();
-            onUpdateProviders(produce(draft => {
+            setProviders(produce(draft => {
                 const provider = draft.find(p => p.id === selectedProviderId);
                 if (provider) {
                     if (!provider.dataProvisioningConfigs) {
@@ -1004,7 +1006,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
         }
     };
     
-    const selectedProvider = useMemo(() => initialProviders.find(p => p.id === selectedProviderId), [initialProviders, selectedProviderId]);
+    const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId), [providers, selectedProviderId]);
 
     selectedProvider?.dataProvisioningConfigs?.forEach(config => {
         if (!fileInputRefs.current[config.id]) {
@@ -1037,7 +1039,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                 
                 const newUpload = await response.json();
                 
-                onUpdateProviders(produce(draft => {
+                setProviders(produce(draft => {
                     const provider = draft.find(p => p.id === selectedProviderId);
                     const cfg = provider?.dataProvisioningConfigs?.find(c => c.id === config.id);
                     if (cfg) {
@@ -1085,7 +1087,7 @@ function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
                                     <SelectValue placeholder="Select a provider" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {initialProviders.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                                    {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             <Button onClick={() => handleOpenDialog()}>
@@ -1336,17 +1338,19 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                     <TabsTrigger value="data-provisioning">Data Provisioning</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">
-                    <ProvidersTab providers={providers} />
+                    <ProvidersTab providers={providers} setProviders={setProviders} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab initialProviders={providers} onUpdateProviders={setProviders} />
+                     <ConfigurationTab providers={providers} setProviders={setProviders} />
                 </TabsContent>
                 <TabsContent value="data-provisioning">
-                     <DataProvisioningTab initialProviders={providers} onUpdateProviders={setProviders} />
+                     <DataProvisioningTab providers={providers} setProviders={setProviders} />
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
+
+    
 
     
