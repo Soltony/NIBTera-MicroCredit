@@ -116,24 +116,24 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                             <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
-                            {product.serviceFeeEnabled ? (
+                            {product.serviceFeeEnabled && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
-                            ) : null}
-                             {product.dailyFeeEnabled ? (
+                            )}
+                             {product.dailyFeeEnabled && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
-                            ) : null}
-                            {product.penaltyRulesEnabled ? (
+                            )}
+                            {product.penaltyRulesEnabled && (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>
                                 </div>
-                            ) : null}
+                            )}
                              <div>
                                 <p className="text-lg font-semibold">{formatCurrency(activeLoan.loanAmount)}</p>
                                 <p className="text-xs text-muted-foreground">Loan Amount</p>
