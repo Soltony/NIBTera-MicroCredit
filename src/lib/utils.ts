@@ -7,19 +7,21 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const evaluateCondition = (inputValue: string | number | undefined, condition: string, ruleValue: string): boolean => {
-    if (inputValue === undefined) return false;
+    if (inputValue === undefined || inputValue === null || inputValue === '') return false;
 
-    const numericInputValue = typeof inputValue === 'string' ? parseFloat(inputValue) : inputValue;
-    const isNumericComparison = !isNaN(numericInputValue) && !isNaN(parseFloat(ruleValue.split('-')[0]));
-    
+    const numericInputValue = Number(inputValue);
+    const isNumericComparison = !isNaN(numericInputValue);
+
     if (isNumericComparison) {
         if (condition === 'between') {
-            const [min, max] = ruleValue.split('-').map(parseFloat);
+            const [minStr, maxStr] = ruleValue.split('-');
+            const min = Number(minStr);
+            const max = Number(maxStr);
             if (isNaN(min) || isNaN(max)) return false;
             return numericInputValue >= min && numericInputValue <= max;
         }
 
-        const numericRuleValue = parseFloat(ruleValue);
+        const numericRuleValue = Number(ruleValue);
         if (isNaN(numericRuleValue)) return false;
 
         switch (condition) {
