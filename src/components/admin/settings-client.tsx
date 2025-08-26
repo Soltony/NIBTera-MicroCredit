@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -80,7 +81,11 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     };
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
-        setFormData(prev => ({...prev, [name]: checked }));
+        if (name === 'status') {
+            setFormData(prev => ({ ...prev, status: checked ? 'Active' : 'Disabled' }));
+        } else {
+            setFormData(prev => ({...prev, [name]: checked }));
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -122,7 +127,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                          <Switch 
                             id={`status-${product.id}`}
                             checked={formData.status === 'Active'} 
-                            onCheckedChange={(checked) => handleSwitchChange('status', checked ? 'Active' : 'Disabled')}
+                            onCheckedChange={(checked) => handleSwitchChange('status', checked)}
                             className="data-[state=checked]:bg-[--provider-color]"
                             style={{'--provider-color': providerColor} as React.CSSProperties}
                         />
@@ -972,3 +977,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
