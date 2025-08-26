@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -60,14 +59,14 @@ export async function PUT(req: NextRequest) {
         
         const dataToUpdate: any = { ...updateData };
 
-        // Stringify JSON fields if they are present and are not already strings
-        if (updateData.serviceFee && typeof updateData.serviceFee !== 'string') {
+        // Stringify JSON fields if they are present and are objects/arrays
+        if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
             dataToUpdate.serviceFee = JSON.stringify(updateData.serviceFee);
         }
-        if (updateData.dailyFee && typeof updateData.dailyFee !== 'string') {
+        if (updateData.dailyFee && typeof updateData.dailyFee === 'object') {
             dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
         }
-        if (updateData.penaltyRules && typeof updateData.penaltyRules !== 'string') {
+        if (updateData.penaltyRules && Array.isArray(updateData.penaltyRules)) {
             dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
         }
         
@@ -78,9 +77,9 @@ export async function PUT(req: NextRequest) {
 
         return NextResponse.json(updatedProduct);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error updating product:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error', 'details': error.message }, { status: 500 });
     }
 }
 

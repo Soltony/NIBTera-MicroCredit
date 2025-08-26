@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -42,6 +41,19 @@ import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+// Helper to safely parse JSON fields that might be strings
+const safeParseJson = (data: any, field: string, defaultValue: any) => {
+    if (data && typeof data[field] === 'string') {
+        try {
+            return JSON.parse(data[field]);
+        } catch (e) {
+            return defaultValue;
+        }
+    }
+    return data?.[field] ?? defaultValue;
+};
+
+
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
     providerId: string; 
     product: LoanProduct; 
@@ -54,7 +66,12 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     const { toast } = useToast();
 
     useEffect(() => {
-        setFormData(product);
+         setFormData({
+            ...product,
+            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
+            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
+            penaltyRules: safeParseJson(product, 'penaltyRules', []),
+        });
     }, [product]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -700,19 +717,6 @@ function LoanTiersForm({ product, onUpdate, color }: {
         </Card>
     );
 }
-
-// Helper to safely parse JSON fields that might be strings
-const safeParseJson = (data: any, field: string, defaultValue: any) => {
-    if (data && typeof data[field] === 'string') {
-        try {
-            return JSON.parse(data[field]);
-        } catch (e) {
-            return defaultValue;
-        }
-    }
-    return data?.[field] ?? defaultValue;
-};
-
 
 function ProductConfiguration({ product, providerColor, onProductUpdate }: { 
     product: LoanProduct; 
