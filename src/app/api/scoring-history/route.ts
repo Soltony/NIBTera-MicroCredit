@@ -44,28 +44,41 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { providerId, parameters, appliedProductIds } = body;
         
-        const newHistory = await prisma.scoringConfigurationHistory.create({
-            data: {
-                providerId,
-                parameters: JSON.stringify(parameters),
-                appliedProducts: {
-                    create: appliedProductIds.map((id: string) => ({
-                        product: { connect: { id } },
-                        assignedBy: session.userId, // This assumes user id is a string
-                    }))
+        const newHistory = await prisma.$transaction(async (tx) => {
+            // Step 1: Create the main history record
+            const historyRecord = await tx.scoringConfigurationHistory.create({
+                data: {
+                    providerId,
+                    parameters: JSON.stringify(parameters),
                 }
-            },
-            include: {
-                appliedProducts: {
-                    select: {
-                        product: {
-                            select: {
-                                name: true,
+            });
+
+            // Step 2: Create the join-table records for applied products
+            if (appliedProductIds && appliedProductIds.length > 0) {
+                await tx.scoringConfigurationProduct.createMany({
+                    data: appliedProductIds.map((id: string) => ({
+                        configId: historyRecord.id,
+                        productId: id,
+                        assignedBy: session.userId,
+                    }))
+                });
+            }
+
+            // Step 3: Fetch the complete record to return to the client
+            return await tx.scoringConfigurationHistory.findUnique({
+                where: { id: historyRecord.id },
+                include: {
+                    appliedProducts: {
+                        select: {
+                            product: {
+                                select: {
+                                    name: true,
+                                },
                             },
                         },
                     },
-                },
-            }
+                }
+            });
         });
         
         return NextResponse.json(newHistory, { status: 201 });
