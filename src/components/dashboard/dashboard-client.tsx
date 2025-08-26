@@ -108,7 +108,8 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
     params.set('max', String(currentMaxLoanLimit));
-    router.push(`/check-eligibility?${params.toString()}`);
+    params.set('step', 'calculator'); // Go directly to calculator
+    router.push(`/apply?${params.toString()}`);
   }
 
   const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
