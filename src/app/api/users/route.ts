@@ -73,9 +73,7 @@ export async function POST(req: NextRequest) {
     };
     
     if (providerId) {
-        dataToCreate.loanProvider = {
-            connect: { id: providerId }
-        };
+        dataToCreate.loanProviderId = providerId;
     }
 
     const newUser = await prisma.user.create({
@@ -100,15 +98,13 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id, role: roleName, ...userData } = body;
+    const { id, role: roleName, providerId, ...userData } = body;
 
     if (!id) {
         return NextResponse.json({ error: 'User ID is required for an update.' }, { status: 400 });
     }
 
     let dataToUpdate: any = { ...userData };
-    delete dataToUpdate.providerId;
-
 
     if (roleName) {
         const role = await prisma.role.findUnique({ where: { name: roleName }});
@@ -119,14 +115,10 @@ export async function PUT(req: NextRequest) {
     }
     
     // Handle providerId relationship
-    if (userData.providerId === null) {
-        dataToUpdate.loanProvider = {
-            disconnect: true
-        }
-    } else if (userData.providerId) {
-        dataToUpdate.loanProvider = {
-            connect: { id: userData.providerId }
-        }
+    if (providerId === null) {
+        dataToUpdate.loanProviderId = null;
+    } else if (providerId) {
+        dataToUpdate.loanProviderId = providerId;
     }
 
 
