@@ -112,34 +112,37 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
 
     const product = await prisma.loanProduct.findUnique({ 
         where: { id: productId },
-        include: { provider: true }
     });
 
     if (!product) {
         return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
-
-    // Check for any active loans with this provider.
-    const activeLoans = await prisma.loan.findMany({
+    
+    // Fetch all active loans for this borrower with this provider
+    const allActiveLoans = await prisma.loan.findMany({
         where: {
             borrowerId: borrowerId,
             providerId: providerId,
             repaymentStatus: 'Unpaid'
         },
-        include: {
-            product: true
-        }
+        include: { product: true }
     });
 
-    if (activeLoans.length > 0) {
-        // If the user has any active loan with the provider, check the rule for the PRODUCT they are applying for.
-        if (!product.allowMultipleLoans) {
-            // This product does NOT allow taking a loan if others are active.
-            const existingProductNames = activeLoans.map(l => l.product.name).join(', ');
-            return { isEligible: false, reason: `You already have an active loan (${existingProductNames}) with this provider. This product does not allow multiple active loans.`, score: 0, maxLoanAmount: 0 };
+    // Rule 1: Check if there's an active loan of the *same* product type. This is always a blocker.
+    const hasActiveLoanOfSameType = allActiveLoans.some(loan => loan.productId === productId);
+    if (hasActiveLoanOfSameType) {
+        return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
+    }
+
+    // Rule 2: If the switch is OFF, check if there are any *other* active loans.
+    if (!product.allowMultipleLoans) {
+        if (allActiveLoans.length > 0) {
+            const otherLoanNames = allActiveLoans.map(l => l.product.name).join(', ');
+            return { isEligible: false, reason: `This product cannot be taken while you have other active loans with this provider (e.g., ${otherLoanNames}).`, score: 0, maxLoanAmount: 0 };
         }
     }
     
+    // If we've reached here, the loan is allowed based on active loan rules. Now check scoring.
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
