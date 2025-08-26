@@ -41,11 +41,11 @@ async function getDashboardData(userId: string) {
             const amount = await prisma.loan.aggregate({
                 _sum: { loanAmount: true },
                 where: {
-                    ...providerFilter,
                     disbursedDate: {
                         gte: date,
                         lt: nextDate,
                     },
+                    ...(providerFilter && { product: providerFilter.product })
                 },
             });
             return {
