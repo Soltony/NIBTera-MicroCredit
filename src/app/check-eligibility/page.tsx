@@ -14,7 +14,7 @@ import { checkLoanEligibility } from '@/actions/eligibility';
 function EligibilityCheck() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const customerId = searchParams.get('customerId');
+  const borrowerId = searchParams.get('borrowerId');
   const providerId = searchParams.get('providerId');
   const productId = searchParams.get('product'); 
 
@@ -40,7 +40,7 @@ function EligibilityCheck() {
 
   useEffect(() => {
     const performCheck = async () => {
-      if (providers.length === 0 || !customerId || !productId || !providerId) return;
+      if (providers.length === 0 || !borrowerId || !productId || !providerId) return;
 
       const targetProvider = providers.find(p => p.id === providerId);
 
@@ -55,7 +55,7 @@ function EligibilityCheck() {
       setIsLoading(true);
       setError(null);
       
-      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(customerId, providerId, productId);
+      const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, productId);
 
       const params = new URLSearchParams(searchParams.toString());
 
@@ -70,10 +70,10 @@ function EligibilityCheck() {
       
     };
 
-    if(providers.length > 0 && customerId && productId && providerId) {
+    if(providers.length > 0 && borrowerId && productId && providerId) {
         performCheck();
     }
-  }, [providers, router, customerId, productId, searchParams, providerId]);
+  }, [providers, router, borrowerId, productId, searchParams, providerId]);
 
 
   return (

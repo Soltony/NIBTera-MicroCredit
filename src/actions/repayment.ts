@@ -10,11 +10,11 @@ import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay } from 'date-fns';
 
-async function getCustomerBalance(customerId: string): Promise<number> {
+async function getBorrowerBalance(borrowerId: string): Promise<number> {
     // In a real system, this would call a banking API.
     // Here, we simulate it by checking the latest provisioned data for a balance field.
     const provisionedData = await prisma.provisionedData.findFirst({
-        where: { customerId },
+        where: { borrowerId },
         orderBy: { createdAt: 'desc' },
     });
 
@@ -68,10 +68,10 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
         }
 
         // 3. Check customer's available balance
-        const customerBalance = await getCustomerBalance(loan.customerId);
+        const borrowerBalance = await getBorrowerBalance(loan.borrowerId);
         
         // 4. Perform deduction if funds are sufficient
-        if (customerBalance >= totalDue) {
+        if (borrowerBalance >= totalDue) {
             try {
                 await prisma.$transaction(async (tx) => {
                     // Create payment record
@@ -85,7 +85,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     });
 
                     // Update loan status
-                    const updatedLoan = await tx.loan.update({
+                    await tx.loan.update({
                         where: { id: loan.id },
                         data: {
                             repaidAmount: (loan.repaidAmount || 0) + totalDue,
@@ -93,8 +93,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                         },
                     });
 
-                    // Update customer's loan history (onTimeRepayments will not be incremented as it's overdue)
-                    // This part is simplified. A real system might track on-time vs. late payments differently.
 
                     // 5. Update financial ledgers
                     const principalReceivable = loan.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
@@ -121,7 +119,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 // Continue to the next loan even if one fails
             }
         } else {
-             console.log(`Insufficient funds for loan ${loan.id}. Balance: ${customerBalance}, Due: ${totalDue}`);
+             console.log(`Insufficient funds for loan ${loan.id}. Balance: ${borrowerBalance}, Due: ${totalDue}`);
         }
     }
     

@@ -19,6 +19,7 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
     const { toast } = useToast();
 
     const productId = searchParams.get('product');
+    const borrowerId = searchParams.get('borrowerId');
 
     const selectedProduct = useMemo(() => {
         if (!provider || !productId) return null;
@@ -43,12 +44,13 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
     }, [searchParams, selectedProduct]);
 
     const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
-        if (provider && selectedProduct) {
+        if (provider && selectedProduct && borrowerId) {
             
-             const finalDetails: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'repaidAmount' | 'payments' > & { providerId: string; productId: string } = {
+             const finalDetails: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'repaidAmount' | 'payments' > & { providerId: string; productId: string; borrowerId: string; } = {
                 ...details,
                 providerId: provider.id,
                 productId: selectedProduct.id,
+                borrowerId: borrowerId,
             };
 
             try {

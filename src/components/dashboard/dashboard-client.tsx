@@ -47,7 +47,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const searchParams = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId');
   const eligibilityError = searchParams.get('error');
-  const customerId = searchParams.get('customerId');
+  const borrowerId = searchParams.get('borrowerId');
   const { toast } = useToast();
 
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
@@ -66,13 +66,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }, [initialLoanHistory]);
 
   useEffect(() => {
-    if (providers.length > 0 && customerId) {
+    if (providers.length > 0 && borrowerId) {
       const providerIdToUse = providerIdFromUrl || providers[0]?.id;
       if (providerIdToUse) {
         handleProviderSelect(providerIdToUse, true);
       }
     }
-  }, [providers, customerId, providerIdFromUrl]);
+  }, [providers, borrowerId, providerIdFromUrl]);
 
   
   const { totalBorrowed, availableToBorrow } = useMemo(() => {
@@ -100,8 +100,8 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }, [selectedProviderId, providers]);
 
   const handleApply = (productId: string) => {
-    if (!customerId) {
-        toast({ title: 'Error', description: 'Customer ID not found.', variant: 'destructive'});
+    if (!borrowerId) {
+        toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
         return;
     }
     const params = new URLSearchParams(searchParams.toString());
@@ -112,7 +112,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }
 
   const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
-    if (!customerId) {
+    if (!borrowerId) {
       return;
     }
     
@@ -130,7 +130,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       let maxLimit = 0;
       // Iterate over all products of the provider to find the highest possible loan amount.
       for (const product of provider.products) {
-        const { maxLoanAmount } = await recalculateScoreAndLoanLimit(customerId, providerId, product.id);
+        const { maxLoanAmount } = await recalculateScoreAndLoanLimit(borrowerId, providerId, product.id);
         if (maxLoanAmount > maxLimit) {
           maxLimit = maxLoanAmount;
         }
@@ -216,7 +216,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
 
-  const customerHasActiveLoan = useMemo(() => {
+  const borrowerHasActiveLoan = useMemo(() => {
       return loanHistory.some(loan => loan.repaymentStatus === 'Unpaid');
   }, [loanHistory]);
 
@@ -316,7 +316,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             onApply={() => handleApply(product.id)}
                                             onRepay={handleRepay}
                                             IconDisplayComponent={IconDisplay}
-                                            customerHasActiveLoan={customerHasActiveLoan}
+                                            borrowerHasActiveLoan={borrowerHasActiveLoan}
                                         />
                                     ))}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (

@@ -2,7 +2,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
-import { loanSchema } from '@/lib/schemas';
+
+const loanSchema = z.object({
+    providerId: z.string(),
+    productId: z.string(),
+    borrowerId: z.string(),
+    loanAmount: z.number(),
+    serviceFee: z.number(),
+    penaltyAmount: z.number(),
+    disbursedDate: z.string().datetime(),
+    dueDate: z.string().datetime(),
+    repaymentStatus: z.enum(['Paid', 'Unpaid']),
+});
+
 
 export async function POST(req: NextRequest) {
     try {
@@ -11,7 +23,7 @@ export async function POST(req: NextRequest) {
 
         const newLoan = await prisma.loan.create({
             data: {
-                customerId: "1", // Hardcoded customer for now
+                borrowerId: data.borrowerId,
                 providerId: data.providerId,
                 productId: data.productId,
                 loanAmount: data.loanAmount,
@@ -23,17 +35,6 @@ export async function POST(req: NextRequest) {
                 repaidAmount: 0,
             }
         });
-
-        // Also update customer's loan history
-        const customer = await prisma.customer.findUnique({ where: { id: "1" } });
-        if (customer) {
-            const loanHistory = JSON.parse(customer.loanHistory);
-            loanHistory.totalLoans += 1;
-            await prisma.customer.update({
-                where: { id: "1" },
-                data: { loanHistory: JSON.stringify(loanHistory) }
-            });
-        }
 
         return NextResponse.json(newLoan, { status: 201 });
 

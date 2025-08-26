@@ -8,14 +8,13 @@
  */
 
 import prisma from '@/lib/prisma';
-import type { Customer } from '@prisma/client';
 import { evaluateCondition } from '@/lib/utils';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 
 
-async function getCustomerDataForScoring(customerId: string): Promise<Record<string, any>> {
+async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<string, any>> {
     const provisionedDataEntries = await prisma.provisionedData.findMany({
-        where: { customerId },
+        where: { borrowerId },
         orderBy: { createdAt: 'desc' },
     });
 
@@ -23,15 +22,15 @@ async function getCustomerDataForScoring(customerId: string): Promise<Record<str
     for (const entry of provisionedDataEntries) {
         const data = JSON.parse(entry.data);
         // Newest data gets precedence, but we merge to get a full profile
-        Object.assign(latestProvisionedData, { id: customerId, ...data });
+        Object.assign(latestProvisionedData, { id: borrowerId, ...data });
     }
     return latestProvisionedData;
 }
 
 
-async function calculateScoreForProvider(customerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
+async function calculateScoreForProvider(borrowerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
     
-    const customerDataForScoring = await getCustomerDataForScoring(customerId);
+    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId);
     
     const parameters: ScoringParameterType[] = await prisma.scoringParameter.findMany({
         where: { providerId },
@@ -51,7 +50,7 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
         const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
-            const inputValue = customerDataForScoring[rule.field];
+            const inputValue = borrowerDataForScoring[rule.field];
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;
@@ -77,18 +76,18 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
 }
 
 
-export async function checkLoanEligibility(customerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
+export async function checkLoanEligibility(borrowerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
-    const customerData = await getCustomerDataForScoring(customerId);
+    const borrowerData = await getBorrowerDataForScoring(borrowerId);
 
-    if (!customerData || Object.keys(customerData).length <= 1) { // has more than just id
-      return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
+    if (!borrowerData || Object.keys(borrowerData).length <= 1) { // has more than just id
+      return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
     // Assuming 'age' is a field in the provisioned data
-    const age = Number(customerData.age);
+    const age = Number(borrowerData.age);
     if (!isNaN(age) && age <= 20) {
-      return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
+      return { isEligible: false, reason: 'Borrower must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
 
     const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
@@ -100,7 +99,7 @@ export async function checkLoanEligibility(customerId: string, providerId: strin
     if (!product.allowMultipleLoans) {
         const activeLoanCount = await prisma.loan.count({
             where: { 
-                customerId: customerId,
+                borrowerId: borrowerId,
                 repaymentStatus: 'Unpaid' 
             }
         });
@@ -114,7 +113,7 @@ export async function checkLoanEligibility(customerId: string, providerId: strin
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId, productId);
+    const { score, maxLoanAmount } = await calculateScoreForProvider(borrowerId, providerId, productId);
 
     if (maxLoanAmount <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
@@ -129,13 +128,13 @@ export async function checkLoanEligibility(customerId: string, providerId: strin
 }
 
 
-export async function recalculateScoreAndLoanLimit(customerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
+export async function recalculateScoreAndLoanLimit(borrowerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
     try {
-        const customerData = await getCustomerDataForScoring(customerId);
-        if (!customerData) {
+        const borrowerData = await getBorrowerDataForScoring(borrowerId);
+        if (!borrowerData) {
              return { score: 0, maxLoanAmount: 0 };
         }
-        const age = Number(customerData.age);
+        const age = Number(borrowerData.age);
         if (!isNaN(age) && age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
@@ -143,7 +142,7 @@ export async function recalculateScoreAndLoanLimit(customerId: string, providerI
         if (!product) {
             return { score: 0, maxLoanAmount: 0 };
         }
-        return await calculateScoreForProvider(customerId, providerId, product.id);
+        return await calculateScoreForProvider(borrowerId, providerId, product.id);
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };

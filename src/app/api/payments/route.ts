@@ -50,22 +50,6 @@ export async function POST(req: NextRequest) {
                 product: true,
             }
         });
-        
-        // If loan is fully paid, update customer's on-time repayment history
-        if (updatedLoan.repaymentStatus === 'Paid') {
-            const customer = await prisma.customer.findUnique({ where: { id: loan.customerId } });
-            if (customer) {
-                const loanHistory = JSON.parse(customer.loanHistory);
-                const isPaidOnTime = new Date() <= new Date(loan.dueDate);
-                if (isPaidOnTime) {
-                    loanHistory.onTimeRepayments += 1;
-                }
-                await prisma.customer.update({
-                    where: { id: loan.customerId },
-                    data: { loanHistory: JSON.stringify(loanHistory) }
-                });
-            }
-        }
 
         return NextResponse.json(updatedLoan, { status: 200 });
 

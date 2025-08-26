@@ -25,13 +25,13 @@ import { Logo } from '../icons';
 import type { LoanProvider } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
 
-interface CustomerData {
+interface BorrowerData {
   id: string;
   [key: string]: any;
 }
 
 interface EligibilityCheckerClientProps {
-  customers: CustomerData[];
+  borrowers: BorrowerData[];
   providers: LoanProvider[];
 }
 
@@ -52,22 +52,22 @@ const formatValue = (key: string, value: any) => {
     return String(value);
 };
 
-export function EligibilityCheckerClient({ customers, providers }: EligibilityCheckerClientProps) {
+export function EligibilityCheckerClient({ borrowers, providers }: EligibilityCheckerClientProps) {
   const router = useRouter();
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedBorrowerId, setSelectedBorrowerId] = useState<string | null>(null);
 
   const handleCheckEligibility = () => {
-    if (selectedCustomerId) {
-        router.push(`/loan?customerId=${selectedCustomerId}`);
+    if (selectedBorrowerId) {
+        router.push(`/loan?borrowerId=${selectedBorrowerId}`);
     } else {
-      alert('Please select a customer first.');
+      alert('Please select a borrower first.');
     }
   };
   
   const allColumns = useMemo(() => {
-    if (customers.length === 0) return [];
+    if (borrowers.length === 0) return [];
     const columnSet = new Set<string>();
-    customers.forEach(c => {
+    borrowers.forEach(c => {
         if (!c) return;
         Object.keys(c).forEach(key => columnSet.add(key));
     });
@@ -76,7 +76,7 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
     const sortedColumns = Array.from(columnSet).filter(c => c !== 'id');
     sortedColumns.sort((a,b) => a.localeCompare(b));
     return ['id', ...sortedColumns];
-  }, [customers]);
+  }, [borrowers]);
 
 
   const nibBankColor = '#fdb913';
@@ -95,13 +95,13 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
             <div className="container max-w-7xl">
                  <Card>
                     <CardHeader>
-                        <CardTitle>Select a Customer Profile</CardTitle>
+                        <CardTitle>Select a Borrower Profile</CardTitle>
                         <CardDescription>
-                            Choose one of the customer profiles from your uploaded data to check their loan eligibility.
+                            Choose one of the borrower profiles from your uploaded data to check their loan eligibility.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <RadioGroup value={selectedCustomerId || ''} onValueChange={setSelectedCustomerId}>
+                        <RadioGroup value={selectedBorrowerId || ''} onValueChange={setSelectedBorrowerId}>
                              <ScrollArea className="w-full whitespace-nowrap rounded-md border">
                                  <Table>
                                     <TableHeader>
@@ -118,37 +118,37 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {customers.map((customer) => (
-                                            <TableRow key={customer.id}>
+                                        {borrowers.map((borrower) => (
+                                            <TableRow key={borrower.id}>
                                                 <TableCell className="sticky left-0 bg-card z-10">
-                                                    <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
+                                                    <RadioGroupItem value={borrower.id} id={`borrower-${borrower.id}`} />
                                                 </TableCell>
                                                 {allColumns.map(header => (
                                                      <TableCell 
-                                                        key={`${customer.id}-${header}`}
+                                                        key={`${borrower.id}-${header}`}
                                                         className={header === 'id' ? "sticky left-[50px] bg-card z-10 font-medium" : ""}
                                                      >
-                                                        {formatValue(header, customer[header])}
+                                                        {formatValue(header, borrower[header])}
                                                     </TableCell>
                                                 ))}
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
-                                {customers.length === 0 && (
+                                {borrowers.length === 0 && (
                                     <div className="flex items-center justify-center h-48">
-                                        <p className="text-muted-foreground">No customer data found. Please upload a file in the Admin Dashboard.</p>
+                                        <p className="text-muted-foreground">No borrower data found. Please upload a file in the Admin Dashboard.</p>
                                     </div>
                                 )}
                             </ScrollArea>
                         </RadioGroup>
                     </CardContent>
                 </Card>
-                {customers.length > 0 && (
+                {borrowers.length > 0 && (
                     <div className="flex justify-end mt-6">
                         <Button 
                             onClick={handleCheckEligibility}
-                            disabled={!selectedCustomerId}
+                            disabled={!selectedBorrowerId}
                             size="lg"
                             style={{ backgroundColor: nibBankColor }}
                             className="text-white"
