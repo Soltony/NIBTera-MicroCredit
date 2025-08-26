@@ -217,22 +217,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
 
-  const activeLoansFromCurrentProvider = useMemo(() => {
-    return loanHistory.filter(loan => 
-        loan.repaymentStatus === 'Unpaid' && 
-        loan.providerId === selectedProviderId
-    );
-  }, [loanHistory, selectedProviderId]);
-
-  const canApplyForAnotherLoanFromProvider = useMemo(() => {
-    if (!selectedProvider) return false;
-    // If there are no active loans with this provider, they can apply.
-    if (activeLoansFromCurrentProvider.length === 0) return true;
-    // If there are active loans, check if the provider allows multiple loans.
-    return selectedProvider.allowMultipleProviderLoans ?? false;
-  }, [activeLoansFromCurrentProvider, selectedProvider]);
-
-
   return (
     <>
       <div className="flex flex-col min-h-screen bg-background">
@@ -329,7 +313,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             onRepay={handleRepay}
                                             IconDisplayComponent={IconDisplay}
                                             borrowerHasActiveLoanWithThisProduct={!!activeLoansByProduct[product.name]}
-                                            canApplyForAnotherLoanFromProvider={canApplyForAnotherLoanFromProvider}
                                         />
                                     ))}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (

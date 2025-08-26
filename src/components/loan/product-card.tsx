@@ -34,7 +34,6 @@ interface ProductCardProps {
     onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
     borrowerHasActiveLoanWithThisProduct: boolean;
-    canApplyForAnotherLoanFromProvider: boolean;
 }
 
 export function ProductCard({ 
@@ -45,7 +44,6 @@ export function ProductCard({
     onRepay, 
     IconDisplayComponent,
     borrowerHasActiveLoanWithThisProduct,
-    canApplyForAnotherLoanFromProvider,
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -71,11 +69,8 @@ export function ProductCard({
         if ((product.availableLimit ?? 0) <= 0) {
             return { eligible: false, reason: "Your available credit is too low for this product." };
         }
-        if (!canApplyForAnotherLoanFromProvider) {
-            return { eligible: false, reason: "This provider does not allow taking new loans while you have other active loans with them." };
-        }
         return { eligible: true, reason: "" };
-    }, [borrowerHasActiveLoanWithThisProduct, product.allowMultipleLoans, product.availableLimit, canApplyForAnotherLoanFromProvider]);
+    }, [borrowerHasActiveLoanWithThisProduct, product.allowMultipleLoans, product.availableLimit]);
 
 
     const applyButton = (
