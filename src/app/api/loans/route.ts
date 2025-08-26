@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
         const newLoan = await prisma.loan.create({
             data: {
+                providerId: data.providerId,
                 borrowerId: data.borrowerId,
                 productId: data.productId,
                 loanAmount: data.loanAmount,

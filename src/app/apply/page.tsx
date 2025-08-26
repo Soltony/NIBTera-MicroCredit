@@ -40,6 +40,7 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
         displayOrder: provider.displayOrder,
         accountNumber: provider.accountNumber,
         allowCrossProviderLoans: provider.allowCrossProviderLoans,
+        allowMultipleProviderLoans: provider.allowMultipleProviderLoans,
         products: provider.products.map(prod => ({
             ...prod,
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
@@ -51,7 +52,7 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
 
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const providerId = searchParams.providerId as string;
+    const providerId = searchParams['providerId'] as string;
 
     if (!providerId) {
         notFound();
