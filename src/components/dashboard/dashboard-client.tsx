@@ -108,7 +108,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
     params.set('max', String(currentMaxLoanLimit));
-    router.push(`/apply?${params.toString()}`);
+    router.push(`/check-eligibility?${params.toString()}`);
   }
 
   const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
@@ -216,9 +216,20 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
 
-  const borrowerHasActiveLoan = useMemo(() => {
-      return loanHistory.some(loan => loan.repaymentStatus === 'Unpaid');
-  }, [loanHistory]);
+  const activeLoansFromCurrentProvider = useMemo(() => {
+    return loanHistory.filter(loan => 
+        loan.repaymentStatus === 'Unpaid' && 
+        loan.providerId === selectedProviderId
+    );
+  }, [loanHistory, selectedProviderId]);
+
+  const canApplyForAnotherLoanFromProvider = useMemo(() => {
+    if (!selectedProvider) return false;
+    // If there are no active loans with this provider, they can apply.
+    if (activeLoansFromCurrentProvider.length === 0) return true;
+    // If there are active loans, check if the provider allows multiple loans.
+    return selectedProvider.allowMultipleProviderLoans ?? false;
+  }, [activeLoansFromCurrentProvider, selectedProvider]);
 
 
   return (
@@ -316,7 +327,8 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                             onApply={() => handleApply(product.id)}
                                             onRepay={handleRepay}
                                             IconDisplayComponent={IconDisplay}
-                                            borrowerHasActiveLoan={borrowerHasActiveLoan}
+                                            borrowerHasActiveLoanWithThisProduct={!!activeLoansByProduct[product.name]}
+                                            canApplyForAnotherLoanFromProvider={canApplyForAnotherLoanFromProvider}
                                         />
                                     ))}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (

@@ -123,20 +123,35 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         where: {
             borrowerId: borrowerId,
             repaymentStatus: 'Unpaid'
+        },
+        include: {
+            product: {
+                include: {
+                    provider: true
+                }
+            }
         }
     });
     
     if (activeLoans.length > 0) {
-        // Cross-provider check
-        const otherProviderLoan = activeLoans.find(loan => loan.providerId !== providerId);
+        const otherProviderLoan = activeLoans.find(loan => loan.product.providerId !== providerId);
         if (otherProviderLoan && !product.provider.allowCrossProviderLoans) {
             return { isEligible: false, reason: `This provider does not allow lending to customers with active loans from other providers.`, score: 0, maxLoanAmount: 0 };
         }
+        
+        const sameProviderLoans = activeLoans.filter(loan => loan.product.providerId === providerId);
+        if(sameProviderLoans.length > 0) {
+             // Check if any of the active loans are for the *same product*
+             const hasActiveLoanForThisProduct = sameProviderLoans.some(loan => loan.productId === productId);
+             if (hasActiveLoanForThisProduct && !product.allowMultipleLoans) {
+                  return { isEligible: false, reason: 'You already have an active loan for this specific product.', score: 0, maxLoanAmount: 0 };
+             }
 
-        // Product-level check for multiple loans of the same type
-        const hasActiveLoanForThisProduct = activeLoans.some(loan => loan.productId === productId);
-        if (hasActiveLoanForThisProduct && !product.allowMultipleLoans) {
-             return { isEligible: false, reason: 'You already have an active loan for this specific product.', score: 0, maxLoanAmount: 0 };
+             // If there are loans from the same provider but for *different products*, check the provider-level flag
+             const hasDifferentProductLoan = sameProviderLoans.some(loan => loan.productId !== productId);
+             if (hasDifferentProductLoan && !product.provider.allowMultipleProviderLoans) {
+                 return { isEligible: false, reason: 'This provider does not allow multiple active loans of different types.', score: 0, maxLoanAmount: 0 };
+             }
         }
     }
     

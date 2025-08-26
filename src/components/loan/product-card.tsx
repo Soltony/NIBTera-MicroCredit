@@ -9,7 +9,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -33,10 +33,20 @@ interface ProductCardProps {
     onApply: () => void;
     onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
-    borrowerHasActiveLoan: boolean;
+    borrowerHasActiveLoanWithThisProduct: boolean;
+    canApplyForAnotherLoanFromProvider: boolean;
 }
 
-export function ProductCard({ product, providerColor = '#fdb913', activeLoan, onApply, onRepay, IconDisplayComponent, borrowerHasActiveLoan }: ProductCardProps) {
+export function ProductCard({ 
+    product, 
+    providerColor = '#fdb913', 
+    activeLoan, 
+    onApply, 
+    onRepay, 
+    IconDisplayComponent,
+    borrowerHasActiveLoanWithThisProduct,
+    canApplyForAnotherLoanFromProvider,
+}: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
@@ -54,14 +64,26 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && (!borrowerHasActiveLoan || product.allowMultipleLoans);
+    const canApply = useMemo(() => {
+        if (borrowerHasActiveLoanWithThisProduct && !product.allowMultipleLoans) {
+            return { eligible: false, reason: "You already have an active loan for this specific product." };
+        }
+        if ((product.availableLimit ?? 0) <= 0) {
+            return { eligible: false, reason: "Your available credit is too low for this product." };
+        }
+        if (!canApplyForAnotherLoanFromProvider) {
+            return { eligible: false, reason: "This provider does not allow taking new loans while you have other active loans with them." };
+        }
+        return { eligible: true, reason: "" };
+    }, [borrowerHasActiveLoanWithThisProduct, product.allowMultipleLoans, product.availableLimit, canApplyForAnotherLoanFromProvider]);
+
 
     const applyButton = (
         <Button 
             onClick={onApply} 
             style={{ backgroundColor: providerColor }} 
             className="text-white"
-            disabled={!canApplyForThisProduct}
+            disabled={!canApply.eligible}
         >
             Apply
         </Button>
@@ -84,14 +106,14 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                             !canApplyForThisProduct && !activeLoan ? (
+                             !canApply.eligible ? (
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <span tabIndex={0}>{applyButton}</span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            { (borrowerHasActiveLoan && !product.allowMultipleLoans) ? <p>You already have an active loan.</p> : <p>Your available credit is too low for this product.</p>}
+                                            <p>{canApply.reason}</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
