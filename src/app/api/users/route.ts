@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { password, role: roleName, ...userData } = userSchema.parse(body);
+    const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
 
     if (!password) {
       return NextResponse.json({ error: 'Password is required for new users.' }, { status: 400 });
@@ -65,13 +65,21 @@ export async function POST(req: NextRequest) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = await prisma.user.create({
-      data: {
+    
+    const dataToCreate: any = {
         ...userData,
         password: hashedPassword,
         roleId: role.id,
-      },
+    };
+    
+    if (providerId) {
+        dataToCreate.loanProvider = {
+            connect: { id: providerId }
+        };
+    }
+
+    const newUser = await prisma.user.create({
+      data: dataToCreate,
     });
 
     return NextResponse.json(newUser, { status: 201 });
@@ -99,6 +107,8 @@ export async function PUT(req: NextRequest) {
     }
 
     let dataToUpdate: any = { ...userData };
+    delete dataToUpdate.providerId;
+
 
     if (roleName) {
         const role = await prisma.role.findUnique({ where: { name: roleName }});
@@ -108,17 +118,15 @@ export async function PUT(req: NextRequest) {
         dataToUpdate.roleId = role.id;
     }
     
-    // Ensure providerId is handled correctly
+    // Handle providerId relationship
     if (userData.providerId === null) {
         dataToUpdate.loanProvider = {
             disconnect: true
         }
-        delete dataToUpdate.providerId;
     } else if (userData.providerId) {
         dataToUpdate.loanProvider = {
             connect: { id: userData.providerId }
         }
-        delete dataToUpdate.providerId;
     }
 
 
