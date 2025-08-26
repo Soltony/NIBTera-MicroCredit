@@ -3,7 +3,7 @@
 /**
  * @fileOverview Implements a loan eligibility check and credit scoring.
  *
- * - checkLoanEligibility - First checks for basic eligibility (age > 20), then calculates a credit score to determine the maximum loan amount.
+ * - checkLoanEligibility - First checks for basic eligibility, then calculates a credit score to determine the maximum loan amount.
  * - recalculateScoreAndLoanLimit - Calculates a credit score for a given provider and returns the max loan amount.
  */
 
@@ -15,6 +15,7 @@ import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 // Helper to convert strings to camelCase
 const toCamelCase = (str: string) => {
     if (!str) return '';
+    // This regex handles various separators (space, underscore, hyphen) and capitalizes the next letter.
     return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
 };
 
@@ -25,14 +26,21 @@ async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<str
     });
 
     const combinedData: Record<string, any> = { id: borrowerId };
+    
     // Iterate from newest to oldest. If a key already exists, we don't overwrite it,
     // ensuring we keep the value from the most recent upload.
     for (const entry of provisionedDataEntries) {
         try {
             const data = JSON.parse(entry.data as string);
+            const standardizedData: Record<string, any> = {};
             for (const key in data) {
+                standardizedData[toCamelCase(key)] = data[key];
+            }
+
+            for (const key in standardizedData) {
+                // Only add the key if it hasn't been added from a more recent entry
                 if (!Object.prototype.hasOwnProperty.call(combinedData, key)) {
-                    combinedData[key] = data[key];
+                    combinedData[key] = standardizedData[key];
                 }
             }
         } catch (e) {
@@ -101,12 +109,6 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     if (!borrowerData || Object.keys(borrowerData).length <= 1) { // has more than just id
       return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
-    
-    // Assuming 'age' is a field in the provisioned data, standardized to 'age'
-    const age = Number(borrowerData.age);
-    if (!isNaN(age) && age <= 20) {
-      return { isEligible: false, reason: 'Borrower must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
-    }
 
     const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
     if (!product) {
@@ -152,10 +154,7 @@ export async function recalculateScoreAndLoanLimit(borrowerId: string, providerI
         if (!borrowerData) {
              return { score: 0, maxLoanAmount: 0 };
         }
-        const age = Number(borrowerData.age);
-        if (!isNaN(age) && age <= 20) {
-            return { score: 0, maxLoanAmount: 0 };
-        }
+        
         const product = await prisma.loanProduct.findUnique({ where: { id: productId } });
         if (!product) {
             return { score: 0, maxLoanAmount: 0 };
