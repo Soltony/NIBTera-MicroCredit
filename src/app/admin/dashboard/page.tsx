@@ -15,11 +15,11 @@ async function getDashboardData(userId: string) {
 
     const providerFilter = (user?.role === 'Super Admin' || user?.role === 'Admin')
         ? {}
-        : { providerId: user?.loanProvider?.id };
+        : { product: { providerId: user?.loanProvider?.id }};
 
     const loans = await prisma.loan.findMany({ 
         where: providerFilter,
-        include: { provider: true, product: true }
+        include: { product: { include: { provider: true } } }
     });
     
     const users = await prisma.user.count({
