@@ -126,26 +126,16 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         }
     });
     
-    const hasActiveLoans = activeLoans.length > 0;
-    const hasActiveLoanWithThisProvider = activeLoans.some(loan => loan.providerId === providerId);
-    
-    // 1. Cross-provider check
-    if (hasActiveLoans && !product.provider.allowCrossProviderLoans) {
+    if (activeLoans.length > 0) {
+        // Cross-provider check
         const otherProviderLoan = activeLoans.find(loan => loan.providerId !== providerId);
-        if (otherProviderLoan) {
-             return { isEligible: false, reason: `This provider does not allow lending to customers with active loans from other providers.`, score: 0, maxLoanAmount: 0 };
+        if (otherProviderLoan && !product.provider.allowCrossProviderLoans) {
+            return { isEligible: false, reason: `This provider does not allow lending to customers with active loans from other providers.`, score: 0, maxLoanAmount: 0 };
         }
-    }
-    
-    // 2. Provider-level check
-    if (hasActiveLoanWithThisProvider && !product.provider.allowMultipleProviderLoans) {
-        return { isEligible: false, reason: 'You already have an active loan with this provider.', score: 0, maxLoanAmount: 0 };
-    }
 
-    // 3. Product-level check
-    if (hasActiveLoanWithThisProvider && !product.allowMultipleLoans) {
+        // Product-level check for multiple loans of the same type
         const hasActiveLoanForThisProduct = activeLoans.some(loan => loan.productId === productId);
-        if (hasActiveLoanForThisProduct) {
+        if (hasActiveLoanForThisProduct && !product.allowMultipleLoans) {
              return { isEligible: false, reason: 'You already have an active loan for this specific product.', score: 0, maxLoanAmount: 0 };
         }
     }

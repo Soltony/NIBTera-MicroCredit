@@ -66,6 +66,7 @@ export interface LoanProvider {
   displayOrder: number;
   accountNumber: string | null;
   initialBalance: number;
+  allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];
 }
 

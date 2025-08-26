@@ -85,6 +85,7 @@ async function main() {
       displayOrder: 1,
       accountNumber: '1000123456789',
       initialBalance: 1000000,
+      allowCrossProviderLoans: false,
     },
   });
   

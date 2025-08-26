@@ -40,7 +40,6 @@ async function getProviders(): Promise<LoanProvider[]> {
             colorHex: p.colorHex,
             displayOrder: p.displayOrder,
             accountNumber: p.accountNumber,
-            allowMultipleProviderLoans: p.allowMultipleProviderLoans,
             allowCrossProviderLoans: p.allowCrossProviderLoans,
             products: p.products.map(prod => ({
                 id: prod.id,

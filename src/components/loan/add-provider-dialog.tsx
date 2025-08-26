@@ -42,7 +42,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         displayOrder: 0,
         accountNumber: '' as string | null,
         initialBalance: 0,
-        allowMultipleProviderLoans: false,
         allowCrossProviderLoans: false,
     });
 
@@ -57,7 +56,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
             initialBalance: provider.initialBalance || 0,
-            allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
             allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
         });
     } else {
@@ -68,7 +66,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: 0,
             accountNumber: null,
             initialBalance: 0,
-            allowMultipleProviderLoans: false,
             allowCrossProviderLoans: false,
         });
     }
@@ -239,14 +236,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
           <Separator/>
           
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <Label htmlFor="allowMultipleProviderLoans" className="font-medium">Allow multiple loans from this provider</Label>
-                <Switch
-                    id="allowMultipleProviderLoans"
-                    checked={formData.allowMultipleProviderLoans}
-                    onCheckedChange={(checked) => handleSwitchChange('allowMultipleProviderLoans', checked)}
-                />
-            </div>
             <div className="flex items-center justify-between">
                 <Label htmlFor="allowCrossProviderLoans" className="font-medium">Allow loans if borrower has active loans from other providers</Label>
                 <Switch
