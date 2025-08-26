@@ -10,13 +10,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User and Role Management
-model Role {
-  id          String @id @default(cuid())
-  name        String @unique
-  permissions String
-  users       User[]
-}
+// ==============================================================
+// Authentication and Authorization
+// ==============================================================
 
 model User {
   id            String        @id @default(cuid())
@@ -24,48 +20,61 @@ model User {
   email         String        @unique
   phoneNumber   String        @unique
   password      String
-  status        String
+  status        String // "Active", "Inactive"
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
   // Relationships
+  role          Role          @relation(fields: [roleId], references: [id], onDelete: NoAction) // Can't delete a role if users are assigned to it
   roleId        String
-  role          Role          @relation(fields: [roleId], references: [id], onDelete: NoAction) // Can't delete a role if users are assigned
+  loanProvider  LoanProvider? @relation(fields: [loanProviderId], references: [id], onDelete: SetNull)
   loanProviderId String?
-  loanProvider  LoanProvider? @relation(fields: [loanProviderId], references: [id], onDelete: NoAction)
 }
 
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions String   // JSON string of permissions
+  users       User[]
+}
 
-// Core Loan Provider and Product Models
+// ==============================================================
+// Core Loan Provider and Product
+// ==============================================================
+
 model LoanProvider {
-  id           String @id @default(cuid())
-  name         String @unique
-  icon         String @default("Landmark")
-  colorHex     String @default("#fdb913")
-  displayOrder Int    @default(0)
-  accountNumber String?
-  initialBalance Float @default(0)
+  id                         String                        @id @default(cuid())
+  name                       String                        @unique
+  icon                       String
+  colorHex                   String?
+  displayOrder               Int                           @default(0)
+  accountNumber              String?
+  initialBalance             Float                         @default(0)
+  allowMultipleProviderLoans Boolean                       @default(false)
+  allowCrossProviderLoans    Boolean                       @default(false)
 
-  // Relationships
-  users                       User[]
-  products                    LoanProduct[]
-  scoringParameters         ScoringParameter[]
-  dataProvisioningConfigs   DataProvisioningConfig[]
-  ledgerAccounts              LedgerAccount[]
-  scoringConfigurationHistory ScoringConfigurationHistory[]
+  // Relationships (Owned by Provider - will be deleted if provider is deleted)
+  products                   LoanProduct[]
+  scoringParameters          ScoringParameter[]
+  dataProvisioningConfigs    DataProvisioningConfig[]
+  scoringHistory             ScoringConfigurationHistory[]
+  ledgerAccounts             LedgerAccount[]
+  users                      User[]
+  loans                      Loan[]
 }
-
 
 model LoanProduct {
-  id                          String      @id @default(cuid())
+  id                          String                        @id @default(cuid())
   name                        String
   description                 String?
-  icon                        String      @default("PersonStanding")
-  minLoan                     Float       @default(0)
-  maxLoan                     Float       @default(5000)
-  duration                    Int         @default(30)
-  status                      String      @default("Active")
-  allowMultipleLoans          Boolean     @default(false)
-  // Fee and Rule config stored as JSON strings
+  icon                        String
+  minLoan                     Float
+  maxLoan                     Float
+  duration                    Int
+  status                      String // "Active", "Disabled"
+  allowMultipleLoans          Boolean                       @default(false)
+
+  // Fee and Rule Settings (Stored as JSON strings)
   serviceFeeEnabled           Boolean?
   serviceFee                  String?
   dailyFeeEnabled             Boolean?
@@ -73,172 +82,171 @@ model LoanProduct {
   penaltyRulesEnabled         Boolean?
   penaltyRules                String?
   dataProvisioningEnabled     Boolean?
-  
+
   // Relationships
-  providerId                  String
   provider                    LoanProvider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  dataProvisioningConfigId    String?
+  providerId                  String
   dataProvisioningConfig      DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  dataProvisioningConfigId    String?
 
   loans                       Loan[]
   loanAmountTiers             LoanAmountTier[]
-  scoringHistoryLinks         ScoringConfigurationProduct[]
-
+  scoringHistoryProducts      ScoringConfigurationProduct[]
+  
   @@unique([name, providerId])
 }
 
 
-model Loan {
-  id                String   @id @default(cuid())
-  borrowerId        String
-  repaymentStatus   String   @default("Unpaid")
-  loanAmount        Float
-  serviceFee        Float
-  penaltyAmount     Float    @default(0)
-  repaidAmount      Float?   @default(0)
-  disbursedDate     DateTime
-  dueDate           DateTime
+// ==============================================================
+// Borrower and Loan Data
+// ==============================================================
 
-  // Relationships
-  providerId         String
-  provider           LoanProvider @relation(fields: [providerId], references: [id], onDelete: NoAction) // NoAction to prevent cycles with Provider -> Product -> Loan
-  productId          String
-  product            LoanProduct  @relation(fields: [productId], references: [id], onDelete: NoAction) // NoAction to prevent cycles
-
-  payments        Payment[]
-}
-
-
-model Payment {
-  id                                String   @id @default(cuid())
-  amount                            Float
-  date                              DateTime @default(now())
-  outstandingBalanceBeforePayment   Float?
-
-  // Relationships
-  loanId String
-  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
-}
-
-
-// Borrower and Data Provisioning
 model Borrower {
-  id              String            @id
-  provisionedData ProvisionedData[]
+    id   String @id
+    provisionedData ProvisionedData[]
+    loans           Loan[]
 }
-
-
-model DataProvisioningConfig {
-  id         String   @id @default(cuid())
-  name       String
-  columns    String // JSON String of columns
-  
-  // Relationships
-  providerId String
-  provider   LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
-  products        LoanProduct[]
-  uploads         DataProvisioningUpload[]
-  provisionedData ProvisionedData[]
-}
-
-
-model DataProvisioningUpload {
-  id          String   @id @default(cuid())
-  fileName    String
-  rowCount    Int
-  uploadedBy  String
-  uploadedAt  DateTime @default(now())
-  
-  // Relationships
-  configId String
-  config   DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-}
-
 
 model ProvisionedData {
-  borrowerId String
-  configId   String
-  data       String // JSON string
-  createdAt  DateTime @default(now())
+    id          String      @id @default(cuid())
+    borrowerId  String
+    borrower    Borrower    @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+    configId    String
+    config      DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: NoAction) // Prevent deleting config if data exists
+    data        String
+    createdAt   DateTime    @default(now())
 
-  // Relationships
-  borrower Borrower @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
-  config   DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-
-  @@id([borrowerId, configId])
+    @@unique([borrowerId, configId])
 }
 
 
-// Credit Scoring Engine Models
+model Loan {
+  id               String      @id @default(cuid())
+  borrowerId       String
+  borrower         Borrower    @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  providerId       String
+  provider         LoanProvider @relation(fields: [providerId], references: [id], onDelete: NoAction) // NoAction to prevent cycles with Provider -> Product -> Loan
+  productId        String
+  product          LoanProduct  @relation(fields: [productId], references: [id], onDelete: NoAction) // NoAction to prevent cycles
+  loanAmount       Float
+  serviceFee       Float
+  penaltyAmount    Float       @default(0)
+  repaidAmount     Float?
+  repaymentStatus  String // "Paid", "Unpaid"
+  disbursedDate    DateTime
+  dueDate          DateTime
+  
+  payments         Payment[]
+}
+
+model Payment {
+  id                              String   @id @default(cuid())
+  loanId                          String
+  loan                            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount                          Float
+  date                            DateTime @default(now())
+  outstandingBalanceBeforePayment Float?
+}
+
+
+// ==============================================================
+// Credit Scoring Engine
+// ==============================================================
+
 model ScoringParameter {
-  id      String @id @default(cuid())
-  name    String
-  weight  Int
+  id         String @id @default(cuid())
+  name       String
+  weight     Int
 
   // Relationships
-  providerId String
   provider   LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  providerId String
   rules      ScoringRule[]
 }
 
-
 model ScoringRule {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   field       String
   condition   String
   value       String
   score       Int
-  createdAt   DateTime @default(now())
-  
+
   // Relationships
-  parameterId String
   parameter   ScoringParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  parameterId String
 }
 
-
 model LoanAmountTier {
-  id         String  @id @default(cuid())
+  id         String @id @default(cuid())
   fromScore  Int
   toScore    Int
   loanAmount Float
-  
+
   // Relationships
-  productId String
-  product   LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String
 }
 
 
 model ScoringConfigurationHistory {
-    id          String   @id @default(cuid())
-    savedAt     DateTime @default(now())
-    parameters  String   // JSON string of ScoringParameter[]
-
+    id          String                        @id @default(cuid())
+    savedAt     DateTime                      @default(now())
+    parameters  String // JSON string
+    
     // Relationships
     providerId  String
-    provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+    provider    LoanProvider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
     appliedProducts ScoringConfigurationProduct[]
 }
 
 model ScoringConfigurationProduct {
     id         String                      @id @default(cuid())
-
-    // Relationships
     configId   String
     config     ScoringConfigurationHistory   @relation(fields: [configId], references: [id], onDelete: Cascade)
     productId  String
     product    LoanProduct                   @relation(fields: [productId], references: [id], onDelete: Cascade)
-    
     assignedBy String
 
     @@unique([configId, productId])
 }
 
-// Financial Ledger Models
+// ==============================================================
+// Data Provisioning (For custom data uploads)
+// ==============================================================
+
+model DataProvisioningConfig {
+  id          String   @id @default(cuid())
+  name        String
+  columns     String   // JSON string of column definitions
+
+  // Relationships
+  provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  providerId  String
+  products    LoanProduct[]
+  provisionedData ProvisionedData[]
+}
+
+model DataProvisioningUpload {
+    id          String  @id @default(cuid())
+    fileName    String
+    rowCount    Int
+    uploadedAt  DateTime @default(now())
+    uploadedBy  String
+
+    // Relationships
+    configId    String
+    config      DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+}
+
+
+// ==============================================================
+// Accounting / Ledger
+// ==============================================================
+
 model LedgerAccount {
     id        String   @id @default(cuid())
     name      String
-    type      String   // Receivable or Received
+    type      String   // Receivable, Received
     category  String   // Principal, Interest, Penalty
     balance   Float    @default(0)
 
