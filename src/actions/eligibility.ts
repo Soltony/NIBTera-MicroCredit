@@ -110,21 +110,43 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
       return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
+    const product = await prisma.loanProduct.findUnique({ 
+        where: { id: productId },
+        include: { provider: true }
+    });
+
     if (!product) {
         return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    // Check for active loans if the product doesn't allow multiple loans
-    if (!product.allowMultipleLoans) {
-        const activeLoanCount = await prisma.loan.count({
-            where: { 
-                borrowerId: borrowerId,
-                repaymentStatus: 'Unpaid' 
-            }
-        });
-        if (activeLoanCount > 0) {
-            return { isEligible: false, reason: 'You already have an active loan. This product does not allow multiple loans.', score: 0, maxLoanAmount: 0 };
+    const activeLoans = await prisma.loan.findMany({
+        where: {
+            borrowerId: borrowerId,
+            repaymentStatus: 'Unpaid'
+        }
+    });
+    
+    const hasActiveLoans = activeLoans.length > 0;
+    const hasActiveLoanWithThisProvider = activeLoans.some(loan => loan.providerId === providerId);
+    
+    // 1. Cross-provider check
+    if (hasActiveLoans && !product.provider.allowCrossProviderLoans) {
+        const otherProviderLoan = activeLoans.find(loan => loan.providerId !== providerId);
+        if (otherProviderLoan) {
+             return { isEligible: false, reason: `This provider does not allow lending to customers with active loans from other providers.`, score: 0, maxLoanAmount: 0 };
+        }
+    }
+    
+    // 2. Provider-level check
+    if (hasActiveLoanWithThisProvider && !product.provider.allowMultipleProviderLoans) {
+        return { isEligible: false, reason: 'You already have an active loan with this provider.', score: 0, maxLoanAmount: 0 };
+    }
+
+    // 3. Product-level check
+    if (hasActiveLoanWithThisProvider && !product.allowMultipleLoans) {
+        const hasActiveLoanForThisProduct = activeLoans.some(loan => loan.productId === productId);
+        if (hasActiveLoanForThisProduct) {
+             return { isEligible: false, reason: 'You already have an active loan for this specific product.', score: 0, maxLoanAmount: 0 };
         }
     }
     
