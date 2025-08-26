@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -160,6 +161,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     const [scoringHistory, setScoringHistory] = useState<ScoringHistoryItem[]>([]);
     const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
     const [selectedProducts, setSelectedProducts] = useState<Record<string, boolean>>({});
+    const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
 
     const { toast } = useToast();
 
@@ -361,6 +363,25 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             setSelectedProducts({});
         }
     }
+    
+    const handleDeleteHistory = async () => {
+        if (!deletingHistoryId) return;
+
+        try {
+            const response = await fetch(`/api/scoring-history?id=${deletingHistoryId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                throw new Error((await response.json()).error || 'Failed to delete history item.');
+            }
+            setScoringHistory(prev => prev.filter(item => item.id !== deletingHistoryId));
+            toast({ title: 'Success', description: 'History item deleted.' });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setDeletingHistoryId(null);
+        }
+    };
 
 
     if (providers.length === 0) {
@@ -509,16 +530,21 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
              <Card>
                 <CardHeader>
                     <CardTitle>Configuration History</CardTitle>
-                    <CardDescription>View past scoring configurations for this provider.</CardDescription>
+                    <CardDescription>View and manage past scoring configurations for this provider.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isHistoryLoading ? <div className="text-center p-8"><Loader className="h-6 w-6 animate-spin mx-auto"/></div> :
                     scoringHistory.length > 0 ? (
                         <ul className="space-y-4">
                         {scoringHistory.map(item => (
-                            <li key={item.id} className="p-4 border rounded-md">
-                                <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
-                                <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.product.name).join(', ') || 'N/A'}</span></p>
+                            <li key={item.id} className="p-4 border rounded-md flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
+                                    <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.product.name).join(', ') || 'N/A'}</span></p>
+                                </div>
+                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setDeletingHistoryId(item.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                             </li>
                         ))}
                         </ul>
@@ -558,6 +584,21 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={!!deletingHistoryId} onOpenChange={() => setDeletingHistoryId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete this configuration history record. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteHistory} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

@@ -74,3 +74,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+
+
+export async function DELETE(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+        return NextResponse.json({ error: 'History ID is required' }, { status: 400 });
+    }
+    
+    try {
+        // Use a transaction to delete the related products first, then the history item
+        await prisma.$transaction(async (tx) => {
+            await tx.scoringConfigurationProduct.deleteMany({
+                where: { configId: id }
+            });
+            await tx.scoringConfigurationHistory.delete({
+                where: { id },
+            });
+        });
+
+        return NextResponse.json({ message: 'History record deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting scoring history:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
