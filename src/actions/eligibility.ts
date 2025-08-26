@@ -28,7 +28,7 @@ async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<str
     const combinedData: Record<string, any> = { id: borrowerId };
     
     // Iterate from newest to oldest. If a key already exists, we don't overwrite it,
-    // ensuring we keep the value from the most recent upload.
+    // ensuring we keep the value from the most recent entry.
     for (const entry of provisionedDataEntries) {
         try {
             const data = JSON.parse(entry.data as string);
