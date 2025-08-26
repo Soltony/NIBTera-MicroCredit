@@ -9,7 +9,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
-import { Tooltip, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
