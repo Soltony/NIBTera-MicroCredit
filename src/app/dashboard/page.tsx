@@ -47,9 +47,12 @@ async function getProviders(): Promise<LoanProvider[]> {
     }
 }
 
-async function getLoanHistory(): Promise<LoanDetails[]> {
+async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
      try {
+        if (!borrowerId) return [];
+
         const loans = await prisma.loan.findMany({
+            where: { borrowerId },
             include: {
                 provider: true,
                 product: true,
@@ -97,9 +100,10 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
 }
 
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
+    const borrowerId = searchParams['borrowerId'] as string;
     const providers = await getProviders();
-    const loanHistory = await getLoanHistory();
+    const loanHistory = await getLoanHistory(borrowerId);
     
     return (
         <Suspense fallback={
