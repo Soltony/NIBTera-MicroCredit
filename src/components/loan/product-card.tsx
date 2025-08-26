@@ -54,7 +54,7 @@ export function ProductCard({ product, providerColor = '#fdb913', activeLoan, on
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && (!borrowerHasActiveLoan || product.allowMultipleLoans);
+    const canApplyForThisProduct = (product.availableLimit ?? 0) > 0 && (!borrowerHasActiveLoan || !!product.allowMultipleLoans);
 
     const applyButton = (
         <Button 
