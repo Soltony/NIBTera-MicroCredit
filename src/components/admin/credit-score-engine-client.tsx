@@ -65,16 +65,6 @@ interface CustomParameterType {
     label: string;
 }
 
-const AVAILABLE_FIELDS = [
-    { value: 'age', label: 'Age' },
-    { value: 'monthlyIncome', label: 'Monthly Income' },
-    { value: 'gender', label: 'Gender' },
-    { value: 'educationLevel', label: 'Education Level' },
-    { value: 'totalLoans', label: 'Total Loans' },
-    { value: 'onTimeRepayments', label: 'On-Time Repayments' },
-];
-
-
 const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string, maxScore: number }) => {
     
     const [min, max] = useMemo(() => {
@@ -226,14 +216,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             return [...otherProviderParams, ...updated];
         });
     };
-    
-    const allAvailableFields = useMemo(() => {
-        const customFields = customParams.map(p => ({ value: p.value, label: p.label }));
-        return {
-            standard: AVAILABLE_FIELDS,
-            custom: customFields,
-        }
-    }, [customParams]);
     
     const handleAddParameter = () => {
         if (!selectedProviderId) return;
@@ -456,19 +438,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 <SelectGroup>
-                                                                    <SelectLabel>Standard Fields</SelectLabel>
-                                                                    {allAvailableFields.standard.map(field => (
+                                                                    <SelectLabel>Custom Fields</SelectLabel>
+                                                                    {customParams.length > 0 ? customParams.map(field => (
                                                                         <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                                                                    ))}
+                                                                    )) : <div className="text-xs text-muted-foreground px-2 py-1.5">No custom fields found.</div>}
                                                                 </SelectGroup>
-                                                                {allAvailableFields.custom.length > 0 && (
-                                                                    <SelectGroup>
-                                                                         <SelectLabel>Custom Fields</SelectLabel>
-                                                                         {allAvailableFields.custom.map(field => (
-                                                                            <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                                                                        ))}
-                                                                    </SelectGroup>
-                                                                )}
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
@@ -530,7 +504,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 </CardFooter>
             </Card>
 
-            <ScorePreview parameters={currentParameters} availableFields={[...allAvailableFields.standard, ...allAvailableFields.custom]} providerColor={themeColor} />
+            <ScorePreview parameters={currentParameters} availableFields={customParams} providerColor={themeColor} />
             
              <Card>
                 <CardHeader>
