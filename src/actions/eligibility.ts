@@ -21,17 +21,25 @@ const toCamelCase = (str: string) => {
 async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<string, any>> {
     const provisionedDataEntries = await prisma.provisionedData.findMany({
         where: { borrowerId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' }, // newest first
     });
 
-    const latestProvisionedData: Record<string, any> = {};
+    const combinedData: Record<string, any> = { id: borrowerId };
+    // Iterate from newest to oldest. If a key already exists, we don't overwrite it,
+    // ensuring we keep the value from the most recent upload.
     for (const entry of provisionedDataEntries) {
-        const data = JSON.parse(entry.data);
-        // Newest data gets precedence, but we merge to get a full profile
-        // The data is already in camelCase from the upload process.
-        Object.assign(latestProvisionedData, { id: borrowerId, ...data });
+        try {
+            const data = JSON.parse(entry.data as string);
+            for (const key in data) {
+                if (!Object.prototype.hasOwnProperty.call(combinedData, key)) {
+                    combinedData[key] = data[key];
+                }
+            }
+        } catch (e) {
+            console.error(`Failed to parse data for entry ${entry.id}:`, e);
+        }
     }
-    return latestProvisionedData;
+    return combinedData;
 }
 
 
