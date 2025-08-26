@@ -34,8 +34,11 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
     const loans = await prisma.loan.findMany({
         where: providerFilter,
         include: {
-            provider: true,
-            product: true,
+            product: {
+                include: {
+                    provider: true
+                }
+            },
             _count: {
                 select: { payments: true }
             }
@@ -58,7 +61,7 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
             penaltyAmount: l.penaltyAmount,
             repaymentStatus: l.repaymentStatus,
             repaidAmount: l.repaidAmount,
-            providerName: l.provider.name,
+            providerName: l.product.provider.name,
             productName: l.product.name,
             paymentsCount: l._count.payments,
         })),
