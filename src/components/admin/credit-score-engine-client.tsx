@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Card,
   CardContent,
@@ -19,8 +20,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical } from 'lucide-react';
-import type { Rule, ScoringParameter } from '@/lib/types';
+import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical, Upload, Edit, FileClock } from 'lucide-react';
+import type { Rule, ScoringParameter, DataProvisioningConfig, DataColumn } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,36 +43,28 @@ import {
 } from '@/components/ui/dialog';
 import { ScorePreview } from '@/components/loan/score-preview';
 import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct, LoanProvider } from '@/lib/types';
 import { format } from 'date-fns';
 import { produce } from 'immer';
 import { cn } from '@/lib/utils';
 import { Separator } from '../ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Badge } from '../ui/badge';
 
 
 export interface ScoringHistoryItem {
     id: string;
     savedAt: Date;
-    parameters: ScoringParameter[];
-    appliedProducts: { name: string }[];
+    parameters: string; // is a JSON string
+    appliedProducts: { product: { name: string } }[];
 }
 
 interface CustomParameterType {
-    id: string;
-    name: string;
+    value: string;
+    label: string;
 }
-
-const AVAILABLE_FIELDS = [
-    { value: 'age', label: 'Age' },
-    { value: 'monthlyIncome', label: 'Monthly Income' },
-    { value: 'gender', label: 'Gender' },
-    { value: 'educationLevel', label: 'Education Level' },
-    { value: 'totalLoans', label: 'Total Loans' },
-    { value: 'onTimeRepayments', label: 'On-Time Repayments' },
-];
-
 
 const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string, maxScore: number }) => {
     
@@ -160,6 +153,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     
     // Global state for all params
     const [allParameters, setAllParameters] = useState<ScoringParameter[]>(initialScoringParameters);
+    const [allDataConfigs, setAllDataConfigs] = useState<DataProvisioningConfig[]>(initialProviders.flatMap(p => p.dataProvisioningConfigs || []));
     
     const [customParams, setCustomParams] = useState<CustomParameterType[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -167,6 +161,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     const [scoringHistory, setScoringHistory] = useState<ScoringHistoryItem[]>([]);
     const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
     const [selectedProducts, setSelectedProducts] = useState<Record<string, boolean>>({});
+    const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
 
     const { toast } = useToast();
 
@@ -179,12 +174,12 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     useEffect(() => {
         const fetchProviderData = async () => {
             if (!selectedProviderId) return;
-            setIsSaving(true);
             setIsHistoryLoading(true);
             try {
-                const [customParamsResponse, historyResponse] = await Promise.all([
+                const [customParamsResponse, historyResponse, configsResponse] = await Promise.all([
                     fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`),
-                    fetch(`/api/scoring-history?providerId=${selectedProviderId}`)
+                    fetch(`/api/scoring-history?providerId=${selectedProviderId}`),
+                    fetch(`/api/settings/data-provisioning?providerId=${selectedProviderId}`)
                 ]);
 
                 if (!customParamsResponse.ok) throw new Error('Failed to fetch custom parameters');
@@ -194,11 +189,14 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 if (!historyResponse.ok) throw new Error('Failed to fetch scoring history');
                 const historyData = await historyResponse.json();
                 setScoringHistory(historyData);
+                
+                if (!configsResponse.ok) throw new Error('Failed to fetch data configs');
+                const configsData = await configsResponse.json();
+                setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...configsData]);
 
             } catch (error) {
                 toast({ title: "Error", description: "Could not fetch configuration data.", variant: "destructive" });
             } finally {
-                setIsSaving(false);
                 setIsHistoryLoading(false);
             }
         };
@@ -209,6 +207,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
 
     // Memoized filters for the currently selected provider
     const currentParameters = useMemo(() => allParameters.filter(p => p.providerId === selectedProviderId), [allParameters, selectedProviderId]);
+    const currentDataConfigs = useMemo(() => allDataConfigs.filter(c => c.providerId === selectedProviderId), [allDataConfigs, selectedProviderId]);
     
     // Memoized setter function for the current provider
     const setCurrentParameters = (updater: React.SetStateAction<ScoringParameter[]>) => {
@@ -219,11 +218,6 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             return [...otherProviderParams, ...updated];
         });
     };
-    
-    const allAvailableFields = useMemo(() => {
-        const customFields = customParams.map(p => ({ value: p.name, label: p.name }));
-        return [...AVAILABLE_FIELDS, ...customFields];
-    }, [customParams]);
     
     const handleAddParameter = () => {
         if (!selectedProviderId) return;
@@ -369,6 +363,25 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             setSelectedProducts({});
         }
     }
+    
+    const handleDeleteHistory = async () => {
+        if (!deletingHistoryId) return;
+
+        try {
+            const response = await fetch(`/api/scoring-history?id=${deletingHistoryId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                throw new Error((await response.json()).error || 'Failed to delete history item.');
+            }
+            setScoringHistory(prev => prev.filter(item => item.id !== deletingHistoryId));
+            toast({ title: 'Success', description: 'History item deleted.' });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setDeletingHistoryId(null);
+        }
+    };
 
 
     if (providers.length === 0) {
@@ -407,6 +420,14 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 </div>
             </div>
             
+            <DataProvisioningTab 
+                providerId={selectedProviderId}
+                initialConfigs={currentDataConfigs}
+                onConfigChange={(newConfigs) => {
+                     setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
+                }}
+            />
+
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
@@ -437,9 +458,12 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                                 <SelectValue placeholder="Select Parameter Field" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                {allAvailableFields.map(field => (
-                                                                    <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                                                                ))}
+                                                                <SelectGroup>
+                                                                    <SelectLabel>Custom Fields</SelectLabel>
+                                                                    {customParams.length > 0 ? customParams.map(field => (
+                                                                        <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                                                                    )) : <div className="text-xs text-muted-foreground px-2 py-1.5">No custom fields found.</div>}
+                                                                </SelectGroup>
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
@@ -501,21 +525,26 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 </CardFooter>
             </Card>
 
-            <ScorePreview parameters={currentParameters} availableFields={allAvailableFields} providerColor={themeColor} />
+            <ScorePreview parameters={currentParameters} availableFields={customParams} providerColor={themeColor} />
             
              <Card>
                 <CardHeader>
                     <CardTitle>Configuration History</CardTitle>
-                    <CardDescription>View past scoring configurations for this provider.</CardDescription>
+                    <CardDescription>View and manage past scoring configurations for this provider.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isHistoryLoading ? <div className="text-center p-8"><Loader className="h-6 w-6 animate-spin mx-auto"/></div> :
                     scoringHistory.length > 0 ? (
                         <ul className="space-y-4">
                         {scoringHistory.map(item => (
-                            <li key={item.id} className="p-4 border rounded-md">
-                                <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
-                                <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.name).join(', ') || 'N/A'}</span></p>
+                            <li key={item.id} className="p-4 border rounded-md flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
+                                    <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.product.name).join(', ') || 'N/A'}</span></p>
+                                </div>
+                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setDeletingHistoryId(item.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                             </li>
                         ))}
                         </ul>
@@ -555,8 +584,411 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={!!deletingHistoryId} onOpenChange={() => setDeletingHistoryId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete this configuration history record. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteHistory} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
 
+function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
+    providerId: string;
+    initialConfigs: DataProvisioningConfig[];
+    onConfigChange: (newConfigs: DataProvisioningConfig[]) => void;
+}) {
+    const { toast } = useToast();
+    const [configs, setConfigs] = useState(initialConfigs);
+    const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+    const [editingConfig, setEditingConfig] = useState<DataProvisioningConfig | null>(null);
+    const [deletingConfigId, setDeletingConfigId] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
+
+    useEffect(() => {
+        setConfigs(initialConfigs);
+    }, [initialConfigs]);
+
+    const handleOpenDialog = (config: DataProvisioningConfig | null = null) => {
+        setEditingConfig(config);
+        setIsConfigDialogOpen(true);
+    };
+
+    const handleDelete = async (configId: string) => {
+        try {
+            const response = await fetch(`/api/settings/data-provisioning?id=${configId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete config.');
+            }
+            const newConfigs = configs.filter(c => c.id !== configId);
+            setConfigs(newConfigs);
+            onConfigChange(newConfigs);
+            toast({ title: "Success", description: "Data type deleted successfully." });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setDeletingConfigId(null);
+        }
+    };
     
+    const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
+        const isEditing = !!config.id;
+        const method = isEditing ? 'PUT' : 'POST';
+        const endpoint = '/api/settings/data-provisioning';
+        const body = { ...config, providerId: providerId };
+
+        try {
+            const response = await fetch(endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save config.');
+            }
+            const savedConfig = await response.json();
+            
+            // Ensure columns are parsed before updating state
+            const parsedConfig = {
+                ...savedConfig,
+                columns: typeof savedConfig.columns === 'string' 
+                    ? JSON.parse(savedConfig.columns) 
+                    : savedConfig.columns
+            };
+
+            const newConfigs = produce(configs, draft => {
+                if (isEditing) {
+                    const index = draft.findIndex(c => c.id === parsedConfig.id);
+                    if (index !== -1) {
+                        draft[index] = { ...draft[index], ...parsedConfig };
+                    }
+                } else {
+                    draft.push(parsedConfig);
+                }
+            });
+            setConfigs(newConfigs);
+            onConfigChange(newConfigs);
+            toast({ title: "Success", description: `Data type "${savedConfig.name}" saved successfully.` });
+        } catch(error: any) {
+            toast({ title: "Error", description: error.message, variant: 'destructive' });
+        }
+    };
+    
+    configs?.forEach(config => {
+        if (!fileInputRefs.current[config.id]) {
+            fileInputRefs.current[config.id] = React.createRef<HTMLInputElement>();
+        }
+    });
+
+    const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>, config: DataProvisioningConfig) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('configId', config.id);
+
+            const response = await fetch('/api/settings/data-provisioning-uploads', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to upload file.');
+            }
+            
+            const newUpload = await response.json();
+            
+            const newConfigs = produce(configs, draft => {
+                const cfg = draft.find(c => c.id === config.id);
+                if (cfg) {
+                    if (!cfg.uploads) cfg.uploads = [];
+                    cfg.uploads.unshift(newUpload);
+                }
+            });
+            setConfigs(newConfigs);
+            onConfigChange(newConfigs);
+
+            toast({
+                title: 'Upload Successful',
+                description: `File "${file.name}" uploaded and recorded successfully.`,
+            });
+
+        } catch (error: any) {
+             toast({
+                title: 'Upload Failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        } finally {
+            setIsUploading(false);
+            if (event.target) event.target.value = '';
+        }
+    };
+
+    return (
+        <>
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <CardTitle>Data Provisioning Types</CardTitle>
+                            <CardDescription>Define custom data types from file uploads to use in scoring.</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <Button onClick={() => handleOpenDialog()}>
+                                <PlusCircle className="h-4 w-4 mr-2" /> Add Data Type
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {configs?.map(config => (
+                        <Card key={config.id} className="mb-4">
+                            <CardHeader className="flex flex-row justify-between items-center">
+                                 <div>
+                                    <CardTitle className="text-lg">{config.name}</CardTitle>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)}><Edit className="h-4 w-4" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)}><Trash2 className="h-4 w-4" /></Button>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                               <h4 className="font-medium mb-2">Columns</h4>
+                               <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
+                                    {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
+                               </ul>
+                               <Separator />
+                               <div className="mt-4">
+                                   <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-medium">Upload History</h4>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={isUploading}
+                                            onClick={() => fileInputRefs.current[config.id]?.current?.click()}
+                                        >
+                                            {isUploading ? <Loader className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
+                                            Upload File
+                                        </Button>
+                                        <input
+                                            type="file"
+                                            ref={fileInputRefs.current[config.id]}
+                                            className="hidden"
+                                            accept=".xlsx, .xls"
+                                            onChange={(e) => handleExcelUpload(e, config)}
+                                        />
+                                   </div>
+                                   <div className="border rounded-md">
+                                       <Table>
+                                           <TableHeader>
+                                               <TableRow>
+                                                   <TableHead>File Name</TableHead>
+                                                   <TableHead>Rows</TableHead>
+                                                   <TableHead>Uploaded By</TableHead>
+                                                   <TableHead>Date</TableHead>
+                                               </TableRow>
+                                           </TableHeader>
+                                           <TableBody>
+                                               {config.uploads && config.uploads.length > 0 ? (
+                                                   config.uploads.map(upload => (
+                                                        <TableRow key={upload.id}>
+                                                            <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
+                                                            <TableCell>{upload.rowCount}</TableCell>
+                                                            <TableCell>{upload.uploadedBy}</TableCell>
+                                                            <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                                                        </TableRow>
+                                                   ))
+                                               ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
+                                                    </TableRow>
+                                               )}
+                                           </TableBody>
+                                       </Table>
+                                   </div>
+                               </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                    {!configs?.length && (
+                        <div className="text-center text-muted-foreground py-8">No data types defined for this provider.</div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <DataProvisioningDialog
+                isOpen={isConfigDialogOpen}
+                onClose={() => setIsConfigDialogOpen(false)}
+                onSave={handleSaveConfig}
+                config={editingConfig}
+            />
+
+            <AlertDialog open={!!deletingConfigId} onOpenChange={() => setDeletingConfigId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the data type. This action may fail if it's currently in use by a loan product.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+    );
+}
+
+
+function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => void;
+    config: DataProvisioningConfig | null;
+}) {
+    const { toast } = useToast();
+    const [name, setName] = useState('');
+    const [columns, setColumns] = useState<DataColumn[]>([]);
+
+    useEffect(() => {
+        if (config) {
+            setName(config.name);
+            setColumns(config.columns || []);
+        } else {
+            setName('');
+            setColumns([]);
+        }
+    }, [config, isOpen]);
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
+            
+            setColumns(headers.map((header, index) => ({
+                id: `col-${Date.now()}-${index}`,
+                name: header,
+                type: 'string', // default type
+                isIdentifier: index === 0, // default first column as identifier
+            })));
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    const handleColumnChange = (index: number, field: keyof DataColumn, value: string | boolean) => {
+        setColumns(produce(draft => {
+            const currentColumn = draft[index];
+            if (typeof value === 'boolean' && field === 'isIdentifier') {
+                draft.forEach((col, i) => {
+                    col.isIdentifier = i === index ? value : false;
+                });
+            } else {
+                (currentColumn as any)[field] = value;
+            }
+        }));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!columns.some(c => c.isIdentifier)) {
+            toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
+            return;
+        }
+        onSave({ id: config?.id, name, columns });
+        onClose();
+    };
+
+    return (
+         <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{config ? 'Edit' : 'Create'} Data Type</DialogTitle>
+                     <DialogDescription>Define a new data schema by uploading a sample file.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    <div>
+                        <Label htmlFor="data-type-name">Data Type Name</Label>
+                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="file-upload">Upload Sample File (.xlsx, .xls)</Label>
+                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                         <p className="text-xs text-muted-foreground mt-1">Upload a file to automatically detect columns.</p>
+                    </div>
+
+                    {columns.length > 0 && (
+                        <div>
+                            <Label>Configure Columns</Label>
+                            <div className="space-y-2 mt-2 border p-4 rounded-md max-h-64 overflow-y-auto">
+                                {columns.map((col, index) => (
+                                    <div key={col.id} className="grid grid-cols-12 items-center gap-2">
+                                        <Input
+                                            className="col-span-5"
+                                            value={col.name}
+                                            onChange={e => handleColumnChange(index, 'name', e.target.value)}
+                                            required
+                                        />
+                                        <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="string">Text</SelectItem>
+                                                <SelectItem value="number">Number</SelectItem>
+                                                <SelectItem value="date">Date</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                         <div className="col-span-4 flex items-center justify-end space-x-2">
+                                            <Checkbox
+                                                id={`is-identifier-${col.id}`}
+                                                checked={col.isIdentifier}
+                                                onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                            />
+                                            <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit">Save</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}

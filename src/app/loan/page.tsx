@@ -40,7 +40,6 @@ async function getProviders(): Promise<LoanProvider[]> {
             colorHex: p.colorHex,
             displayOrder: p.displayOrder,
             accountNumber: p.accountNumber,
-            allowMultipleProviderLoans: p.allowMultipleProviderLoans,
             allowCrossProviderLoans: p.allowCrossProviderLoans,
             products: p.products.map(prod => ({
                 id: prod.id,
@@ -62,12 +61,18 @@ async function getProviders(): Promise<LoanProvider[]> {
     }
 }
 
-async function getLoanHistory(): Promise<LoanDetails[]> {
+async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     try {
+        if (!borrowerId) return [];
+
         const loans = await prisma.loan.findMany({
+            where: { borrowerId },
             include: {
-                provider: true,
-                product: true,
+                product: {
+                    include: {
+                        provider: true
+                    }
+                },
                 payments: {
                     orderBy: {
                         date: 'asc'
@@ -81,8 +86,8 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
 
         return loans.map(loan => ({
             id: loan.id,
-            providerId: loan.providerId,
-            providerName: loan.provider.name,
+            providerId: loan.product.providerId,
+            providerName: loan.product.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
             serviceFee: loan.serviceFee,
@@ -113,9 +118,10 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
 }
 
 
-export default async function LoanPage() {
+export default async function LoanPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
+    const borrowerId = searchParams['borrowerId'] as string;
     const providers = await getProviders();
-    const loanHistory = await getLoanHistory();
+    const loanHistory = await getLoanHistory(borrowerId);
     
     return (
         <Suspense fallback={

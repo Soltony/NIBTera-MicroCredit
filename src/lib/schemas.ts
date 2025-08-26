@@ -8,6 +8,7 @@ export const productSchema = z.object({
   minLoan: z.number().positive().nullable(),
   maxLoan: z.number().positive().nullable(),
   duration: z.number().int().positive().optional(),
+  allowMultipleLoans: z.boolean().optional(),
 });
 
 export const createProductSchema = z.object({
@@ -18,6 +19,7 @@ export const createProductSchema = z.object({
   minLoan: z.number().min(0, 'Min loan cannot be negative'),
   maxLoan: z.number().min(0, 'Max loan cannot be negative'),
   duration: z.number().int().positive('Duration must be a positive number of days'),
+  allowMultipleLoans: z.boolean().optional(),
 }).refine(data => data.maxLoan >= data.minLoan, {
   message: "Max loan must be greater than or equal to min loan",
   path: ["maxLoan"],
@@ -38,7 +40,7 @@ const penaltyRuleSchema = z.object({
     id: z.string(),
     fromDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? '' : Number(v))),
     toDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? null : Number(v))).nullable(),
-    type: z.enum(['fixed', 'percentageOfPrincipal']),
+    type: z.enum(['fixed', 'percentageOfPrincipal', 'percentageOfCompound']),
     value: z.number().or(z.string().regex(/^\d*\.?\d*$/).transform(v => v === '' ? '' : Number(v))),
 });
 
@@ -49,10 +51,10 @@ export const updateProductSchema = productSchema.partial().extend({
   serviceFee: feeRuleSchema.optional(),
   dailyFee: dailyFeeRuleSchema.optional(),
   penaltyRules: z.array(penaltyRuleSchema).optional(),
-  serviceFeeEnabled: z.boolean().optional(),
-  dailyFeeEnabled: z.boolean().optional(),
-  penaltyRulesEnabled: z.boolean().optional(),
-  dataProvisioningEnabled: z.boolean().optional(),
+  serviceFeeEnabled: z.boolean().nullable().optional(),
+  dailyFeeEnabled: z.boolean().nullable().optional(),
+  penaltyRulesEnabled: z.boolean().nullable().optional(),
+  dataProvisioningEnabled: z.boolean().nullable().optional(),
   dataProvisioningConfigId: z.string().nullable().optional(),
 });
 

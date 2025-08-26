@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -26,10 +25,15 @@ export async function POST(req: NextRequest) {
                 maxLoan: productData.maxLoan,
                 duration: productData.duration,
                 status: 'Active',
+                allowMultipleLoans: productData.allowMultipleLoans ?? false,
                 // Default fee structures
                 serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 penaltyRules: JSON.stringify([]),
+                serviceFeeEnabled: false,
+                dailyFeeEnabled: false,
+                penaltyRulesEnabled: false,
+                dataProvisioningEnabled: false,
             }
         });
         
@@ -50,14 +54,21 @@ export async function PUT(req: NextRequest) {
     
     try {
         const body = await req.json();
-        const { id, ...updateData } = updateProductSchema.parse(body);
+        const parsedData = updateProductSchema.parse(body);
+        const { id, ...updateData } = parsedData;
         
         const dataToUpdate: any = { ...updateData };
 
-        // Stringify JSON fields if they are present
-        if (updateData.serviceFee) dataToUpdate.serviceFee = JSON.stringify(updateData.serviceFee);
-        if (updateData.dailyFee) dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
-        if (updateData.penaltyRules) dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
+        // Stringify JSON fields if they are present and are objects/arrays
+        if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
+            dataToUpdate.serviceFee = JSON.stringify(updateData.serviceFee);
+        }
+        if (updateData.dailyFee && typeof updateData.dailyFee === 'object') {
+            dataToUpdate.dailyFee = JSON.stringify(updateData.dailyFee);
+        }
+        if (updateData.penaltyRules && Array.isArray(updateData.penaltyRules)) {
+            dataToUpdate.penaltyRules = JSON.stringify(updateData.penaltyRules);
+        }
         
         const updatedProduct = await prisma.loanProduct.update({
             where: { id },
@@ -66,9 +77,9 @@ export async function PUT(req: NextRequest) {
 
         return NextResponse.json(updatedProduct);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error updating product:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error', 'details': error.message }, { status: 500 });
     }
 }
 

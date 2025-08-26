@@ -1,8 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -21,8 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Upload, Settings2, Save, FileClock, ShieldQuestion } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, DataColumn, LoanAmountTier, DailyFeeRule, DataProvisioningUpload } from '@/lib/types';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save } from 'lucide-react';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -37,24 +36,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { format } from 'date-fns';
-import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
+
+// Helper to safely parse JSON fields that might be strings
+const safeParseJson = (data: any, field: string, defaultValue: any) => {
+    if (data && typeof data[field] === 'string') {
+        try {
+            return JSON.parse(data[field]);
+        } catch (e) {
+            return defaultValue;
+        }
+    }
+    return data?.[field] ?? defaultValue;
+};
 
 
 const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
@@ -69,7 +67,12 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     const { toast } = useToast();
 
     useEffect(() => {
-        setFormData(product);
+         setFormData({
+            ...product,
+            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
+            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
+            penaltyRules: safeParseJson(product, 'penaltyRules', []),
+        });
     }, [product]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,29 +80,36 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         setFormData(prev => ({ ...prev, [name]: value === '' ? null : parseFloat(value) }));
     };
 
-    const handleSwitchChange = (checked: boolean) => {
-        setFormData(prev => ({...prev, status: checked ? 'Active' : 'Disabled' }));
+    const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
+        if (name === 'status') {
+            setFormData(prev => ({ ...prev, status: checked ? 'Active' : 'Disabled' }));
+        } else {
+            setFormData(prev => ({...prev, [name]: checked }));
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
         try {
+            const payload = {
+                ...formData,
+                minLoan: parseFloat(String(formData.minLoan)) || 0,
+                maxLoan: parseFloat(String(formData.maxLoan)) || 0,
+                duration: parseInt(String(formData.duration)) || 30,
+            };
+
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...formData,
-                    minLoan: parseFloat(String(formData.minLoan)) || 0,
-                    maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                    duration: parseInt(String(formData.duration)) || 30,
-                }),
+                body: JSON.stringify(payload),
             });
             if (!response.ok) {
                  const errorData = await response.json();
                  throw new Error(errorData.error || 'Failed to save product settings.');
             }
-            onSave(providerId, formData);
+            const savedProduct = await response.json();
+            onSave(providerId, savedProduct);
             toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -117,13 +127,22 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                          <Switch 
                             id={`status-${product.id}`}
                             checked={formData.status === 'Active'} 
-                            onCheckedChange={handleSwitchChange}
+                            onCheckedChange={(checked) => handleSwitchChange('status', checked)}
                             className="data-[state=checked]:bg-[--provider-color]"
                             style={{'--provider-color': providerColor} as React.CSSProperties}
                         />
                         <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
                     </div>
-                     <div />
+                     <div className="flex items-center space-x-2 justify-self-end">
+                         <Label htmlFor={`allowMultipleLoans-${product.id}`}>Allow multiple active loans</Label>
+                         <Switch 
+                            id={`allowMultipleLoans-${product.id}`}
+                            checked={!!formData.allowMultipleLoans} 
+                            onCheckedChange={(checked) => handleSwitchChange('allowMultipleLoans', checked)}
+                            className="data-[state=checked]:bg-[--provider-color]"
+                            style={{'--provider-color': providerColor} as React.CSSProperties}
+                        />
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
                         <Input
@@ -170,8 +189,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     )
 }
 
-function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider[] }) {
-    const [providers, setProviders] = useState(initialProviders);
+function ProvidersTab({ providers, onProvidersChange }: { 
+    providers: LoanProvider[],
+    onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
+}) {
     const { currentUser } = useAuth();
     const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
     const [editingProvider, setEditingProvider] = useState<LoanProvider | null>(null);
@@ -180,10 +201,6 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     const [deletingId, setDeletingId] = useState<{ type: 'provider' | 'product'; providerId: string; productId?: string } | null>(null);
 
     const { toast } = useToast();
-    
-    useEffect(() => {
-        setProviders(initialProviders);
-    }, [initialProviders]);
     
     const themeColor = useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -216,7 +233,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             
             const savedProviderResponse = await response.json();
             
-            setProviders(produce(draft => {
+            onProvidersChange(produce(draft => {
                 if (isEditing) {
                     const index = draft.findIndex(p => p.id === savedProviderResponse.id);
                     if (index !== -1) {
@@ -261,7 +278,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
             }
             const newProduct = await response.json();
 
-            setProviders(produce(draft => {
+            onProvidersChange(produce(draft => {
                 const provider = draft.find(p => p.id === selectedProviderId);
                 if (provider) {
                     if (!provider.products) provider.products = [];
@@ -275,7 +292,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
     };
 
     const handleSaveProduct = (providerId: string, updatedProduct: LoanProduct) => {
-        setProviders(produce(draft => {
+        onProvidersChange(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
@@ -304,7 +321,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Could not delete provider.');
             }
-            setProviders(providers.filter(p => p.id !== providerId));
+            onProvidersChange(prev => prev.filter(p => p.id !== providerId));
             toast({ title: "Provider Deleted" });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -322,7 +339,7 @@ function ProvidersTab({ providers: initialProviders }: { providers: LoanProvider
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Could not delete product.');
             }
-             setProviders(produce(draft => {
+             onProvidersChange(produce(draft => {
                 const provider = draft.find(p => p.id === providerId);
                 if (provider) {
                     provider.products = provider.products.filter(p => p.id !== productId);
@@ -529,13 +546,14 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
                 className="w-24"
                 disabled={!isEnabled}
             />
-            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal') => onChange({ ...rule, type })} disabled={!isEnabled}>
+            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound') => onChange({ ...rule, type })} disabled={!isEnabled}>
                 <SelectTrigger className="w-48" disabled={!isEnabled}>
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="fixed">Fixed Amount</SelectItem>
                     <SelectItem value="percentageOfPrincipal">Percentage of Principal</SelectItem>
+                    <SelectItem value="percentageOfCompound">Percentage of Compound</SelectItem>
                 </SelectContent>
             </Select>
              <div className="relative flex-1">
@@ -544,10 +562,10 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
                     value={rule.value ?? ''}
                     onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                     placeholder="Value"
-                    className={cn(rule.type === 'percentageOfPrincipal' ? "pr-8" : "")}
+                    className={cn(rule.type !== 'fixed' ? "pr-8" : "")}
                     disabled={!isEnabled}
                 />
-                 {rule.type === 'percentageOfPrincipal' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
+                 {rule.type !== 'fixed' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
             </div>
             <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive" disabled={!isEnabled}><Trash2 className="h-4 w-4" /></Button>
         </div>
@@ -711,7 +729,25 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     onProductUpdate: (updatedProduct: LoanProduct) => void;
 }) {
     const { toast } = useToast();
-    const [config, setConfig] = useState(product);
+
+    // Ensure JSON fields are parsed on initialization or when product prop changes
+    const parsedProduct = useMemo(() => {
+        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
+        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
+        const penaltyRules = safeParseJson(product, 'penaltyRules', []);
+        return {
+            ...product,
+            serviceFee,
+            dailyFee,
+            penaltyRules,
+        };
+    }, [product]);
+    
+    const [config, setConfig] = useState(parsedProduct);
+
+    useEffect(() => {
+        setConfig(parsedProduct);
+    }, [parsedProduct]);
 
     const handleUpdate = (update: Partial<LoanProduct>) => {
         setConfig(prev => ({...prev, ...update}));
@@ -848,30 +884,18 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
 }
 
 
-function ConfigurationTab({ initialProviders, onUpdateProviders }: { 
-    initialProviders: LoanProvider[],
-    onUpdateProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
+function ConfigurationTab({ providers, onProductUpdate }: { 
+    providers: LoanProvider[],
+    onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
 }) {
     const { currentUser } = useAuth();
     
     const visibleProviders = useMemo(() => {
         if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
-            return initialProviders;
+            return providers;
         }
-        return initialProviders.filter(p => p.id === currentUser.providerId);
-    }, [initialProviders, currentUser]);
-
-    const handleProductUpdate = (providerId: string, updatedProduct: LoanProduct) => {
-        onUpdateProviders(produce(draft => {
-            const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
-                if (productIndex !== -1) {
-                    provider.products[productIndex] = updatedProduct;
-                }
-            }
-        }));
-    };
+        return providers.filter(p => p.id === currentUser.providerId);
+    }, [providers, currentUser]);
     
     if (visibleProviders.length === 0) {
         return (
@@ -905,7 +929,7 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
                                 key={product.id}
                                 product={product}
                                 providerColor={provider.colorHex}
-                                onProductUpdate={(updatedProduct) => handleProductUpdate(provider.id, updatedProduct)}
+                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
                             />
                        ))}
                     </AccordionContent>
@@ -915,416 +939,25 @@ function ConfigurationTab({ initialProviders, onUpdateProviders }: {
     );
 }
 
-function DataProvisioningTab({ initialProviders, onUpdateProviders }: {
-    initialProviders: LoanProvider[],
-    onUpdateProviders: React.Dispatch<React.SetStateAction<LoanProvider[]>>
-}) {
-    const { currentUser } = useAuth();
-    const { toast } = useToast();
-
-    const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
-    const [editingConfig, setEditingConfig] = useState<DataProvisioningConfig | null>(null);
-    const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-    const [deletingConfigId, setDeletingConfigId] = useState<string | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
-
-    useEffect(() => {
-        if (!selectedProviderId && initialProviders.length > 0) {
-            const providerToSelect = currentUser?.providerId ? currentUser.providerId : initialProviders[0].id;
-            setSelectedProviderId(providerToSelect);
-        }
-    }, [initialProviders, selectedProviderId, currentUser]);
-
-
-    const handleOpenDialog = (config: DataProvisioningConfig | null = null) => {
-        setEditingConfig(config);
-        setIsConfigDialogOpen(true);
-    };
-    
-    const handleDelete = async (configId: string) => {
-        try {
-            const response = await fetch(`/api/settings/data-provisioning?id=${configId}`, {
-                method: 'DELETE',
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to delete config.');
-            }
-            onUpdateProviders(produce(draft => {
-                const provider = draft.find(p => p.id === selectedProviderId);
-                if (provider && provider.dataProvisioningConfigs) {
-                    provider.dataProvisioningConfigs = provider.dataProvisioningConfigs.filter(c => c.id !== configId);
-                }
-            }));
-            toast({ title: "Success", description: "Data type deleted successfully." });
-        } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } finally {
-            setDeletingConfigId(null);
-        }
-    };
-    
-    const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId' | 'id'> & { id?: string }) => {
-        const isEditing = !!config.id;
-        const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/api/settings/data-provisioning';
-        const body = { ...config, providerId: selectedProviderId };
-
-        try {
-            const response = await fetch(endpoint, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save config.');
-            }
-            const savedConfig = await response.json();
-            onUpdateProviders(produce(draft => {
-                const provider = draft.find(p => p.id === selectedProviderId);
-                if (provider) {
-                    if (!provider.dataProvisioningConfigs) {
-                        provider.dataProvisioningConfigs = [];
-                    }
-                    if (isEditing) {
-                        const index = provider.dataProvisioningConfigs.findIndex(c => c.id === savedConfig.id);
-                        if (index !== -1) {
-                            provider.dataProvisioningConfigs[index] = { ...provider.dataProvisioningConfigs[index], ...savedConfig };
-                        }
-                    } else {
-                        provider.dataProvisioningConfigs.push(savedConfig);
-                    }
-                }
-            }));
-            toast({ title: "Success", description: `Data type "${savedConfig.name}" saved successfully.` });
-        } catch(error: any) {
-            toast({ title: "Error", description: error.message, variant: 'destructive' });
-        }
-    };
-    
-    const selectedProvider = useMemo(() => initialProviders.find(p => p.id === selectedProviderId), [initialProviders, selectedProviderId]);
-
-    selectedProvider?.dataProvisioningConfigs?.forEach(config => {
-        if (!fileInputRefs.current[config.id]) {
-            fileInputRefs.current[config.id] = React.createRef<HTMLInputElement>();
-        }
-    });
-
-    const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>, config: DataProvisioningConfig) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                // Here we just pass the file to the backend, which will handle parsing and validation
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('configId', config.id);
-
-                const response = await fetch('/api/settings/data-provisioning-uploads', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to upload file.');
-                }
-                
-                const newUpload = await response.json();
-                
-                onUpdateProviders(produce(draft => {
-                    const provider = draft.find(p => p.id === selectedProviderId);
-                    const cfg = provider?.dataProvisioningConfigs?.find(c => c.id === config.id);
-                    if (cfg) {
-                        if (!cfg.uploads) cfg.uploads = [];
-                        cfg.uploads.unshift(newUpload);
-                    }
-                }));
-
-                toast({
-                    title: 'Upload Successful',
-                    description: `File "${file.name}" uploaded and recorded successfully.`,
-                });
-
-            } catch (error: any) {
-                 toast({
-                    title: 'Upload Failed',
-                    description: error.message,
-                    variant: 'destructive',
-                });
-            } finally {
-                setIsUploading(false);
-                if (event.target) event.target.value = '';
-            }
-        };
-        reader.onerror = () => {
-             setIsUploading(false);
-            toast({ title: 'Error Reading File', description: 'Could not read the selected file.', variant: 'destructive' });
-        };
-        // This just reads the file for sending, not parsing on client
-        reader.readAsArrayBuffer(file);
-    };
-
-    return (
-        <>
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle>Data Provisioning Types</CardTitle>
-                            <CardDescription>Define custom data types and their columns for data provisioning.</CardDescription>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <Select onValueChange={setSelectedProviderId} value={selectedProviderId}>
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Select a provider" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {initialProviders.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Button onClick={() => handleOpenDialog()}>
-                                <PlusCircle className="h-4 w-4 mr-2" /> Add Data Type
-                            </Button>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {selectedProvider?.dataProvisioningConfigs?.map(config => (
-                        <Card key={config.id} className="mb-4">
-                            <CardHeader className="flex flex-row justify-between items-center">
-                                 <div>
-                                    <CardTitle className="text-lg">{config.name}</CardTitle>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)}><Edit className="h-4 w-4" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)}><Trash2 className="h-4 w-4" /></Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                               <h4 className="font-medium mb-2">Columns</h4>
-                               <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                                    {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
-                               </ul>
-                               <Separator />
-                               <div className="mt-4">
-                                   <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-medium">Upload History</h4>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={isUploading}
-                                            onClick={() => fileInputRefs.current[config.id]?.current?.click()}
-                                        >
-                                            {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
-                                            Upload File
-                                        </Button>
-                                        <input
-                                            type="file"
-                                            ref={fileInputRefs.current[config.id]}
-                                            className="hidden"
-                                            accept=".xlsx, .xls"
-                                            onChange={(e) => handleExcelUpload(e, config)}
-                                        />
-                                   </div>
-                                   <div className="border rounded-md">
-                                       <Table>
-                                           <TableHeader>
-                                               <TableRow>
-                                                   <TableHead>File Name</TableHead>
-                                                   <TableHead>Rows</TableHead>
-                                                   <TableHead>Uploaded By</TableHead>
-                                                   <TableHead>Date</TableHead>
-                                               </TableRow>
-                                           </TableHeader>
-                                           <TableBody>
-                                               {config.uploads && config.uploads.length > 0 ? (
-                                                   config.uploads.map(upload => (
-                                                        <TableRow key={upload.id}>
-                                                            <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
-                                                            <TableCell>{upload.rowCount}</TableCell>
-                                                            <TableCell>{upload.uploadedBy}</TableCell>
-                                                            <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
-                                                        </TableRow>
-                                                   ))
-                                               ) : (
-                                                    <TableRow>
-                                                        <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
-                                                    </TableRow>
-                                               )}
-                                           </TableBody>
-                                       </Table>
-                                   </div>
-                               </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                    {!selectedProvider?.dataProvisioningConfigs?.length && (
-                        <div className="text-center text-muted-foreground py-8">No data types defined for {selectedProvider?.name || 'this provider'}.</div>
-                    )}
-                </CardContent>
-            </Card>
-
-            <DataProvisioningDialog
-                isOpen={isConfigDialogOpen}
-                onClose={() => setIsConfigDialogOpen(false)}
-                onSave={handleSaveConfig}
-                config={editingConfig}
-            />
-
-            <AlertDialog open={!!deletingConfigId} onOpenChange={() => setDeletingConfigId(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the data type. This action may fail if it's currently in use by a loan product.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </>
-    );
-}
-
-function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id'> & { id?: string }) => void;
-    config: DataProvisioningConfig | null;
-}) {
-    const [name, setName] = useState('');
-    const [columns, setColumns] = useState<DataColumn[]>([]);
-
-    useEffect(() => {
-        if (config) {
-            setName(config.name);
-            setColumns(config.columns);
-        } else {
-            setName('');
-            setColumns([{ id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: true, dbField: 'ID' }]);
-        }
-    }, [config, isOpen]);
-
-    const handleColumnChange = (index: number, field: keyof DataColumn, value: string | boolean) => {
-        setColumns(produce(draft => {
-            const currentColumn = draft[index];
-            if (typeof value === 'boolean' && field === 'isIdentifier') {
-                // Ensure only one identifier is selected at a time
-                draft.forEach((col, i) => {
-                    col.isIdentifier = i === index ? value : false;
-                });
-            } else {
-                (currentColumn as any)[field] = value;
-            }
-        }));
-    };
-
-    const addColumn = () => {
-        setColumns([...columns, { id: `col-${Date.now()}`, name: '', type: 'string', isIdentifier: false, dbField: 'ID' }]);
-    };
-
-    const removeColumn = (index: number) => {
-        setColumns(columns.filter((_, i) => i !== index));
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // Validation: ensure at least one identifier is set
-        if (!columns.some(c => c.isIdentifier)) {
-            alert('Please mark one column as the customer identifier.');
-            return;
-        }
-        // Ensure the identifier uses the 'ID' dbField
-        const identifierColumn = columns.find(c => c.isIdentifier);
-        if (identifierColumn && identifierColumn.dbField !== 'ID') {
-            alert('The identifier column must use the "Customer ID" database field.');
-            return;
-        }
-
-        onSave({ id: config?.id, name, columns });
-        onClose();
-    };
-
-    return (
-         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>{config ? 'Edit' : 'Add'} Data Type</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                    <div>
-                        <Label htmlFor="data-type-name">Data Type Name</Label>
-                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} required />
-                    </div>
-                    <div>
-                        <Label>Columns</Label>
-                        <div className="space-y-2 mt-2">
-                            {columns.map((col, index) => (
-                                <div key={col.id} className="flex items-center gap-2">
-                                    <Input
-                                        placeholder="Column Name"
-                                        value={col.name}
-                                        onChange={e => handleColumnChange(index, 'name', e.target.value)}
-                                        required
-                                    />
-                                    <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
-                                        <SelectTrigger className="w-32">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="string">Text</SelectItem>
-                                            <SelectItem value="number">Number</SelectItem>
-                                            <SelectItem value="date">Date</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => removeColumn(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`is-identifier-${col.id}`}
-                                            checked={col.isIdentifier}
-                                            onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
-                                        />
-                                        <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground">Identifier</Label>
-                                    </div>
-                                    {col.isIdentifier && (
-                                        <Select value={col.dbField} onValueChange={(value: 'ID') => handleColumnChange(index, 'dbField', value)}>
-                                            <SelectTrigger className="w-48">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="ID">Customer ID</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                         <Button type="button" variant="outline" size="sm" onClick={addColumn} className="mt-2">
-                            <PlusCircle className="h-4 w-4 mr-2" /> Add Column
-                        </Button>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit">Save</Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    )
-}
 
 export function SettingsClient({ initialProviders }: { initialProviders: LoanProvider[]}) {
     const [providers, setProviders] = useState(initialProviders);
+
+    const onProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                if (productIndex !== -1) {
+                    provider.products[productIndex] = updatedProduct;
+                }
+            }
+        }));
+    }, []);
+
+    const handleProvidersChange = useCallback((updater: React.SetStateAction<LoanProvider[]>) => {
+        setProviders(updater);
+    }, []);
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -1333,16 +966,12 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
                     <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
-                    <TabsTrigger value="data-provisioning">Data Provisioning</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">
-                    <ProvidersTab providers={providers} />
+                    <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab initialProviders={providers} onUpdateProviders={setProviders} />
-                </TabsContent>
-                <TabsContent value="data-provisioning">
-                     <DataProvisioningTab initialProviders={providers} onUpdateProviders={setProviders} />
+                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} />
                 </TabsContent>
             </Tabs>
         </div>

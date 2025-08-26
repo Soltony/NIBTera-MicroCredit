@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { password, role: roleName, ...userData } = userSchema.parse(body);
+    const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
 
     if (!password) {
       return NextResponse.json({ error: 'Password is required for new users.' }, { status: 400 });
@@ -65,13 +65,19 @@ export async function POST(req: NextRequest) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = await prisma.user.create({
-      data: {
+    
+    const dataToCreate: any = {
         ...userData,
         password: hashedPassword,
         roleId: role.id,
-      },
+    };
+    
+    if (providerId) {
+        dataToCreate.loanProviderId = providerId;
+    }
+
+    const newUser = await prisma.user.create({
+      data: dataToCreate,
     });
 
     return NextResponse.json(newUser, { status: 201 });
@@ -92,7 +98,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id, role: roleName, ...userData } = body;
+    const { id, role: roleName, providerId, ...userData } = body;
 
     if (!id) {
         return NextResponse.json({ error: 'User ID is required for an update.' }, { status: 400 });
@@ -108,17 +114,11 @@ export async function PUT(req: NextRequest) {
         dataToUpdate.roleId = role.id;
     }
     
-    // Ensure providerId is handled correctly
-    if (userData.providerId === null) {
-        dataToUpdate.loanProvider = {
-            disconnect: true
-        }
-        delete dataToUpdate.providerId;
-    } else if (userData.providerId) {
-        dataToUpdate.loanProvider = {
-            connect: { id: userData.providerId }
-        }
-        delete dataToUpdate.providerId;
+    // Handle providerId relationship
+    if (providerId === null) {
+        dataToUpdate.loanProviderId = null;
+    } else if (providerId) {
+        dataToUpdate.loanProviderId = providerId;
     }
 
 

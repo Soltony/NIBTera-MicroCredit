@@ -85,8 +85,7 @@ async function main() {
       displayOrder: 1,
       accountNumber: '1000123456789',
       initialBalance: 1000000,
-      allowCrossProviderLoans: true,
-      allowMultipleProviderLoans: false,
+      allowCrossProviderLoans: false,
     },
   });
   
@@ -114,6 +113,7 @@ async function main() {
       maxLoan: 50000,
       duration: 30,
       status: 'Active',
+      allowMultipleLoans: false,
       serviceFeeEnabled: true,
       serviceFee: JSON.stringify({ type: 'percentage', value: 2 }),
       dailyFeeEnabled: true,
@@ -123,6 +123,7 @@ async function main() {
         { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50 },
         { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5 },
       ]),
+      dataProvisioningEnabled: false,
     },
   });
   
@@ -137,35 +138,6 @@ async function main() {
 
 
   console.log('Loan Providers and Products seeded.');
-  
-  // Seed Customers
-    await prisma.customer.upsert({
-        where: { id: '1' },
-        update: {},
-        create: {
-            id: '1',
-            age: 35,
-            gender: 'Male',
-            monthlyIncome: 5000,
-            educationLevel: 'Graduate',
-            loanHistory: JSON.stringify({ totalLoans: 5, onTimeRepayments: 5 }),
-        },
-    });
-
-    await prisma.customer.upsert({
-        where: { id: '2' },
-        update: {},
-        create: {
-            id: '2',
-            age: 28,
-            gender: 'Female',
-            monthlyIncome: 3000,
-            educationLevel: 'High School',
-            loanHistory: JSON.stringify({ totalLoans: 2, onTimeRepayments: 1 }),
-        },
-    });
-    console.log('Customers seeded.');
-
 
   console.log('Seeding finished.');
 }

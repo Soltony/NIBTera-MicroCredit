@@ -17,7 +17,7 @@ export interface PenaltyRule {
     id: string;
     fromDay: number | '';
     toDay: number | Infinity | '' | null;
-    type: 'fixed' | 'percentageOfPrincipal';
+    type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound';
     value: number | '';
 }
 
@@ -39,7 +39,7 @@ export interface DataProvisioningUpload {
 }
 
 export interface DataProvisioningConfig {
-    id: string;
+    id:string;
     providerId: string;
     name: string;
     columns: DataColumn[];
@@ -86,6 +86,7 @@ export interface LoanProduct {
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
+  allowMultipleLoans: boolean;
   serviceFeeEnabled?: boolean;
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
@@ -185,6 +186,13 @@ export interface ScoringParameter {
   name: string;
   weight: number;
   rules: Rule[];
+}
+
+export interface ScoringHistoryItem {
+    id: string;
+    savedAt: Date;
+    parameters: string; // Stored as JSON string
+    appliedProducts: { product: { name: string } }[];
 }
 
 // Type for Legacy Scoring Config page

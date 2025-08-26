@@ -71,7 +71,7 @@ async function getDashboardData(userId: string) {
         include: { product: true }
     }).then(loans => loans.map(l => ({
         id: l.id,
-        customer: `Borrower #${l.borrowerId}`,
+        borrower: `Borrower #${l.borrowerId}`,
         product: l.product.name,
         status: l.repaymentStatus,
         amount: l.loanAmount,
@@ -103,7 +103,7 @@ async function getDashboardData(userId: string) {
         totalPaid,
         repaymentRate,
         atRiskLoans,
-        totalUsers: users,
+        totalUsers,
         loanDisbursementData,
         loanStatusData,
         recentActivity,

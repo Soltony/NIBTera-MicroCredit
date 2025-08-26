@@ -3,21 +3,57 @@
 /**
  * @fileOverview Implements a loan eligibility check and credit scoring.
  *
- * - checkLoanEligibility - First checks for basic eligibility (age > 20), then calculates a credit score to determine the maximum loan amount.
+ * - checkLoanEligibility - First checks for basic eligibility, then calculates a credit score to determine the maximum loan amount.
  * - recalculateScoreAndLoanLimit - Calculates a credit score for a given provider and returns the max loan amount.
  */
 
 import prisma from '@/lib/prisma';
-import type { Customer } from '@prisma/client';
 import { evaluateCondition } from '@/lib/utils';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 
 
-async function calculateScoreForProvider(customerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer) {
-        throw new Error('Customer not found for score calculation.');
+// Helper to convert strings to camelCase
+const toCamelCase = (str: string) => {
+    if (!str) return '';
+    // This regex handles various separators (space, underscore, hyphen) and capitalizes the next letter.
+    return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
+};
+
+async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<string, any>> {
+    const provisionedDataEntries = await prisma.provisionedData.findMany({
+        where: { borrowerId },
+        orderBy: { createdAt: 'desc' }, // newest first
+    });
+
+    const combinedData: Record<string, any> = { id: borrowerId };
+    
+    // Iterate from newest to oldest. If a key already exists, we don't overwrite it,
+    // ensuring we keep the value from the most recent entry.
+    for (const entry of provisionedDataEntries) {
+        try {
+            const data = JSON.parse(entry.data as string);
+            const standardizedData: Record<string, any> = {};
+            for (const key in data) {
+                standardizedData[toCamelCase(key)] = data[key];
+            }
+
+            for (const key in standardizedData) {
+                // Only add the key if it hasn't been added from a more recent entry
+                if (!Object.prototype.hasOwnProperty.call(combinedData, key)) {
+                    combinedData[key] = standardizedData[key];
+                }
+            }
+        } catch (e) {
+            console.error(`Failed to parse data for entry ${entry.id}:`, e);
+        }
     }
+    return combinedData;
+}
+
+
+async function calculateScoreForProvider(borrowerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
+    
+    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId);
     
     const parameters: ScoringParameterType[] = await prisma.scoringParameter.findMany({
         where: { providerId },
@@ -30,37 +66,17 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
         return { score: 0, maxLoanAmount: 0 };
     }
     
-    // Fetch latest provisioned data for this customer
-    const provisionedDataEntries = await prisma.provisionedData.findMany({
-        where: { customerId },
-        orderBy: { createdAt: 'desc' },
-    });
-
-    const latestProvisionedData: Record<string, any> = {};
-    for (const entry of provisionedDataEntries) {
-        const data = JSON.parse(entry.data);
-        Object.assign(latestProvisionedData, data);
-    }
-    
     let totalScore = 0;
-    const customerLoanHistory = JSON.parse(customer.loanHistory as string);
-
-    const customerDataForScoring: Record<string, any> = {
-        age: Number(customer.age) || 0,
-        monthlyIncome: Number(customer.monthlyIncome) || 0,
-        gender: customer.gender,
-        educationLevel: customer.educationLevel,
-        totalLoans: Number(customerLoanHistory.totalLoans) || 0,
-        onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
-        ...latestProvisionedData,
-    };
 
     parameters.forEach(param => {
         let maxScoreForParam = 0;
         const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
-            const inputValue = customerDataForScoring[rule.field];
+            // Standardize the rule's field name to camelCase for lookup
+            const fieldNameInCamelCase = toCamelCase(rule.field);
+            const inputValue = borrowerDataForScoring[fieldNameInCamelCase];
+            
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;
@@ -86,40 +102,54 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
 }
 
 
-export async function checkLoanEligibility(customerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
+export async function checkLoanEligibility(borrowerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer) {
-      return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
+    const borrowerData = await getBorrowerDataForScoring(borrowerId);
+
+    if (!borrowerData || Object.keys(borrowerData).length <= 1) { // has more than just id
+      return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
+    }
+
+    const product = await prisma.loanProduct.findUnique({ 
+        where: { id: productId },
+    });
+
+    if (!product) {
+        return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    if (customer.age <= 20) {
-      return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
+    // Fetch all active loans for this borrower with this provider
+    const allActiveLoans = await prisma.loan.findMany({
+        where: {
+            borrowerId: borrowerId,
+            providerId: providerId,
+            repaymentStatus: 'Unpaid'
+        },
+        include: { product: true }
+    });
+
+    // Rule 1: A borrower can never have more than one active loan of the same product type.
+    const hasActiveLoanOfSameType = allActiveLoans.some(loan => loan.productId === productId);
+    if (hasActiveLoanOfSameType) {
+        return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
     }
 
-    const provider = await prisma.loanProvider.findUnique({ where: { id: providerId } });
-    if (!provider) {
-        return { isEligible: false, reason: 'Loan provider not found.', score: 0, maxLoanAmount: 0 };
+    // Rule 2: Check the switch. If OFF, the product is "exclusive".
+    // The user cannot take this loan if they have *any* other active loans with this provider.
+    if (!product.allowMultipleLoans) {
+        if (allActiveLoans.length > 0) {
+             const otherLoanNames = allActiveLoans.map(l => l.product.name).join(', ');
+            return { isEligible: false, reason: `This product is exclusive and cannot be taken while you have other active loans (e.g., ${otherLoanNames}).`, score: 0, maxLoanAmount: 0 };
+        }
     }
-
-    const allActiveLoans = await prisma.loan.findMany({ where: { repaymentStatus: 'Unpaid' } });
-    const activeLoansWithThisProvider = allActiveLoans.filter(l => l.providerId === providerId);
-    const activeLoansWithOtherProviders = allActiveLoans.filter(l => l.providerId !== providerId);
-
-    if (activeLoansWithThisProvider.length > 0 && !provider.allowMultipleProviderLoans) {
-        return { isEligible: false, reason: 'This provider does not allow multiple active loans. Please repay your existing loan first.', score: 0, maxLoanAmount: 0 };
-    }
-
-    if (activeLoansWithOtherProviders.length > 0 && !provider.allowCrossProviderLoans) {
-        return { isEligible: false, reason: 'This provider does not allow loans if you have active loans with other providers.', score: 0, maxLoanAmount: 0 };
-    }
-
+    
+    // If we've reached here, the loan is allowed based on active loan rules. Now check scoring.
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    const { score, maxLoanAmount } = await calculateScoreForProvider(customerId, providerId, productId);
+    const { score, maxLoanAmount } = await calculateScoreForProvider(borrowerId, providerId, productId);
 
     if (maxLoanAmount <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
@@ -134,20 +164,20 @@ export async function checkLoanEligibility(customerId: string, providerId: strin
 }
 
 
-export async function recalculateScoreAndLoanLimit(customerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
+export async function recalculateScoreAndLoanLimit(borrowerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
     try {
-        const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-        if (!customer || customer.age <= 20) {
-            return { score: 0, maxLoanAmount: 0 };
+        const borrowerData = await getBorrowerDataForScoring(borrowerId);
+        if (!borrowerData) {
+             return { score: 0, maxLoanAmount: 0 };
         }
+        
         const product = await prisma.loanProduct.findUnique({ where: { id: productId } });
         if (!product) {
             return { score: 0, maxLoanAmount: 0 };
         }
-        return await calculateScoreForProvider(customerId, providerId, product.id);
+        return await calculateScoreForProvider(borrowerId, providerId, product.id);
     } catch (error) {
         console.error('Error in recalculateScoreAndLoanLimit:', error);
         return { score: 0, maxLoanAmount: 0 };
     }
 }
-
