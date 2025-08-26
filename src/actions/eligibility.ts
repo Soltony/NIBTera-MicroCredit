@@ -128,17 +128,18 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         include: { product: true }
     });
 
-    // Rule 1: Check if there's an active loan of the *same* product type. This is always a blocker.
+    // Rule 1: A borrower can never have more than one active loan of the same product type.
     const hasActiveLoanOfSameType = allActiveLoans.some(loan => loan.productId === productId);
     if (hasActiveLoanOfSameType) {
         return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
     }
 
-    // Rule 2: If the switch is OFF, check if there are any *other* active loans.
+    // Rule 2: Check the switch. If OFF, the product is "exclusive".
+    // The user cannot take this loan if they have *any* other active loans with this provider.
     if (!product.allowMultipleLoans) {
         if (allActiveLoans.length > 0) {
-            const otherLoanNames = allActiveLoans.map(l => l.product.name).join(', ');
-            return { isEligible: false, reason: `This product cannot be taken while you have other active loans with this provider (e.g., ${otherLoanNames}).`, score: 0, maxLoanAmount: 0 };
+             const otherLoanNames = allActiveLoans.map(l => l.product.name).join(', ');
+            return { isEligible: false, reason: `This product is exclusive and cannot be taken while you have other active loans (e.g., ${otherLoanNames}).`, score: 0, maxLoanAmount: 0 };
         }
     }
     
