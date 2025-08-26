@@ -226,7 +226,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Customer</TableHead>
+                      <TableHead>Borrower</TableHead>
                       <TableHead>Product</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Amount</TableHead>

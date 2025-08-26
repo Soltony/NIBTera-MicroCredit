@@ -68,10 +68,10 @@ async function getDashboardData(userId: string) {
         where: providerFilter,
         take: 5,
         orderBy: { disbursedDate: 'desc' },
-        include: { customer: true, product: true }
+        include: { product: true }
     }).then(loans => loans.map(l => ({
         id: l.id,
-        customer: `Customer #${l.customerId}`,
+        customer: `Borrower #${l.borrowerId}`,
         product: l.product.name,
         status: l.repaymentStatus,
         amount: l.loanAmount,
