@@ -5,6 +5,11 @@ import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
 
+// Helper to convert strings to camelCase
+const toCamelCase = (str: string) => {
+    return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
+};
+
 // This is a simplified version and does not handle file storage.
 // It parses the file in memory, validates it, and stores the data.
 // For large files, a streaming approach and storing the file in a bucket would be better.
@@ -41,24 +46,28 @@ export async function POST(req: NextRequest) {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
-        const headers = jsonData[0].map(h => String(h).toLowerCase());
+        const originalHeaders = jsonData[0].map(h => String(h));
+        const camelCaseHeaders = originalHeaders.map(toCamelCase);
+        
         const rows = jsonData.slice(1);
         const configColumns = JSON.parse(config.columns as string);
-        const idColumnName = configColumns.find((c: any) => c.isIdentifier)?.name;
+        const idColumnConfig = configColumns.find((c: any) => c.isIdentifier);
 
-        if (!idColumnName) {
+        if (!idColumnConfig) {
             return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
         }
+        
+        const idColumnCamelCase = toCamelCase(idColumnConfig.name);
         
         // Use transaction to perform all upserts
         await prisma.$transaction(async (tx) => {
             for (const row of rows) {
                 const rowData: { [key: string]: any } = {};
-                headers.forEach((header, index) => {
-                    rowData[String(header)] = row[index];
+                camelCaseHeaders.forEach((header, index) => {
+                    rowData[header] = row[index];
                 });
                 
-                const borrowerId = String(rowData[idColumnName.toLowerCase()]);
+                const borrowerId = String(rowData[idColumnCamelCase]);
                 if (!borrowerId) continue;
 
                 // 1. Upsert the borrower record first to ensure it exists

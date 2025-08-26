@@ -12,6 +12,12 @@ import { evaluateCondition } from '@/lib/utils';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 
 
+// Helper to convert strings to camelCase
+const toCamelCase = (str: string) => {
+    if (!str) return '';
+    return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
+};
+
 async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<string, any>> {
     const provisionedDataEntries = await prisma.provisionedData.findMany({
         where: { borrowerId },
@@ -22,6 +28,7 @@ async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<str
     for (const entry of provisionedDataEntries) {
         const data = JSON.parse(entry.data);
         // Newest data gets precedence, but we merge to get a full profile
+        // The data is already in camelCase from the upload process.
         Object.assign(latestProvisionedData, { id: borrowerId, ...data });
     }
     return latestProvisionedData;
@@ -50,7 +57,10 @@ async function calculateScoreForProvider(borrowerId: string, providerId: string,
         const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
-            const inputValue = borrowerDataForScoring[rule.field];
+            // Standardize the rule's field name to camelCase for lookup
+            const fieldNameInCamelCase = toCamelCase(rule.field);
+            const inputValue = borrowerDataForScoring[fieldNameInCamelCase];
+            
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;
@@ -84,7 +94,7 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
       return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    // Assuming 'age' is a field in the provisioned data
+    // Assuming 'age' is a field in the provisioned data, standardized to 'age'
     const age = Number(borrowerData.age);
     if (!isNaN(age) && age <= 20) {
       return { isEligible: false, reason: 'Borrower must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
