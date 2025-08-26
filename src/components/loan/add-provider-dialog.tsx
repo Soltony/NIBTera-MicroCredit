@@ -42,8 +42,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         displayOrder: 0,
         accountNumber: '' as string | null,
         initialBalance: 0,
-        allowMultipleProviderLoans: false,
-        allowCrossProviderLoans: false,
     });
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -57,8 +55,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
             initialBalance: provider.initialBalance || 0,
-            allowMultipleProviderLoans: provider.allowMultipleProviderLoans || false,
-            allowCrossProviderLoans: provider.allowCrossProviderLoans || false,
         });
     } else {
         setFormData({
@@ -68,8 +64,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: 0,
             accountNumber: null,
             initialBalance: 0,
-            allowMultipleProviderLoans: false,
-            allowCrossProviderLoans: false,
         });
     }
   }, [provider, isOpen]);
@@ -95,10 +89,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const { id, value, type } = e.target;
       setFormData(prev => ({ ...prev, [id]: type === 'number' ? parseInt(value) || 0 : value }));
-  }
-
-  const handleSwitchChange = (id: keyof typeof formData, checked: boolean) => {
-    setFormData(prev => ({ ...prev, [id]: checked }));
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -233,27 +223,6 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                     className="p-1 h-10 w-14"
                 />
                 <span className="text-sm font-mono bg-muted px-2 py-1 rounded-md">{formData.colorHex}</span>
-            </div>
-          </div>
-
-          <Separator/>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <Label htmlFor="allowMultipleProviderLoans" className="font-medium">Allow multiple loans from this provider</Label>
-                <Switch
-                    id="allowMultipleProviderLoans"
-                    checked={formData.allowMultipleProviderLoans}
-                    onCheckedChange={(checked) => handleSwitchChange('allowMultipleProviderLoans', checked)}
-                />
-            </div>
-             <div className="flex items-center justify-between">
-                <Label htmlFor="allowCrossProviderLoans" className="font-medium">Allow loans if borrower has active loans from other providers</Label>
-                <Switch
-                    id="allowCrossProviderLoans"
-                    checked={formData.allowCrossProviderLoans}
-                    onCheckedChange={(checked) => handleSwitchChange('allowCrossProviderLoans', checked)}
-                />
             </div>
           </div>
 
