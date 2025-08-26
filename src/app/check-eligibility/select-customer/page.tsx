@@ -5,32 +5,29 @@ import type { LoanProvider } from '@/lib/types';
 
 
 async function getCustomers() {
-    const customers = await prisma.customer.findMany({
-        include: {
-            provisionedData: {
-                include: {
-                    config: true
-                }
-            }
+    const provisionedDataEntries = await prisma.provisionedData.findMany({
+        orderBy: {
+            createdAt: 'desc' // Get the latest entries first
         }
     });
 
-    // We want to merge the base customer data with all provisioned data fields.
-    return customers.map(c => {
-        const provisionedDataObject = c.provisionedData.reduce((acc, provData) => {
-            const data = JSON.parse(provData.data as string);
-            return { ...acc, ...data };
-        }, {});
+    // Group all data by customerId
+    const customerDataMap = new Map<string, any>();
 
-        return {
-            id: c.id,
-            age: c.age,
-            gender: c.gender,
-            educationLevel: c.educationLevel,
-            monthlyIncome: c.monthlyIncome,
-            ...provisionedDataObject,
-        };
-    });
+    for (const entry of provisionedDataEntries) {
+        const data = JSON.parse(entry.data as string);
+        const customerId = data.id || entry.customerId; // Use id from data if available, fallback to customerId
+
+        if (!customerDataMap.has(customerId)) {
+            customerDataMap.set(customerId, { id: customerId });
+        }
+
+        const existingData = customerDataMap.get(customerId);
+        // Merge new data, giving precedence to newer entries (already handled by sorting)
+        customerDataMap.set(customerId, { ...data, ...existingData });
+    }
+
+    return Array.from(customerDataMap.values());
 }
 
 
@@ -45,3 +42,4 @@ export default async function SelectCustomerPage() {
     
     return <EligibilityCheckerClient customers={customers as any[]} providers={providers as any[]} />;
 }
+

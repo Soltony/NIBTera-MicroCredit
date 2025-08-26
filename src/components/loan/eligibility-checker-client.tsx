@@ -65,58 +65,21 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
   };
   
   const allColumns = useMemo(() => {
+    if (customers.length === 0) return [];
     const columnSet = new Set<string>();
     customers.forEach(c => {
         if (!c) return;
         Object.keys(c).forEach(key => columnSet.add(key));
     });
-    // Define a preferred order
-    const preferredOrder = ['id', 'age', 'gender', 'educationLevel', 'monthlyIncome', 'salary'];
-    const sortedColumns = Array.from(columnSet).sort((a, b) => {
-        const indexA = preferredOrder.indexOf(a);
-        const indexB = preferredOrder.indexOf(b);
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        return a.localeCompare(b);
-    });
-    return sortedColumns;
+    
+    // Make sure 'id' is first, then sort the rest
+    const sortedColumns = Array.from(columnSet).filter(c => c !== 'id');
+    sortedColumns.sort((a,b) => a.localeCompare(b));
+    return ['id', ...sortedColumns];
   }, [customers]);
+
 
   const nibBankColor = '#fdb913';
-
-  const tableHeaders = useMemo(() => {
-    const headers = new Set<string>();
-    customers.forEach(customer => {
-        if (!customer) return;
-        Object.keys(customer).forEach(key => {
-            if (key !== 'id') {
-                headers.add(key);
-            }
-        });
-    });
-    const preferredOrder = ['age', 'gender', 'educationLevel', 'monthlyIncome'];
-    const sortedHeaders = Array.from(headers);
-
-    sortedHeaders.sort((a, b) => {
-        const indexA = preferredOrder.indexOf(a);
-        const indexB = preferredOrder.indexOf(b);
-
-        if (indexA !== -1 && indexB !== -1) {
-            return indexA - indexB; // Both are in preferred order
-        }
-        if (indexA !== -1) {
-            return -1; // A is preferred, B is not
-        }
-        if (indexB !== -1) {
-            return 1; // B is preferred, A is not
-        }
-        return a.localeCompare(b); // Neither is preferred, sort alphabetically
-    });
-    
-    return sortedHeaders;
-  }, [customers]);
-
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -143,24 +106,28 @@ export function EligibilityCheckerClient({ customers, providers }: EligibilityCh
                                  <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[50px] sticky left-0 bg-card"></TableHead>
-                                            <TableHead className="sticky left-[50px] bg-card">Customer ID</TableHead>
-                                            {tableHeaders.map(header => (
-                                                <TableHead key={header} className="capitalize">{header.replace(/_/g, ' ')}</TableHead>
+                                            <TableHead className="w-[50px] sticky left-0 bg-card z-10"></TableHead>
+                                            {allColumns.map(header => (
+                                                <TableHead 
+                                                    key={header} 
+                                                    className={header === 'id' ? "sticky left-[50px] bg-card z-10 capitalize" : "capitalize"}
+                                                >
+                                                    {header.replace(/_/g, ' ')}
+                                                </TableHead>
                                             ))}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {customers.map((customer) => (
                                             <TableRow key={customer.id}>
-                                                <TableCell className="sticky left-0 bg-card">
+                                                <TableCell className="sticky left-0 bg-card z-10">
                                                     <RadioGroupItem value={customer.id} id={`customer-${customer.id}`} />
                                                 </TableCell>
-                                                <TableCell className="sticky left-[50px] bg-card">
-                                                    <Label htmlFor={`customer-${customer.id}`} className="font-medium">User #{customer.id}</Label>
-                                                </TableCell>
-                                                {tableHeaders.map(header => (
-                                                    <TableCell key={`${customer.id}-${header}`}>
+                                                {allColumns.map(header => (
+                                                     <TableCell 
+                                                        key={`${customer.id}-${header}`}
+                                                        className={header === 'id' ? "sticky left-[50px] bg-card z-10 font-medium" : ""}
+                                                     >
                                                         {formatValue(header, customer[header])}
                                                     </TableCell>
                                                 ))}

@@ -13,11 +13,25 @@ import { evaluateCondition } from '@/lib/utils';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 
 
-async function calculateScoreForProvider(customerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer) {
-        throw new Error('Customer not found for score calculation.');
+async function getCustomerDataForScoring(customerId: string): Promise<Record<string, any>> {
+    const provisionedDataEntries = await prisma.provisionedData.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    const latestProvisionedData: Record<string, any> = {};
+    for (const entry of provisionedDataEntries) {
+        const data = JSON.parse(entry.data);
+        // Newest data gets precedence, but we merge to get a full profile
+        Object.assign(latestProvisionedData, { id: customerId, ...data });
     }
+    return latestProvisionedData;
+}
+
+
+async function calculateScoreForProvider(customerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
+    
+    const customerDataForScoring = await getCustomerDataForScoring(customerId);
     
     const parameters: ScoringParameterType[] = await prisma.scoringParameter.findMany({
         where: { providerId },
@@ -30,30 +44,7 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
         return { score: 0, maxLoanAmount: 0 };
     }
     
-    // Fetch latest provisioned data for this customer
-    const provisionedDataEntries = await prisma.provisionedData.findMany({
-        where: { customerId },
-        orderBy: { createdAt: 'desc' },
-    });
-
-    const latestProvisionedData: Record<string, any> = {};
-    for (const entry of provisionedDataEntries) {
-        const data = JSON.parse(entry.data);
-        Object.assign(latestProvisionedData, data);
-    }
-    
     let totalScore = 0;
-    const customerLoanHistory = JSON.parse(customer.loanHistory as string);
-
-    const customerDataForScoring: Record<string, any> = {
-        age: Number(customer.age) || 0,
-        monthlyIncome: Number(customer.monthlyIncome) || 0,
-        gender: customer.gender,
-        educationLevel: customer.educationLevel,
-        totalLoans: Number(customerLoanHistory.totalLoans) || 0,
-        onTimeRepayments: Number(customerLoanHistory.onTimeRepayments) || 0,
-        ...latestProvisionedData,
-    };
 
     parameters.forEach(param => {
         let maxScoreForParam = 0;
@@ -88,12 +79,15 @@ async function calculateScoreForProvider(customerId: string, providerId: string,
 
 export async function checkLoanEligibility(customerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer) {
+    const customerData = await getCustomerDataForScoring(customerId);
+
+    if (!customerData || Object.keys(customerData).length <= 1) { // has more than just id
       return { isEligible: false, reason: 'Customer profile not found.', score: 0, maxLoanAmount: 0 };
     }
     
-    if (customer.age <= 20) {
+    // Assuming 'age' is a field in the provisioned data
+    const age = Number(customerData.age);
+    if (!isNaN(age) && age <= 20) {
       return { isEligible: false, reason: 'Customer must be older than 20 to qualify.', score: 0, maxLoanAmount: 0 };
     }
 
@@ -137,8 +131,12 @@ export async function checkLoanEligibility(customerId: string, providerId: strin
 
 export async function recalculateScoreAndLoanLimit(customerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
     try {
-        const customer = await prisma.customer.findUnique({ where: { id: customerId } });
-        if (!customer || customer.age <= 20) {
+        const customerData = await getCustomerDataForScoring(customerId);
+        if (!customerData) {
+             return { score: 0, maxLoanAmount: 0 };
+        }
+        const age = Number(customerData.age);
+        if (!isNaN(age) && age <= 20) {
             return { score: 0, maxLoanAmount: 0 };
         }
         const product = await prisma.loanProduct.findUnique({ where: { id: productId } });
