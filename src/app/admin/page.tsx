@@ -15,11 +15,11 @@ async function getDashboardData(userId: string) {
 
     const providerFilter = (user?.role === 'Super Admin' || user?.role === 'Admin')
         ? {}
-        : { providerId: user?.loanProvider?.id };
+        : { product: { providerId: user?.loanProvider?.id }};
 
     const loans = await prisma.loan.findMany({ 
         where: providerFilter,
-        include: { provider: true, product: true }
+        include: { product: { include: { provider: true } } }
     });
     
     const users = await prisma.user.count({
@@ -41,11 +41,11 @@ async function getDashboardData(userId: string) {
             const amount = await prisma.loan.aggregate({
                 _sum: { loanAmount: true },
                 where: {
-                    ...providerFilter,
                     disbursedDate: {
                         gte: date,
                         lt: nextDate,
                     },
+                    ...(providerFilter && { product: providerFilter.product })
                 },
             });
             return {

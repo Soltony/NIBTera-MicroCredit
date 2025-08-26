@@ -65,8 +65,11 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
     try {
         const loans = await prisma.loan.findMany({
             include: {
-                provider: true,
-                product: true,
+                product: {
+                    include: {
+                        provider: true
+                    }
+                },
                 payments: {
                     orderBy: {
                         date: 'asc'
@@ -80,8 +83,8 @@ async function getLoanHistory(): Promise<LoanDetails[]> {
 
         return loans.map(loan => ({
             id: loan.id,
-            providerId: loan.providerId,
-            providerName: loan.provider.name,
+            providerId: loan.product.providerId,
+            providerName: loan.product.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,
             serviceFee: loan.serviceFee,

@@ -43,12 +43,15 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
             },
         },
         include: {
-            product: true,
-            provider: {
+            product: {
                 include: {
-                    ledgerAccounts: true,
+                    provider: {
+                        include: {
+                            ledgerAccounts: true,
+                        }
+                    }
                 }
-            },
+            }
         },
     });
 
@@ -95,8 +98,8 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
 
 
                     // 5. Update financial ledgers
-                    const principalReceivable = loan.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
-                    const principalReceived = loan.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
+                    const principalReceivable = loan.product.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
+                    const principalReceived = loan.product.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
                     
                     if (principalReceivable && principalReceived) {
                         await tx.ledgerAccount.update({
