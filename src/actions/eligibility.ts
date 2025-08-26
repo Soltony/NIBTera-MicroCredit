@@ -119,18 +119,24 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    // Check if the user has an active loan for THIS specific product, only if multiple loans for this product are disallowed.
-    if (!product.allowMultipleLoans) {
-        const activeLoanForThisProduct = await prisma.loan.findFirst({
-            where: {
-                borrowerId: borrowerId,
-                productId: productId,
-                repaymentStatus: 'Unpaid'
-            }
-        });
+    // Check for any active loans with this provider.
+    const activeLoans = await prisma.loan.findMany({
+        where: {
+            borrowerId: borrowerId,
+            providerId: providerId,
+            repaymentStatus: 'Unpaid'
+        },
+        include: {
+            product: true
+        }
+    });
 
-        if (activeLoanForThisProduct) {
-            return { isEligible: false, reason: 'You already have an active loan for this specific product, and it does not allow multiple loans.', score: 0, maxLoanAmount: 0 };
+    if (activeLoans.length > 0) {
+        // If the user has any active loan with the provider, check the rule for the PRODUCT they are applying for.
+        if (!product.allowMultipleLoans) {
+            // This product does NOT allow taking a loan if others are active.
+            const existingProductNames = activeLoans.map(l => l.product.name).join(', ');
+            return { isEligible: false, reason: `You already have an active loan (${existingProductNames}) with this provider. This product does not allow multiple active loans.`, score: 0, maxLoanAmount: 0 };
         }
     }
     
