@@ -55,7 +55,8 @@ export async function PUT(req: NextRequest) {
     
     try {
         const body = await req.json();
-        const { id, ...updateData } = updateProductSchema.parse(body);
+        const parsedData = updateProductSchema.parse(body);
+        const { id, ...updateData } = parsedData;
         
         const dataToUpdate: any = { ...updateData };
 

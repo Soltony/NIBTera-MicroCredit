@@ -70,15 +70,17 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         e.preventDefault();
         setIsSaving(true);
         try {
+            const payload = {
+                ...formData,
+                minLoan: parseFloat(String(formData.minLoan)) || 0,
+                maxLoan: parseFloat(String(formData.maxLoan)) || 0,
+                duration: parseInt(String(formData.duration)) || 30,
+            };
+
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...formData,
-                    minLoan: parseFloat(String(formData.minLoan)) || 0,
-                    maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                    duration: parseInt(String(formData.duration)) || 30,
-                }),
+                body: JSON.stringify(payload),
             });
             if (!response.ok) {
                  const errorData = await response.json();
