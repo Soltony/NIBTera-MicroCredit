@@ -91,7 +91,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     
     let serviceFee = 0;
     if (product.serviceFeeEnabled && product.serviceFee && product.serviceFee.value) {
-        const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : product.serviceFee.value;
+        const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : (product.serviceFee.value || 0);
         serviceFee = product.serviceFee.type === 'fixed' 
             ? feeValue
             : numericLoanAmount * (feeValue / 100);
@@ -112,7 +112,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         penaltyAmount: 0,
     };
     
-    const totalRepayable = calculateTotalRepayable(tempLoan, product, dueDate);
+    const { total: totalRepayable } = calculateTotalRepayable(tempLoan, product, dueDate);
 
     return { serviceFee, disbursedDate, dueDate, totalRepayable, penaltyAmount: 0 };
   }, [loanAmount, eligibilityResult, product]);
