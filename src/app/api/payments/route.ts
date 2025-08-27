@@ -35,33 +35,49 @@ export async function POST(req: NextRequest) {
         
         const provider = loan.product.provider;
         
-        const { total, principal, interest, penalty } = calculateTotalRepayable(loan as any, loan.product, new Date());
-        const totalDue = total - (loan.repaidAmount || 0);
+        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, new Date());
+        const alreadyRepaid = loan.repaidAmount || 0;
+        
+        const principalDue = Math.max(0, principal - alreadyRepaid);
+        const totalDue = total - alreadyRepaid;
 
-        if (paymentAmount > totalDue) {
+        if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
              return NextResponse.json({ error: 'Payment amount exceeds balance due.' }, { status: 400 });
         }
         
         const updatedLoan = await prisma.$transaction(async (tx) => {
             let amountToApply = paymentAmount;
             
+            // Ledger Accounts
             const principalReceivable = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
             const interestReceivable = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Receivable');
             const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
+            const serviceFeeReceivable = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Receivable');
+
             const principalReceived = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
             const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
             const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
+            const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
             
-            if (!principalReceivable || !interestReceivable || !penaltyReceivable || !principalReceived || !interestReceived || !penaltyReceived) {
+            
+            if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable ||
+                !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived) {
                 throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
             }
 
-            // Apply payment according to priority: Penalty -> Interest -> Principal
+            // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Principal
             const penaltyToPay = Math.min(amountToApply, penalty);
             if (penaltyToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
                 await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
                 amountToApply -= penaltyToPay;
+            }
+
+            const serviceFeeToPay = Math.min(amountToApply, serviceFee);
+            if (serviceFeeToPay > 0) {
+                await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
+                await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
+                amountToApply -= serviceFeeToPay;
             }
 
             const interestToPay = Math.min(amountToApply, interest);
@@ -71,7 +87,7 @@ export async function POST(req: NextRequest) {
                 amountToApply -= interestToPay;
             }
             
-            const principalToPay = amountToApply; // Whatever is left
+            const principalToPay = Math.min(amountToApply, principalDue);
              if (principalToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
                 await tx.ledgerAccount.update({ where: { id: principalReceived.id }, data: { balance: { increment: principalToPay } } });
@@ -87,7 +103,7 @@ export async function POST(req: NextRequest) {
                 }
             });
 
-            const newRepaidAmount = (loan.repaidAmount || 0) + paymentAmount;
+            const newRepaidAmount = alreadyRepaid + paymentAmount;
             
             // Update loan status
             const finalLoan = await tx.loan.update({

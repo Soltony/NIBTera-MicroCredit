@@ -31,9 +31,16 @@ export async function POST(req: NextRequest) {
         }
 
         const principalReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'Principal' && acc.type === 'Receivable');
+        const serviceFeeReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'ServiceFee' && acc.type === 'Receivable');
+        const serviceFeeIncomeAccount = provider.ledgerAccounts.find(acc => acc.category === 'ServiceFee' && acc.type === 'Income');
+
         if (!principalReceivableAccount) {
             return NextResponse.json({ error: 'Principal Receivable ledger account not found for this provider.' }, { status: 400 });
         }
+        if (data.serviceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) {
+            return NextResponse.json({ error: 'Service Fee ledger accounts not configured for this provider.' }, { status: 400 });
+        }
+
 
         const newLoan = await prisma.$transaction(async (tx) => {
             // Create the loan
@@ -57,6 +64,18 @@ export async function POST(req: NextRequest) {
                 where: { id: principalReceivableAccount.id },
                 data: { balance: { increment: data.loanAmount } }
             });
+
+            // Debit: Service Fee Receivable (Asset ↑) & Credit: Service Fee Income (Income ↑)
+            if (data.serviceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
+                await tx.ledgerAccount.update({
+                    where: { id: serviceFeeReceivableAccount.id },
+                    data: { balance: { increment: data.serviceFee } }
+                });
+                 await tx.ledgerAccount.update({
+                    where: { id: serviceFeeIncomeAccount.id },
+                    data: { balance: { increment: data.serviceFee } }
+                });
+            }
 
             // Credit: Provider Fund (Asset ↓)
             await tx.loanProvider.update({

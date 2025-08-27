@@ -19,7 +19,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const principal = loanDetails.loanAmount;
     let interestComponent = 0;
     let penaltyComponent = 0;
-    let runningBalance = principal;
+    let runningBalanceForPenalty = principal;
 
     // 1. Service Fee (One-time charge)
     const serviceFee = loanDetails.serviceFee || 0;
@@ -49,7 +49,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         }
     }
     
-    runningBalance += interestComponent + serviceFee;
+    runningBalanceForPenalty += interestComponent + serviceFee;
 
     // 3. Penalty - Calculated only if overdue.
     const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
@@ -73,7 +73,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                     } else if (rule.type === 'percentageOfCompound') {
                         // This applies the penalty daily on the "running balance"
                         // which includes principal + interest + service fees + previously accrued penalties
-                        let compoundPenaltyBase = runningBalance + penaltyComponent;
+                        let compoundPenaltyBase = runningBalanceForPenalty + penaltyComponent;
                         for (let i = 0; i < applicableDaysInTier; i++) {
                              const dailyPenalty = compoundPenaltyBase * (value / 100);
                              penaltyComponent += dailyPenalty;
