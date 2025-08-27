@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
                 const columns = JSON.parse(config.columns as string);
                 // Map to a more detailed object for the frontend
                 return columns.map((col: { name: string, type: string, options?: string[] }) => ({
-                    value: col.name,
-                    label: col.name,
-                    type: col.options && col.options.length > 0 ? 'select' : col.type,
+                    value: col.name, // The technical field name
+                    label: col.name, // The display name
+                    type: col.options && col.yypeof col.options === 'object' && col.options.length > 0 ? 'select' : col.type,
                     options: col.options || []
                 }));
             } catch (e) {

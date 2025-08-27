@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Card,
@@ -168,6 +168,17 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
 
     const { toast } = useToast();
 
+    const fetchCustomParams = useCallback(async (providerId: string) => {
+        try {
+            const response = await fetch(`/api/settings/custom-parameters?providerId=${providerId}`);
+            if (!response.ok) throw new Error('Failed to fetch custom parameters');
+            const data = await response.json();
+            setCustomParams(data);
+        } catch (error) {
+            toast({ title: "Error", description: "Could not fetch custom parameters.", variant: "destructive" });
+        }
+    }, [toast]);
+
     useEffect(() => {
         if (providers.length > 0 && !selectedProviderId) {
             setSelectedProviderId(providers[0].id);
@@ -179,15 +190,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             if (!selectedProviderId) return;
             setIsHistoryLoading(true);
             try {
-                const [customParamsResponse, historyResponse, configsResponse] = await Promise.all([
-                    fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`),
+                await fetchCustomParams(selectedProviderId);
+                const [historyResponse, configsResponse] = await Promise.all([
                     fetch(`/api/scoring-history?providerId=${selectedProviderId}`),
                     fetch(`/api/settings/data-provisioning?providerId=${selectedProviderId}`)
                 ]);
-
-                if (!customParamsResponse.ok) throw new Error('Failed to fetch custom parameters');
-                const customParamsData = await customParamsResponse.json();
-                setCustomParams(customParamsData);
 
                 if (!historyResponse.ok) throw new Error('Failed to fetch scoring history');
                 const historyData = await historyResponse.json();
@@ -204,7 +211,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             }
         };
         fetchProviderData();
-    }, [selectedProviderId, toast]);
+    }, [selectedProviderId, toast, fetchCustomParams]);
 
     const themeColor = useMemo(() => providers.find(p => p.id === selectedProviderId)?.colorHex || '#fdb913', [providers, selectedProviderId]);
 
@@ -400,6 +407,14 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     
     const currentProvider = providers.find(p => p.id === selectedProviderId);
 
+    const onConfigChange = (newConfigs: DataProvisioningConfig[]) => {
+        setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
+        // After a config changes, we must refetch the custom parameters for the preview.
+        if (selectedProviderId) {
+            fetchCustomParams(selectedProviderId);
+        }
+    };
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex items-center justify-between">
@@ -426,9 +441,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             <DataProvisioningTab 
                 providerId={selectedProviderId}
                 initialConfigs={currentDataConfigs}
-                onConfigChange={(newConfigs) => {
-                     setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
-                }}
+                onConfigChange={onConfigChange}
             />
 
             <Card>
