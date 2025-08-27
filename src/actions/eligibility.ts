@@ -124,7 +124,6 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     const allActiveLoans: LoanWithProduct[] = await prisma.loan.findMany({
         where: {
             borrowerId: borrowerId,
-            providerId: providerId,
             repaymentStatus: 'Unpaid'
         },
         include: { product: true }
@@ -134,6 +133,13 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     const hasActiveLoanOfSameType = allActiveLoans.some((loan: LoanWithProduct) => loan.productId === productId);
     if (hasActiveLoanOfSameType) {
         return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
+    }
+    
+    // Rule 2: Handle exclusive (non-concurrent) loans.
+    // If the product switch is OFF, the borrower cannot have any other active loans.
+    if (!product.allowConcurrentLoans && allActiveLoans.length > 0) {
+        const otherProductNames = allActiveLoans.map(l => `"${l.product.name}"`).join(', ');
+        return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
     
     // If we've reached here, the loan is allowed based on active loan rules. Now check scoring.

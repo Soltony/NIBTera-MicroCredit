@@ -66,7 +66,6 @@ export interface LoanProvider {
   displayOrder: number;
   accountNumber: string | null;
   initialBalance: number;
-  allowMultipleProviderLoans: boolean;
   allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];
 }
@@ -86,6 +85,7 @@ export interface LoanProduct {
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
+  allowConcurrentLoans?: boolean;
   serviceFeeEnabled?: boolean;
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;

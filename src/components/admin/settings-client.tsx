@@ -133,7 +133,16 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                         />
                         <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
                     </div>
-                    <div></div>
+                    <div className="flex items-center space-x-2">
+                        <Switch
+                            id={`allowConcurrentLoans-${product.id}`}
+                            checked={!!formData.allowConcurrentLoans}
+                            onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
+                            className="data-[state=checked]:bg-[--provider-color]"
+                            style={{'--provider-color': providerColor} as React.CSSProperties}
+                        />
+                        <Label htmlFor={`allowConcurrentLoans-${product.id}`}>Combinable with Other Loans</Label>
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
                         <Input

@@ -113,6 +113,7 @@ async function main() {
       maxLoan: 50000,
       duration: 30,
       status: 'Active',
+      allowConcurrentLoans: false,
       serviceFeeEnabled: true,
       serviceFee: JSON.stringify({ type: 'percentage', value: 2 }),
       dailyFeeEnabled: true,
