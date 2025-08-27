@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput, FeeRule } from '@/lib/types';
+import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput, FeeRule, PenaltyRule } from '@/lib/types';
 import { addDays, format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, ChevronDown } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
@@ -35,10 +36,36 @@ const formatFee = (feeRule: FeeRule | undefined): string => {
     return formatCurrency(Number(feeRule.value));
 };
 
+const formatPenaltyRule = (rule: PenaltyRule): string => {
+    const value = rule.value === '' ? 0 : Number(rule.value);
+    let valueString = '';
+    let conditionString = '';
+
+    if (rule.type === 'fixed') {
+        valueString = formatCurrency(value);
+    } else if (rule.type === 'percentageOfPrincipal') {
+        valueString = `${value}% of principal`;
+    } else if (rule.type === 'percentageOfCompound') {
+        valueString = `${value}% of outstanding balance`;
+    }
+    
+    const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
+    const toDay = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
+
+    if (toDay === Infinity) {
+        conditionString = `from day ${fromDay} onwards`;
+    } else {
+        conditionString = `from day ${fromDay} to day ${toDay}`;
+    }
+
+    return `${valueString} ${conditionString}`;
+}
+
 
 export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
+  const [isPenaltyDetailsOpen, setIsPenaltyDetailsOpen] = useState(false);
 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
   
@@ -197,18 +224,40 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           </div>
 
           {calculatedTerms && (
-             <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm bg-secondary p-4 rounded-lg">
-                    <div className="font-medium">Service Fee</div>
-                    <div className="text-right">{formatFee(product.serviceFeeEnabled ? product.serviceFee : undefined)}</div>
-                    
-                    <div className="font-medium">Daily Fee</div>
-                    <div className="text-right">{formatFee(product.dailyFeeEnabled ? product.dailyFee : undefined)}</div>
-                    
-                    <div className="font-medium text-destructive">Penalty Rules</div>
-                    <div className="text-right text-destructive">
-                        {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
+             <div className="space-y-2">
+                <div className="space-y-4 text-sm bg-secondary p-4 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <div className="font-medium">Service Fee</div>
+                      <div className="text-right">{formatFee(product.serviceFeeEnabled ? product.serviceFee : undefined)}</div>
                     </div>
+                    
+                     <div className="flex justify-between items-center">
+                        <div className="font-medium">Daily Fee</div>
+                        <div className="text-right">{formatFee(product.dailyFeeEnabled ? product.dailyFee : undefined)}</div>
+                    </div>
+                    
+                    <Collapsible open={isPenaltyDetailsOpen} onOpenChange={setIsPenaltyDetailsOpen}>
+                         <div className="flex justify-between items-center">
+                             <CollapsibleTrigger asChild>
+                                <button type="button" className={cn("font-medium", product.penaltyRulesEnabled && product.penaltyRules.length > 0 && "text-destructive")}>
+                                    <span className="flex items-center">
+                                    Penalty Rules
+                                    {product.penaltyRulesEnabled && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
+                                    </span>
+                                </button>
+                             </CollapsibleTrigger>
+                             <div className={cn("text-right", product.penaltyRulesEnabled && product.penaltyRules.length > 0 && "text-destructive")}>
+                                {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
+                            </div>
+                         </div>
+                        <CollapsibleContent>
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground pl-4">
+                                {(product.penaltyRules || []).map(rule => (
+                                    <p key={rule.id}>- {formatPenaltyRule(rule)}</p>
+                                ))}
+                            </div>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
