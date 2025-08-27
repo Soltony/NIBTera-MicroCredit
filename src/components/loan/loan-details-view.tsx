@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -50,7 +49,6 @@ const formatPenaltyRule = (rule: PenaltyRule): string => {
 
 
 export function LoanDetailsView({ details, product, onReset, providerColor = 'hsl(var(--primary))' }: LoanDetailsViewProps) {
-  const [isPenaltyDetailsOpen, setIsPenaltyDetailsOpen] = useState(false);
   
   return (
     <div className="max-w-2xl mx-auto">
@@ -93,26 +91,18 @@ export function LoanDetailsView({ details, product, onReset, providerColor = 'hs
                 </div>
             </div>
             
-            <Collapsible open={isPenaltyDetailsOpen} onOpenChange={setIsPenaltyDetailsOpen}>
-                <CollapsibleTrigger asChild>
-                    <button className="flex justify-between w-full text-muted-foreground">
-                        <span className="flex items-center">
-                            Penalty Rules
-                            {product.penaltyRulesEnabled && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
-                        </span>
-                         <span className="text-right font-medium text-foreground">
-                            {product.penaltyRules.length > 0 ? '' : 'N/A'}
-                        </span>
-                    </button>
-                </CollapsibleTrigger>
-                 <CollapsibleContent>
-                    <div className="mt-2 space-y-1 text-xs text-muted-foreground/80 pl-4 bg-secondary p-2 rounded-md">
+            <div>
+                <div className="text-muted-foreground mb-1">Penalty Rules</div>
+                {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? (
+                     <div className="mt-1 space-y-1 text-xs text-muted-foreground/80 pl-4 bg-secondary p-2 rounded-md">
                         {(product.penaltyRules || []).map(rule => (
                             <p key={rule.id}>- {formatPenaltyRule(rule)}</p>
                         ))}
                     </div>
-                </CollapsibleContent>
-            </Collapsible>
+                ) : (
+                    <div className="text-right font-medium">N/A</div>
+                )}
+            </div>
             
              <div className="flex justify-between">
                 <div className="text-muted-foreground">Due Date</div>
