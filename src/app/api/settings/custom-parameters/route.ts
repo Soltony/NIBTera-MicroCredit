@@ -21,8 +21,13 @@ export async function GET(req: NextRequest) {
         const customParameters = configs.flatMap(config => {
             try {
                 const columns = JSON.parse(config.columns as string);
-                // We only care about the name/value for the dropdown
-                return columns.map((col: { name: string }) => ({ value: col.name, label: col.name }));
+                // Map to a more detailed object for the frontend
+                return columns.map((col: { name: string, type: string, options?: string[] }) => ({
+                    value: col.name,
+                    label: col.name,
+                    type: col.options && col.options.length > 0 ? 'select' : col.type,
+                    options: col.options || []
+                }));
             } catch (e) {
                 return [];
             }

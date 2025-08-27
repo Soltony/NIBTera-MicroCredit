@@ -52,6 +52,7 @@ import { cn } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { Textarea } from '../ui/textarea';
 
 
 export interface ScoringHistoryItem {
@@ -64,6 +65,8 @@ export interface ScoringHistoryItem {
 interface CustomParameterType {
     value: string;
     label: string;
+    type?: 'select' | 'text' | 'number';
+    options?: string[];
 }
 
 const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string, maxScore: number }) => {
@@ -900,6 +903,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 name: header,
                 type: 'string', // default type
                 isIdentifier: index === 0, // default first column as identifier
+                options: [],
             })));
         };
         reader.readAsArrayBuffer(file);
@@ -912,7 +916,10 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 draft.forEach((col, i) => {
                     col.isIdentifier = i === index ? value : false;
                 });
-            } else {
+            } else if (field === 'options' && typeof value === 'string') {
+                currentColumn.options = value.split(',').map(s => s.trim()).filter(Boolean);
+            }
+            else {
                 (currentColumn as any)[field] = value;
             }
         }));
@@ -950,33 +957,48 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     {columns.length > 0 && (
                         <div>
                             <Label>Configure Columns</Label>
-                            <div className="space-y-2 mt-2 border p-4 rounded-md max-h-64 overflow-y-auto">
+                            <div className="space-y-4 mt-2 border p-4 rounded-md max-h-[50vh] overflow-y-auto">
                                 {columns.map((col, index) => (
-                                    <div key={col.id} className="grid grid-cols-12 items-center gap-2">
-                                        <Input
-                                            className="col-span-5"
-                                            value={col.name}
-                                            onChange={e => handleColumnChange(index, 'name', e.target.value)}
-                                            required
-                                        />
-                                        <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="string">Text</SelectItem>
-                                                <SelectItem value="number">Number</SelectItem>
-                                                <SelectItem value="date">Date</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                         <div className="col-span-4 flex items-center justify-end space-x-2">
-                                            <Checkbox
-                                                id={`is-identifier-${col.id}`}
-                                                checked={col.isIdentifier}
-                                                onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                    <div key={col.id} className="space-y-2 p-2 rounded-md bg-muted/50">
+                                        <div className="grid grid-cols-12 items-center gap-2">
+                                            <Input
+                                                className="col-span-5"
+                                                value={col.name}
+                                                onChange={e => handleColumnChange(index, 'name', e.target.value)}
+                                                required
                                             />
-                                            <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                            <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="string">Text</SelectItem>
+                                                    <SelectItem value="number">Number</SelectItem>
+                                                    <SelectItem value="date">Date</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                             <div className="col-span-4 flex items-center justify-end space-x-2">
+                                                <Checkbox
+                                                    id={`is-identifier-${col.id}`}
+                                                    checked={col.isIdentifier}
+                                                    onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                                />
+                                                <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                            </div>
                                         </div>
+                                         {col.type === 'string' && (
+                                            <div className="space-y-1">
+                                                <Label htmlFor={`options-${col.id}`} className="text-xs text-muted-foreground">Dropdown Options (optional)</Label>
+                                                <Textarea
+                                                    id={`options-${col.id}`}
+                                                    placeholder="e.g., Male, Female, Other"
+                                                    className="text-xs"
+                                                    value={(col.options || []).join(', ')}
+                                                    onChange={e => handleColumnChange(index, 'options', e.target.value)}
+                                                />
+                                                <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
