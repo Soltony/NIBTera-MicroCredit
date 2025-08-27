@@ -19,9 +19,10 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const principal = loanDetails.loanAmount;
     let interestComponent = 0;
     let penaltyComponent = 0;
+    let runningBalance = principal;
 
     // 1. Service Fee (One-time charge)
-    let serviceFee = loanDetails.serviceFee || 0;
+    const serviceFee = loanDetails.serviceFee || 0;
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
     const dailyFeeRule = loanProduct.dailyFeeEnabled ? loanProduct.dailyFee : undefined;
@@ -47,6 +48,8 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
             }
         }
     }
+    
+    runningBalance += interestComponent + serviceFee;
 
     // 3. Penalty - Calculated only if overdue.
     const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
@@ -67,6 +70,15 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                         penaltyComponent += value; // Fixed penalty is a one-time charge for entering the tier
                     } else if (rule.type === 'percentageOfPrincipal') {
                         penaltyComponent += principal * (value / 100) * applicableDaysInTier; // Per day on original principal
+                    } else if (rule.type === 'percentageOfCompound') {
+                        // This applies the penalty daily on the "running balance"
+                        // which includes principal + interest + service fees + previously accrued penalties
+                        let compoundPenaltyBase = runningBalance + penaltyComponent;
+                        for (let i = 0; i < applicableDaysInTier; i++) {
+                             const dailyPenalty = compoundPenaltyBase * (value / 100);
+                             penaltyComponent += dailyPenalty;
+                             compoundPenaltyBase += dailyPenalty;
+                        }
                     }
                  }
              }
