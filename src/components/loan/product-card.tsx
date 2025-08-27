@@ -12,7 +12,7 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {

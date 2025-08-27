@@ -36,8 +36,8 @@ interface EligibilityCheckerClientProps {
 }
 
 const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined || isNaN(Number(amount))) return '$0.00';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount));
+    if (amount === null || amount === undefined || isNaN(Number(amount))) return '0.00 ETB';
+    return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(Number(amount)) + ' ETB';
 };
 
 const formatValue = (key: string, value: any) => {

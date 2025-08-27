@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 
 interface LoanDetailsViewProps {
   details: LoanDetails;
@@ -19,7 +20,7 @@ interface LoanDetailsViewProps {
 }
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
 const formatPenaltyRule = (rule: PenaltyRule): string => {
