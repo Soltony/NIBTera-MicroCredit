@@ -63,14 +63,14 @@ export function ProductCard({
     }, [activeLoan, product]);
 
     const canApply = useMemo(() => {
-        if (borrowerHasActiveLoanWithThisProduct && !product.allowMultipleLoans) {
+        if (borrowerHasActiveLoanWithThisProduct && !product.allowConcurrentLoans) {
             return { eligible: false, reason: "You already have an active loan for this specific product." };
         }
         if ((product.availableLimit ?? 0) <= 0) {
             return { eligible: false, reason: "Your available credit is too low for this product." };
         }
         return { eligible: true, reason: "" };
-    }, [borrowerHasActiveLoanWithThisProduct, product.allowMultipleLoans, product.availableLimit]);
+    }, [borrowerHasActiveLoanWithThisProduct, product.allowConcurrentLoans, product.availableLimit]);
 
 
     const applyButton = (
@@ -173,12 +173,12 @@ export function ProductCard({
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             ) : null}
-                            {product.penaltyRules?.length > 0 && (
+                             {product.duration ? (
                                 <div>
-                                    <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
-                                    <p className="text-xs text-muted-foreground">Penalty Rules</p>
+                                    <p className="text-lg font-semibold">{product.duration} days</p>
+                                    <p className="text-xs text-muted-foreground">Loan Duration</p>
                                 </div>
-                            )}
+                             ) : null}
                              {product.availableLimit ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatCurrency(product.availableLimit)}</p>
