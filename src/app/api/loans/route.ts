@@ -4,7 +4,6 @@ import prisma from '@/lib/prisma';
 import { z } from 'zod';
 
 const loanSchema = z.object({
-    providerId: z.string(),
     productId: z.string(),
     borrowerId: z.string(),
     loanAmount: z.number(),
@@ -21,14 +20,22 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const data = loanSchema.parse(body);
 
-        const provider = await prisma.loanProvider.findUnique({
-            where: { id: data.providerId },
-            include: { ledgerAccounts: true }
+        const product = await prisma.loanProduct.findUnique({
+            where: { id: data.productId },
+            include: { 
+                provider: {
+                    include: {
+                        ledgerAccounts: true
+                    }
+                }
+            }
         });
 
-        if (!provider) {
-            return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+        if (!product) {
+            return NextResponse.json({ error: 'Product not found' }, { status: 404 });
         }
+        
+        const provider = product.provider;
 
         const principalReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'Principal' && acc.type === 'Receivable');
         const serviceFeeReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'ServiceFee' && acc.type === 'Receivable');
@@ -46,7 +53,6 @@ export async function POST(req: NextRequest) {
             // Create the loan
             const createdLoan = await tx.loan.create({
                 data: {
-                    providerId: data.providerId,
                     borrowerId: data.borrowerId,
                     productId: data.productId,
                     loanAmount: data.loanAmount,
@@ -79,7 +85,7 @@ export async function POST(req: NextRequest) {
 
             // Credit: Provider Fund (Asset ↓)
             await tx.loanProvider.update({
-                where: { id: data.providerId },
+                where: { id: provider.id },
                 data: { initialBalance: { decrement: data.loanAmount } }
             });
             

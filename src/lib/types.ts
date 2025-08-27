@@ -103,6 +103,7 @@ export interface Payment {
 
 export interface LoanDetails {
   id: string; // Added for unique identification
+  borrowerId: string;
   providerName: string;
   productName: string;
   loanAmount: number;
@@ -116,7 +117,6 @@ export interface LoanDetails {
   // For calculation purposes, not stored in DB
   product: LoanProduct;
   provider?: LoanProvider;
-  providerId?: string;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
