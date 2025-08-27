@@ -3,6 +3,7 @@ import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-
 import prisma from '@/lib/prisma';
 import type { LoanProvider } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
 
 async function getBorrowers() {
     const provisionedDataEntries = await prisma.provisionedData.findMany({
