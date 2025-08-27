@@ -865,6 +865,8 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
     );
 }
 
+// Extend DataColumn state to include the raw comma-separated string for the textarea
+type EditableDataColumn = DataColumn & { optionsString?: string };
 
 function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     isOpen: boolean;
@@ -874,12 +876,12 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 }) {
     const { toast } = useToast();
     const [name, setName] = useState('');
-    const [columns, setColumns] = useState<DataColumn[]>([]);
+    const [columns, setColumns] = useState<EditableDataColumn[]>([]);
 
     useEffect(() => {
         if (config) {
             setName(config.name);
-            setColumns(config.columns || []);
+            setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
         } else {
             setName('');
             setColumns([]);
@@ -904,23 +906,21 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 type: 'string', // default type
                 isIdentifier: index === 0, // default first column as identifier
                 options: [],
+                optionsString: '',
             })));
         };
         reader.readAsArrayBuffer(file);
     };
 
-    const handleColumnChange = (index: number, field: keyof DataColumn, value: string | boolean) => {
+    const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
         setColumns(produce(draft => {
-            const currentColumn = draft[index];
-            if (typeof value === 'boolean' && field === 'isIdentifier') {
+            if (field === 'isIdentifier' && typeof value === 'boolean') {
+                // Ensure only one column can be the identifier
                 draft.forEach((col, i) => {
                     col.isIdentifier = i === index ? value : false;
                 });
-            } else if (field === 'options' && typeof value === 'string') {
-                currentColumn.options = value.split(',').map(s => s.trim()).filter(Boolean);
-            }
-            else {
-                (currentColumn as any)[field] = value;
+            } else {
+                 (draft[index] as any)[field] = value;
             }
         }));
     };
@@ -931,7 +931,15 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
             return;
         }
-        onSave({ id: config?.id, name, columns });
+
+        // Process the final columns array before saving
+        const finalColumns = columns.map(col => {
+            const { optionsString, ...rest } = col;
+            const finalOptions = optionsString ? optionsString.split(',').map(s => s.trim()).filter(Boolean) : [];
+            return { ...rest, options: finalOptions };
+        });
+
+        onSave({ id: config?.id, name, columns: finalColumns });
         onClose();
     };
 
@@ -993,8 +1001,8 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                     id={`options-${col.id}`}
                                                     placeholder="e.g., Male, Female, Other"
                                                     className="text-xs"
-                                                    value={(col.options || []).join(', ')}
-                                                    onChange={e => handleColumnChange(index, 'options', e.target.value)}
+                                                    value={col.optionsString || ''}
+                                                    onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
                                                 />
                                                 <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
                                             </div>
