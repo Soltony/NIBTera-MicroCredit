@@ -43,11 +43,14 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
   
   const minLoan = product.minLoan ?? 0;
-  const maxLoan = product.maxLoan ?? 0;
+  // The true max loan is the lesser of the product's limit and the user's available credit.
+  const maxLoan = Math.min(product.maxLoan ?? 0, suggestedLoanAmountMax);
 
   useEffect(() => {
-    setLoanAmount(minLoan);
-  }, [product.id, minLoan]);
+    // Set the initial amount to the product's min, but not exceeding the true max loan.
+    const initialAmount = Math.min(minLoan, maxLoan);
+    setLoanAmount(initialAmount);
+  }, [product.id, minLoan, maxLoan]);
   
   const calculatedTerms = useMemo(() => {
     const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
