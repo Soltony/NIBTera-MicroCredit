@@ -135,11 +135,18 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
     }
     
-    // Rule 2: Handle exclusive (non-concurrent) loans.
+    // Rule 2: Handle exclusive (non-concurrent) loans from the perspective of the new loan.
     // If the product switch is OFF, the borrower cannot have any other active loans.
     if (!product.allowConcurrentLoans && allActiveLoans.length > 0) {
         const otherProductNames = allActiveLoans.map(l => `"${l.product.name}"`).join(', ');
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
+    }
+    
+    // Rule 3: Handle exclusive loans from the perspective of existing loans.
+    // If any active loan is exclusive, the borrower cannot take out a new loan.
+    const hasExclusiveActiveLoan = allActiveLoans.find(loan => !loan.product.allowConcurrentLoans);
+    if (hasExclusiveActiveLoan) {
+         return { isEligible: false, reason: `You have an active exclusive loan ("${hasExclusiveActiveLoan.product.name}") and cannot apply for new loans until it is repaid.`, score: 0, maxLoanAmount: 0 };
     }
     
     // If we've reached here, the loan is allowed based on active loan rules. Now check scoring.
