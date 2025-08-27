@@ -58,7 +58,7 @@ interface DashboardClientProps {
 }
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
@@ -177,7 +177,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         <LineChart data={loanDisbursementData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="name" tick={{fontSize: 12}} tickLine={false} axisLine={false}/>
-                            <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                            <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `ETB${value}`} />
                             <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '0.5rem' }} />
                             <Legend wrapperStyle={{fontSize: '12px'}}/>
                             <Line type="monotone" dataKey="amount" stroke={themeColor} strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>

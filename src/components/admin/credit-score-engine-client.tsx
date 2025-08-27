@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Card,
@@ -52,6 +52,7 @@ import { cn } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { Textarea } from '../ui/textarea';
 
 
 export interface ScoringHistoryItem {
@@ -64,9 +65,18 @@ export interface ScoringHistoryItem {
 interface CustomParameterType {
     value: string;
     label: string;
+    type?: 'select' | 'text' | 'number';
+    options?: string[];
 }
 
-const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string, maxScore: number }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: { 
+    rule: Rule; 
+    onUpdate: (updatedRule: Rule) => void; 
+    onRemove: () => void; 
+    color?: string, 
+    maxScore: number,
+    paramFieldInfo?: CustomParameterType
+}) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -82,6 +92,52 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; on
     
     const isScoreInvalid = maxScore !== undefined && rule.score > maxScore;
     
+    const renderValueInput = () => {
+        if (paramFieldInfo?.type === 'select' && rule.condition === '==') {
+            return (
+                <Select value={rule.value || ''} onValueChange={(value) => onUpdate({...rule, value })}>
+                    <SelectTrigger className="flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]" style={{'--ring-color': color} as React.CSSProperties}>
+                        <SelectValue placeholder="Select a value" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {paramFieldInfo.options?.map(option => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            );
+        }
+
+        if (rule.condition === 'between') {
+            return (
+                <div className="flex items-center gap-2 flex-1">
+                    <Input
+                        placeholder="Min"
+                        value={min}
+                        onChange={handleRangeChange('min')}
+                        className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                    />
+                    <span>-</span>
+                    <Input
+                        placeholder="Max"
+                        value={max}
+                        onChange={handleRangeChange('max')}
+                        className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                    />
+                </div>
+            );
+        }
+
+        return (
+            <Input
+                placeholder="e.g., 30 or High School"
+                value={rule.value || ''}
+                onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
+                className={cn("flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
+            />
+        );
+    }
+    
     return (
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
@@ -90,40 +146,26 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; on
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value=">">&gt;</SelectItem>
-                        <SelectItem value="<">&lt;</SelectItem>
-                        <SelectItem value=">=">&gt;=</SelectItem>
-                        <SelectItem value="<=">&lt;=</SelectItem>
-                        <SelectItem value="==">==</SelectItem>
-                        <SelectItem value="!=">!=</SelectItem>
-                        <SelectItem value="between">Between</SelectItem>
+                         {paramFieldInfo?.type === 'select' ? (
+                            <>
+                                <SelectItem value="==">Is Equal To</SelectItem>
+                                <SelectItem value="!=">Is Not Equal To</SelectItem>
+                            </>
+                        ) : (
+                            <>
+                                <SelectItem value=">">&gt; (Greater Than)</SelectItem>
+                                <SelectItem value="<">&lt; (Less Than)</SelectItem>
+                                <SelectItem value=">=">&gt;= (Greater or Equal)</SelectItem>
+                                <SelectItem value="<=">&lt;= (Less or Equal)</SelectItem>
+                                <SelectItem value="==">== (Equal)</SelectItem>
+                                <SelectItem value="!=">!= (Not Equal)</SelectItem>
+                                <SelectItem value="between">Between</SelectItem>
+                            </>
+                        )}
                     </SelectContent>
                 </Select>
 
-                {rule.condition === 'between' ? (
-                    <div className="flex items-center gap-2 flex-1">
-                        <Input
-                            placeholder="Min"
-                            value={min}
-                            onChange={handleRangeChange('min')}
-                            className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
-                        />
-                        <span>-</span>
-                        <Input
-                            placeholder="Max"
-                            value={max}
-                            onChange={handleRangeChange('max')}
-                            className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
-                        />
-                    </div>
-                ) : (
-                    <Input
-                        placeholder="e.g., 30 or High School"
-                        value={rule.value || ''}
-                        onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                        className={cn("flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
-                    />
-                )}
+                {renderValueInput()}
                 
                 <Input
                     type="number"
@@ -165,6 +207,17 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
 
     const { toast } = useToast();
 
+    const fetchCustomParams = useCallback(async (providerId: string) => {
+        try {
+            const response = await fetch(`/api/settings/custom-parameters?providerId=${providerId}`);
+            if (!response.ok) throw new Error('Failed to fetch custom parameters');
+            const data = await response.json();
+            setCustomParams(data);
+        } catch (error) {
+            toast({ title: "Error", description: "Could not fetch custom parameters.", variant: "destructive" });
+        }
+    }, [toast]);
+
     useEffect(() => {
         if (providers.length > 0 && !selectedProviderId) {
             setSelectedProviderId(providers[0].id);
@@ -176,15 +229,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             if (!selectedProviderId) return;
             setIsHistoryLoading(true);
             try {
-                const [customParamsResponse, historyResponse, configsResponse] = await Promise.all([
-                    fetch(`/api/settings/custom-parameters?providerId=${selectedProviderId}`),
+                await fetchCustomParams(selectedProviderId);
+                const [historyResponse, configsResponse] = await Promise.all([
                     fetch(`/api/scoring-history?providerId=${selectedProviderId}`),
                     fetch(`/api/settings/data-provisioning?providerId=${selectedProviderId}`)
                 ]);
-
-                if (!customParamsResponse.ok) throw new Error('Failed to fetch custom parameters');
-                const customParamsData = await customParamsResponse.json();
-                setCustomParams(customParamsData);
 
                 if (!historyResponse.ok) throw new Error('Failed to fetch scoring history');
                 const historyData = await historyResponse.json();
@@ -201,7 +250,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             }
         };
         fetchProviderData();
-    }, [selectedProviderId, toast]);
+    }, [selectedProviderId, toast, fetchCustomParams]);
 
     const themeColor = useMemo(() => providers.find(p => p.id === selectedProviderId)?.colorHex || '#fdb913', [providers, selectedProviderId]);
 
@@ -397,6 +446,14 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     
     const currentProvider = providers.find(p => p.id === selectedProviderId);
 
+    const onConfigChange = (newConfigs: DataProvisioningConfig[]) => {
+        setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
+        // After a config changes, we must refetch the custom parameters for the preview.
+        if (selectedProviderId) {
+            fetchCustomParams(selectedProviderId);
+        }
+    };
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex items-center justify-between">
@@ -423,9 +480,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             <DataProvisioningTab 
                 providerId={selectedProviderId}
                 initialConfigs={currentDataConfigs}
-                onConfigChange={(newConfigs) => {
-                     setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
-                }}
+                onConfigChange={onConfigChange}
             />
 
             <Card>
@@ -443,7 +498,9 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 </CardHeader>
                 <CardContent>
                     <Accordion type="multiple" className="w-full space-y-2">
-                        {currentParameters.map((param) => (
+                        {currentParameters.map((param) => {
+                            const paramFieldInfo = customParams.find(p => p.value === param.name);
+                             return (
                              <AccordionItem value={param.id} key={param.id} className="border-none">
                                 <Card className="overflow-hidden">
                                     <div className="flex items-center p-4 bg-muted/50">
@@ -494,6 +551,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                     onRemove={() => handleRemoveRule(param.id, rule.id)}
                                                     color={themeColor}
                                                     maxScore={param.weight}
+                                                    paramFieldInfo={paramFieldInfo}
                                                 />
                                             ))}
                                             <Button variant="outline" className="w-full mt-2" onClick={() => handleAddRule(param.id)}>
@@ -503,7 +561,8 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                      </AccordionContent>
                                 </Card>
                              </AccordionItem>
-                        ))}
+                             )
+                        })}
                     </Accordion>
                 </CardContent>
                 <CardFooter className="flex flex-col items-stretch gap-4">
@@ -862,6 +921,8 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
     );
 }
 
+// Extend DataColumn state to include the raw comma-separated string for the textarea
+type EditableDataColumn = DataColumn & { optionsString?: string };
 
 function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     isOpen: boolean;
@@ -871,12 +932,12 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 }) {
     const { toast } = useToast();
     const [name, setName] = useState('');
-    const [columns, setColumns] = useState<DataColumn[]>([]);
+    const [columns, setColumns] = useState<EditableDataColumn[]>([]);
 
     useEffect(() => {
         if (config) {
             setName(config.name);
-            setColumns(config.columns || []);
+            setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
         } else {
             setName('');
             setColumns([]);
@@ -900,20 +961,22 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 name: header,
                 type: 'string', // default type
                 isIdentifier: index === 0, // default first column as identifier
+                options: [],
+                optionsString: '',
             })));
         };
         reader.readAsArrayBuffer(file);
     };
 
-    const handleColumnChange = (index: number, field: keyof DataColumn, value: string | boolean) => {
+    const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
         setColumns(produce(draft => {
-            const currentColumn = draft[index];
-            if (typeof value === 'boolean' && field === 'isIdentifier') {
+            if (field === 'isIdentifier' && typeof value === 'boolean') {
+                // Ensure only one column can be the identifier
                 draft.forEach((col, i) => {
                     col.isIdentifier = i === index ? value : false;
                 });
             } else {
-                (currentColumn as any)[field] = value;
+                 (draft[index] as any)[field] = value;
             }
         }));
     };
@@ -924,7 +987,15 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
             return;
         }
-        onSave({ id: config?.id, name, columns });
+
+        // Process the final columns array before saving
+        const finalColumns = columns.map(col => {
+            const { optionsString, ...rest } = col;
+            const finalOptions = optionsString ? optionsString.split(',').map(s => s.trim()).filter(Boolean) : [];
+            return { ...rest, options: finalOptions };
+        });
+
+        onSave({ id: config?.id, name, columns: finalColumns });
         onClose();
     };
 
@@ -950,33 +1021,48 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     {columns.length > 0 && (
                         <div>
                             <Label>Configure Columns</Label>
-                            <div className="space-y-2 mt-2 border p-4 rounded-md max-h-64 overflow-y-auto">
+                            <div className="space-y-4 mt-2 border p-4 rounded-md max-h-[50vh] overflow-y-auto">
                                 {columns.map((col, index) => (
-                                    <div key={col.id} className="grid grid-cols-12 items-center gap-2">
-                                        <Input
-                                            className="col-span-5"
-                                            value={col.name}
-                                            onChange={e => handleColumnChange(index, 'name', e.target.value)}
-                                            required
-                                        />
-                                        <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="string">Text</SelectItem>
-                                                <SelectItem value="number">Number</SelectItem>
-                                                <SelectItem value="date">Date</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                         <div className="col-span-4 flex items-center justify-end space-x-2">
-                                            <Checkbox
-                                                id={`is-identifier-${col.id}`}
-                                                checked={col.isIdentifier}
-                                                onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                    <div key={col.id} className="space-y-2 p-2 rounded-md bg-muted/50">
+                                        <div className="grid grid-cols-12 items-center gap-2">
+                                            <Input
+                                                className="col-span-5"
+                                                value={col.name}
+                                                onChange={e => handleColumnChange(index, 'name', e.target.value)}
+                                                required
                                             />
-                                            <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                            <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="string">Text</SelectItem>
+                                                    <SelectItem value="number">Number</SelectItem>
+                                                    <SelectItem value="date">Date</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                             <div className="col-span-4 flex items-center justify-end space-x-2">
+                                                <Checkbox
+                                                    id={`is-identifier-${col.id}`}
+                                                    checked={col.isIdentifier}
+                                                    onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                                />
+                                                <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                            </div>
                                         </div>
+                                         {col.type === 'string' && (
+                                            <div className="space-y-1">
+                                                <Label htmlFor={`options-${col.id}`} className="text-xs text-muted-foreground">Dropdown Options (optional)</Label>
+                                                <Textarea
+                                                    id={`options-${col.id}`}
+                                                    placeholder="e.g., Male, Female, Other"
+                                                    className="text-xs"
+                                                    value={col.optionsString || ''}
+                                                    onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
+                                                />
+                                                <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>

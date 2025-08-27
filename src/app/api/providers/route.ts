@@ -45,7 +45,6 @@ export async function GET() {
             dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
             penaltyRules: safeJsonParse(prod.penaltyRules, []),
             status: prod.status,
-            allowMultipleLoans: prod.allowMultipleLoans,
             serviceFeeEnabled: prod.serviceFeeEnabled,
             dailyFeeEnabled: prod.dailyFeeEnabled,
             penaltyRulesEnabled: prod.penaltyRulesEnabled,

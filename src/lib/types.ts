@@ -26,7 +26,7 @@ export interface DataColumn {
     name: string;
     type: 'string' | 'number' | 'date';
     isIdentifier: boolean;
-    dbField: 'ID'; // Only ID is supported now
+    options?: string[];
 }
 
 export interface DataProvisioningUpload {
@@ -86,7 +86,6 @@ export interface LoanProduct {
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
-  allowMultipleLoans: boolean;
   serviceFeeEnabled?: boolean;
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;

@@ -12,7 +12,7 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
@@ -133,19 +133,19 @@ export function ProductCard({
                             <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
-                            {product.serviceFeeEnabled && (
+                            {Number(product.serviceFee?.value) ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
-                            )}
-                             {product.dailyFeeEnabled && (
+                            ) : null}
+                             {Number(product.dailyFee?.value) ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
-                            )}
-                            {product.penaltyRulesEnabled && (
+                            ) : null}
+                            {product.penaltyRules?.length > 0 && (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>
@@ -161,19 +161,19 @@ export function ProductCard({
                 {isExpanded && !activeLoan && (
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                           {product.serviceFeeEnabled && (
+                           {Number(product.serviceFee?.value) ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
-                           )}
-                            {product.dailyFeeEnabled && (
+                           ) : null}
+                            {Number(product.dailyFee?.value) ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
-                            )}
-                            {product.penaltyRulesEnabled && (
+                            ) : null}
+                            {product.penaltyRules?.length > 0 && (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>

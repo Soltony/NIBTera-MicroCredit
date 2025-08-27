@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
 interface RepaymentDialogProps {
@@ -104,7 +104,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                             )}
                             style={{ borderColor: error ? 'hsl(var(--destructive))' : providerColor }}
                         />
-                         <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">USD</span>
+                         <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">ETB</span>
                     </div>
                      {error ? (
                         <p className="text-sm text-destructive text-center">{error}</p>

@@ -133,16 +133,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                         />
                         <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
                     </div>
-                     <div className="flex items-center space-x-2 justify-self-end">
-                         <Label htmlFor={`allowMultipleLoans-${product.id}`}>Allow multiple active loans</Label>
-                         <Switch 
-                            id={`allowMultipleLoans-${product.id}`}
-                            checked={!!formData.allowMultipleLoans} 
-                            onCheckedChange={(checked) => handleSwitchChange('allowMultipleLoans', checked)}
-                            className="data-[state=checked]:bg-[--provider-color]"
-                            style={{'--provider-color': providerColor} as React.CSSProperties}
-                        />
-                    </div>
+                    <div></div>
                     <div className="space-y-2">
                         <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
                         <Input
@@ -977,5 +968,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    
 
     

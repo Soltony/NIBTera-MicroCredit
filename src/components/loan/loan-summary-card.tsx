@@ -13,7 +13,7 @@ interface LoanSummaryCardProps {
 }
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
 export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb913', isLoading = false }: LoanSummaryCardProps) {
