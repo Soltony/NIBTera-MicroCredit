@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
                 return columns.map((col: { name: string, type: string, options?: string[] }) => ({
                     value: col.name, // The technical field name
                     label: col.name, // The display name
-                    type: col.options && col.yypeof col.options === 'object' && col.options.length > 0 ? 'select' : col.type,
+                    type: col.options && typeof col.options === 'object' && col.options.length > 0 ? 'select' : col.type,
                     options: col.options || []
                 }));
             } catch (e) {
@@ -40,6 +40,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(uniqueParameters);
     } catch (error) {
         console.error('Error fetching custom parameters:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal ServerError' }, { status: 500 });
     }
 }
