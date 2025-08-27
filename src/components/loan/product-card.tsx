@@ -175,12 +175,6 @@ export function ProductCard({
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             ) : null}
-                             {product.duration ? (
-                                <div>
-                                    <p className="text-lg font-semibold">{product.duration} days</p>
-                                    <p className="text-xs text-muted-foreground">Loan Duration</p>
-                                </div>
-                             ) : null}
                              {product.availableLimit ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatCurrency(product.availableLimit)}</p>

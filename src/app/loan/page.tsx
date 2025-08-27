@@ -49,10 +49,12 @@ async function getProviders(): Promise<LoanProvider[]> {
                 icon: prod.icon,
                 minLoan: prod.minLoan,
                 maxLoan: prod.maxLoan,
+                duration: prod.duration,
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
                 penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
                 status: prod.status as 'Active' | 'Disabled',
+                allowConcurrentLoans: prod.allowConcurrentLoans,
             }))
         })) as LoanProvider[];
     } catch(e) {
