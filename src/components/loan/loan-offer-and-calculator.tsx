@@ -29,11 +29,14 @@ const formatCurrency = (amount: number) => {
 };
 
 const formatFee = (feeRule: FeeRule | undefined): string => {
-    if (!feeRule || feeRule.value === '' || feeRule.value === 0) return 'N/A';
+    if (!feeRule || feeRule.value === '' || feeRule.value === null) return 'N/A';
+    const numericValue = Number(feeRule.value);
+    if (isNaN(numericValue)) return 'N/A';
+
     if (feeRule.type === 'percentage') {
-        return `${feeRule.value}%`;
+        return `${numericValue}%`;
     }
-    return formatCurrency(Number(feeRule.value));
+    return formatCurrency(numericValue);
 };
 
 const formatPenaltyRule = (rule: PenaltyRule): string => {
@@ -226,28 +229,31 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
           {calculatedTerms && (
              <div className="space-y-2">
                 <div className="space-y-4 text-sm bg-secondary p-4 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <div className="font-medium">Service Fee</div>
-                      <div className="text-right">{formatFee(product.serviceFee?.value ? product.serviceFee : undefined)}</div>
-                    </div>
+                    {Number(product.serviceFee?.value) ? (
+                        <div className="flex justify-between items-center">
+                          <div className="font-medium">Service Fee</div>
+                          <div className="text-right">{formatFee(product.serviceFee)}</div>
+                        </div>
+                    ) : null}
                     
-                     <div className="flex justify-between items-center">
-                        <div className="font-medium">Daily Fee</div>
-                        <div className="text-right">{formatFee(product.dailyFee?.value ? product.dailyFee : undefined)}</div>
-                    </div>
+                    {Number(product.dailyFee?.value) ? (
+                         <div className="flex justify-between items-center">
+                            <div className="font-medium">Daily Fee</div>
+                            <div className="text-right">{formatFee(product.dailyFee)}</div>
+                        </div>
+                    ) : null}
                     
                     <Collapsible open={isPenaltyDetailsOpen} onOpenChange={setIsPenaltyDetailsOpen}>
-                        <CollapsibleTrigger asChild>
-                            <button type="button" className={cn("font-medium w-full flex justify-between items-center", product.penaltyRules && product.penaltyRules.length > 0 && "text-destructive")}>
-                                <span className="flex items-center">
-                                Penalty Rules
-                                {product.penaltyRules && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
-                                </span>
-                                 <span className={cn("text-right text-muted-foreground", product.penaltyRules && product.penaltyRules.length > 0 && "text-destructive")}>
-                                    {product.penaltyRules && product.penaltyRules.length > 0 ? "" : 'N/A'}
-                                </span>
-                            </button>
-                        </CollapsibleTrigger>
+                         {product.penaltyRules && product.penaltyRules.length > 0 && (
+                            <CollapsibleTrigger asChild>
+                                <button type="button" className={cn("font-medium w-full flex justify-between items-center", product.penaltyRules && product.penaltyRules.length > 0 && "text-destructive")}>
+                                    <span className="flex items-center">
+                                    Penalty Rules
+                                    <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />
+                                    </span>
+                                </button>
+                            </CollapsibleTrigger>
+                         )}
                         <CollapsibleContent>
                             <div className="mt-2 space-y-1 text-xs text-muted-foreground/80 pl-4">
                                 {(product.penaltyRules || []).map(rule => (
