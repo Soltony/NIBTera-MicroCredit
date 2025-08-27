@@ -16,7 +16,6 @@ export async function getDashboardData(userId: string) {
     const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
     const providerId = user?.loanProvider?.id;
     
-    // If a non-admin user has no providerId, they can't have any data. Return a default state.
     if (!isSuperAdmin && !providerId) {
         const providers = await prisma.loanProvider.findMany();
         return {
@@ -35,10 +34,9 @@ export async function getDashboardData(userId: string) {
 
     const loans = await prisma.loan.findMany({ 
         where: providerFilter,
-        include: { product: { include: { provider: true } } }
+        include: { product: true }
     });
     
-    // Corrected User Count Logic
     const usersCount = isSuperAdmin 
         ? await prisma.user.count() 
         : await prisma.loan.groupBy({
@@ -47,18 +45,13 @@ export async function getDashboardData(userId: string) {
           }).then(results => results.length);
 
 
-    // Ledger and Provider Fund Calculations
     const providersData = await prisma.loanProvider.findMany({
         where: providerWhereClause,
         include: { ledgerAccounts: true }
     });
     
-    // For Super Admin, we'll aggregate. For a Provider, it's just their data.
-    const initialFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
-    const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const providerFund = initialFund - totalDisbursed;
-    
     const allLedgerAccounts = providersData.flatMap(p => p.ledgerAccounts);
+    const totalInitialFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
 
     const aggregateLedger = (type: string, category?: string) => {
         return allLedgerAccounts
@@ -85,8 +78,9 @@ export async function getDashboardData(userId: string) {
         serviceFee: aggregateLedger('Income', 'ServiceFee'),
         penalty: aggregateLedger('Income', 'Penalty'),
     };
-
-
+    
+    const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
+    const providerFund = totalInitialFund - totalDisbursed;
     const totalLoans = loans.length;
     const totalPaid = loans.reduce((acc, loan) => acc + (loan.repaidAmount || 0), 0);
     const paidLoans = loans.filter(l => l.repaymentStatus === 'Paid').length;
@@ -155,30 +149,25 @@ export async function getDashboardData(userId: string) {
         };
     }));
     
-    const providers = await prisma.loanProvider.findMany();
+    const allProviders = await prisma.loanProvider.findMany();
 
     return {
-        // Portfolio Stats
         totalLoans,
         totalDisbursed,
         totalPaid,
         repaymentRate,
         atRiskLoans,
         totalUsers: usersCount,
-        // Chart Data
         loanDisbursementData,
         loanStatusData,
-        // Table Data
         recentActivity,
         productOverview,
-        // Financials
-        initialFund,
+        initialFund: totalInitialFund,
         providerFund,
         receivables,
         collections,
         income,
-        // For styling
-        providers: providers as LoanProvider[],
+        providers: allProviders as LoanProvider[],
     };
 }
 
