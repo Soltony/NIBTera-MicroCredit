@@ -69,7 +69,14 @@ interface CustomParameterType {
     options?: string[];
 }
 
-const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; onUpdate: (updatedRule: Rule) => void; onRemove: () => void; color?: string, maxScore: number }) => {
+const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: { 
+    rule: Rule; 
+    onUpdate: (updatedRule: Rule) => void; 
+    onRemove: () => void; 
+    color?: string, 
+    maxScore: number,
+    paramFieldInfo?: CustomParameterType
+}) => {
     
     const [min, max] = useMemo(() => {
         const parts = (rule.value || '').split('-');
@@ -85,6 +92,52 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; on
     
     const isScoreInvalid = maxScore !== undefined && rule.score > maxScore;
     
+    const renderValueInput = () => {
+        if (paramFieldInfo?.type === 'select' && rule.condition === '==') {
+            return (
+                <Select value={rule.value || ''} onValueChange={(value) => onUpdate({...rule, value })}>
+                    <SelectTrigger className="flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]" style={{'--ring-color': color} as React.CSSProperties}>
+                        <SelectValue placeholder="Select a value" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {paramFieldInfo.options?.map(option => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            );
+        }
+
+        if (rule.condition === 'between') {
+            return (
+                <div className="flex items-center gap-2 flex-1">
+                    <Input
+                        placeholder="Min"
+                        value={min}
+                        onChange={handleRangeChange('min')}
+                        className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                    />
+                    <span>-</span>
+                    <Input
+                        placeholder="Max"
+                        value={max}
+                        onChange={handleRangeChange('max')}
+                        className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                    />
+                </div>
+            );
+        }
+
+        return (
+            <Input
+                placeholder="e.g., 30 or High School"
+                value={rule.value || ''}
+                onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
+                className={cn("flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
+            />
+        );
+    }
+    
     return (
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
@@ -93,40 +146,26 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore }: { rule: Rule; on
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value=">">&gt;</SelectItem>
-                        <SelectItem value="<">&lt;</SelectItem>
-                        <SelectItem value=">=">&gt;=</SelectItem>
-                        <SelectItem value="<=">&lt;=</SelectItem>
-                        <SelectItem value="==">==</SelectItem>
-                        <SelectItem value="!=">!=</SelectItem>
-                        <SelectItem value="between">Between</SelectItem>
+                         {paramFieldInfo?.type === 'select' ? (
+                            <>
+                                <SelectItem value="==">Is Equal To</SelectItem>
+                                <SelectItem value="!=">Is Not Equal To</SelectItem>
+                            </>
+                        ) : (
+                            <>
+                                <SelectItem value=">">&gt; (Greater Than)</SelectItem>
+                                <SelectItem value="<">&lt; (Less Than)</SelectItem>
+                                <SelectItem value=">=">&gt;= (Greater or Equal)</SelectItem>
+                                <SelectItem value="<=">&lt;= (Less or Equal)</SelectItem>
+                                <SelectItem value="==">== (Equal)</SelectItem>
+                                <SelectItem value="!=">!= (Not Equal)</SelectItem>
+                                <SelectItem value="between">Between</SelectItem>
+                            </>
+                        )}
                     </SelectContent>
                 </Select>
 
-                {rule.condition === 'between' ? (
-                    <div className="flex items-center gap-2 flex-1">
-                        <Input
-                            placeholder="Min"
-                            value={min}
-                            onChange={handleRangeChange('min')}
-                            className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
-                        />
-                        <span>-</span>
-                        <Input
-                            placeholder="Max"
-                            value={max}
-                            onChange={handleRangeChange('max')}
-                            className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
-                        />
-                    </div>
-                ) : (
-                    <Input
-                        placeholder="e.g., 30 or High School"
-                        value={rule.value || ''}
-                        onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
-                        className={cn("flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
-                    />
-                )}
+                {renderValueInput()}
                 
                 <Input
                     type="number"
@@ -459,7 +498,9 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 </CardHeader>
                 <CardContent>
                     <Accordion type="multiple" className="w-full space-y-2">
-                        {currentParameters.map((param) => (
+                        {currentParameters.map((param) => {
+                            const paramFieldInfo = customParams.find(p => p.value === param.name);
+                             return (
                              <AccordionItem value={param.id} key={param.id} className="border-none">
                                 <Card className="overflow-hidden">
                                     <div className="flex items-center p-4 bg-muted/50">
@@ -510,6 +551,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                     onRemove={() => handleRemoveRule(param.id, rule.id)}
                                                     color={themeColor}
                                                     maxScore={param.weight}
+                                                    paramFieldInfo={paramFieldInfo}
                                                 />
                                             ))}
                                             <Button variant="outline" className="w-full mt-2" onClick={() => handleAddRule(param.id)}>
@@ -519,7 +561,8 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                      </AccordionContent>
                                 </Card>
                              </AccordionItem>
-                        ))}
+                             )
+                        })}
                     </Accordion>
                 </CardContent>
                 <CardFooter className="flex flex-col items-stretch gap-4">
