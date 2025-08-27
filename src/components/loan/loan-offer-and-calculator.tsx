@@ -75,9 +75,9 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
   useEffect(() => {
     // Set the initial amount to the product's min, but not exceeding the true max loan.
-    const initialAmount = Math.min(minLoan, maxLoan);
+    const initialAmount = Math.min(product.availableLimit ?? maxLoan, maxLoan);
     setLoanAmount(initialAmount);
-  }, [product.id, minLoan, maxLoan]);
+  }, [product.id, product.availableLimit, maxLoan]);
   
   const calculatedTerms = useMemo(() => {
     const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
@@ -244,7 +244,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                                 {product.penaltyRulesEnabled && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
                                 </span>
                                  <span className={cn("text-right text-muted-foreground", product.penaltyRulesEnabled && product.penaltyRules.length > 0 && "text-destructive")}>
-                                    {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? '' : 'N/A'}
+                                    {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
                                 </span>
                             </button>
                         </CollapsibleTrigger>
