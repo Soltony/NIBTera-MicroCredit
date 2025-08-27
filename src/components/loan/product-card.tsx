@@ -57,7 +57,7 @@ export function ProductCard({
             ...activeLoan.product
         };
         const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, new Date());
-        const remainingBalance = totalDebt - (activeLoan.repaidAmount || 0);
+        const remainingBalance = totalDebt.total - (activeLoan.repaidAmount || 0);
         // Return 0 if the balance is negative (overpayment)
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
