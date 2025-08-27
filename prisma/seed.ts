@@ -28,6 +28,8 @@ const defaultLedgerAccounts = [
     { name: 'Principal Received', type: 'Received', category: 'Principal' },
     { name: 'Interest Received', type: 'Received', category: 'Interest' },
     { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+    { name: 'Interest Income', type: 'Income', category: 'Interest' },
+    { name: 'Penalty Income', type: 'Income', category: 'Penalty' },
 ];
 
 async function main() {

@@ -114,7 +114,7 @@ export interface LoanDetails {
   payments: Payment[];
   penaltyAmount: number;
   // For calculation purposes, not stored in DB
-  product?: LoanProduct;
+  product: LoanProduct;
   provider?: LoanProvider;
   providerId?: string;
 }
@@ -222,7 +222,7 @@ export interface LedgerAccount {
     id: string;
     providerId: string;
     name: string;
-    type: 'Receivable' | 'Received';
+    type: 'Receivable' | 'Received' | 'Income';
     category: 'Principal' | 'Interest' | 'Penalty';
     balance: number;
 }

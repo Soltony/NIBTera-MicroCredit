@@ -20,7 +20,7 @@ async function getBorrowerBalance(borrowerId: string): Promise<number> {
 
     if (provisionedData) {
         try {
-            const data = JSON.parse(provisionedData.data);
+            const data = JSON.parse(provisionedData.data as string);
             // Assuming the provisioned data has a field named 'accountBalance'
             return parseFloat(data.accountBalance) || 0;
         } catch (e) {
@@ -63,20 +63,55 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
     let processedCount = 0;
 
     for (const loan of overdueLoans) {
-        // 2. Calculate the total amount due for each loan
-        const totalDue = calculateTotalRepayable(loan as any, loan.product, today) - (loan.repaidAmount || 0);
+        const { total, principal, interest, penalty } = calculateTotalRepayable(loan as any, loan.product, today);
+        const totalDue = total - (loan.repaidAmount || 0);
 
         if (totalDue <= 0) {
             continue; // Skip if already paid off
         }
 
-        // 3. Check customer's available balance
         const borrowerBalance = await getBorrowerBalance(loan.borrowerId);
         
-        // 4. Perform deduction if funds are sufficient
         if (borrowerBalance >= totalDue) {
             try {
                 await prisma.$transaction(async (tx) => {
+                    const provider = loan.product.provider;
+                    
+                    // Ledger Accounts
+                    const principalReceivable = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
+                    const interestReceivable = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Receivable');
+                    const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
+                    const principalReceived = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
+                    const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
+                    const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
+                    
+                    if (!principalReceivable || !interestReceivable || !penaltyReceivable || !principalReceived || !interestReceived || !penaltyReceived) {
+                        throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
+                    }
+                    
+                    let paymentAmount = totalDue;
+
+                    // Apply payment according to priority: Penalty -> Interest -> Principal
+                    const penaltyToPay = Math.min(paymentAmount, penalty);
+                    if (penaltyToPay > 0) {
+                        await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
+                        await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
+                        paymentAmount -= penaltyToPay;
+                    }
+
+                    const interestToPay = Math.min(paymentAmount, interest);
+                     if (interestToPay > 0) {
+                        await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
+                        await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
+                        paymentAmount -= interestToPay;
+                    }
+                    
+                    const principalToPay = Math.min(paymentAmount, principal);
+                     if (principalToPay > 0) {
+                        await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
+                        await tx.ledgerAccount.update({ where: { id: principalReceived.id }, data: { balance: { increment: principalToPay } } });
+                    }
+                    
                     // Create payment record
                     await tx.payment.create({
                         data: {
@@ -95,23 +130,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                             repaymentStatus: 'Paid',
                         },
                     });
-
-
-                    // 5. Update financial ledgers
-                    const principalReceivable = loan.product.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
-                    const principalReceived = loan.product.provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
-                    
-                    if (principalReceivable && principalReceived) {
-                        await tx.ledgerAccount.update({
-                            where: { id: principalReceivable.id },
-                            data: { balance: { decrement: loan.loanAmount } }
-                        });
-                         await tx.ledgerAccount.update({
-                            where: { id: principalReceived.id },
-                            data: { balance: { increment: loan.loanAmount } }
-                        });
-                    }
-                    // Similar logic for Interest and Penalty would go here
                 });
                 
                 processedCount++;
@@ -119,7 +137,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
 
             } catch (error) {
                 console.error(`Failed to process repayment for loan ${loan.id}:`, error);
-                // Continue to the next loan even if one fails
             }
         } else {
              console.log(`Insufficient funds for loan ${loan.id}. Balance: ${borrowerBalance}, Due: ${totalDue}`);
