@@ -94,9 +94,11 @@ export function ProductCard({
                         </div>
                         <div>
                             <CardTitle className="text-lg">{product.name}</CardTitle>
-                             <span className="block text-sm text-muted-foreground mt-1">
-                                Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}
-                            </span>
+                             <div className="flex items-center text-sm text-muted-foreground mt-1">
+                                <span>Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}</span>
+                                {product.duration && <span className="mx-2">•</span>}
+                                {product.duration && <span>{product.duration} days</span>}
+                            </div>
                         </div>
                     </div>
                      <div className="flex items-center">
