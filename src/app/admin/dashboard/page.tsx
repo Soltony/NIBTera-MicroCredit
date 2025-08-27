@@ -15,6 +15,21 @@ async function getDashboardData(userId: string) {
 
     const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
     const providerId = user?.loanProvider?.id;
+    
+    // If a non-admin user has no providerId, they can't have any data. Return a default state.
+    if (!isSuperAdmin && !providerId) {
+        const providers = await prisma.loanProvider.findMany();
+        return {
+            totalLoans: 0, totalDisbursed: 0, totalPaid: 0, repaymentRate: 0, atRiskLoans: 0, totalUsers: 0,
+            loanDisbursementData: [], loanStatusData: [], recentActivity: [], productOverview: [],
+            initialFund: 0, providerFund: 0,
+            receivables: { principal: 0, interest: 0, serviceFee: 0, penalty: 0 },
+            collections: { principal: 0, interest: 0, serviceFee: 0, penalty: 0 },
+            income: { interest: 0, serviceFee: 0, penalty: 0 },
+            providers: providers as LoanProvider[],
+        };
+    }
+
     const providerFilter = isSuperAdmin ? {} : { product: { providerId: providerId }};
     const providerWhereClause = isSuperAdmin ? {} : { id: providerId };
 
@@ -111,7 +126,7 @@ async function getDashboardData(userId: string) {
         include: { product: true }
     }).then(loans => loans.map(l => ({
         id: l.id,
-        borrower: `Borrower #${l.borrowerId}`,
+        customer: `Borrower #${l.borrowerId}`,
         product: l.product.name,
         status: l.repaymentStatus,
         amount: l.loanAmount,
@@ -170,5 +185,9 @@ export default async function AdminDashboard() {
     }
     
     const data = await getDashboardData(user.id);
+    if (!data) {
+        return <div>Loading dashboard...</div>; // Or some other placeholder
+    }
+    
     return <DashboardClient initialData={data} />;
 }
