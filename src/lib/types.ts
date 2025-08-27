@@ -86,7 +86,6 @@ export interface LoanProduct {
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
-  allowMultipleLoans: boolean;
   serviceFeeEnabled?: boolean;
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;

@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
                 maxLoan: productData.maxLoan,
                 duration: productData.duration,
                 status: 'Active',
-                allowMultipleLoans: productData.allowMultipleLoans ?? false,
                 // Default fee structures
                 serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),
