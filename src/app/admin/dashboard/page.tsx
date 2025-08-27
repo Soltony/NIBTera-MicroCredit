@@ -1,7 +1,7 @@
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import prisma from '@/lib/prisma';
-import type { LoanProvider } from '@/lib/types';
+import type { LoanProvider, LedgerAccount } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
 import { startOfToday, subDays } from 'date-fns';
 
@@ -13,21 +13,61 @@ async function getDashboardData(userId: string) {
         include: { loanProvider: true }
     });
 
-    const providerFilter = (user?.role === 'Super Admin' || user?.role === 'Admin')
-        ? {}
-        : { product: { providerId: user?.loanProvider?.id }};
+    const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    const providerId = user?.loanProvider?.id;
+    const providerFilter = isSuperAdmin ? {} : { product: { providerId: providerId }};
+    const providerWhereClause = isSuperAdmin ? {} : { id: providerId };
 
     const loans = await prisma.loan.findMany({ 
         where: providerFilter,
         include: { product: { include: { provider: true } } }
     });
     
-    const users = await prisma.user.count({
-        where: (user?.role === 'Super Admin' || user?.role === 'Admin') ? {} : { loanProviderId: user?.loanProvider?.id }
+    const usersCount = await prisma.user.count({
+        where: isSuperAdmin ? {} : { loanProviderId: providerId }
     });
 
-    const totalLoans = loans.length;
+    // Ledger and Provider Fund Calculations
+    const providersData = await prisma.loanProvider.findMany({
+        where: providerWhereClause,
+        include: { ledgerAccounts: true }
+    });
+    
+    // For Super Admin, we'll aggregate. For a Provider, it's just their data.
+    const initialFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
     const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
+    const providerFund = initialFund - totalDisbursed;
+    
+    const allLedgerAccounts = providersData.flatMap(p => p.ledgerAccounts);
+
+    const aggregateLedger = (type: string, category?: string) => {
+        return allLedgerAccounts
+            .filter(acc => acc.type === type && (category ? acc.category === category : true))
+            .reduce((sum, acc) => sum + acc.balance, 0);
+    };
+
+    const receivables = {
+        principal: aggregateLedger('Receivable', 'Principal'),
+        interest: aggregateLedger('Receivable', 'Interest'),
+        serviceFee: aggregateLedger('Receivable', 'ServiceFee'),
+        penalty: aggregateLedger('Receivable', 'Penalty'),
+    };
+    
+    const collections = {
+        principal: aggregateLedger('Received', 'Principal'),
+        interest: aggregateLedger('Received', 'Interest'),
+        serviceFee: aggregateLedger('Received', 'ServiceFee'),
+        penalty: aggregateLedger('Received', 'Penalty'),
+    };
+
+    const income = {
+        interest: aggregateLedger('Income', 'Interest'),
+        serviceFee: aggregateLedger('Income', 'ServiceFee'),
+        penalty: aggregateLedger('Income', 'Penalty'),
+    };
+
+
+    const totalLoans = loans.length;
     const totalPaid = loans.reduce((acc, loan) => acc + (loan.repaidAmount || 0), 0);
     const paidLoans = loans.filter(l => l.repaymentStatus === 'Paid').length;
     const repaymentRate = totalLoans > 0 ? (paidLoans / totalLoans) * 100 : 0;
@@ -78,7 +118,7 @@ async function getDashboardData(userId: string) {
     })));
 
     const allProducts = await prisma.loanProduct.findMany({
-        where: (user?.role === 'Super Admin' || user?.role === 'Admin') ? {} : { providerId: user?.loanProvider?.id },
+        where: isSuperAdmin ? {} : { providerId: providerId },
         include: { provider: true, _count: { select: { loans: true } } }
     });
 
@@ -98,16 +138,26 @@ async function getDashboardData(userId: string) {
     const providers = await prisma.loanProvider.findMany();
 
     return {
+        // Portfolio Stats
         totalLoans,
         totalDisbursed,
         totalPaid,
         repaymentRate,
         atRiskLoans,
-        totalUsers,
+        totalUsers: usersCount,
+        // Chart Data
         loanDisbursementData,
         loanStatusData,
+        // Table Data
         recentActivity,
         productOverview,
+        // Financials
+        initialFund,
+        providerFund,
+        receivables,
+        collections,
+        income,
+        // For styling
         providers: providers as LoanProvider[],
     };
 }
