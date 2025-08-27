@@ -16,7 +16,7 @@ const formatCurrency = (amount: number) => {
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
-    if (!feeRule || feeRule.value === '' || feeRule.value === null) return 'N/A';
+    if (!feeRule || feeRule.value === '' || feeRule.value === null || Number(feeRule.value) === 0) return 'N/A';
     const numericValue = Number(feeRule.value);
     if (isNaN(numericValue)) return 'N/A';
 
@@ -133,19 +133,19 @@ export function ProductCard({
                             <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
-                            {product.serviceFeeEnabled && (
+                            {product.serviceFee?.value && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
                             )}
-                             {product.dailyFeeEnabled && (
+                             {product.dailyFee?.value && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             )}
-                            {product.penaltyRulesEnabled && (
+                            {product.penaltyRules?.length > 0 && (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>
@@ -161,19 +161,19 @@ export function ProductCard({
                 {isExpanded && !activeLoan && (
                     <div className="bg-muted/50 p-4 rounded-lg mt-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                           {product.serviceFeeEnabled && (
+                           {product.serviceFee?.value && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
                                     <p className="text-xs text-muted-foreground">Service Fee</p>
                                 </div>
                            )}
-                            {product.dailyFeeEnabled && (
+                            {product.dailyFee?.value && (
                                 <div>
                                     <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             )}
-                            {product.penaltyRulesEnabled && (
+                            {product.penaltyRules?.length > 0 && (
                                 <div>
                                     <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
                                     <p className="text-xs text-muted-foreground">Penalty Rules</p>

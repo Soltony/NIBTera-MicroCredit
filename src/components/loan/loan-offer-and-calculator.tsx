@@ -228,23 +228,23 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                 <div className="space-y-4 text-sm bg-secondary p-4 rounded-lg">
                     <div className="flex justify-between items-center">
                       <div className="font-medium">Service Fee</div>
-                      <div className="text-right">{formatFee(product.serviceFeeEnabled ? product.serviceFee : undefined)}</div>
+                      <div className="text-right">{formatFee(product.serviceFee?.value ? product.serviceFee : undefined)}</div>
                     </div>
                     
                      <div className="flex justify-between items-center">
                         <div className="font-medium">Daily Fee</div>
-                        <div className="text-right">{formatFee(product.dailyFeeEnabled ? product.dailyFee : undefined)}</div>
+                        <div className="text-right">{formatFee(product.dailyFee?.value ? product.dailyFee : undefined)}</div>
                     </div>
                     
                     <Collapsible open={isPenaltyDetailsOpen} onOpenChange={setIsPenaltyDetailsOpen}>
                         <CollapsibleTrigger asChild>
-                            <button type="button" className={cn("font-medium w-full flex justify-between items-center", product.penaltyRulesEnabled && product.penaltyRules.length > 0 && "text-destructive")}>
+                            <button type="button" className={cn("font-medium w-full flex justify-between items-center", product.penaltyRules && product.penaltyRules.length > 0 && "text-destructive")}>
                                 <span className="flex items-center">
                                 Penalty Rules
-                                {product.penaltyRulesEnabled && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
+                                {product.penaltyRules && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
                                 </span>
-                                 <span className={cn("text-right text-muted-foreground", product.penaltyRulesEnabled && product.penaltyRules.length > 0 && "text-destructive")}>
-                                    {product.penaltyRulesEnabled && product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
+                                 <span className={cn("text-right text-muted-foreground", product.penaltyRules && product.penaltyRules.length > 0 && "text-destructive")}>
+                                    {product.penaltyRules && product.penaltyRules.length > 0 ? "" : 'N/A'}
                                 </span>
                             </button>
                         </CollapsibleTrigger>
