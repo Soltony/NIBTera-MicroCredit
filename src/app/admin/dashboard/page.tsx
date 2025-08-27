@@ -7,7 +7,7 @@ import { startOfToday, subDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
-async function getDashboardData(userId: string) {
+export async function getDashboardData(userId: string) {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: { loanProvider: true }
@@ -38,9 +38,14 @@ async function getDashboardData(userId: string) {
         include: { product: { include: { provider: true } } }
     });
     
-    const usersCount = await prisma.user.count({
-        where: isSuperAdmin ? {} : { loanProviderId: providerId }
-    });
+    // Corrected User Count Logic
+    const usersCount = isSuperAdmin 
+        ? await prisma.user.count() 
+        : await prisma.loan.groupBy({
+            by: ['borrowerId'],
+            where: { product: { providerId: providerId } },
+          }).then(results => results.length);
+
 
     // Ledger and Provider Fund Calculations
     const providersData = await prisma.loanProvider.findMany({
