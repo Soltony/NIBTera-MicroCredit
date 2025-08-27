@@ -94,19 +94,17 @@ export function LoanDetailsView({ details, product, onReset, providerColor = 'hs
             </div>
             
             <Collapsible open={isPenaltyDetailsOpen} onOpenChange={setIsPenaltyDetailsOpen}>
-                 <div className="flex justify-between">
-                    <CollapsibleTrigger asChild>
-                        <button type="button" className="text-muted-foreground">
-                            <span className="flex items-center">
-                                Penalty Rules
-                                {product.penaltyRulesEnabled && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
-                            </span>
-                        </button>
-                    </CollapsibleTrigger>
-                    <div className="text-right font-medium">
-                        {product.penaltyRules.length > 0 ? `${product.penaltyRules.length} rule(s) apply` : 'N/A'}
-                    </div>
-                 </div>
+                <CollapsibleTrigger asChild>
+                    <button className="flex justify-between w-full text-muted-foreground">
+                        <span className="flex items-center">
+                            Penalty Rules
+                            {product.penaltyRulesEnabled && product.penaltyRules.length > 0 && <ChevronDown className={cn("h-4 w-4 ml-1 transition-transform", isPenaltyDetailsOpen && "rotate-180")} />}
+                        </span>
+                         <span className="text-right font-medium text-foreground">
+                            {product.penaltyRules.length > 0 ? '' : 'N/A'}
+                        </span>
+                    </button>
+                </CollapsibleTrigger>
                  <CollapsibleContent>
                     <div className="mt-2 space-y-1 text-xs text-muted-foreground/80 pl-4 bg-secondary p-2 rounded-md">
                         {(product.penaltyRules || []).map(rule => (
