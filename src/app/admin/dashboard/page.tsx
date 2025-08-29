@@ -29,7 +29,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     });
     
     const allLedgerAccounts = providersData.flatMap(p => p.ledgerAccounts);
-    const totalInitialFund = providersData.reduce((acc, p) => acc + p.startingCapital, 0);
+    const totalStartingCapital = providersData.reduce((acc, p) => acc + p.startingCapital, 0);
     const providerFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
 
     const aggregateLedger = (type: string, category?: string) => {
@@ -136,7 +136,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         loanStatusData,
         recentActivity,
         productOverview,
-        initialFund: totalInitialFund,
+        initialFund: totalStartingCapital,
         providerFund,
         receivables,
         collections,
@@ -144,29 +144,42 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     };
 }
 
-export async function getDashboardData(userId: string) {
+export async function getDashboardData(userId: string): Promise<{
+    providers: LoanProvider[];
+    overallData: DashboardData;
+    providerSpecificData: Record<string, DashboardData>;
+}> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: { loanProvider: true }
     });
 
     const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
-    const providers = await prisma.loanProvider.findMany();
     
-    if (!isSuperAdmin) {
-        return {
-            providers: providers as LoanProvider[],
-            providerData: [await getProviderData(user?.loanProvider?.id)],
-        }
+    // For non-admins, get their specific provider or an empty array
+    const providers = isSuperAdmin
+        ? await prisma.loanProvider.findMany()
+        : (user?.loanProvider ? [user.loanProvider] : []);
+
+    const overallData = await getProviderData(isSuperAdmin ? undefined : user?.loanProvider?.id);
+    
+    let providerSpecificData: Record<string, DashboardData> = {};
+
+    if (isSuperAdmin) {
+         const specificDataPromises = providers.map(p => getProviderData(p.id));
+         const results = await Promise.all(specificDataPromises);
+         results.forEach((data, index) => {
+             providerSpecificData[providers[index].id] = data;
+         });
+    } else if (user?.loanProvider) {
+        providerSpecificData[user.loanProvider.id] = overallData;
     }
 
-    // For Super Admin, fetch all data
-    const overallData = await getProviderData();
-    const providerSpecificData = await Promise.all(providers.map(p => getProviderData(p.id)));
 
     return {
         providers: providers as LoanProvider[],
-        providerData: [overallData, ...providerSpecificData],
+        overallData: overallData,
+        providerSpecificData: providerSpecificData,
     };
 }
 

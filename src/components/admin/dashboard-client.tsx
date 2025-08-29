@@ -57,7 +57,8 @@ interface IncomeData {
 interface DashboardClientProps {
   dashboardData: {
     providers: LoanProvider[];
-    providerData: DashboardData[];
+    overallData: DashboardData;
+    providerSpecificData: Record<string, DashboardData>;
   };
 }
 
@@ -117,12 +118,22 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Initial Fund</CardTitle>
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(initialFund)}</div>
+                    <p className="text-xs text-muted-foreground">Total starting capital</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Provider Fund (Live)</CardTitle>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(providerFund)}</div>
-                    <p className="text-xs text-muted-foreground">Original starting capital: {formatCurrency(initialFund)}</p>
+                    <p className="text-xs text-muted-foreground">Capital remaining for disbursement</p>
                 </CardContent>
             </Card>
             <Card>
@@ -137,22 +148,12 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Disbursed</CardTitle>
+                    <CardTitle className="text-sm font-medium">Portfolio Size (Disbursed)</CardTitle>
                     <Banknote className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
                     <p className="text-xs text-muted-foreground">Total amount loaned out</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">At-Risk Loans</CardTitle>
-                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{atRiskLoans}</div>
-                    <p className="text-xs text-muted-foreground">Loans currently overdue</p>
                 </CardContent>
             </Card>
         </div>
@@ -319,7 +320,7 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
 
 export function DashboardClient({ dashboardData }: DashboardClientProps) {
   const { currentUser } = useAuth();
-  const { providers, providerData } = dashboardData;
+  const { providers, overallData, providerSpecificData } = dashboardData;
 
   const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
   
@@ -330,7 +331,7 @@ export function DashboardClient({ dashboardData }: DashboardClientProps) {
     return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
   }, [currentUser, providers, isSuperAdmin]);
   
-  if (!providerData || providerData.length === 0) {
+  if (!overallData) {
       return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
@@ -343,7 +344,7 @@ export function DashboardClient({ dashboardData }: DashboardClientProps) {
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <DashboardView data={providerData[0]} color={themeColor} />
+          <DashboardView data={overallData} color={themeColor} />
       </div>
     );
   }
@@ -361,13 +362,11 @@ export function DashboardClient({ dashboardData }: DashboardClientProps) {
             </TabsList>
             
             <TabsContent value="overall" className="mt-4">
-                {providerData[0] ? (
-                    <DashboardView data={providerData[0]} color={themeColor} />
-                ) : <p>Loading overall data...</p>}
+                <DashboardView data={overallData} color={themeColor} />
             </TabsContent>
             
-            {providers.map((provider, index) => {
-                 const data = providerData[index + 1];
+            {providers.map((provider) => {
+                 const data = providerSpecificData[provider.id];
                  return (
                     <TabsContent key={provider.id} value={provider.id} className="mt-4">
                         {data ? (
