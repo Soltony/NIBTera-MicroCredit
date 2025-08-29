@@ -95,13 +95,13 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     e.preventDefault();
     if (formData.name.trim() === '') return;
 
-    const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id'>> & { id?: string } = {
+    const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string } = {
       id: provider?.id,
       ...formData,
       startingCapital: Number(formData.startingCapital)
     };
     
-    onSave(dataToSave);
+    onSave(dataToSave as any);
     onClose();
   };
 

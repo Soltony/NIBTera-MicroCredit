@@ -129,8 +129,8 @@ async function main() {
       dailyFee: JSON.stringify({ type: 'percentage', value: 0.1, calculationBase: 'principal' }),
       penaltyRulesEnabled: true,
       penaltyRules: JSON.stringify([
-        { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50 },
-        { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5 },
+        { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50, frequency: 'daily' },
+        { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5, frequency: 'daily' },
       ]),
       dataProvisioningEnabled: false,
     },
