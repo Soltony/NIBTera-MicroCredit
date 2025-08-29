@@ -152,12 +152,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
              <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Provider Fund</CardTitle>
+                    <CardTitle className="text-sm font-medium">Provider Fund (Live)</CardTitle>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(providerFund)}</div>
-                    <p className="text-xs text-muted-foreground">Initial: {formatCurrency(initialFund)}</p>
+                    <p className="text-xs text-muted-foreground">Original starting capital: {formatCurrency(initialFund)}</p>
                 </CardContent>
             </Card>
              <Card>

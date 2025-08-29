@@ -31,11 +31,16 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
+        const { startingCapital, ...restOfBody } = body;
         
         // Use a transaction to create the provider and its ledger accounts
         const newProvider = await prisma.$transaction(async (tx) => {
             const provider = await tx.loanProvider.create({
-                data: body,
+                data: {
+                    ...restOfBody,
+                    startingCapital: startingCapital,
+                    initialBalance: startingCapital, // Both start with the same value
+                },
             });
 
             const accountsToCreate = defaultLedgerAccounts.map(acc => ({

@@ -66,6 +66,7 @@ export interface LoanProvider {
   colorHex?: string;
   displayOrder: number;
   accountNumber: string | null;
+  startingCapital: number;
   initialBalance: number;
   allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];

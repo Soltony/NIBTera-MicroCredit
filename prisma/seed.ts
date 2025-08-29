@@ -92,6 +92,7 @@ async function main() {
       colorHex: '#fdb913',
       displayOrder: 1,
       accountNumber: '1000123456789',
+      startingCapital: 1000000,
       initialBalance: 1000000,
       allowCrossProviderLoans: false,
     },

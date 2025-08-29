@@ -51,7 +51,8 @@ export async function getDashboardData(userId: string) {
     });
     
     const allLedgerAccounts = providersData.flatMap(p => p.ledgerAccounts);
-    const totalInitialFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
+    const totalInitialFund = providersData.reduce((acc, p) => acc + p.startingCapital, 0);
+    const providerFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
 
     const aggregateLedger = (type: string, category?: string) => {
         return allLedgerAccounts
@@ -80,7 +81,6 @@ export async function getDashboardData(userId: string) {
     };
     
     const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const providerFund = totalInitialFund - totalDisbursed;
     const totalLoans = loans.length;
     const totalPaid = loans.reduce((acc, loan) => acc + (loan.repaidAmount || 0), 0);
     const paidLoans = loans.filter(l => l.repaymentStatus === 'Paid').length;
