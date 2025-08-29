@@ -75,6 +75,12 @@ export async function PUT(req: NextRequest) {
         if (!id) {
             return NextResponse.json({ error: 'Provider ID is required for update.' }, { status: 400 });
         }
+        
+        // Do not allow startingCapital to be changed on update
+        if ('startingCapital' in dataToUpdate) {
+            delete dataToUpdate.startingCapital;
+        }
+
 
         const updatedProvider = await prisma.loanProvider.update({
             where: { id },

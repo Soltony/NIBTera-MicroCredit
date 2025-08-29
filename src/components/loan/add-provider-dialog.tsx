@@ -23,7 +23,7 @@ import { Separator } from '../ui/separator';
 interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (provider: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id'>> & { id?: string }) => void;
+  onSave: (provider: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string }) => void;
   provider: LoanProvider | null;
   primaryColor?: string;
 }
