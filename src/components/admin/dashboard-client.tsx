@@ -330,6 +330,15 @@ export function DashboardClient({ dashboardData }: DashboardClientProps) {
     return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
   }, [currentUser, providers, isSuperAdmin]);
   
+  if (!providerData || providerData.length === 0) {
+      return (
+        <div className="flex-1 space-y-4 p-8 pt-6">
+            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+            <p>Loading dashboard data...</p>
+        </div>
+      );
+  }
+
   if (!isSuperAdmin) {
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
@@ -352,14 +361,21 @@ export function DashboardClient({ dashboardData }: DashboardClientProps) {
             </TabsList>
             
             <TabsContent value="overall" className="mt-4">
-                <DashboardView data={providerData[0]} color={themeColor} />
+                {providerData[0] ? (
+                    <DashboardView data={providerData[0]} color={themeColor} />
+                ) : <p>Loading overall data...</p>}
             </TabsContent>
             
-            {providers.map((provider, index) => (
-                <TabsContent key={provider.id} value={provider.id} className="mt-4">
-                    <DashboardView data={providerData[index + 1]} color={provider.colorHex || themeColor} />
-                </TabsContent>
-            ))}
+            {providers.map((provider, index) => {
+                 const data = providerData[index + 1];
+                 return (
+                    <TabsContent key={provider.id} value={provider.id} className="mt-4">
+                        {data ? (
+                            <DashboardView data={data} color={provider.colorHex || themeColor} />
+                        ) : <p>Loading data for {provider.name}...</p>}
+                    </TabsContent>
+                 )
+            })}
         </Tabs>
     </div>
   );
