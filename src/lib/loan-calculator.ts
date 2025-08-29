@@ -67,7 +67,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                  
                  if (applicableDaysInTier > 0) {
                     if (rule.type === 'fixed') {
-                        penaltyComponent += value; // Fixed penalty is a one-time charge for entering the tier
+                        penaltyComponent += value * applicableDaysInTier; // Fixed penalty is now applied daily for the tier.
                     } else if (rule.type === 'percentageOfPrincipal') {
                         penaltyComponent += principal * (value / 100) * applicableDaysInTier; // Per day on original principal
                     } else if (rule.type === 'percentageOfCompound') {
@@ -95,3 +95,4 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         penalty: penaltyComponent,
     };
 };
+
