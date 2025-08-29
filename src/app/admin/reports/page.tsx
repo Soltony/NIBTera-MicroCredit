@@ -27,9 +27,9 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
         include: { loanProvider: true }
     });
 
-    const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
     
-    const whereClause = isSuperAdmin 
+    const whereClause = isSuperAdminOrAdmin 
         ? {} 
         : { product: { providerId: user?.loanProvider?.id }};
 
