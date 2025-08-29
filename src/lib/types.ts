@@ -19,6 +19,7 @@ export interface PenaltyRule {
     toDay: number | Infinity | '' | null;
     type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound';
     value: number | '';
+    frequency: 'daily' | 'one-time';
 }
 
 export interface DataColumn {

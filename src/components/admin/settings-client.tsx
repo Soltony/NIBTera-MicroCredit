@@ -529,45 +529,59 @@ const DailyFeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee
 
 const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: PenaltyRule, onChange: (rule: PenaltyRule) => void, onRemove: () => void, color?: string, isEnabled: boolean }) => {
     return (
-        <div className="flex items-center gap-2">
-            <Input 
-                type="number" 
-                value={rule.fromDay ?? ''}
-                onChange={(e) => onChange({...rule, fromDay: e.target.value === '' ? '' : parseInt(e.target.value)})}
-                placeholder="From Day"
-                className="w-24"
-                disabled={!isEnabled}
-            />
-            <Input 
-                type="number" 
-                value={rule.toDay === Infinity ? '' : (rule.toDay ?? '')}
-                onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? null : parseInt(e.target.value)})}
-                placeholder="To Day"
-                className="w-24"
-                disabled={!isEnabled}
-            />
-            <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound') => onChange({ ...rule, type })} disabled={!isEnabled}>
-                <SelectTrigger className="w-48" disabled={!isEnabled}>
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="fixed">Fixed Amount</SelectItem>
-                    <SelectItem value="percentageOfPrincipal">Percentage of Principal</SelectItem>
-                    <SelectItem value="percentageOfCompound">Percentage of Compound</SelectItem>
-                </SelectContent>
-            </Select>
-             <div className="relative flex-1">
-                <Input
-                    type="number"
-                    value={rule.value ?? ''}
-                    onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                    placeholder="Value"
-                    className={cn(rule.type !== 'fixed' ? "pr-8" : "")}
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+                <Input 
+                    type="number" 
+                    value={rule.fromDay ?? ''}
+                    onChange={(e) => onChange({...rule, fromDay: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                    placeholder="From"
+                    className="w-20"
                     disabled={!isEnabled}
                 />
-                 {rule.type !== 'fixed' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
+                <Input 
+                    type="number" 
+                    value={rule.toDay === Infinity ? '' : (rule.toDay ?? '')}
+                    onChange={(e) => onChange({...rule, toDay: e.target.value === '' ? null : parseInt(e.target.value)})}
+                    placeholder="To"
+                    className="w-20"
+                    disabled={!isEnabled}
+                />
+                <Select value={rule.type} onValueChange={(type: 'fixed' | 'percentageOfPrincipal' | 'percentageOfCompound') => onChange({ ...rule, type })} disabled={!isEnabled}>
+                    <SelectTrigger className="w-48" disabled={!isEnabled}>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="fixed">Fixed Amount</SelectItem>
+                        <SelectItem value="percentageOfPrincipal">Percentage of Principal</SelectItem>
+                        <SelectItem value="percentageOfCompound">Percentage of Compound</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <div className="relative flex-1">
+                    <Input
+                        type="number"
+                        value={rule.value ?? ''}
+                        onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                        placeholder="Value"
+                        className={cn(rule.type !== 'fixed' ? "pr-8" : "")}
+                        disabled={!isEnabled}
+                    />
+                     {rule.type !== 'fixed' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
+                </div>
+                 <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive" disabled={!isEnabled}><Trash2 className="h-4 w-4" /></Button>
             </div>
-            <Button variant="ghost" size="icon" onClick={onRemove} className="text-destructive" disabled={!isEnabled}><Trash2 className="h-4 w-4" /></Button>
+            <div className="flex items-center gap-2 pl-2">
+                <Label className="w-20 text-sm text-muted-foreground">Frequency</Label>
+                <Select value={rule.frequency || 'daily'} onValueChange={(freq: 'daily' | 'one-time') => onChange({ ...rule, frequency: freq })} disabled={!isEnabled}>
+                    <SelectTrigger className="w-36" disabled={!isEnabled}>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="one-time">One Time</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
         </div>
     );
 };
@@ -742,7 +756,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     const parsedProduct = useMemo(() => {
         const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
         const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
-        const penaltyRules = safeParseJson(product, 'penaltyRules', []);
+        const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
         return {
             ...product,
             serviceFee,
@@ -767,7 +781,8 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
             fromDay: 1,
             toDay: null,
             type: 'fixed',
-            value: 0
+            value: 0,
+            frequency: 'daily'
         };
         setConfig(prev => ({...prev, penaltyRules: [...prev.penaltyRules, newRule]}));
     };

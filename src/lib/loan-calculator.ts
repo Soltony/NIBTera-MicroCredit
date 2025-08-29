@@ -54,7 +54,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     // 3. Penalty - Calculated only if overdue.
     const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
     if (penaltyRules.length > 0 && finalDate > dueDate) {
-        const daysOverdue = differenceInDays(finalDate, dueDate);
+        const daysOverdueTotal = differenceInDays(finalDate, dueDate);
         
         penaltyRules.forEach(rule => {
              const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
@@ -62,24 +62,31 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
              const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;
              const value = rule.value === '' ? 0 : Number(rule.value);
 
-             if (daysOverdue >= fromDay) {
-                 const applicableDaysInTier = Math.min(daysOverdue, toDay) - fromDay + 1;
-                 
+             if (daysOverdueTotal >= fromDay) {
+                 const applicableDaysInTier = Math.min(daysOverdueTotal, toDay) - fromDay + 1;
+                 const isOneTime = rule.frequency === 'one-time';
+
                  if (applicableDaysInTier > 0) {
+                    let penaltyForThisRule = 0;
+                    const daysToCalculate = isOneTime ? 1 : applicableDaysInTier;
+
                     if (rule.type === 'fixed') {
-                        penaltyComponent += value * applicableDaysInTier; // Fixed penalty is now applied daily for the tier.
+                        penaltyForThisRule = value * daysToCalculate;
                     } else if (rule.type === 'percentageOfPrincipal') {
-                        penaltyComponent += principal * (value / 100) * applicableDaysInTier; // Per day on original principal
+                        penaltyForThisRule = principal * (value / 100) * daysToCalculate;
                     } else if (rule.type === 'percentageOfCompound') {
                         // This applies the penalty daily on the "running balance"
                         // which includes principal + interest + service fees + previously accrued penalties
                         let compoundPenaltyBase = runningBalanceForPenalty + penaltyComponent;
-                        for (let i = 0; i < applicableDaysInTier; i++) {
+                        for (let i = 0; i < daysToCalculate; i++) {
                              const dailyPenalty = compoundPenaltyBase * (value / 100);
-                             penaltyComponent += dailyPenalty;
-                             compoundPenaltyBase += dailyPenalty;
+                             penaltyForThisRule += dailyPenalty;
+                             if (!isOneTime) { // Only update base if penalty is compounding daily
+                                compoundPenaltyBase += dailyPenalty;
+                             }
                         }
                     }
+                    penaltyComponent += penaltyForThisRule;
                  }
              }
         });
@@ -95,4 +102,3 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         penalty: penaltyComponent,
     };
 };
-
