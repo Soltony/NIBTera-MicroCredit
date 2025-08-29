@@ -151,6 +151,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               placeholder="e.g., 100000"
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}
+              disabled={!!provider} // Disable if editing
             />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">
