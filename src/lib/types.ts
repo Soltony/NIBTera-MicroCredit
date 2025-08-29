@@ -66,7 +66,6 @@ export interface LoanProvider {
   displayOrder: number;
   accountNumber: string | null;
   initialBalance: number;
-  allowMultipleProviderLoans: boolean;
   allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];
 }
@@ -86,6 +85,7 @@ export interface LoanProduct {
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
+  allowConcurrentLoans?: boolean;
   serviceFeeEnabled?: boolean;
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
@@ -103,6 +103,7 @@ export interface Payment {
 
 export interface LoanDetails {
   id: string; // Added for unique identification
+  borrowerId: string;
   providerName: string;
   productName: string;
   loanAmount: number;
@@ -114,9 +115,8 @@ export interface LoanDetails {
   payments: Payment[];
   penaltyAmount: number;
   // For calculation purposes, not stored in DB
-  product?: LoanProduct;
+  product: LoanProduct;
   provider?: LoanProvider;
-  providerId?: string;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
@@ -222,7 +222,7 @@ export interface LedgerAccount {
     id: string;
     providerId: string;
     name: string;
-    type: 'Receivable' | 'Received';
+    type: 'Receivable' | 'Received' | 'Income';
     category: 'Principal' | 'Interest' | 'Penalty';
     balance: number;
 }

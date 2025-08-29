@@ -46,6 +46,7 @@ const penaltyRuleSchema = z.object({
 export const updateProductSchema = productSchema.partial().extend({
   id: z.string(),
   status: z.enum(['Active', 'Disabled']).optional(),
+  allowConcurrentLoans: z.boolean().optional(),
   serviceFee: feeRuleSchema.optional(),
   dailyFee: dailyFeeRuleSchema.optional(),
   penaltyRules: z.array(penaltyRuleSchema).optional(),

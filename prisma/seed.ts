@@ -22,12 +22,20 @@ const permissions = {
 };
 
 const defaultLedgerAccounts = [
+    // Assets (Receivables)
     { name: 'Principal Receivable', type: 'Receivable', category: 'Principal' },
     { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
+    { name: 'Service Fee Receivable', type: 'Receivable', category: 'ServiceFee' },
     { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    // Cash / Received
     { name: 'Principal Received', type: 'Received', category: 'Principal' },
     { name: 'Interest Received', type: 'Received', category: 'Interest' },
+    { name: 'Service Fee Received', type: 'Received', category: 'ServiceFee' },
     { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+    // Income
+    { name: 'Interest Income', type: 'Income', category: 'Interest' },
+    { name: 'Service Fee Income', type: 'Income', category: 'ServiceFee' },
+    { name: 'Penalty Income', type: 'Income', category: 'Penalty' },
 ];
 
 async function main() {
@@ -113,6 +121,7 @@ async function main() {
       maxLoan: 50000,
       duration: 30,
       status: 'Active',
+      allowConcurrentLoans: false,
       serviceFeeEnabled: true,
       serviceFee: JSON.stringify({ type: 'percentage', value: 2 }),
       dailyFeeEnabled: true,

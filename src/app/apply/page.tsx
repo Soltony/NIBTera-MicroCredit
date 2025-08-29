@@ -40,7 +40,6 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
         displayOrder: provider.displayOrder,
         accountNumber: provider.accountNumber,
         allowCrossProviderLoans: provider.allowCrossProviderLoans,
-        allowMultipleProviderLoans: provider.allowMultipleProviderLoans,
         products: provider.products.map(prod => ({
             ...prod,
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,

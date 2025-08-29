@@ -74,6 +74,11 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     };
 
     const numberPadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    
+    const breakdown = useMemo(() => {
+        if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0 };
+        return calculateTotalRepayable(loan, loan.product, new Date());
+    }, [loan]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -109,9 +114,19 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                      {error ? (
                         <p className="text-sm text-destructive text-center">{error}</p>
                     ) : (
-                        <div className="text-center text-sm text-muted-foreground">
-                            <p>Total amount to be repaid: {formatCurrency(totalBalanceDue)}</p>
-                            <p>Remaining amount: {formatCurrency(remainingAmount)}</p>
+                        <div className="text-center text-sm text-muted-foreground space-y-1">
+                            <div className="grid grid-cols-3 gap-2 text-xs text-left">
+                                <span className="col-span-2">Principal Due:</span>
+                                <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.principal - (loan.repaidAmount || 0))}</span>
+
+                                <span className="col-span-2">Interest Due:</span>
+                                <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.interest)}</span>
+
+                                <span className="col-span-2">Penalty Due:</span>
+                                <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.penalty)}</span>
+                            </div>
+                            <p className="font-bold text-foreground">Total amount to be repaid: {formatCurrency(totalBalanceDue)}</p>
+                            <p>Remaining after this payment: {formatCurrency(remainingAmount)}</p>
                         </div>
                     )}
                 </div>

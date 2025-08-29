@@ -27,12 +27,14 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
         include: { loanProvider: true }
     });
 
-    const providerFilter = (user?.role === 'Super Admin' || user?.role === 'Admin')
-        ? {}
-        : { providerId: user?.loanProvider?.id };
+    const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    
+    const whereClause = isSuperAdmin 
+        ? {} 
+        : { product: { providerId: user?.loanProvider?.id }};
 
     const loans = await prisma.loan.findMany({
-        where: providerFilter,
+        where: whereClause,
         include: {
             product: {
                 include: {

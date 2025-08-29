@@ -133,7 +133,16 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                         />
                         <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
                     </div>
-                    <div></div>
+                     <div className="flex items-center space-x-2">
+                        <Switch
+                            id={`allowConcurrentLoans-${product.id}`}
+                            checked={!!formData.allowConcurrentLoans}
+                            onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
+                            className="data-[state=checked]:bg-[--provider-color]"
+                            style={{'--provider-color': providerColor} as React.CSSProperties}
+                        />
+                        <Label htmlFor={`allowConcurrentLoans-${product.id}`}>Combinable with Other Loans</Label>
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
                         <Input
@@ -617,6 +626,14 @@ function LoanTiersForm({ product, onUpdate, color }: {
                 toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, all fields must be valid numbers.`, variant: 'destructive'});
                 throw new Error("Invalid tier data");
             }
+            if (loanAmount <= 0) {
+                toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount must be positive.`, variant: 'destructive'});
+                throw new Error("Invalid loan amount");
+            }
+            if (product.maxLoan && loanAmount > product.maxLoan) {
+                toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount cannot exceed the product's maximum of ${product.maxLoan}.`, variant: 'destructive'});
+                throw new Error("Invalid loan amount");
+            }
             if (fromScore > toScore) {
                 toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
                 throw new Error("Invalid tier data");
@@ -657,7 +674,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
             toast({ title: 'Success', description: 'Loan amount tiers have been saved successfully.' });
         } catch (error: any) {
             // Toast is already shown for validation errors
-            if (error.message !== "Invalid tier data") {
+            if (!["Invalid tier data", "Invalid loan amount"].includes(error.message)) {
                 toast({ title: 'Error', description: error.message, variant: 'destructive' });
             }
         } finally {
@@ -940,7 +957,12 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
                 if (productIndex !== -1) {
-                    provider.products[productIndex] = updatedProduct;
+                    // Make sure to preserve the existing loanAmountTiers if they are not in the update
+                    const existingTiers = provider.products[productIndex].loanAmountTiers;
+                    provider.products[productIndex] = {
+                        ...updatedProduct,
+                        loanAmountTiers: updatedProduct.loanAmountTiers || existingTiers,
+                    };
                 }
             }
         }));
@@ -968,7 +990,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
-
-    

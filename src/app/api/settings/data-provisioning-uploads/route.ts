@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 
 // Helper to convert strings to camelCase
 const toCamelCase = (str: string) => {
+    if (!str) return '';
     return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
 };
 

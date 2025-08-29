@@ -37,19 +37,44 @@ import {
   Cell,
 } from 'recharts';
 import type { LoanProvider } from '@/lib/types';
-import { FileCheck2 } from 'lucide-react';
+import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+
+interface LedgerData {
+    principal: number;
+    interest: number;
+    serviceFee: number;
+    penalty: number;
+}
+
+interface IncomeData {
+    interest: number;
+    serviceFee: number;
+    penalty: number;
+}
+
 
 interface DashboardData {
+    // Portfolio
     totalLoans: number;
     totalDisbursed: number;
     totalPaid: number;
     repaymentRate: number;
     atRiskLoans: number;
     totalUsers: number;
+    // Chart
     loanDisbursementData: { name: string; amount: number }[];
     loanStatusData: { name: string; value: number }[];
+    // Tables
     recentActivity: { id: string; customer: string; product: string; status: string; amount: number }[];
     productOverview: { name: string; provider: string; active: number; defaulted: number; total: number, defaultRate: number }[];
+    // Financials
+    initialFund: number;
+    providerFund: number;
+    receivables: LedgerData;
+    collections: LedgerData;
+    income: IncomeData;
+    // Styling
     providers: LoanProvider[];
 }
 
@@ -60,6 +85,13 @@ interface DashboardClientProps {
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
+
+const LedgerDetailRow = ({ title, value }: { title: string; value: number }) => (
+    <div className="flex justify-between items-baseline text-sm py-2 border-b last:border-none">
+        <span className="text-muted-foreground">{title}</span>
+        <span className="font-mono font-medium">{formatCurrency(value)}</span>
+    </div>
+);
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
   const { currentUser } = useAuth();
@@ -83,7 +115,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     loanStatusData: rawLoanStatusData,
     recentActivity,
     productOverview,
+    initialFund,
+    providerFund,
+    receivables,
+    collections,
+    income,
   } = initialData;
+  
+  const totalIncome = Object.values(income).reduce((sum, val) => sum + val, 0);
 
   const loanStatusData = useMemo(() => [
       { name: 'Paid', value: rawLoanStatusData.find(d => d.name === 'Paid')?.value || 0, color: themeColor },
@@ -110,59 +149,45 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
+                    <CardTitle className="text-sm font-medium">Provider Fund</CardTitle>
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{totalLoans}</div>
-                    <p className="text-xs text-muted-foreground">All loans issued</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Disbursed</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
-                    <p className="text-xs text-muted-foreground">Total amount loaned</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(totalPaid)}</div>
-                    <p className="text-xs text-muted-foreground">Total amount repaid</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Repayment Rate</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{repaymentRate.toFixed(1)}%</div>
-                    <p className="text-xs text-muted-foreground">Loans repaid on time</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">At-Risk Loans</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{atRiskLoans}</div>
-                    <p className="text-xs text-muted-foreground">Loans currently overdue</p>
+                    <div className="text-2xl font-bold">{formatCurrency(providerFund)}</div>
+                    <p className="text-xs text-muted-foreground">Initial: {formatCurrency(initialFund)}</p>
                 </CardContent>
             </Card>
              <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                    <CardTitle className="text-sm font-medium">Total Income</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{totalUsers}</div>
-                    <p className="text-xs text-muted-foreground">Registered system users</p>
+                    <div className="text-2xl font-bold">{formatCurrency(totalIncome)}</div>
+                    <p className="text-xs text-muted-foreground">All collected fees & interest</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Disbursed</CardTitle>
+                    <Banknote className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
+                    <p className="text-xs text-muted-foreground">Total amount loaned out</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">At-Risk Loans</CardTitle>
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{atRiskLoans}</div>
+                    <p className="text-xs text-muted-foreground">Loans currently overdue</p>
                 </CardContent>
             </Card>
         </div>
@@ -214,7 +239,50 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 </CardContent>
             </Card>
         </div>
-         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-1">
+                <CardHeader>
+                    <CardTitle>Income Statement</CardTitle>
+                    <CardDescription>Breakdown of all collected income.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <LedgerDetailRow title="Service Fee Income" value={income.serviceFee} />
+                    <LedgerDetailRow title="Interest Income" value={income.interest} />
+                    <LedgerDetailRow title="Penalty Income" value={income.penalty} />
+                    <div className="flex justify-between items-baseline text-sm pt-3 mt-2 border-t-2">
+                        <span className="font-bold">Total Income</span>
+                        <span className="font-bold text-lg" style={{ color: themeColor }}>{formatCurrency(totalIncome)}</span>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card className="lg:col-span-2">
+                <CardHeader>
+                    <CardTitle>Ledger Balances</CardTitle>
+                    <CardDescription>Live view of receivable and collected amounts.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Tabs defaultValue="receivables">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="receivables">Receivables</TabsTrigger>
+                            <TabsTrigger value="collections">Collections</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="receivables" className="mt-4">
+                            <LedgerDetailRow title="Principal Receivable" value={receivables.principal} />
+                            <LedgerDetailRow title="Interest Receivable" value={receivables.interest} />
+                            <LedgerDetailRow title="Service Fee Receivable" value={receivables.serviceFee} />
+                            <LedgerDetailRow title="Penalty Receivable" value={receivables.penalty} />
+                        </TabsContent>
+                         <TabsContent value="collections" className="mt-4">
+                            <LedgerDetailRow title="Principal Received" value={collections.principal} />
+                            <LedgerDetailRow title="Interest Received" value={collections.interest} />
+                            <LedgerDetailRow title="Service Fee Received" value={collections.serviceFee} />
+                            <LedgerDetailRow title="Penalty Received" value={collections.penalty} />
+                        </TabsContent>
+                    </Tabs>
+                </CardContent>
+            </Card>
+        </div>
+         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
             <Card className="lg:col-span-4">
               <CardHeader>
                 <CardTitle>Recent Loan Activity</CardTitle>

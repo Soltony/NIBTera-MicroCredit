@@ -57,20 +57,20 @@ export function ProductCard({
             ...activeLoan.product
         };
         const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, new Date());
-        const remainingBalance = totalDebt - (activeLoan.repaidAmount || 0);
+        const remainingBalance = totalDebt.total - (activeLoan.repaidAmount || 0);
         // Return 0 if the balance is negative (overpayment)
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
     const canApply = useMemo(() => {
-        if (borrowerHasActiveLoanWithThisProduct && !product.allowMultipleLoans) {
+        if (borrowerHasActiveLoanWithThisProduct && !product.allowConcurrentLoans) {
             return { eligible: false, reason: "You already have an active loan for this specific product." };
         }
         if ((product.availableLimit ?? 0) <= 0) {
             return { eligible: false, reason: "Your available credit is too low for this product." };
         }
         return { eligible: true, reason: "" };
-    }, [borrowerHasActiveLoanWithThisProduct, product.allowMultipleLoans, product.availableLimit]);
+    }, [borrowerHasActiveLoanWithThisProduct, product.allowConcurrentLoans, product.availableLimit]);
 
 
     const applyButton = (
@@ -94,9 +94,11 @@ export function ProductCard({
                         </div>
                         <div>
                             <CardTitle className="text-lg">{product.name}</CardTitle>
-                             <span className="block text-sm text-muted-foreground mt-1">
-                                Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}
-                            </span>
+                             <div className="flex items-center text-sm text-muted-foreground mt-1">
+                                <span>Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}</span>
+                                {product.duration && <span className="mx-2">•</span>}
+                                {product.duration && <span>{product.duration} days</span>}
+                            </div>
                         </div>
                     </div>
                      <div className="flex items-center">
@@ -173,12 +175,6 @@ export function ProductCard({
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             ) : null}
-                            {product.penaltyRules?.length > 0 && (
-                                <div>
-                                    <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
-                                    <p className="text-xs text-muted-foreground">Penalty Rules</p>
-                                </div>
-                            )}
                              {product.availableLimit ? (
                                 <div>
                                     <p className="text-lg font-semibold">{formatCurrency(product.availableLimit)}</p>
