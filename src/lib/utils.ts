@@ -6,6 +6,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Helper to convert strings to camelCase
+export const toCamelCase = (str: string) => {
+    if (!str) return '';
+    // This regex handles various separators (space, underscore, hyphen) and capitalizes the next letter.
+    return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
+};
+
 export const evaluateCondition = (inputValue: string | number | undefined, condition: string, ruleValue: string): boolean => {
     if (inputValue === undefined || inputValue === null || inputValue === '') return false;
 
