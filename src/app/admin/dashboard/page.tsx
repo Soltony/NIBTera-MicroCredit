@@ -154,18 +154,18 @@ export async function getDashboardData(userId: string): Promise<{
         include: { loanProvider: true }
     });
 
-    const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
     
     // For non-admins, get their specific provider or an empty array
-    const providers = isSuperAdmin
+    const providers = isSuperAdminOrAdmin
         ? await prisma.loanProvider.findMany()
         : (user?.loanProvider ? [user.loanProvider] : []);
 
-    const overallData = await getProviderData(isSuperAdmin ? undefined : user?.loanProvider?.id);
+    const overallData = await getProviderData(isSuperAdminOrAdmin ? undefined : user?.loanProvider?.id);
     
     let providerSpecificData: Record<string, DashboardData> = {};
 
-    if (isSuperAdmin) {
+    if (isSuperAdminOrAdmin) {
          const specificDataPromises = providers.map(p => getProviderData(p.id));
          const results = await Promise.all(specificDataPromises);
          results.forEach((data, index) => {
