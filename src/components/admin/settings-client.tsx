@@ -626,47 +626,45 @@ function LoanTiersForm({ product, onUpdate, color }: {
     };
     
     const handleSaveTiers = async () => {
-        // Validation and convert to numbers before sending
-        const tiersToSend = tiers.map((tier, i) => {
-            const fromScore = Number(tier.fromScore);
-            const toScore = Number(tier.toScore);
-            const loanAmount = Number(tier.loanAmount);
-
-            if (isNaN(fromScore) || isNaN(toScore) || isNaN(loanAmount)) {
-                toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, all fields must be valid numbers.`, variant: 'destructive'});
-                throw new Error("Invalid tier data");
-            }
-            if (loanAmount <= 0) {
-                toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount must be positive.`, variant: 'destructive'});
-                throw new Error("Invalid loan amount");
-            }
-            if (product.maxLoan && loanAmount > product.maxLoan) {
-                toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount cannot exceed the product's maximum of ${product.maxLoan}.`, variant: 'destructive'});
-                throw new Error("Invalid loan amount");
-            }
-            if (fromScore > toScore) {
-                toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
-                throw new Error("Invalid tier data");
-            }
-            if (i > 0) {
-                const prevToScore = Number(tiers[i-1].toScore);
-                if (fromScore <= prevToScore) {
-                    toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
-                    throw new Error("Invalid tier data");
-                }
-            }
-            return {
-                ...tier,
-                fromScore,
-                toScore,
-                loanAmount,
-                id: String(tier.id).startsWith('tier-') ? undefined : tier.id
-            }
-        });
-
-
         setIsLoading(true);
         try {
+            const tiersToSend = tiers.map((tier, i) => {
+                const fromScore = Number(tier.fromScore);
+                const toScore = Number(tier.toScore);
+                const loanAmount = Number(tier.loanAmount);
+
+                if (isNaN(fromScore) || isNaN(toScore) || isNaN(loanAmount)) {
+                    toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, all fields must be valid numbers.`, variant: 'destructive'});
+                    throw new Error("Invalid tier data");
+                }
+                if (loanAmount <= 0) {
+                    toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount must be positive.`, variant: 'destructive'});
+                    throw new Error("Invalid loan amount");
+                }
+                 if (product.maxLoan != null && loanAmount > product.maxLoan) {
+                    toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount cannot exceed the product's maximum of ${product.maxLoan}.`, variant: 'destructive'});
+                    throw new Error("Invalid loan amount");
+                }
+                if (fromScore > toScore) {
+                    toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
+                    throw new Error("Invalid tier data");
+                }
+                if (i > 0) {
+                    const prevToScore = Number(tiers[i-1].toScore);
+                    if (fromScore <= prevToScore) {
+                        toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
+                        throw new Error("Invalid tier data");
+                    }
+                }
+                return {
+                    ...tier,
+                    fromScore,
+                    toScore,
+                    loanAmount,
+                    id: String(tier.id).startsWith('tier-') ? undefined : tier.id
+                }
+            });
+
             const response = await fetch('/api/settings/loan-amount-tiers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -683,9 +681,9 @@ function LoanTiersForm({ product, onUpdate, color }: {
             
             toast({ title: 'Success', description: 'Loan amount tiers have been saved successfully.' });
         } catch (error: any) {
-            // Toast is already shown for validation errors
-            if (!["Invalid tier data", "Invalid loan amount"].includes(error.message)) {
-                toast({ title: 'Error', description: error.message, variant: 'destructive' });
+            // Validation errors are already toasted. Only toast for server/network errors.
+            if (!["Invalid tier data", "Invalid loan amount", "Overlapping Tiers"].includes(error.message)) {
+                toast({ title: 'Error Saving Tiers', description: error.message, variant: 'destructive' });
             }
         } finally {
             setIsLoading(false);
