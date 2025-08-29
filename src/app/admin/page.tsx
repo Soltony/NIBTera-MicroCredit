@@ -17,5 +17,5 @@ export default async function AdminRootPage() {
         return <div>Loading dashboard...</div>;
     }
     
-    return <DashboardClient initialData={data} />;
+    return <DashboardClient dashboardData={data} />;
 }

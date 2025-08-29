@@ -225,6 +225,38 @@ export interface LedgerAccount {
     providerId: string;
     name: string;
     type: 'Receivable' | 'Received' | 'Income';
-    category: 'Principal' | 'Interest' | 'Penalty';
+    category: 'Principal' | 'Interest' | 'Penalty' | 'ServiceFee';
     balance: number;
+}
+
+
+interface LedgerData {
+    principal: number;
+    interest: number;
+    serviceFee: number;
+    penalty: number;
+}
+
+interface IncomeData {
+    interest: number;
+    serviceFee: number;
+    penalty: number;
+}
+
+
+export interface DashboardData {
+    totalLoans: number;
+    totalDisbursed: number;
+    repaymentRate: number;
+    atRiskLoans: number;
+    totalUsers: number;
+    loanDisbursementData: { name: string; amount: number }[];
+    loanStatusData: { name: string; value: number }[];
+    recentActivity: { id: string; customer: string; product: string; status: string; amount: number }[];
+    productOverview: { name: string; provider: string; active: number; defaulted: number; total: number, defaultRate: number }[];
+    initialFund: number;
+    providerFund: number;
+    receivables: LedgerData;
+    collections: LedgerData;
+    income: IncomeData;
 }

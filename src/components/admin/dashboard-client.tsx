@@ -36,9 +36,10 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import type { LoanProvider } from '@/lib/types';
+import type { LoanProvider, DashboardData } from '@/lib/types';
 import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+
 
 interface LedgerData {
     principal: number;
@@ -53,33 +54,11 @@ interface IncomeData {
     penalty: number;
 }
 
-
-interface DashboardData {
-    // Portfolio
-    totalLoans: number;
-    totalDisbursed: number;
-    totalPaid: number;
-    repaymentRate: number;
-    atRiskLoans: number;
-    totalUsers: number;
-    // Chart
-    loanDisbursementData: { name: string; amount: number }[];
-    loanStatusData: { name: string; value: number }[];
-    // Tables
-    recentActivity: { id: string; customer: string; product: string; status: string; amount: number }[];
-    productOverview: { name: string; provider: string; active: number; defaulted: number; total: number, defaultRate: number }[];
-    // Financials
-    initialFund: number;
-    providerFund: number;
-    receivables: LedgerData;
-    collections: LedgerData;
-    income: IncomeData;
-    // Styling
-    providers: LoanProvider[];
-}
-
 interface DashboardClientProps {
-    initialData: DashboardData;
+  dashboardData: {
+    providers: LoanProvider[];
+    providerData: DashboardData[];
+  };
 }
 
 const formatCurrency = (amount: number) => {
@@ -93,64 +72,50 @@ const LedgerDetailRow = ({ title, value }: { title: string; value: number }) => 
     </div>
 );
 
-export function DashboardClient({ initialData }: DashboardClientProps) {
-  const { currentUser } = useAuth();
-  const router = useRouter();
-  
-  const themeColor = React.useMemo(() => {
-    if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
-        return initialData.providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
-    }
-    return initialData.providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
-  }, [currentUser, initialData.providers]);
+const DashboardView = ({ data, color }: { data: DashboardData, color: string }) => {
+    const {
+        totalLoans,
+        totalDisbursed,
+        repaymentRate,
+        atRiskLoans,
+        totalUsers,
+        loanDisbursementData,
+        loanStatusData: rawLoanStatusData,
+        recentActivity,
+        productOverview,
+        initialFund,
+        providerFund,
+        receivables,
+        collections,
+        income,
+    } = data;
+    
+    const totalIncome = Object.values(income).reduce((sum, val) => sum + val, 0);
 
-  const {
-    totalLoans,
-    totalDisbursed,
-    totalPaid,
-    repaymentRate,
-    atRiskLoans,
-    totalUsers,
-    loanDisbursementData,
-    loanStatusData: rawLoanStatusData,
-    recentActivity,
-    productOverview,
-    initialFund,
-    providerFund,
-    receivables,
-    collections,
-    income,
-  } = initialData;
-  
-  const totalIncome = Object.values(income).reduce((sum, val) => sum + val, 0);
+    const loanStatusData = useMemo(() => [
+      { name: 'Paid', value: rawLoanStatusData.find(d => d.name === 'Paid')?.value || 0, color: color },
+      { name: 'Active (Unpaid)', value: rawLoanStatusData.find(d => d.name === 'Active (Unpaid)')?.value || 0, color: `${color}B3` }, // 70% opacity
+      { name: 'Overdue', value: rawLoanStatusData.find(d => d.name === 'Overdue')?.value || 0, color: `${color}66` }, // 40% opacity
+    ], [rawLoanStatusData, color]);
 
-  const loanStatusData = useMemo(() => [
-      { name: 'Paid', value: rawLoanStatusData.find(d => d.name === 'Paid')?.value || 0, color: themeColor },
-      { name: 'Active (Unpaid)', value: rawLoanStatusData.find(d => d.name === 'Active (Unpaid)')?.value || 0, color: `${themeColor}B3` }, // 70% opacity
-      { name: 'Overdue', value: rawLoanStatusData.find(d => d.name === 'Overdue')?.value || 0, color: `${themeColor}66` }, // 40% opacity
-    ], [rawLoanStatusData, themeColor]);
+    const RADIAN = Math.PI / 180;
+    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }: any) => {
+        if (value === 0) return null;
+        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+      
+        return (
+          <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-xs font-bold">
+            {`${(percent * 100).toFixed(0)}%`}
+          </text>
+        );
+    };
 
-
-  const RADIAN = Math.PI / 180;
-  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }: any) => {
-    if (value === 0) return null;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  
     return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-xs font-bold">
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
-
-
-  return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+      <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-             <Card>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Provider Fund (Live)</CardTitle>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -160,7 +125,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     <p className="text-xs text-muted-foreground">Original starting capital: {formatCurrency(initialFund)}</p>
                 </CardContent>
             </Card>
-             <Card>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Income</CardTitle>
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -170,7 +135,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     <p className="text-xs text-muted-foreground">All collected fees & interest</p>
                 </CardContent>
             </Card>
-             <Card>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Disbursed</CardTitle>
                     <Banknote className="h-4 w-4 text-muted-foreground" />
@@ -180,7 +145,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     <p className="text-xs text-muted-foreground">Total amount loaned out</p>
                 </CardContent>
             </Card>
-             <Card>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">At-Risk Loans</CardTitle>
                     <AlertCircle className="h-4 w-4 text-muted-foreground" />
@@ -205,7 +170,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                             <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `ETB${value}`} />
                             <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '0.5rem' }} />
                             <Legend wrapperStyle={{fontSize: '12px'}}/>
-                            <Line type="monotone" dataKey="amount" stroke={themeColor} strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
+                            <Line type="monotone" dataKey="amount" stroke={color} strokeWidth={2} activeDot={{ r: 8 }} name="Amount"/>
                         </LineChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -251,7 +216,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     <LedgerDetailRow title="Penalty Income" value={income.penalty} />
                     <div className="flex justify-between items-baseline text-sm pt-3 mt-2 border-t-2">
                         <span className="font-bold">Total Income</span>
-                        <span className="font-bold text-lg" style={{ color: themeColor }}>{formatCurrency(totalIncome)}</span>
+                        <span className="font-bold text-lg" style={{ color: color }}>{formatCurrency(totalIncome)}</span>
                     </div>
                 </CardContent>
             </Card>
@@ -306,7 +271,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                             <TableCell>{loan.customer}</TableCell>
                             <TableCell>{loan.product}</TableCell>
                             <TableCell>
-                                <Badge variant={loan.status === 'Paid' ? 'secondary' : 'destructive'} style={loan.status === 'Paid' ? { backgroundColor: themeColor, color: 'white' } : {}}>
+                                <Badge variant={loan.status === 'Paid' ? 'secondary' : 'destructive'} style={loan.status === 'Paid' ? { backgroundColor: color, color: 'white' } : {}}>
                                     {loan.status}
                                 </Badge>
                             </TableCell>
@@ -348,6 +313,54 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </CardContent>
             </Card>
         </div>
+      </div>
+    );
+}
+
+export function DashboardClient({ dashboardData }: DashboardClientProps) {
+  const { currentUser } = useAuth();
+  const { providers, providerData } = dashboardData;
+
+  const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+  
+  const themeColor = React.useMemo(() => {
+    if (isSuperAdmin) {
+        return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
+    }
+    return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
+  }, [currentUser, providers, isSuperAdmin]);
+  
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex-1 space-y-4 p-8 pt-6">
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <DashboardView data={providerData[0]} color={themeColor} />
+      </div>
+    );
+  }
+
+  // Super admin view with tabs
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <Tabs defaultValue="overall">
+            <TabsList>
+                <TabsTrigger value="overall">Overall</TabsTrigger>
+                {providers.map(provider => (
+                    <TabsTrigger key={provider.id} value={provider.id}>{provider.name}</TabsTrigger>
+                ))}
+            </TabsList>
+            
+            <TabsContent value="overall" className="mt-4">
+                <DashboardView data={providerData[0]} color={themeColor} />
+            </TabsContent>
+            
+            {providers.map((provider, index) => (
+                <TabsContent key={provider.id} value={provider.id} className="mt-4">
+                    <DashboardView data={providerData[index + 1]} color={provider.colorHex || themeColor} />
+                </TabsContent>
+            ))}
+        </Tabs>
     </div>
   );
 }
