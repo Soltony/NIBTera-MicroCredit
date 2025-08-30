@@ -127,7 +127,7 @@ async function main() {
       serviceFeeEnabled: true,
       serviceFee: JSON.stringify({ type: 'percentage', value: 2 }), // 2% service fee
       dailyFeeEnabled: true,
-      dailyFee: JSON.stringify({ type: 'percentage', value: 0.1, calculationBase: 'principal' }),
+      dailyFee: JSON.stringify({ type: 'percentage', value: 0.1, calculationBase: 'principal' }), // This enables daily fee
       penaltyRulesEnabled: true,
       penaltyRules: JSON.stringify([
         { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50, frequency: 'daily' },
@@ -209,20 +209,26 @@ async function main() {
   });
 
   // Seed a Data Provisioning Config for NIb
-  const dataConfig = await prisma.dataProvisioningConfig.upsert({
-      where: { providerId_name: { providerId: nibBank.id, name: 'Credit Score Data' }},
-      update: {},
-      create: {
-          providerId: nibBank.id,
-          name: 'Credit Score Data',
-          columns: JSON.stringify([
-              { id: 'c1', name: 'id', type: 'string', isIdentifier: true },
-              { id: 'c2', name: 'Full Name', type: 'string', isIdentifier: false },
-              { id: 'c3', name: 'Monthly Income', type: 'number', isIdentifier: false },
-              { id: 'c4', name: 'Employment Status', type: 'string', isIdentifier: false },
-          ])
-      }
+  // First, try to find an existing config with the same name for this provider.
+  let dataConfig = await prisma.dataProvisioningConfig.findFirst({
+      where: { providerId: nibBank.id, name: 'Credit Score Data' },
   });
+
+  if (!dataConfig) {
+      dataConfig = await prisma.dataProvisioningConfig.create({
+          data: {
+              providerId: nibBank.id,
+              name: 'Credit Score Data',
+              columns: JSON.stringify([
+                  { id: 'c1', name: 'id', type: 'string', isIdentifier: true },
+                  { id: 'c2', name: 'Full Name', type: 'string', isIdentifier: false },
+                  { id: 'c3', name: 'Monthly Income', type: 'number', isIdentifier: false },
+                  { id: 'c4', name: 'Employment Status', type: 'string', isIdentifier: false },
+              ])
+          }
+      });
+  }
+
 
   // Seed provisioned data for the test borrower
   await prisma.provisionedData.upsert({
@@ -277,7 +283,7 @@ async function main() {
       data: { initialBalance: { decrement: loanAmount } }
     });
 
-    console.log(`Created test loan for ${testBorrower.id} with a service fee.`);
+    console.log(`Created test loan for ${testBorrower.id} with a service fee and daily fee.`);
   }
 
 
