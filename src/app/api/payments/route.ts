@@ -38,8 +38,22 @@ export async function POST(req: NextRequest) {
         const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, new Date());
         const alreadyRepaid = loan.repaidAmount || 0;
         
-        const principalDue = Math.max(0, principal - alreadyRepaid);
         const totalDue = total - alreadyRepaid;
+
+        // The principalDue calculation was incorrect. It should just be the loan's principal amount.
+        // The serviceFee is separate. Let's calculate what part of the repayment goes to each component.
+        const serviceFeeAlreadyPaid = Math.max(0, alreadyRepaid - (total - serviceFee));
+        const serviceFeeDue = Math.max(0, serviceFee - serviceFeeAlreadyPaid);
+
+        const interestAlreadyPaid = Math.max(0, alreadyRepaid - (total - interest - serviceFee));
+        const interestDue = Math.max(0, interest - interestAlreadyPaid);
+
+        const penaltyAlreadyPaid = Math.max(0, alreadyRepaid - (total - penalty - interest - serviceFee));
+        const penaltyDue = Math.max(0, penalty - penaltyAlreadyPaid);
+
+        const principalAlreadyPaid = Math.max(0, alreadyRepaid - serviceFee - interest - penalty);
+        const principalDue = Math.max(0, principal - principalAlreadyPaid);
+
 
         if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
              return NextResponse.json({ error: 'Payment amount exceeds balance due.' }, { status: 400 });
@@ -66,21 +80,21 @@ export async function POST(req: NextRequest) {
             }
 
             // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Principal
-            const penaltyToPay = Math.min(amountToApply, penalty);
+            const penaltyToPay = Math.min(amountToApply, penaltyDue);
             if (penaltyToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
                 await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
                 amountToApply -= penaltyToPay;
             }
 
-            const serviceFeeToPay = Math.min(amountToApply, serviceFee);
+            const serviceFeeToPay = Math.min(amountToApply, serviceFeeDue);
             if (serviceFeeToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
                 await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
                 amountToApply -= serviceFeeToPay;
             }
 
-            const interestToPay = Math.min(amountToApply, interest);
+            const interestToPay = Math.min(amountToApply, interestDue);
              if (interestToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
                 await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
