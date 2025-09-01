@@ -3,6 +3,7 @@ import { ReportsClient } from '@/components/admin/reports-client';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
+import { toCamelCase } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,14 @@ export interface ReportLoan {
     providerName: string;
     productName: string;
     paymentsCount: number;
+}
+
+export interface BorrowerReportInfo {
+    id: string;
+    name: string;
+    status: string;
+    activeLoans: number;
+    overdueLoans: number;
 }
 
 async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[], providers: LoanProviderType[] }> {
@@ -71,6 +80,46 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
     };
 }
 
+async function getBorrowerReportData(userId: string): Promise<BorrowerReportInfo[]> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { loanProvider: true }
+    });
+    
+    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    
+    const loanWhereClause = isSuperAdminOrAdmin 
+        ? {} 
+        : { product: { providerId: user?.loanProvider?.id }};
+        
+    const borrowers = await prisma.borrower.findMany({
+        include: {
+            loans: {
+                where: loanWhereClause,
+            },
+            provisionedData: {
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                take: 1
+            },
+        }
+    });
+
+    return borrowers.map(b => {
+        const name = b.provisionedData[0] ? JSON.parse(b.provisionedData[0].data).fullName || b.id : b.id;
+        const activeLoans = b.loans.filter(l => l.repaymentStatus === 'Unpaid').length;
+        const overdueLoans = b.loans.filter(l => l.repaymentStatus === 'Unpaid' && new Date(l.dueDate) < new Date()).length;
+        return {
+            id: b.id,
+            name: name,
+            status: b.status,
+            activeLoans,
+            overdueLoans
+        };
+    });
+}
+
 
 export default async function AdminReportsPage() {
     const user = await getUserFromSession();
@@ -79,5 +128,6 @@ export default async function AdminReportsPage() {
     }
 
     const { loans, providers } = await getLoanReportData(user.id);
-    return <ReportsClient initialLoans={loans} providers={providers} />;
+    const borrowers = await getBorrowerReportData(user.id);
+    return <ReportsClient initialLoans={loans} providers={providers} initialBorrowers={borrowers}/>;
 }

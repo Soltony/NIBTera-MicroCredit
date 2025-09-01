@@ -94,12 +94,19 @@ async function calculateScoreForProvider(borrowerId: string, providerId: string)
 
 export async function checkLoanEligibility(borrowerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
-    const borrowerData = await getBorrowerDataForScoring(borrowerId);
+    const borrower = await prisma.borrower.findUnique({
+        where: { id: borrowerId }
+    });
 
-    if (!borrowerData || Object.keys(borrowerData).length <= 1) { // has more than just id
+    if (!borrower) {
       return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
 
+    // Rule: Check if borrower is on NPL list
+    if (borrower.status === 'NPL') {
+        return { isEligible: false, reason: 'Your account is currently restricted due to a non-performing loan. Please contact support.', score: 0, maxLoanAmount: 0 };
+    }
+    
     const product = await prisma.loanProduct.findUnique({ 
         where: { id: productId },
     });
