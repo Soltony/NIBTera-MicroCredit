@@ -52,7 +52,7 @@ async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<str
 }
 
 
-async function calculateScoreForProvider(borrowerId: string, providerId: string, productId: string): Promise<{score: number; maxLoanAmount: number}> {
+async function calculateScoreForProvider(borrowerId: string, providerId: string): Promise<number> {
     
     const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId);
     
@@ -64,7 +64,7 @@ async function calculateScoreForProvider(borrowerId: string, providerId: string,
     });
     
     if (parameters.length === 0) {
-        return { score: 0, maxLoanAmount: 0 };
+        return 0;
     }
     
     let totalScore = 0;
@@ -74,7 +74,6 @@ async function calculateScoreForProvider(borrowerId: string, providerId: string,
         const relevantRules = param.rules || [];
         
         relevantRules.forEach(rule => {
-            // Standardize the rule's field name to camelCase for lookup
             const fieldNameInCamelCase = toCamelCase(rule.field);
             const inputValue = borrowerDataForScoring[fieldNameInCamelCase];
             
@@ -89,17 +88,7 @@ async function calculateScoreForProvider(borrowerId: string, providerId: string,
         totalScore += scoreForThisParam;
     });
 
-    const finalScore = Math.round(totalScore);
-
-    const applicableTier = await prisma.loanAmountTier.findFirst({
-        where: {
-            productId: productId,
-            fromScore: { lte: finalScore },
-            toScore: { gte: finalScore },
-        }
-    });
-        
-    return { score: finalScore, maxLoanAmount: applicableTier?.loanAmount || 0 };
+    return Math.round(totalScore);
 }
 
 
@@ -129,31 +118,33 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         include: { product: true }
     });
 
-    // Rule 1: A borrower can never have more than one active loan of the same product type.
     const hasActiveLoanOfSameType = allActiveLoans.some((loan: LoanWithProduct) => loan.productId === productId);
     if (hasActiveLoanOfSameType) {
         return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
     }
     
-    // Rule 2: If the new product is exclusive, borrower cannot have any other active loans.
     if (!product.allowConcurrentLoans && allActiveLoans.length > 0) {
         const otherProductNames = allActiveLoans.map(l => `"${l.product.name}"`).join(', ');
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
     
-    // Rule 3: A borrower cannot apply for any loan if they have an active exclusive loan.
-    // This logic is now covered by Rule 2. If a new loan is exclusive, it's blocked.
-    // If a new loan is combinable, it is allowed, even if an existing loan is exclusive.
-    // This matches the user's latest request. The old explicit check for `hasExclusiveActiveLoan` is removed.
-    
-    
-    // If we've reached here, the loan is allowed based on active loan rules. Now check scoring.
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
+        // If no scoring is set up, maybe we allow a default loan amount? For now, let's say no.
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    const { score, maxLoanAmount } = await calculateScoreForProvider(borrowerId, providerId, productId);
+    const score = await calculateScoreForProvider(borrowerId, providerId);
+
+    const applicableTier = await prisma.loanAmountTier.findFirst({
+        where: {
+            productId: productId,
+            fromScore: { lte: score },
+            toScore: { gte: score },
+        }
+    });
+        
+    const maxLoanAmount = applicableTier?.loanAmount || 0;
 
     if (maxLoanAmount <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
@@ -166,24 +157,3 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     return { isEligible: false, reason: 'An unexpected server error occurred.', score: 0, maxLoanAmount: 0 };
   }
 }
-
-
-export async function recalculateScoreAndLoanLimit(borrowerId: string, providerId: string, productId: string): Promise<{score: number, maxLoanAmount: number}> {
-    try {
-        const borrowerData = await getBorrowerDataForScoring(borrowerId);
-        if (!borrowerData) {
-             return { score: 0, maxLoanAmount: 0 };
-        }
-        
-        const product = await prisma.loanProduct.findUnique({ where: { id: productId } });
-        if (!product) {
-            return { score: 0, maxLoanAmount: 0 };
-        }
-        return await calculateScoreForProvider(borrowerId, providerId, product.id);
-    } catch (error) {
-        console.error('Error in recalculateScoreAndLoanLimit:', error);
-        return { score: 0, maxLoanAmount: 0 };
-    }
-}
-
-    
