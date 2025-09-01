@@ -141,6 +141,7 @@ function LoansTab({ loans, providers, themeColor }: { loans: ReportLoan[], provi
 function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: BorrowerReportInfo[], themeColor: string }) {
     const [borrowers, setBorrowers] = useState(initialBorrowers);
     const [isLoading, setIsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const { toast } = useToast();
 
     const handleUpdateStatus = async (borrowerId: string, newStatus: string) => {
@@ -178,6 +179,42 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
             setIsLoading(false);
         }
     };
+    
+    const handleBorrowerExport = () => {
+        setIsExporting(true);
+        try {
+            const reportData = borrowers.map(b => ({
+                'Borrower ID': b.id,
+                'Borrower Name': b.name,
+                'Status': b.status,
+                'Active Loans': b.activeLoans,
+                'Overdue Loans': b.overdueLoans,
+            }));
+
+            if (reportData.length === 0) {
+                toast({ title: "No Data", description: "There is nothing to export."});
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(reportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Borrowers Report');
+
+            const cols = Object.keys(reportData[0]);
+            const colWidths = cols.map(col => ({
+                wch: Math.max(...reportData.map(row => row[col as keyof typeof row]?.toString().length ?? 0), col.length)
+            }));
+            worksheet['!cols'] = colWidths;
+            
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+            saveAs(data, 'LoanFlow_Borrowers_Report.xlsx');
+        } catch (error) {
+            toast({ title: "Export Failed", description: "An error occurred while exporting the data.", variant: "destructive" });
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
 
     return (
@@ -189,10 +226,16 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
                         View and manage borrower accounts and their NPL status.
                     </CardDescription>
                 </div>
-                <Button onClick={runNplCheck} variant="outline" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    Run NPL Check
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button onClick={runNplCheck} variant="outline" disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Run NPL Check
+                    </Button>
+                     <Button onClick={handleBorrowerExport} style={{ backgroundColor: themeColor }} className="text-white" disabled={isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Export Borrowers
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -230,7 +273,7 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
                                             <DropdownMenuItem onClick={() => handleUpdateStatus(borrower.id, 'Active')} disabled={borrower.status === 'Active'}>
                                                 Mark as Active
                                             </DropdownMenuItem>
-                                             <DropdownMenuItem onClick={() => handleUpdateStatus(borrower.id, 'NPL')} disabled={borrower.status === 'NPL'}>
+                                             <DropdownMenuItem className="text-red-600" onClick={() => handleUpdateStatus(borrower.id, 'NPL')} disabled={borrower.status === 'NPL'}>
                                                 Mark as NPL
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
