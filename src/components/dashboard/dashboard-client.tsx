@@ -138,11 +138,14 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         return;
     }
     const productLimit = eligibility.limits[productId] ?? 0;
+    
+    // The true max loan is the lesser of the product's individual limit and the overall available limit.
+    const trueMaxLoan = Math.min(productLimit, availableToBorrow);
 
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
-    params.set('max', String(productLimit));
+    params.set('max', String(trueMaxLoan));
     params.set('step', 'calculator');
     router.push(`/apply?${params.toString()}`);
   }
