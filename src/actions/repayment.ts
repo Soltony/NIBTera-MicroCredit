@@ -21,9 +21,13 @@ async function getBorrowerBalance(borrowerId: string): Promise<number> {
     if (provisionedData) {
         try {
             const data = JSON.parse(provisionedData.data as string);
-            // Assuming the provisioned data has a field named 'accountBalance'
-            return parseFloat(data.accountBalance) || 0;
+            // Assuming the provisioned data has a field named 'accountBalance' in camelCase
+            const balanceKey = Object.keys(data).find(k => k.toLowerCase() === 'accountbalance');
+            if (balanceKey) {
+                return parseFloat(data[balanceKey]) || 0;
+            }
         } catch (e) {
+            console.error(`Could not parse provisioned data for borrower ${borrowerId}`, e);
             return 0; // Return 0 if data is not valid JSON or balance is not a number
         }
     }
@@ -34,7 +38,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
     console.log('Starting automated repayment process...');
     const today = startOfDay(new Date());
 
-    // 1. Find all overdue loans
+    // 1. Find all unpaid loans that are overdue
     const overdueLoans = await prisma.loan.findMany({
         where: {
             repaymentStatus: 'Unpaid',
@@ -63,8 +67,9 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
     let processedCount = 0;
 
     for (const loan of overdueLoans) {
-        const { total, principal, interest, penalty } = calculateTotalRepayable(loan as any, loan.product, today);
-        const totalDue = total - (loan.repaidAmount || 0);
+        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, today);
+        const alreadyRepaid = loan.repaidAmount || 0;
+        const totalDue = total - alreadyRepaid;
 
         if (totalDue <= 0) {
             continue; // Skip if already paid off
@@ -81,11 +86,16 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     const principalReceivable = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
                     const interestReceivable = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Receivable');
                     const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
+                    const serviceFeeReceivable = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Receivable');
+
                     const principalReceived = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
                     const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
                     const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
+                    const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
                     
-                    if (!principalReceivable || !interestReceivable || !penaltyReceivable || !principalReceived || !interestReceived || !penaltyReceived) {
+                    
+                    if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable ||
+                        !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived) {
                         throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
                     }
                     
@@ -100,8 +110,13 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     
                     let paymentAmount = totalDue;
 
-                    // Apply payment according to priority: Penalty -> Interest -> Principal
-                    const penaltyToPay = Math.min(paymentAmount, penalty);
+                    // Deconstruct the total due into components based on what's outstanding
+                    const penaltyDue = Math.max(0, penalty - (loan.repaidAmount || 0));
+                    const serviceFeeDue = Math.max(0, serviceFee - Math.max(0, (loan.repaidAmount || 0) - penalty));
+                    const interestDue = Math.max(0, interest - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee));
+
+                    // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Principal
+                    const penaltyToPay = Math.min(paymentAmount, penaltyDue);
                     if (penaltyToPay > 0) {
                         await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
                         await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
@@ -111,8 +126,19 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                         ]});
                         paymentAmount -= penaltyToPay;
                     }
+                    
+                    const serviceFeeToPay = Math.min(paymentAmount, serviceFeeDue);
+                    if (serviceFeeToPay > 0) {
+                        await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
+                        await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
+                        await tx.ledgerEntry.createMany({ data: [
+                            { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivable.id, type: 'Credit', amount: serviceFeeToPay },
+                            { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceived.id, type: 'Debit', amount: serviceFeeToPay }
+                        ]});
+                        paymentAmount -= serviceFeeToPay;
+                    }
 
-                    const interestToPay = Math.min(paymentAmount, interest);
+                    const interestToPay = Math.min(paymentAmount, interestDue);
                      if (interestToPay > 0) {
                         await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
                         await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
@@ -123,7 +149,8 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                         paymentAmount -= interestToPay;
                     }
                     
-                    const principalToPay = Math.min(paymentAmount, principal);
+                    // The rest is principal
+                    const principalToPay = paymentAmount;
                      if (principalToPay > 0) {
                         await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
                         await tx.ledgerAccount.update({ where: { id: principalReceived.id }, data: { balance: { increment: principalToPay } } });
@@ -155,16 +182,45 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 });
                 
                 processedCount++;
-                console.log(`Successfully processed repayment for loan ${loan.id}.`);
+                console.log(JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    action: 'AUTOMATED_REPAYMENT_SUCCESS',
+                    actorId: 'system',
+                    details: {
+                        loanId: loan.id,
+                        borrowerId: loan.borrowerId,
+                        amount: totalDue
+                    }
+                }));
 
             } catch (error) {
-                console.error(`Failed to process repayment for loan ${loan.id}:`, error);
+                 console.error(JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    action: 'AUTOMATED_REPAYMENT_FAILURE',
+                    actorId: 'system',
+                    details: {
+                        loanId: loan.id,
+                        borrowerId: loan.borrowerId,
+                        error: (error as Error).message
+                    }
+                }));
             }
         } else {
-             console.log(`Insufficient funds for loan ${loan.id}. Balance: ${borrowerBalance}, Due: ${totalDue}`);
+             console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                action: 'AUTOMATED_REPAYMENT_SKIPPED',
+                actorId: 'system',
+                reason: 'Insufficient funds',
+                details: {
+                    loanId: loan.id,
+                    borrowerId: loan.borrowerId,
+                    balance: borrowerBalance,
+                    amountDue: totalDue
+                }
+            }));
         }
     }
     
     console.log(`Automated repayment process finished. Processed ${processedCount} loans.`);
-    return { success: true, message: `Processed ${processedCount} overdue loans.`, processedCount };
+    return { success: true, message: `Processed ${overdueLoans.length} overdue loans, successfully repaid ${processedCount}.`, processedCount };
 }
