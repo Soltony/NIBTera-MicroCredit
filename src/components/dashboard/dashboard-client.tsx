@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +46,45 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [eligibility, setEligibility] = useState<{isEligible: boolean, reason: string, limits: Record<string, number>}>({ isEligible: true, reason: '', limits: {} });
+  
+  const recalculateEligibility = useCallback(async (providerId: string) => {
+    if (!borrowerId) {
+      return;
+    }
+    
+    setIsRecalculating(true);
+    const provider = providers.find(p => p.id === providerId);
+    if (!provider) {
+      setIsRecalculating(false);
+      return;
+    }
+
+    try {
+        const productLimits: Record<string, number> = {};
+        let finalEligibility = { isEligible: true, reason: ''};
+
+        for (const product of provider.products) {
+            const { isEligible, reason, score, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, product.id);
+            if (!isEligible) {
+                finalEligibility = { isEligible: false, reason };
+            }
+            productLimits[product.id] = maxLoanAmount;
+        }
+        setEligibility({ isEligible: finalEligibility.isEligible, reason: finalEligibility.reason, limits: productLimits });
+
+    } catch (error) {
+      console.error("Error recalculating eligibility:", error);
+      setEligibility({ isEligible: false, reason: 'Could not calculate loan limit for this provider.', limits: {} });
+       toast({
+        title: 'Calculation Error',
+        description: "Could not calculate loan limit for this provider.",
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRecalculating(false);
+    }
+  }, [borrowerId, providers, toast]);
+
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
@@ -55,9 +94,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     if (providers.length > 0 && borrowerId) {
       const providerIdToUse = providerIdFromUrl || providers[0]?.id;
       if (providerIdToUse) {
-        handleProviderSelect(providerIdToUse, true);
+        setSelectedProviderId(providerIdToUse);
+        recalculateEligibility(providerIdToUse);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers, borrowerId, providerIdFromUrl]);
 
   const { overallMaxLimit, totalBorrowed, availableToBorrow } = useMemo(() => {
@@ -98,53 +139,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     params.set('step', 'calculator');
     router.push(`/apply?${params.toString()}`);
   }
-
-  const handleProviderSelect = async (providerId: string, isInitialLoad = false) => {
-    if (!borrowerId) {
-      return;
-    }
-    
-    setIsRecalculating(true);
+  
+   const handleProviderSelect = (providerId: string) => {
     setSelectedProviderId(providerId);
-
-    const provider = providers.find(p => p.id === providerId);
-    if (!provider) {
-      setIsRecalculating(false);
-      return;
-    }
-
-    try {
-        const productLimits: Record<string, number> = {};
-        let finalEligibility = { isEligible: true, reason: ''};
-
-        for (const product of provider.products) {
-            const { isEligible, reason, score, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, product.id);
-            if (!isEligible) {
-                // If any product check makes the user ineligible for the whole provider, we can store that.
-                // For now, we assume ineligibility is per-product, but this could be changed.
-                finalEligibility = { isEligible: false, reason };
-            }
-            productLimits[product.id] = maxLoanAmount;
-        }
-        setEligibility({ isEligible: finalEligibility.isEligible, reason: finalEligibility.reason, limits: productLimits });
-
-    } catch (error) {
-      console.error("Error recalculating score:", error);
-      setEligibility({ isEligible: false, reason: 'Could not calculate loan limit for this provider.', limits: {} });
-       toast({
-        title: 'Calculation Error',
-        description: "Could not calculate loan limit for this provider.",
-        variant: 'destructive',
-      });
-    } finally {
-      setIsRecalculating(false);
-    }
-    
-    if (!isInitialLoad) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set('providerId', providerId);
-      router.push(`/loan?${params.toString()}`, { scroll: false });
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('providerId', providerId);
+    router.push(`/loan?${params.toString()}`, { scroll: false });
+    recalculateEligibility(providerId);
   }
   
   const handleRepay = (loan: LoanDetails, balanceDue: number) => {
@@ -182,6 +183,11 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       setLoanHistory(prevHistory => 
         prevHistory.map(l => l.id === updatedLoanData.id ? finalLoanObject : l)
       );
+
+      // Re-check eligibility after repayment
+      if (selectedProviderId) {
+        recalculateEligibility(selectedProviderId);
+      }
 
       toast({
         title: 'Payment Successful',
