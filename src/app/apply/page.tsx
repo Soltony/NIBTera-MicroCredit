@@ -51,7 +51,7 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
 
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const { providerId } = searchParams;
+    const providerId = searchParams.providerId;
 
     if (!providerId || typeof providerId !== 'string') {
         notFound();
