@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { ProductCard } from '@/components/loan/product-card';
 import { RepaymentDialog } from '@/components/loan/repayment-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
+import { checkLoanEligibility } from '@/actions/eligibility';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -33,20 +33,10 @@ interface DashboardClientProps {
   initialLoanHistory: LoanDetails[];
 }
 
-const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
-    if (!jsonString) return defaultValue;
-    try {
-        return JSON.parse(jsonString);
-    } catch (e) {
-        return defaultValue;
-    }
-};
-
 export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId');
-  const eligibilityError = searchParams.get('error');
   const borrowerId = searchParams.get('borrowerId');
   const { toast } = useToast();
 
@@ -55,11 +45,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
-  
-  const isEligible = !eligibilityError;
-
-  const [currentMaxLoanLimit, setCurrentMaxLoanLimit] = useState(0);
-
+  const [eligibility, setEligibility] = useState<{isEligible: boolean, reason: string, limits: Record<string, number>}>({ isEligible: true, reason: '', limits: {} });
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
@@ -74,21 +60,20 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     }
   }, [providers, borrowerId, providerIdFromUrl]);
 
-  
-  const { totalBorrowed, availableToBorrow } = useMemo(() => {
+  const { overallMaxLimit, totalBorrowed, availableToBorrow } = useMemo(() => {
+    const overallMaxLimit = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
     const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
-    
     const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const availableToBorrow = Math.max(0, currentMaxLoanLimit - totalBorrowed);
+    const availableToBorrow = Math.max(0, overallMaxLimit - totalBorrowed);
+    return { overallMaxLimit, totalBorrowed, availableToBorrow };
+  }, [eligibility.limits, loanHistory]);
 
-    return { totalBorrowed, availableToBorrow };
-  }, [currentMaxLoanLimit, loanHistory]);
 
   const activeLoansByProduct = useMemo(() => {
       const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
       return unpaidLoans.reduce((acc, loan) => {
-          if (!acc[loan.productName] || new Date(loan.dueDate) > new Date(acc[loan.productName].dueDate)) {
-              acc[loan.productName] = loan;
+          if (!acc[loan.product.id] || new Date(loan.dueDate) > new Date(acc[loan.product.id].dueDate)) {
+              acc[loan.product.id] = loan;
           }
           return acc;
       }, {} as Record<string, LoanDetails>);
@@ -104,11 +89,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
         return;
     }
+    const productLimit = eligibility.limits[productId] ?? 0;
+
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
     params.set('product', productId);
-    params.set('max', String(currentMaxLoanLimit));
-    params.set('step', 'calculator'); // Go directly to calculator
+    params.set('max', String(productLimit));
+    params.set('step', 'calculator');
     router.push(`/apply?${params.toString()}`);
   }
 
@@ -121,26 +108,29 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     setSelectedProviderId(providerId);
 
     const provider = providers.find(p => p.id === providerId);
-    if (!provider || provider.products.length === 0) {
-      setCurrentMaxLoanLimit(0);
+    if (!provider) {
       setIsRecalculating(false);
       return;
     }
 
     try {
-      let maxLimit = 0;
-      // Iterate over all products of the provider to find the highest possible loan amount.
-      for (const product of provider.products) {
-        const { maxLoanAmount } = await recalculateScoreAndLoanLimit(borrowerId, providerId, product.id);
-        if (maxLoanAmount > maxLimit) {
-          maxLimit = maxLoanAmount;
+        const productLimits: Record<string, number> = {};
+        let finalEligibility = { isEligible: true, reason: ''};
+
+        for (const product of provider.products) {
+            const { isEligible, reason, score, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, product.id);
+            if (!isEligible) {
+                // If any product check makes the user ineligible for the whole provider, we can store that.
+                // For now, we assume ineligibility is per-product, but this could be changed.
+                finalEligibility = { isEligible: false, reason };
+            }
+            productLimits[product.id] = maxLoanAmount;
         }
-      }
-      setCurrentMaxLoanLimit(maxLimit);
+        setEligibility({ isEligible: finalEligibility.isEligible, reason: finalEligibility.reason, limits: productLimits });
 
     } catch (error) {
       console.error("Error recalculating score:", error);
-      setCurrentMaxLoanLimit(0);
+      setEligibility({ isEligible: false, reason: 'Could not calculate loan limit for this provider.', limits: {} });
        toast({
         title: 'Calculation Error',
         description: "Could not calculate loan limit for this provider.",
@@ -189,7 +179,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         payments: updatedLoanData.payments,
       };
 
-      // Update the loan history state with the updated loan
       setLoanHistory(prevHistory => 
         prevHistory.map(l => l.id === updatedLoanData.id ? finalLoanObject : l)
       );
@@ -215,8 +204,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     router.push('/check-eligibility/select-customer');
   }
   
-  const getProviderForLoan = (loan: LoanDetails) => providers.find(p => p.name === loan.providerName);
-
   return (
     <>
       <div className="flex flex-col min-h-screen bg-background">
@@ -261,17 +248,17 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                       </div>
                   </div>
 
-                  {!isEligible && (
+                  {!eligibility.isEligible && (
                      <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Not Eligible for a Loan</AlertTitle>
-                      <AlertDescription>{eligibilityError}</AlertDescription>
+                      <AlertDescription>{eligibility.reason}</AlertDescription>
                     </Alert>
                   )}
 
-                  {isEligible && (
+                  {eligibility.isEligible && (
                     <LoanSummaryCard
-                        maxLoanLimit={currentMaxLoanLimit}
+                        maxLoanLimit={overallMaxLimit}
                         availableToBorrow={availableToBorrow}
                         color={selectedProvider?.colorHex}
                         isLoading={isRecalculating}
@@ -300,21 +287,25 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                 <CardContent className="space-y-4">
                                     {selectedProvider.products
                                         .filter(p => p.status === 'Active')
-                                        .map((product) => (
-                                        <ProductCard 
-                                            key={product.id}
-                                            product={{
-                                                ...product,
-                                                availableLimit: Math.min(product.maxLoan || 0, availableToBorrow)
-                                            }}
-                                            providerColor={selectedProvider.colorHex}
-                                            activeLoan={activeLoansByProduct[product.name]}
-                                            onApply={() => handleApply(product.id)}
-                                            onRepay={handleRepay}
-                                            IconDisplayComponent={IconDisplay}
-                                            borrowerHasActiveLoanWithThisProduct={!!activeLoansByProduct[product.name]}
-                                        />
-                                    ))}
+                                        .map((product) => {
+                                            const productLimit = eligibility.limits[product.id] ?? 0;
+                                            const availableForProduct = Math.min(productLimit, availableToBorrow);
+                                            
+                                            return (
+                                                <ProductCard 
+                                                    key={product.id}
+                                                    product={{
+                                                        ...product,
+                                                        availableLimit: availableForProduct,
+                                                    }}
+                                                    providerColor={selectedProvider.colorHex}
+                                                    activeLoan={activeLoansByProduct[product.id]}
+                                                    onApply={() => handleApply(product.id)}
+                                                    onRepay={handleRepay}
+                                                    IconDisplayComponent={IconDisplay}
+                                                />
+                                            )
+                                        })}
                                     {selectedProvider.products.filter(p => p.status === 'Active').length === 0 && (
                                         <p className="text-sm text-muted-foreground text-center py-8">No active loan products available from this provider.</p>
                                     )}
