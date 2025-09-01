@@ -935,12 +935,14 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     const [columns, setColumns] = useState<EditableDataColumn[]>([]);
 
     useEffect(() => {
-        if (config) {
-            setName(config.name);
-            setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
-        } else {
-            setName('');
-            setColumns([]);
+        if (isOpen) {
+            if (config) {
+                setName(config.name);
+                setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
+            } else {
+                setName('');
+                setColumns([]);
+            }
         }
     }, [config, isOpen]);
 
