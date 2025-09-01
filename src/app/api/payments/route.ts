@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
             }
 
             // Create payment record
-            await tx.payment.create({
+            const newPayment = await tx.payment.create({
                 data: {
                     loanId,
                     amount: paymentAmount,
@@ -149,6 +149,19 @@ export async function POST(req: NextRequest) {
                     product: true,
                 }
             });
+            
+             console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                action: 'REPAYMENT_SUCCESS',
+                actorId: loan.borrowerId,
+                details: {
+                    loanId: loan.id,
+                    paymentId: newPayment.id,
+                    amount: paymentAmount,
+                    repaymentStatus: finalLoan.repaymentStatus,
+                }
+            }));
+            
             return finalLoan;
         });
 

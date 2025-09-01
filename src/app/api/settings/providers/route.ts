@@ -55,6 +55,16 @@ export async function POST(req: NextRequest) {
             return provider;
         });
 
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_CREATE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                providerId: newProvider.id,
+                providerName: newProvider.name,
+            }
+        }));
+
         return NextResponse.json(newProvider, { status: 201 });
     } catch (error) {
         console.error('Error creating provider:', error);
@@ -86,6 +96,17 @@ export async function PUT(req: NextRequest) {
             where: { id },
             data: dataToUpdate,
         });
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_UPDATE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                providerId: updatedProvider.id,
+                updatedFields: Object.keys(dataToUpdate),
+            }
+        }));
+
         return NextResponse.json(updatedProvider);
     } catch (error) {
         console.error('Error updating provider:', error);
@@ -111,9 +132,23 @@ export async function DELETE(req: NextRequest) {
         if (productCount > 0) {
             return NextResponse.json({ error: 'Cannot delete provider with associated products.' }, { status: 400 });
         }
+
+        const providerToDelete = await prisma.loanProvider.findUnique({ where: { id }});
+        
         await prisma.loanProvider.delete({
             where: { id: id },
         });
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_DELETE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                deletedProviderId: id,
+                deletedProviderName: providerToDelete?.name,
+            }
+        }));
+
         return NextResponse.json({ message: 'Provider deleted successfully' });
     } catch (error) {
         console.error('Error deleting provider:', error);

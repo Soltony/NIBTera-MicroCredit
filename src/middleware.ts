@@ -7,6 +7,9 @@ const publicRoutes = ['/admin/login'];
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+  const userAgent = req.headers.get('user-agent') || 'N/A';
+
 
   // Do not run middleware on public admin routes like login
   if (publicRoutes.includes(path)) {
@@ -19,6 +22,14 @@ export default async function middleware(req: NextRequest) {
   if (isProtected) {
     const session = await getSession();
     if (!session?.userId) {
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
+        reason: 'No valid session',
+        path: path,
+        ipAddress,
+        userAgent,
+      }));
       // If no session, redirect to the login page
       return NextResponse.redirect(new URL('/admin/login', req.nextUrl));
     }

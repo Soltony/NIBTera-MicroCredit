@@ -36,6 +36,17 @@ export async function POST(req: NextRequest) {
             }
         });
         
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_CREATE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                productId: newProduct.id,
+                productName: newProduct.name,
+                providerId: newProduct.providerId,
+            }
+        }));
+
         return NextResponse.json(newProduct, { status: 201 });
 
     } catch (error) {
@@ -74,6 +85,16 @@ export async function PUT(req: NextRequest) {
             data: dataToUpdate,
         });
 
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_UPDATE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                productId: updatedProduct.id,
+                updatedFields: Object.keys(dataToUpdate),
+            }
+        }));
+
         return NextResponse.json(updatedProduct);
 
     } catch (error: any) {
@@ -100,8 +121,21 @@ export async function DELETE(req: NextRequest) {
         if (loanCount > 0) {
             return NextResponse.json({ error: 'Cannot delete product. It has associated loans.' }, { status: 400 });
         }
+        
+        const productToDelete = await prisma.loanProduct.findUnique({ where: { id }});
 
         await prisma.loanProduct.delete({ where: { id } });
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_DELETE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                deletedProductId: id,
+                deletedProductName: productToDelete?.name,
+                providerId: productToDelete?.providerId,
+            }
+        }));
 
         return NextResponse.json({ message: 'Product deleted successfully' });
 

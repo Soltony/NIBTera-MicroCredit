@@ -129,6 +129,18 @@ export async function POST(req: NextRequest) {
             return createdLoan;
         });
 
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'LOAN_DISBURSEMENT_SUCCESS',
+            actorId: 'system', // Or could be a user ID if an admin initiated it
+            details: {
+                loanId: newLoan.id,
+                borrowerId: newLoan.borrowerId,
+                productId: newLoan.productId,
+                amount: newLoan.loanAmount,
+            }
+        }));
+
         return NextResponse.json(newLoan, { status: 201 });
 
     } catch (error) {

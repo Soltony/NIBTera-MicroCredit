@@ -39,12 +39,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
     try {
-        const session = await getSession();
-        if (!session?.userId) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-        }
-
         const body = await req.json();
         const { name, permissions } = roleSchema.parse(body);
         
@@ -54,6 +53,16 @@ export async function POST(req: NextRequest) {
                 permissions: JSON.stringify(permissions),
             },
         });
+        
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_CREATE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                roleId: newRole.id,
+                roleName: newRole.name,
+            }
+        }));
 
         return NextResponse.json({ ...newRole, permissions }, { status: 201 });
     } catch (error) {
@@ -66,12 +75,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
     try {
-        const session = await getSession();
-        if (!session?.userId) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-        }
-
         const body = await req.json();
         const { id, name, permissions } = roleSchema.extend({ id: z.string() }).parse(body);
 
@@ -82,6 +90,17 @@ export async function PUT(req: NextRequest) {
                 permissions: JSON.stringify(permissions),
             },
         });
+        
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_UPDATE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                roleId: updatedRole.id,
+                roleName: updatedRole.name,
+            }
+        }));
+
 
         return NextResponse.json({ ...updatedRole, permissions });
     } catch (error) {
@@ -94,12 +113,11 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
     try {
-        const session = await getSession();
-        if (!session?.userId) {
-            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-        }
-
         const { id } = await req.json();
         if (!id) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
@@ -110,10 +128,22 @@ export async function DELETE(req: NextRequest) {
         if (usersWithRole > 0) {
             return NextResponse.json({ error: 'Cannot delete role. It is currently assigned to one or more users.' }, { status: 400 });
         }
+        
+        const roleToDelete = await prisma.role.findUnique({ where: { id }});
 
         await prisma.role.delete({
             where: { id },
         });
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_DELETE_SUCCESS',
+            actorId: session.userId,
+            details: {
+                deletedRoleId: id,
+                deletedRoleName: roleToDelete?.name,
+            }
+        }));
 
         return NextResponse.json({ message: 'Role deleted successfully' });
 
