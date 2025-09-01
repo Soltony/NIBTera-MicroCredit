@@ -37,7 +37,7 @@ import {
   Cell,
 } from 'recharts';
 import type { LoanProvider, DashboardData } from '@/lib/types';
-import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown } from 'lucide-react';
+import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown, Users } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 
 
@@ -115,7 +115,7 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
 
     return (
       <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Initial Fund</CardTitle>
@@ -154,6 +154,16 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
                     <p className="text-xs text-muted-foreground">Total amount loaned out</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Borrowers</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{totalUsers}</div>
+                    <p className="text-xs text-muted-foreground">Unique customers with loans</p>
                 </CardContent>
             </Card>
         </div>

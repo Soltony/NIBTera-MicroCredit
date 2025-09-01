@@ -34,25 +34,17 @@ export async function POST(req: NextRequest) {
         }
         
         const provider = loan.product.provider;
+        const paymentDate = new Date();
         
-        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, new Date());
+        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, paymentDate);
         const alreadyRepaid = loan.repaidAmount || 0;
         
         const totalDue = total - alreadyRepaid;
-
-        // The principalDue calculation was incorrect. It should just be the loan's principal amount.
-        // The serviceFee is separate. Let's calculate what part of the repayment goes to each component.
-        const serviceFeeAlreadyPaid = Math.max(0, alreadyRepaid - (total - serviceFee));
-        const serviceFeeDue = Math.max(0, serviceFee - serviceFeeAlreadyPaid);
-
-        const interestAlreadyPaid = Math.max(0, alreadyRepaid - (total - interest - serviceFee));
-        const interestDue = Math.max(0, interest - interestAlreadyPaid);
-
-        const penaltyAlreadyPaid = Math.max(0, alreadyRepaid - (total - penalty - interest - serviceFee));
-        const penaltyDue = Math.max(0, penalty - penaltyAlreadyPaid);
-
-        const principalAlreadyPaid = Math.max(0, alreadyRepaid - serviceFee - interest - penalty);
-        const principalDue = Math.max(0, principal - principalAlreadyPaid);
+        
+        const penaltyDue = Math.max(0, penalty - (loan.repaidAmount || 0));
+        const serviceFeeDue = Math.max(0, serviceFee - Math.max(0, (loan.repaidAmount || 0) - penalty));
+        const interestDue = Math.max(0, interest - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee));
+        const principalDue = Math.max(0, principal - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest));
 
 
         if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
@@ -79,11 +71,24 @@ export async function POST(req: NextRequest) {
                 throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
             }
 
+            const journalEntry = await tx.journalEntry.create({
+                data: {
+                    providerId: provider.id,
+                    loanId: loan.id,
+                    date: paymentDate,
+                    description: `Repayment of ${formatCurrency(paymentAmount)} for loan ${loan.id}`
+                }
+            });
+
             // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Principal
             const penaltyToPay = Math.min(amountToApply, penaltyDue);
             if (penaltyToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
                 await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
+                await tx.ledgerEntry.createMany({ data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceivable.id, type: 'Credit', amount: penaltyToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceived.id, type: 'Debit', amount: penaltyToPay }
+                ]});
                 amountToApply -= penaltyToPay;
             }
 
@@ -91,6 +96,10 @@ export async function POST(req: NextRequest) {
             if (serviceFeeToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
                 await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
+                await tx.ledgerEntry.createMany({ data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivable.id, type: 'Credit', amount: serviceFeeToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceived.id, type: 'Debit', amount: serviceFeeToPay }
+                ]});
                 amountToApply -= serviceFeeToPay;
             }
 
@@ -98,6 +107,10 @@ export async function POST(req: NextRequest) {
              if (interestToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
                 await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
+                await tx.ledgerEntry.createMany({ data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Credit', amount: interestToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay }
+                ]});
                 amountToApply -= interestToPay;
             }
             
@@ -105,15 +118,20 @@ export async function POST(req: NextRequest) {
              if (principalToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
                 await tx.ledgerAccount.update({ where: { id: principalReceived.id }, data: { balance: { increment: principalToPay } } });
+                 await tx.ledgerEntry.createMany({ data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: principalReceivable.id, type: 'Credit', amount: principalToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: principalReceived.id, type: 'Debit', amount: principalToPay }
+                ]});
             }
 
             // Create payment record
-            await tx.payment.create({
+            const newPayment = await tx.payment.create({
                 data: {
                     loanId,
                     amount: paymentAmount,
-                    date: new Date(),
+                    date: paymentDate,
                     outstandingBalanceBeforePayment: totalDue,
+                    journalEntryId: journalEntry.id,
                 }
             });
 
@@ -131,6 +149,19 @@ export async function POST(req: NextRequest) {
                     product: true,
                 }
             });
+            
+             console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                action: 'REPAYMENT_SUCCESS',
+                actorId: loan.borrowerId,
+                details: {
+                    loanId: loan.id,
+                    paymentId: newPayment.id,
+                    amount: paymentAmount,
+                    repaymentStatus: finalLoan.repaymentStatus,
+                }
+            }));
+            
             return finalLoan;
         });
 
@@ -143,4 +174,9 @@ export async function POST(req: NextRequest) {
         console.error('Error processing payment:', error);
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
+}
+
+// Helper to format currency
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ETB' }).format(amount);
 }

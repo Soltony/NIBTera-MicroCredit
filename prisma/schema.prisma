@@ -56,6 +56,7 @@ model LoanProvider {
   dataProvisioningConfigs     DataProvisioningConfig[]
   users                       User[]
   ledgerAccounts              LedgerAccount[]
+  journalEntries              JournalEntry[]
 }
 
 model LoanProduct {
@@ -100,6 +101,7 @@ model Loan {
   repaymentStatus             String // Paid, Unpaid
   repaidAmount                Float?
   payments                    Payment[]
+  journalEntries              JournalEntry[]
   createdAt                   DateTime    @default(now())
   updatedAt                   DateTime    @updatedAt
 }
@@ -111,10 +113,13 @@ model Payment {
   amount                            Float
   date                              DateTime
   outstandingBalanceBeforePayment Float?
+  journalEntryId                    String?  @unique
+  journalEntry                      JournalEntry? @relation(fields: [journalEntryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 }
 
 model Borrower {
   id              String           @id
+  status          String           @default("Active") // Active, NPL
   provisionedData ProvisionedData[]
   loans           Loan[]
 }
@@ -220,6 +225,29 @@ model LedgerAccount {
     type        String // Receivable, Received, Income
     category    String // Principal, Interest, ServiceFee, Penalty
     balance     Float @default(0)
+    entries     LedgerEntry[]
     
     @@unique([providerId, name])
+}
+
+model JournalEntry {
+    id          String @id @default(cuid())
+    providerId  String
+    provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+    loanId      String?
+    loan        Loan? @relation(fields: [loanId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    date        DateTime
+    description String
+    entries     LedgerEntry[]
+    payment     Payment?
+}
+
+model LedgerEntry {
+    id              String @id @default(cuid())
+    journalEntryId  String
+    journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+    ledgerAccountId String
+    ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    type            String // Debit or Credit
+    amount          Float
 }

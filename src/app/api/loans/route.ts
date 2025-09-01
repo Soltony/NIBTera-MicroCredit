@@ -64,23 +64,60 @@ export async function POST(req: NextRequest) {
                     repaidAmount: 0,
                 }
             });
+            
+            // Create Journal Entry for the disbursement
+            const journalEntry = await tx.journalEntry.create({
+                data: {
+                    providerId: provider.id,
+                    loanId: createdLoan.id,
+                    date: new Date(data.disbursedDate),
+                    description: `Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
+                }
+            });
+            
+            // Ledger Entry for Principal: Debit Receivable, Credit Provider Fund
+            await tx.ledgerEntry.createMany({
+                data: [
+                    // Debit: Loan Principal Receivable (Asset ↑)
+                    {
+                        journalEntryId: journalEntry.id,
+                        ledgerAccountId: principalReceivableAccount.id,
+                        type: 'Debit',
+                        amount: data.loanAmount
+                    }
+                ]
+            });
+            
+            // Ledger Entry for Service Fee if applicable
+            if (data.serviceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
+                await tx.ledgerEntry.createMany({
+                    data: [
+                         // Debit: Service Fee Receivable (Asset ↑)
+                        {
+                            journalEntryId: journalEntry.id,
+                            ledgerAccountId: serviceFeeReceivableAccount.id,
+                            type: 'Debit',
+                            amount: data.serviceFee
+                        },
+                        // Credit: Service Fee Income (Income ↑)
+                        {
+                            journalEntryId: journalEntry.id,
+                            ledgerAccountId: serviceFeeIncomeAccount.id,
+                            type: 'Credit',
+                            amount: data.serviceFee
+                        }
+                    ]
+                });
+            }
 
-            // Debit: Loan Principal Receivable (Asset ↑)
+            // Update Balances
             await tx.ledgerAccount.update({
                 where: { id: principalReceivableAccount.id },
                 data: { balance: { increment: data.loanAmount } }
             });
-
-            // Debit: Service Fee Receivable (Asset ↑) & Credit: Service Fee Income (Income ↑)
             if (data.serviceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
-                await tx.ledgerAccount.update({
-                    where: { id: serviceFeeReceivableAccount.id },
-                    data: { balance: { increment: data.serviceFee } }
-                });
-                 await tx.ledgerAccount.update({
-                    where: { id: serviceFeeIncomeAccount.id },
-                    data: { balance: { increment: data.serviceFee } }
-                });
+                await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: data.serviceFee } } });
+                await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: data.serviceFee } } });
             }
 
             // Credit: Provider Fund (Asset ↓)
@@ -91,6 +128,18 @@ export async function POST(req: NextRequest) {
             
             return createdLoan;
         });
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'LOAN_DISBURSEMENT_SUCCESS',
+            actorId: 'system', // Or could be a user ID if an admin initiated it
+            details: {
+                loanId: newLoan.id,
+                borrowerId: newLoan.borrowerId,
+                productId: newLoan.productId,
+                amount: newLoan.loanAmount,
+            }
+        }));
 
         return NextResponse.json(newLoan, { status: 201 });
 

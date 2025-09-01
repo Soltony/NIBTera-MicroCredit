@@ -46,11 +46,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  try {
     const session = await getSession();
     if (!session?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+  try {
 
     const body = await req.json();
     const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
@@ -79,6 +79,18 @@ export async function POST(req: NextRequest) {
     const newUser = await prisma.user.create({
       data: dataToCreate,
     });
+    
+    console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'USER_CREATE_SUCCESS',
+        actorId: session.userId,
+        details: {
+            createdUserId: newUser.id,
+            createdUserEmail: newUser.email,
+            assignedRole: roleName,
+        }
+    }));
+
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
@@ -91,11 +103,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  try {
     const session = await getSession();
     if (!session?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+  try {
 
     const body = await req.json();
     const { id, role: roleName, providerId, ...userData } = body;
@@ -126,6 +138,16 @@ export async function PUT(req: NextRequest) {
       where: { id },
       data: dataToUpdate,
     });
+    
+    console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'USER_UPDATE_SUCCESS',
+        actorId: session.userId,
+        details: {
+            updatedUserId: id,
+            updatedFields: Object.keys(userData)
+        }
+    }));
 
     return NextResponse.json(updatedUser);
   } catch (error) {

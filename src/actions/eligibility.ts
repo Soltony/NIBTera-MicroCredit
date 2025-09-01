@@ -94,12 +94,19 @@ async function calculateScoreForProvider(borrowerId: string, providerId: string)
 
 export async function checkLoanEligibility(borrowerId: string, providerId: string, productId: string): Promise<{isEligible: boolean; reason: string; score: number, maxLoanAmount: number}> {
   try {
-    const borrowerData = await getBorrowerDataForScoring(borrowerId);
+    const borrower = await prisma.borrower.findUnique({
+        where: { id: borrowerId }
+    });
 
-    if (!borrowerData || Object.keys(borrowerData).length <= 1) { // has more than just id
+    if (!borrower) {
       return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
 
+    // Rule: Check if borrower is on NPL list
+    if (borrower.status === 'NPL') {
+        return { isEligible: false, reason: 'Your account is currently restricted due to a non-performing loan. Please contact support.', score: 0, maxLoanAmount: 0 };
+    }
+    
     const product = await prisma.loanProduct.findUnique({ 
         where: { id: productId },
     });
@@ -118,16 +125,21 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         include: { product: true }
     });
 
+    // Rule: A borrower cannot take the same product twice at the same time.
     const hasActiveLoanOfSameType = allActiveLoans.some((loan: LoanWithProduct) => loan.productId === productId);
     if (hasActiveLoanOfSameType) {
         return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
     }
     
+    // Rule: If "Combinable with Other Loans" is OFF, block if ANY other loan is active.
     if (!product.allowConcurrentLoans && allActiveLoans.length > 0) {
         const otherProductNames = allActiveLoans.map(l => `"${l.product.name}"`).join(', ');
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
     
+    // If we reach here, the loan is either combinable, or the user has no other active loans.
+    // Now, we can proceed with scoring.
+
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         // If no scoring is set up, maybe we allow a default loan amount? For now, let's say no.
