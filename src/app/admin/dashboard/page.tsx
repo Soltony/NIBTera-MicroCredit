@@ -10,6 +10,9 @@ export const dynamic = 'force-dynamic';
 async function getProviderData(providerId?: string): Promise<DashboardData> {
     const providerFilter = providerId ? { product: { providerId: providerId }} : {};
     const providerWhereClause = providerId ? { id: providerId } : {};
+    
+    // Base query for ledger entries
+    const ledgerEntryWhere = providerId ? { ledgerAccount: { providerId: providerId } } : {};
 
     const loans = await prisma.loan.findMany({ 
         where: providerFilter,
@@ -25,37 +28,40 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
 
     const providersData = await prisma.loanProvider.findMany({
         where: providerWhereClause,
-        include: { ledgerAccounts: true }
     });
     
-    const allLedgerAccounts = providersData.flatMap(p => p.ledgerAccounts);
     const totalStartingCapital = providersData.reduce((acc, p) => acc + p.startingCapital, 0);
     const providerFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
 
-    const aggregateLedger = (type: string, category?: string) => {
+    // Aggregate ledger balances from LedgerAccount model directly
+    const allLedgerAccounts = await prisma.ledgerAccount.findMany({
+        where: providerId ? { providerId } : {}
+    });
+
+    const aggregateLedgerBalance = (type: string, category?: string) => {
         return allLedgerAccounts
             .filter(acc => acc.type === type && (category ? acc.category === category : true))
             .reduce((sum, acc) => sum + acc.balance, 0);
     };
-    
+
     const receivables = {
-        principal: aggregateLedger('Receivable', 'Principal'),
-        interest: aggregateLedger('Receivable', 'Interest'),
-        serviceFee: aggregateLedger('Receivable', 'ServiceFee'),
-        penalty: aggregateLedger('Receivable', 'Penalty'),
+        principal: aggregateLedgerBalance('Receivable', 'Principal'),
+        interest: aggregateLedgerBalance('Receivable', 'Interest'),
+        serviceFee: aggregateLedgerBalance('Receivable', 'ServiceFee'),
+        penalty: aggregateLedgerBalance('Receivable', 'Penalty'),
     };
     
     const collections = {
-        principal: aggregateLedger('Received', 'Principal'),
-        interest: aggregateLedger('Received', 'Interest'),
-        serviceFee: aggregateLedger('Received', 'ServiceFee'),
-        penalty: aggregateLedger('Received', 'Penalty'),
+        principal: aggregateLedgerBalance('Received', 'Principal'),
+        interest: aggregateLedgerBalance('Received', 'Interest'),
+        serviceFee: aggregateLedgerBalance('Received', 'ServiceFee'),
+        penalty: aggregateLedgerBalance('Received', 'Penalty'),
     };
 
     const income = {
-        interest: aggregateLedger('Income', 'Interest'),
-        serviceFee: aggregateLedger('Income', 'ServiceFee'),
-        penalty: aggregateLedger('Income', 'Penalty'),
+        interest: aggregateLedgerBalance('Income', 'Interest'),
+        serviceFee: aggregateLedgerBalance('Income', 'ServiceFee'),
+        penalty: aggregateLedgerBalance('Income', 'Penalty'),
     };
     
     const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
@@ -102,7 +108,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         include: { product: true }
     }).then(loans => loans.map(l => ({
         id: l.id,
-        customer: `Borrower #${l.borrowerId}`,
+        customer: `Borrower #${l.borrowerId.substring(0,8)}...`,
         product: l.product.name,
         status: l.repaymentStatus,
         amount: l.loanAmount,
@@ -131,7 +137,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         totalDisbursed,
         repaymentRate,
         atRiskLoans,
-        totalUsers: usersCount,
+        totalUsers,
         loanDisbursementData,
         loanStatusData,
         recentActivity,

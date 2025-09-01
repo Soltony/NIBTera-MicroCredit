@@ -89,6 +89,15 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                         throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
                     }
                     
+                     const journalEntry = await tx.journalEntry.create({
+                        data: {
+                            providerId: provider.id,
+                            loanId: loan.id,
+                            date: today,
+                            description: `Automated repayment for loan ${loan.id}`,
+                        }
+                    });
+                    
                     let paymentAmount = totalDue;
 
                     // Apply payment according to priority: Penalty -> Interest -> Principal
@@ -96,6 +105,10 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     if (penaltyToPay > 0) {
                         await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
                         await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
+                         await tx.ledgerEntry.createMany({ data: [
+                            { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceivable.id, type: 'Credit', amount: penaltyToPay },
+                            { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceived.id, type: 'Debit', amount: penaltyToPay }
+                        ]});
                         paymentAmount -= penaltyToPay;
                     }
 
@@ -103,6 +116,10 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                      if (interestToPay > 0) {
                         await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
                         await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
+                         await tx.ledgerEntry.createMany({ data: [
+                            { journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Credit', amount: interestToPay },
+                            { journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay }
+                        ]});
                         paymentAmount -= interestToPay;
                     }
                     
@@ -110,6 +127,10 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                      if (principalToPay > 0) {
                         await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
                         await tx.ledgerAccount.update({ where: { id: principalReceived.id }, data: { balance: { increment: principalToPay } } });
+                        await tx.ledgerEntry.createMany({ data: [
+                            { journalEntryId: journalEntry.id, ledgerAccountId: principalReceivable.id, type: 'Credit', amount: principalToPay },
+                            { journalEntryId: journalEntry.id, ledgerAccountId: principalReceived.id, type: 'Debit', amount: principalToPay }
+                        ]});
                     }
                     
                     // Create payment record
@@ -119,6 +140,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                             amount: totalDue,
                             date: today,
                             outstandingBalanceBeforePayment: totalDue,
+                            journalEntryId: journalEntry.id,
                         },
                     });
 
