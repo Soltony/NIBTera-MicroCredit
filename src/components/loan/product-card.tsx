@@ -33,6 +33,7 @@ interface ProductCardProps {
     onApply: () => void;
     onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
+    eligibilityReason?: string;
 }
 
 export function ProductCard({ 
@@ -42,6 +43,7 @@ export function ProductCard({
     onApply, 
     onRepay, 
     IconDisplayComponent,
+    eligibilityReason
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -61,14 +63,17 @@ export function ProductCard({
     }, [activeLoan, product]);
 
     const canApply = useMemo(() => {
+        if (eligibilityReason) {
+            return { eligible: false, reason: eligibilityReason };
+        }
         if (activeLoan && !product.allowConcurrentLoans) {
-            return { eligible: false, reason: "You already have an active loan for this specific product." };
+            return { eligible: false, reason: `You must repay your active "${product.name}" loan before applying again.` };
         }
         if ((product.availableLimit ?? 0) <= 0) {
             return { eligible: false, reason: "Your available credit is too low for this product." };
         }
         return { eligible: true, reason: "" };
-    }, [activeLoan, product.allowConcurrentLoans, product.availableLimit]);
+    }, [activeLoan, product.allowConcurrentLoans, product.availableLimit, product.name, eligibilityReason]);
 
 
     const applyButton = (

@@ -248,22 +248,12 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                       </div>
                   </div>
 
-                  {!eligibility.isEligible && (
-                     <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Not Eligible for a Loan</AlertTitle>
-                      <AlertDescription>{eligibility.reason}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {eligibility.isEligible && (
-                    <LoanSummaryCard
-                        maxLoanLimit={overallMaxLimit}
-                        availableToBorrow={availableToBorrow}
-                        color={selectedProvider?.colorHex}
-                        isLoading={isRecalculating}
-                    />
-                  )}
+                  <LoanSummaryCard
+                      maxLoanLimit={overallMaxLimit}
+                      availableToBorrow={availableToBorrow}
+                      color={selectedProvider?.colorHex}
+                      isLoading={isRecalculating}
+                  />
               
                   <div className="flex justify-end">
                     <Link
@@ -303,6 +293,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                                     onApply={() => handleApply(product.id)}
                                                     onRepay={handleRepay}
                                                     IconDisplayComponent={IconDisplay}
+                                                    eligibilityReason={eligibility.isEligible ? '' : eligibility.reason}
                                                 />
                                             )
                                         })}
