@@ -13,9 +13,9 @@ export default async function AdminRootPage() {
     
     const data = await getDashboardData(user.id);
 
-    if (!data) {
+    if (!data || !data.overallData) {
         return <div>Loading dashboard...</div>;
     }
     
-    return <DashboardClient initialData={data} />;
+    return <DashboardClient dashboardData={data} />;
 }

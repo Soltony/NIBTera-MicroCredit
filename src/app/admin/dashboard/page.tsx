@@ -1,49 +1,27 @@
 
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import prisma from '@/lib/prisma';
-import type { LoanProvider, LedgerAccount } from '@/lib/types';
+import type { LoanProvider, LedgerAccount, DashboardData } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
 import { startOfToday, subDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
-export async function getDashboardData(userId: string) {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { loanProvider: true }
-    });
-
-    const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
-    const providerId = user?.loanProvider?.id;
-    
-    if (!isSuperAdmin && !providerId) {
-        const providers = await prisma.loanProvider.findMany();
-        return {
-            totalLoans: 0, totalDisbursed: 0, totalPaid: 0, repaymentRate: 0, atRiskLoans: 0, totalUsers: 0,
-            loanDisbursementData: [], loanStatusData: [], recentActivity: [], productOverview: [],
-            initialFund: 0, providerFund: 0,
-            receivables: { principal: 0, interest: 0, serviceFee: 0, penalty: 0 },
-            collections: { principal: 0, interest: 0, serviceFee: 0, penalty: 0 },
-            income: { interest: 0, serviceFee: 0, penalty: 0 },
-            providers: providers as LoanProvider[],
-        };
-    }
-
-    const providerFilter = isSuperAdmin ? {} : { product: { providerId: providerId }};
-    const providerWhereClause = isSuperAdmin ? {} : { id: providerId };
+async function getProviderData(providerId?: string): Promise<DashboardData> {
+    const providerFilter = providerId ? { product: { providerId: providerId }} : {};
+    const providerWhereClause = providerId ? { id: providerId } : {};
 
     const loans = await prisma.loan.findMany({ 
         where: providerFilter,
         include: { product: true }
     });
     
-    const usersCount = isSuperAdmin 
-        ? await prisma.user.count() 
-        : await prisma.loan.groupBy({
+    const usersCount = providerId 
+        ? await prisma.loan.groupBy({
             by: ['borrowerId'],
             where: { product: { providerId: providerId } },
-          }).then(results => results.length);
-
+          }).then(results => results.length)
+        : await prisma.user.count(); 
 
     const providersData = await prisma.loanProvider.findMany({
         where: providerWhereClause,
@@ -51,14 +29,15 @@ export async function getDashboardData(userId: string) {
     });
     
     const allLedgerAccounts = providersData.flatMap(p => p.ledgerAccounts);
-    const totalInitialFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
+    const totalStartingCapital = providersData.reduce((acc, p) => acc + p.startingCapital, 0);
+    const providerFund = providersData.reduce((acc, p) => acc + p.initialBalance, 0);
 
     const aggregateLedger = (type: string, category?: string) => {
         return allLedgerAccounts
             .filter(acc => acc.type === type && (category ? acc.category === category : true))
             .reduce((sum, acc) => sum + acc.balance, 0);
     };
-
+    
     const receivables = {
         principal: aggregateLedger('Receivable', 'Principal'),
         interest: aggregateLedger('Receivable', 'Interest'),
@@ -80,9 +59,7 @@ export async function getDashboardData(userId: string) {
     };
     
     const totalDisbursed = loans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const providerFund = totalInitialFund - totalDisbursed;
     const totalLoans = loans.length;
-    const totalPaid = loans.reduce((acc, loan) => acc + (loan.repaidAmount || 0), 0);
     const paidLoans = loans.filter(l => l.repaymentStatus === 'Paid').length;
     const repaymentRate = totalLoans > 0 ? (paidLoans / totalLoans) * 100 : 0;
     const atRiskLoans = loans.filter(l => l.repaymentStatus === 'Unpaid' && new Date(l.dueDate) < new Date()).length;
@@ -132,7 +109,7 @@ export async function getDashboardData(userId: string) {
     })));
 
     const allProducts = await prisma.loanProduct.findMany({
-        where: isSuperAdmin ? {} : { providerId: providerId },
+        where: providerId ? { providerId: providerId } : {},
         include: { provider: true, _count: { select: { loans: true } } }
     });
 
@@ -148,13 +125,10 @@ export async function getDashboardData(userId: string) {
             defaultRate: p._count.loans > 0 ? (defaulted / p._count.loans) * 100 : 0
         };
     }));
-    
-    const allProviders = await prisma.loanProvider.findMany();
 
     return {
         totalLoans,
         totalDisbursed,
-        totalPaid,
         repaymentRate,
         atRiskLoans,
         totalUsers: usersCount,
@@ -162,12 +136,50 @@ export async function getDashboardData(userId: string) {
         loanStatusData,
         recentActivity,
         productOverview,
-        initialFund: totalInitialFund,
+        initialFund: totalStartingCapital,
         providerFund,
         receivables,
         collections,
         income,
-        providers: allProviders as LoanProvider[],
+    };
+}
+
+export async function getDashboardData(userId: string): Promise<{
+    providers: LoanProvider[];
+    overallData: DashboardData;
+    providerSpecificData: Record<string, DashboardData>;
+}> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { loanProvider: true }
+    });
+
+    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    
+    // For non-admins, get their specific provider or an empty array
+    const providers = isSuperAdminOrAdmin
+        ? await prisma.loanProvider.findMany()
+        : (user?.loanProvider ? [user.loanProvider] : []);
+
+    const overallData = await getProviderData(isSuperAdminOrAdmin ? undefined : user?.loanProvider?.id);
+    
+    let providerSpecificData: Record<string, DashboardData> = {};
+
+    if (isSuperAdminOrAdmin) {
+         const specificDataPromises = providers.map(p => getProviderData(p.id));
+         const results = await Promise.all(specificDataPromises);
+         results.forEach((data, index) => {
+             providerSpecificData[providers[index].id] = data;
+         });
+    } else if (user?.loanProvider) {
+        providerSpecificData[user.loanProvider.id] = overallData;
+    }
+
+
+    return {
+        providers: providers as LoanProvider[],
+        overallData: overallData,
+        providerSpecificData: providerSpecificData,
     };
 }
 
@@ -180,8 +192,8 @@ export default async function AdminDashboard() {
     
     const data = await getDashboardData(user.id);
     if (!data) {
-        return <div>Loading dashboard...</div>; // Or some other placeholder
+        return <div>Loading dashboard...</div>;
     }
     
-    return <DashboardClient initialData={data} />;
+    return <DashboardClient dashboardData={data} />;
 }

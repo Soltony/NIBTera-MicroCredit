@@ -23,7 +23,7 @@ import { Separator } from '../ui/separator';
 interface AddProviderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (provider: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id'>> & { id?: string }) => void;
+  onSave: (provider: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string }) => void;
   provider: LoanProvider | null;
   primaryColor?: string;
 }
@@ -41,7 +41,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         colorHex: '#2563eb',
         displayOrder: 0,
         accountNumber: '' as string | null,
-        initialBalance: 0,
+        startingCapital: 0,
     });
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -54,7 +54,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             colorHex: provider.colorHex || '#2563eb',
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
-            initialBalance: provider.initialBalance || 0,
+            startingCapital: provider.startingCapital || 0,
         });
     } else {
         setFormData({
@@ -63,7 +63,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             colorHex: '#2563eb',
             displayOrder: 0,
             accountNumber: null,
-            initialBalance: 0,
+            startingCapital: 0,
         });
     }
   }, [provider, isOpen]);
@@ -95,13 +95,13 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     e.preventDefault();
     if (formData.name.trim() === '') return;
 
-    const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>> & { id?: string } = {
+    const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string } = {
       id: provider?.id,
       ...formData,
-      initialBalance: Number(formData.initialBalance)
+      startingCapital: Number(formData.startingCapital)
     };
     
-    onSave(dataToSave);
+    onSave(dataToSave as any);
     onClose();
   };
 
@@ -140,17 +140,18 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="initialBalance" className="text-right">
-              Initial Balance
+            <Label htmlFor="startingCapital" className="text-right">
+              Initial Capital
             </Label>
             <Input
-              id="initialBalance"
+              id="startingCapital"
               type="number"
-              value={formData.initialBalance}
+              value={formData.startingCapital}
               onChange={handleChange}
               placeholder="e.g., 100000"
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}
+              disabled={!!provider} // Disable editing for existing providers
             />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">

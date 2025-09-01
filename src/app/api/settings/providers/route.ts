@@ -31,11 +31,16 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
+        const { startingCapital, ...restOfBody } = body;
         
         // Use a transaction to create the provider and its ledger accounts
         const newProvider = await prisma.$transaction(async (tx) => {
             const provider = await tx.loanProvider.create({
-                data: body,
+                data: {
+                    ...restOfBody,
+                    startingCapital: startingCapital,
+                    initialBalance: startingCapital, // Both start with the same value
+                },
             });
 
             const accountsToCreate = defaultLedgerAccounts.map(acc => ({
@@ -70,6 +75,12 @@ export async function PUT(req: NextRequest) {
         if (!id) {
             return NextResponse.json({ error: 'Provider ID is required for update.' }, { status: 400 });
         }
+        
+        // Do not allow startingCapital to be changed on update
+        if ('startingCapital' in dataToUpdate) {
+            delete dataToUpdate.startingCapital;
+        }
+
 
         const updatedProvider = await prisma.loanProvider.update({
             where: { id },
