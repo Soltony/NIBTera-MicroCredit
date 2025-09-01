@@ -24,7 +24,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
             by: ['borrowerId'],
             where: { product: { providerId: providerId } },
           }).then(results => results.length)
-        : await prisma.user.count(); 
+        : await prisma.borrower.count();
 
     const providersData = await prisma.loanProvider.findMany({
         where: providerWhereClause,
@@ -137,7 +137,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         totalDisbursed,
         repaymentRate,
         atRiskLoans,
-        totalUsers,
+        totalUsers: usersCount,
         loanDisbursementData,
         loanStatusData,
         recentActivity,
