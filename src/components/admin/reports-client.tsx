@@ -31,6 +31,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateNplStatus } from '@/actions/npl';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 
 const formatCurrency = (amount: number) => {
@@ -140,9 +141,17 @@ function LoansTab({ loans, providers, themeColor }: { loans: ReportLoan[], provi
 
 function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: BorrowerReportInfo[], themeColor: string }) {
     const [borrowers, setBorrowers] = useState(initialBorrowers);
+    const [statusFilter, setStatusFilter] = useState('all');
     const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const { toast } = useToast();
+
+    const filteredBorrowers = useMemo(() => {
+        if (statusFilter === 'all') {
+            return borrowers;
+        }
+        return borrowers.filter(b => b.status === statusFilter);
+    }, [borrowers, statusFilter]);
 
     const handleUpdateStatus = async (borrowerId: string, newStatus: string) => {
         try {
@@ -183,7 +192,7 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
     const handleBorrowerExport = () => {
         setIsExporting(true);
         try {
-            const reportData = borrowers.map(b => ({
+            const reportData = filteredBorrowers.map(b => ({
                 'Borrower ID': b.id,
                 'Borrower Name': b.name,
                 'Status': b.status,
@@ -219,21 +228,29 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <CardTitle>Borrower Accounts</CardTitle>
                     <CardDescription>
                         View and manage borrower accounts and their NPL status.
                     </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-full md:w-[180px]">
+                            <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="Active">Active</SelectItem>
+                            <SelectItem value="NPL">NPL</SelectItem>
+                        </SelectContent>
+                    </Select>
                     <Button onClick={runNplCheck} variant="outline" disabled={isLoading}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        Run NPL Check
+                        <RefreshCw className="mr-2 h-4 w-4" />
                     </Button>
                      <Button onClick={handleBorrowerExport} style={{ backgroundColor: themeColor }} className="text-white" disabled={isExporting}>
-                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Export Borrowers
+                        <Download className="mr-2 h-4 w-4" />
                     </Button>
                 </div>
             </CardHeader>
@@ -250,7 +267,7 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {borrowers.map((borrower) => (
+                        {filteredBorrowers.map((borrower) => (
                             <TableRow key={borrower.id}>
                                 <TableCell className="font-medium">{borrower.name}</TableCell>
                                 <TableCell>{borrower.id}</TableCell>
@@ -281,6 +298,11 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
                                 </TableCell>
                             </TableRow>
                         ))}
+                         {filteredBorrowers.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center h-24">No borrowers found for the selected filter.</TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             </CardContent>
