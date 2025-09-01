@@ -33,6 +33,11 @@ interface DashboardClientProps {
   initialLoanHistory: LoanDetails[];
 }
 
+interface EligibilityState {
+    limits: Record<string, number>;
+    reasons: Record<string, string>;
+}
+
 export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,43 +50,43 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
-  const [eligibility, setEligibility] = useState<{isEligible: boolean, reason: string, limits: Record<string, number>}>({ isEligible: true, reason: '', limits: {} });
+  const [eligibility, setEligibility] = useState<EligibilityState>({ limits: {}, reasons: {} });
+
   
   const recalculateEligibility = useCallback(async (providerId: string) => {
-    if (!borrowerId) {
-      return;
-    }
-    
+    if (!borrowerId) return;
+
     setIsRecalculating(true);
     const provider = providers.find(p => p.id === providerId);
     if (!provider) {
-      setIsRecalculating(false);
-      return;
+        setIsRecalculating(false);
+        return;
     }
 
     try {
-        const productLimits: Record<string, number> = {};
-        let finalEligibility = { isEligible: true, reason: ''};
+        const newLimits: Record<string, number> = {};
+        const newReasons: Record<string, string> = {};
 
         for (const product of provider.products) {
-            const { isEligible, reason, score, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, product.id);
-            if (!isEligible) {
-                finalEligibility = { isEligible: false, reason };
-            }
-            productLimits[product.id] = maxLoanAmount;
+            const { isEligible, reason, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, product.id);
+            newLimits[product.id] = isEligible ? maxLoanAmount : 0;
+            newReasons[product.id] = reason;
         }
-        setEligibility({ isEligible: finalEligibility.isEligible, reason: finalEligibility.reason, limits: productLimits });
+
+        setEligibility({ limits: newLimits, reasons: newReasons });
 
     } catch (error) {
-      console.error("Error recalculating eligibility:", error);
-      setEligibility({ isEligible: false, reason: 'Could not calculate loan limit for this provider.', limits: {} });
-       toast({
-        title: 'Calculation Error',
-        description: "Could not calculate loan limit for this provider.",
-        variant: 'destructive',
-      });
+        console.error("Error recalculating eligibility:", error);
+        const defaultReason = "Could not calculate loan eligibility for this provider.";
+        const newReasons = provider.products.reduce((acc, p) => ({ ...acc, [p.id]: defaultReason }), {});
+        setEligibility({ limits: {}, reasons: newReasons });
+        toast({
+            title: 'Calculation Error',
+            description: defaultReason,
+            variant: 'destructive',
+        });
     } finally {
-      setIsRecalculating(false);
+        setIsRecalculating(false);
     }
   }, [borrowerId, providers, toast]);
 
@@ -95,7 +100,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
       const providerIdToUse = providerIdFromUrl || providers[0]?.id;
       if (providerIdToUse) {
         setSelectedProviderId(providerIdToUse);
-        recalculateEligibility(providerIdToUse);
+        if (Object.keys(eligibility.limits).length === 0) { // Only run on initial load
+          recalculateEligibility(providerIdToUse);
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,21 +292,23 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                         .filter(p => p.status === 'Active')
                                         .map((product) => {
                                             const productLimit = eligibility.limits[product.id] ?? 0;
-                                            const availableForProduct = Math.min(productLimit, availableToBorrow);
+                                            const isEligible = productLimit > 0;
+                                            const reason = eligibility.reasons[product.id] || '';
                                             
                                             return (
                                                 <ProductCard 
                                                     key={product.id}
                                                     product={{
                                                         ...product,
-                                                        availableLimit: availableForProduct,
+                                                        availableLimit: productLimit,
                                                     }}
                                                     providerColor={selectedProvider.colorHex}
                                                     activeLoan={activeLoansByProduct[product.id]}
                                                     onApply={() => handleApply(product.id)}
                                                     onRepay={handleRepay}
                                                     IconDisplayComponent={IconDisplay}
-                                                    eligibilityReason={eligibility.isEligible ? '' : eligibility.reason}
+                                                    isEligible={isEligible}
+                                                    eligibilityReason={reason}
                                                 />
                                             )
                                         })}

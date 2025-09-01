@@ -33,7 +33,8 @@ interface ProductCardProps {
     onApply: () => void;
     onRepay: (loan: LoanDetails, balanceDue: number) => void;
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
-    eligibilityReason?: string;
+    isEligible: boolean;
+    eligibilityReason: string;
 }
 
 export function ProductCard({ 
@@ -43,6 +44,7 @@ export function ProductCard({
     onApply, 
     onRepay, 
     IconDisplayComponent,
+    isEligible,
     eligibilityReason
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -62,26 +64,12 @@ export function ProductCard({
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
 
-    const canApply = useMemo(() => {
-        if (eligibilityReason) {
-            return { eligible: false, reason: eligibilityReason };
-        }
-        if (activeLoan && !product.allowConcurrentLoans) {
-            return { eligible: false, reason: `You must repay your active "${product.name}" loan before applying again.` };
-        }
-        if ((product.availableLimit ?? 0) <= 0) {
-            return { eligible: false, reason: "Your available credit is too low for this product." };
-        }
-        return { eligible: true, reason: "" };
-    }, [activeLoan, product.allowConcurrentLoans, product.availableLimit, product.name, eligibilityReason]);
-
-
     const applyButton = (
         <Button 
             onClick={onApply} 
             style={{ backgroundColor: providerColor }} 
             className="text-white"
-            disabled={!canApply.eligible}
+            disabled={!isEligible}
         >
             Apply
         </Button>
@@ -106,14 +94,14 @@ export function ProductCard({
                     </div>
                      <div className="flex items-center">
                         {!activeLoan && (
-                             !canApply.eligible ? (
+                             !isEligible ? (
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <span tabIndex={0}>{applyButton}</span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>{canApply.reason}</p>
+                                            <p>{eligibilityReason}</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
