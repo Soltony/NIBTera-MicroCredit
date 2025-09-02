@@ -1,7 +1,10 @@
 
+
 import { EligibilityCheckerClient } from '@/components/loan/eligibility-checker-client';
-import prisma from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
 import type { LoanProvider } from '@/lib/types';
+
+const prisma = new PrismaClient();
 
 export const dynamic = 'force-dynamic';
 

@@ -7,7 +7,7 @@ export const productSchema = z.object({
   icon: z.string().min(1, 'Icon is required'),
   minLoan: z.number().positive().nullable(),
   maxLoan: z.number().positive().nullable(),
-  duration: z.number().int().positive().optional(),
+  duration: z.number().int().min(0, 'Duration cannot be negative').optional(),
 });
 
 export const createProductSchema = z.object({
@@ -17,7 +17,7 @@ export const createProductSchema = z.object({
   icon: z.string().min(1, 'Icon is required'),
   minLoan: z.number().min(0, 'Min loan cannot be negative'),
   maxLoan: z.number().min(0, 'Max loan cannot be negative'),
-  duration: z.number().int().positive('Duration must be a positive number of days'),
+  duration: z.number().int().min(0, 'Duration must be a non-negative number of days'),
 }).refine(data => data.maxLoan >= data.minLoan, {
   message: "Max loan must be greater than or equal to min loan",
   path: ["maxLoan"],
@@ -40,6 +40,7 @@ const penaltyRuleSchema = z.object({
     toDay: z.number().or(z.string().regex(/^\d*$/).transform(v => v === '' ? null : Number(v))).nullable(),
     type: z.enum(['fixed', 'percentageOfPrincipal', 'percentageOfCompound']),
     value: z.number().or(z.string().regex(/^\d*\.?\d*$/).transform(v => v === '' ? '' : Number(v))),
+    frequency: z.enum(['daily', 'one-time']),
 });
 
 

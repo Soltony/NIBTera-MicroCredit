@@ -332,19 +332,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
         }));
     };
 
-    const totalWeight = useMemo(() => {
+    const totalMaximumScore = useMemo(() => {
         return currentParameters.reduce((sum, param) => sum + Number(param.weight || 0), 0);
     }, [currentParameters]);
 
     const handleOpenSaveDialog = () => {
-        if (totalWeight !== 100) {
-             toast({
-                title: 'Invalid Configuration',
-                description: 'The sum of all parameter weights must be exactly 100.',
-                variant: 'destructive',
-            });
-            return;
-        }
         setIsApplyDialogOpen(true);
     };
 
@@ -460,7 +452,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Credit Scoring Engine</h2>
                     <p className="text-muted-foreground">
-                        Define the parameters, weights, and rules used to calculate customer credit scores.
+                        Define the parameters, their weights, and the rules used to calculate customer credit scores.
                     </p>
                 </div>
                  <div className="flex items-center space-x-4">
@@ -525,7 +517,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                                         </Select>
                                                     </div>
                                                         <div className="space-y-1">
-                                                        <Label htmlFor={`param-weight-${param.id}`}>Weight</Label>
+                                                        <Label htmlFor={`param-weight-${param.id}`}>Weight (Max Points)</Label>
                                                         <Input
                                                             id={`param-weight-${param.id}`}
                                                             type="number"
@@ -575,12 +567,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                     </Button>
                     <Separator />
                     <div className="flex justify-end items-baseline gap-4">
-                        <span className="text-sm text-muted-foreground">Total Weight</span>
-                        <span className={cn("text-2xl font-bold", totalWeight !== 100 && 'text-destructive')}>
-                            {totalWeight} / 100
+                        <span className="text-sm text-muted-foreground">Total Maximum Score</span>
+                        <span className="text-2xl font-bold">
+                            {totalMaximumScore}
                         </span>
                     </div>
-                    {totalWeight !== 100 && <p className="text-xs text-destructive text-right">The sum of all parameter weights must equal 100.</p>}
                 </CardFooter>
             </Card>
 

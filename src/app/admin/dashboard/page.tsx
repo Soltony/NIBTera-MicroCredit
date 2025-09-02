@@ -3,11 +3,15 @@ import { DashboardClient } from '@/components/admin/dashboard-client';
 import prisma from '@/lib/prisma';
 import type { LoanProvider, LedgerAccount, DashboardData } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
-import { startOfToday, subDays } from 'date-fns';
+import { startOfToday, endOfToday, subDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
 async function getProviderData(providerId?: string): Promise<DashboardData> {
+    const today = new Date();
+    const startOfTodayDate = startOfToday(today);
+    const endOfTodayDate = endOfToday(today);
+
     const providerFilter = providerId ? { product: { providerId: providerId }} : {};
     const providerWhereClause = providerId ? { id: providerId } : {};
     
@@ -70,11 +74,32 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     const repaymentRate = totalLoans > 0 ? (paidLoans / totalLoans) * 100 : 0;
     const atRiskLoans = loans.filter(l => l.repaymentStatus === 'Unpaid' && new Date(l.dueDate) < new Date()).length;
 
-    const today = startOfToday();
+    const dailyDisbursementResult = await prisma.loan.aggregate({
+        _sum: { loanAmount: true },
+        where: {
+            disbursedDate: {
+                gte: startOfTodayDate,
+                lt: endOfTodayDate,
+            },
+            ...(providerFilter && { product: providerFilter.product })
+        },
+    });
+
+    const dailyRepaymentResult = await prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+            date: {
+                gte: startOfTodayDate,
+                lt: endOfTodayDate,
+            },
+             ...(providerFilter && { loan: providerFilter })
+        }
+    });
+
     const loanDisbursementData = await Promise.all(
         Array.from({ length: 7 }).map(async (_, i) => {
-            const date = subDays(today, 6 - i);
-            const nextDate = subDays(today, 5 - i);
+            const date = subDays(startOfTodayDate, 6 - i);
+            const nextDate = subDays(startOfTodayDate, 5 - i);
             const amount = await prisma.loan.aggregate({
                 _sum: { loanAmount: true },
                 where: {
@@ -135,6 +160,8 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     return {
         totalLoans,
         totalDisbursed,
+        dailyDisbursement: dailyDisbursementResult._sum.loanAmount || 0,
+        dailyRepayments: dailyRepaymentResult._sum.amount || 0,
         repaymentRate,
         atRiskLoans,
         totalUsers: usersCount,

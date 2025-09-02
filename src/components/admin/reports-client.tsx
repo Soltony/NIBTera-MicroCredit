@@ -1,344 +1,442 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Download, File as FileIcon, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { useAuth } from '@/hooks/use-auth';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Download, Loader2, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
-import type { ReportLoan, BorrowerReportInfo } from '@/app/admin/reports/page';
-import type { LoanProvider } from '@/lib/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel } from '../ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateNplStatus } from '@/actions/npl';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData, ProviderReportData } from '@/lib/types';
+import { ScrollArea } from '../ui/scroll-area';
+import { Badge } from '../ui/badge';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
+const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00';
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(amount);
 };
 
-interface ReportsClientProps {
-    initialLoans: ReportLoan[];
-    providers: LoanProvider[];
-    initialBorrowers: BorrowerReportInfo[];
-}
 
-function LoansTab({ loans, providers, themeColor }: { loans: ReportLoan[], providers: LoanProvider[], themeColor: string }) {
-    const [isExporting, setIsExporting] = useState(false);
+const TIMEFRAMES = [
+    { value: 'daily', label: 'Daily' },
+    { value: 'weekly', label: 'This Week' },
+    { value: 'monthly', label: 'This Month' },
+    { value: 'yearly', label: 'This Year' },
+    { value: 'overall', label: 'Overall' },
+];
 
-    const handleExport = () => {
-        setIsExporting(true);
-        const reportData = loans.map(loan => ({
-          'Loan ID': loan.id,
-          'Provider': loan.providerName,
-          'Product': loan.productName,
-          'Amount': loan.loanAmount,
-          'Service Fee': loan.serviceFee,
-          'Interest Rate': loan.interestRate,
-          'Penalty Amount': loan.penaltyAmount,
-          'Repaid Amount': loan.repaidAmount || 0,
-          'Status': loan.repaymentStatus,
-          'Due Date': format(new Date(loan.dueDate), 'yyyy-MM-dd'),
-          'Payments Count': loan.paymentsCount,
-        }));
-
-        if(reportData.length === 0) {
-            setIsExporting(false);
-            return;
-        }
-
-        const worksheet = XLSX.utils.json_to_sheet(reportData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Loans Report');
-
-        // Auto-size columns
-        const cols = Object.keys(reportData[0]);
-        const colWidths = cols.map(col => ({
-            wch: Math.max(...reportData.map(row => row[col as keyof typeof row]?.toString().length ?? 0), col.length)
-        }));
-        worksheet['!cols'] = colWidths;
-        
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-        saveAs(data, 'LoanFlow_Loans_Report.xlsx');
-        setIsExporting(false);
-    };
-
-    return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle>All Loans</CardTitle>
-                    <CardDescription>
-                        A comprehensive list of all loans in the system.
-                    </CardDescription>
-                </div>
-                <Button onClick={handleExport} style={{ backgroundColor: themeColor }} className="text-white" disabled={loans.length === 0 || isExporting}>
-                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    Export Loans
-                </Button>
-            </CardHeader>
-            <CardContent>
-                {loans.length === 0 ? (
-                    <div className="flex justify-center items-center h-64">
-                        <p className="text-muted-foreground">No loan data found.</p>
-                    </div>
-                ) : (
-                <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead>Provider</TableHead>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead className="text-right">Repaid</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Due Date</TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {loans.map((loan) => (
-                        <TableRow key={loan.id}>
-                        <TableCell>{loan.providerName}</TableCell>
-                        <TableCell>{loan.productName}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(loan.loanAmount)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(loan.repaidAmount || 0)}</TableCell>
-                        <TableCell>
-                            <Badge variant={loan.repaymentStatus === 'Paid' ? 'secondary' : 'destructive'} style={loan.repaymentStatus === 'Paid' ? { backgroundColor: themeColor, color: 'white' } : {}}>
-                            {loan.repaymentStatus}
-                            </Badge>
-                        </TableCell>
-                        <TableCell>{format(new Date(loan.dueDate), 'yyyy-MM-dd')}</TableCell>
-                        </TableRow>
-                    ))}
-                    </TableBody>
-                </Table>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: BorrowerReportInfo[], themeColor: string }) {
-    const [borrowers, setBorrowers] = useState(initialBorrowers);
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [isLoading, setIsLoading] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
+export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const { toast } = useToast();
+    const [timeframe, setTimeframe] = useState('overall');
+    const [providerId, setProviderId] = useState('all');
+    const [isLoading, setIsLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('providerReport');
+    
+    const [loansData, setLoansData] = useState<LoanReportData[]>([]);
+    const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
+    const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
+    const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
 
-    const filteredBorrowers = useMemo(() => {
-        if (statusFilter === 'all') {
-            return borrowers;
-        }
-        return borrowers.filter(b => b.status === statusFilter);
-    }, [borrowers, statusFilter]);
 
-    const handleUpdateStatus = async (borrowerId: string, newStatus: string) => {
-        try {
-            const response = await fetch('/api/borrowers', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ borrowerId, status: newStatus }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to update status');
-            }
-            const updatedBorrower = await response.json();
-            setBorrowers(prev => prev.map(b => b.id === updatedBorrower.id ? { ...b, status: updatedBorrower.status } : b));
-            toast({ title: 'Status Updated', description: `Borrower status changed to ${newStatus}` });
-        } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        }
-    };
-
-    const runNplCheck = async () => {
+    const fetchReportData = useCallback(async (tab: string, currentProviderId: string, currentTimeframe: string) => {
         setIsLoading(true);
         try {
-            const result = await updateNplStatus();
-            if (result.success) {
-                toast({ title: 'NPL Check Complete', description: result.message });
-                // We might need to refetch the borrowers list here to see the changes immediately
-            } else {
-                throw new Error(result.message);
+            let endpoint = '';
+            
+            const fetchDataForTab = async (url: string) => {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Failed to fetch data for ${tab}.`);
+                return response.json();
             }
+
+            switch (tab) {
+                case 'providerReport':
+                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
+                    setLoansData(await fetchDataForTab(endpoint));
+                    break;
+                case 'collectionsReport':
+                    endpoint = `/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
+                    setCollectionsData(await fetchDataForTab(endpoint));
+                    break;
+                 case 'incomeReport':
+                    endpoint = `/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
+                    setIncomeData(await fetchDataForTab(endpoint));
+                    break;
+                 case 'utilizationReport':
+                 case 'agingReport':
+                    const summaryPromises = (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!])
+                        .filter(Boolean)
+                        .map(p => 
+                            fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
+                                .then(data => ({ [p.id]: data }))
+                        );
+                    const results = await Promise.all(summaryPromises);
+                    const newSummaryData = results.reduce((acc, current) => ({ ...acc, ...current }), {});
+                    setProviderSummaryData(prev => ({...prev, ...newSummaryData}));
+                    break;
+                 case 'borrowerReport':
+                    // This uses the same endpoint as providerReport but is displayed differently
+                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
+                    setLoansData(await fetchDataForTab(endpoint));
+                    break;
+                default:
+                    break;
+            }
+            
         } catch (error: any) {
-            toast({ title: 'Error Running NPL Check', description: error.message, variant: 'destructive' });
+            toast({ title: "Error fetching data", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast, providers]);
     
-    const handleBorrowerExport = () => {
-        setIsExporting(true);
-        try {
-            const reportData = filteredBorrowers.map(b => ({
-                'Borrower ID': b.id,
-                'Borrower Name': b.name,
-                'Status': b.status,
-                'Active Loans': b.activeLoans,
-                'Overdue Loans': b.overdueLoans,
-            }));
+    // Effect to refetch data when filters change
+    useEffect(() => {
+        fetchReportData(activeTab, providerId, timeframe);
+    }, [activeTab, providerId, timeframe, fetchReportData]);
 
-            if (reportData.length === 0) {
-                toast({ title: "No Data", description: "There is nothing to export."});
-                return;
-            }
+    
+    const handleExcelExport = () => {
+        const wb = XLSX.utils.book_new();
 
-            const worksheet = XLSX.utils.json_to_sheet(reportData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Borrowers Report');
-
-            const cols = Object.keys(reportData[0]);
-            const colWidths = cols.map(col => ({
-                wch: Math.max(...reportData.map(row => row[col as keyof typeof row]?.toString().length ?? 0), col.length)
-            }));
-            worksheet['!cols'] = colWidths;
-            
-            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-            const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-            saveAs(data, 'LoanFlow_Borrowers_Report.xlsx');
-        } catch (error) {
-            toast({ title: "Export Failed", description: "An error occurred while exporting the data.", variant: "destructive" });
-        } finally {
-            setIsExporting(false);
+        // Export all tabs into different sheets
+        if (loansData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(loansData);
+            XLSX.utils.book_append_sheet(wb, ws, "Provider Loans");
         }
-    };
+        if (collectionsData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(collectionsData);
+            XLSX.utils.book_append_sheet(wb, ws, "Collections");
+        }
+        if (incomeData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(incomeData);
+            XLSX.utils.book_append_sheet(wb, ws, "Income");
+        }
+        
+        // Add other reports to export here if needed
+        
+        if (wb.SheetNames.length === 0) {
+            toast({ description: "No data available to export.", variant: "destructive" });
+            return;
+        }
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+    
+    const renderProviderList = () => (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
 
 
     return (
-        <Card>
-            <CardHeader className="flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div>
-                    <CardTitle>Borrower Accounts</CardTitle>
-                    <CardDescription>
-                        View and manage borrower accounts and their NPL status.
-                    </CardDescription>
-                </div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full md:w-[180px]">
-                            <SelectValue placeholder="Filter by status" />
+        <div className="flex-1 space-y-4 p-8 pt-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
+                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <div className="flex items-center space-x-2">
+                    <Select onValueChange={setTimeframe} value={timeframe}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Select Timeframe" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Statuses</SelectItem>
-                            <SelectItem value="Active">Active</SelectItem>
-                            <SelectItem value="NPL">NPL</SelectItem>
+                            {TIMEFRAMES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                    <Button onClick={runNplCheck} variant="outline" disabled={isLoading}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                    </Button>
-                     <Button onClick={handleBorrowerExport} style={{ backgroundColor: themeColor }} className="text-white" disabled={isExporting}>
-                        <Download className="mr-2 h-4 w-4" />
-                    </Button>
+                     <Select onValueChange={setProviderId} value={providerId}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Select Provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Providers</SelectItem>
+                            {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <Button variant="outline" onClick={handleExcelExport}><Download className="mr-2 h-4 w-4"/>Excel</Button>
                 </div>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Borrower Name</TableHead>
-                            <TableHead>Borrower ID</TableHead>
-                            <TableHead>Active Loans</TableHead>
-                            <TableHead>Overdue Loans</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredBorrowers.map((borrower) => (
-                            <TableRow key={borrower.id}>
-                                <TableCell className="font-medium">{borrower.name}</TableCell>
-                                <TableCell>{borrower.id}</TableCell>
-                                <TableCell>{borrower.activeLoans}</TableCell>
-                                <TableCell>{borrower.overdueLoans}</TableCell>
-                                <TableCell>
-                                    <Badge variant={borrower.status !== 'NPL' ? 'secondary' : 'destructive'} style={borrower.status === 'NPL' ? {} : {backgroundColor: themeColor, color: 'white'}}>
-                                        {borrower.status}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                                            <DropdownMenuItem onClick={() => handleUpdateStatus(borrower.id, 'Active')} disabled={borrower.status === 'Active'}>
-                                                Mark as Active
-                                            </DropdownMenuItem>
-                                             <DropdownMenuItem className="text-red-600" onClick={() => handleUpdateStatus(borrower.id, 'NPL')} disabled={borrower.status === 'NPL'}>
-                                                Mark as NPL
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                         {filteredBorrowers.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24">No borrowers found for the selected filter.</TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="providerReport">Provider Loans</TabsTrigger>
+                    <TabsTrigger value="collectionsReport">Collections</TabsTrigger>
+                    <TabsTrigger value="incomeReport">Income</TabsTrigger>
+                    <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
+                    <TabsTrigger value="agingReport">Aging</TabsTrigger>
+                    <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
+                </TabsList>
+                <TabsContent value="providerReport" className="space-y-4">
+                    <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead>Loan ID</TableHead>
+                                    <TableHead>Borrower</TableHead>
+                                    <TableHead className="text-right">Principal Disbursed</TableHead>
+                                    <TableHead className="text-right">Principal Outstanding</TableHead>
+                                    <TableHead className="text-right">Interest Outstanding</TableHead>
+                                    <TableHead className="text-right">Service Fee Outstanding</TableHead>
+                                    <TableHead className="text-right">Penalty Outstanding</TableHead>
+                                    <TableHead className="text-right">Total Outstanding</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    Array.from({ length: 10 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell colSpan={10} className="text-center p-4">
+                                                 <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : loansData.length > 0 ? (
+                                    loansData.map((row) => (
+                                        <TableRow key={row.loanId}>
+                                            <TableCell>{row.provider}</TableCell>
+                                            <TableCell>{row.loanId.slice(-8)}</TableCell>
+                                            <TableCell>{row.borrowerName}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principalDisbursed)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principalOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.interestOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.serviceFeeOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.penaltyOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(row.totalOutstanding)}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={
+                                                    row.status === 'Overdue' || row.status === 'Defaulted' ? 'destructive' :
+                                                    row.status === 'Paid' ? 'default' : 'secondary'
+                                                }
+                                                className={cn(row.status === 'Paid' && 'bg-green-600 text-white')}
+                                                >
+                                                    {row.status}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={10} className="h-24 text-center">
+                                            No results found for the selected filters.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </TabsContent>
+                <TabsContent value="collectionsReport">
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Principal Received</TableHead>
+                                    <TableHead className="text-right">Interest Received</TableHead>
+                                    <TableHead className="text-right">Service Fee Received</TableHead>
+                                    <TableHead className="text-right">Penalty Received</TableHead>
+                                    <TableHead className="text-right font-bold">Total Collected</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : collectionsData.length > 0 ? (
+                                    collectionsData.map((row) => (
+                                        <TableRow key={`${row.provider}-${row.date}`}>
+                                            <TableCell>{row.provider}</TableCell>
+                                            <TableCell>{format(new Date(row.date), 'yyyy-MM-dd')}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principal)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.interest)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.serviceFee)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.penalty)}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(row.total)}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </TabsContent>
+                 <TabsContent value="incomeReport">
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead className="text-right">Accrued Interest</TableHead>
+                                    <TableHead className="text-right">Collected Interest</TableHead>
+                                    <TableHead className="text-right">Accrued Service Fee</TableHead>
+                                    <TableHead className="text-right">Collected Service Fee</TableHead>
+                                    <TableHead className="text-right">Accrued Penalty</TableHead>
+                                    <TableHead className="text-right">Collected Penalty</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : incomeData.length > 0 ? (
+                                    incomeData.map((row) => (
+                                        <TableRow key={row.provider}>
+                                            <TableCell>{row.provider}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.accruedInterest)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.collectedInterest)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.accruedServiceFee)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.collectedServiceFee)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.accruedPenalty)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.collectedPenalty)}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </TabsContent>
+                 <TabsContent value="utilizationReport">
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead className="text-right">Provider Fund</TableHead>
+                                    <TableHead className="text-right">Loans Disbursed</TableHead>
+                                    <TableHead className="text-right">Available Fund</TableHead>
+                                    <TableHead className="text-right">Utilization %</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                 {isLoading ? (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : renderProviderList().length > 0 ? (
+                                    renderProviderList().map(provider => {
+                                        const data = providerSummaryData[provider.id];
+                                        return (
+                                        <TableRow key={provider.id}>
+                                            <TableCell>{provider.name}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(provider.initialBalance)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(data?.portfolioSummary.disbursed || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(provider.initialBalance - (data?.portfolioSummary.disbursed || 0))}</TableCell>
+                                            <TableCell className="text-right font-mono">{data?.fundUtilization.toFixed(2) || '0.00'}%</TableCell>
+                                        </TableRow>
+                                    )})
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                     </ScrollArea>
+                </TabsContent>
+                 <TabsContent value="agingReport">
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead className="text-right">0-30 Days</TableHead>
+                                    <TableHead className="text-right">31-60 Days</TableHead>
+                                    <TableHead className="text-right">61-90 Days</TableHead>
+                                    <TableHead className="text-right">90+ Days</TableHead>
+                                    <TableHead className="text-right">Total Overdue</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : renderProviderList().length > 0 ? (
+                                    renderProviderList().map(provider => {
+                                        const data = providerSummaryData[provider.id];
+                                        const aging = data?.agingReport;
+                                        return (
+                                        <TableRow key={provider.id}>
+                                            <TableCell>{provider.name}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['1-30'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['31-60'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['61-90'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['91+'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(aging?.totalOverdue || 0)}</TableCell>
+                                        </TableRow>
+                                    )})
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                     </ScrollArea>
+                </TabsContent>
+                <TabsContent value="borrowerReport">
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Borrower ID</TableHead>
+                                    <TableHead>Borrower Name</TableHead>
+                                    <TableHead>Loan ID</TableHead>
+                                    <TableHead className="text-right">Principal Disbursed</TableHead>
+                                    <TableHead className="text-right">Principal Outstanding</TableHead>
+                                    <TableHead className="text-right">Interest Outstanding</TableHead>
+                                    <TableHead className="text-right">Service Fee Outstanding</TableHead>
+                                    <TableHead className="text-right">Penalty Outstanding</TableHead>
+                                    <TableHead className="text-right">Days in Arrears</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                             <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={10} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : loansData.length > 0 ? (
+                                    loansData.map((row) => (
+                                        <TableRow key={row.loanId}>
+                                            <TableCell>{row.borrowerId.slice(-8)}</TableCell>
+                                            <TableCell>{row.borrowerName}</TableCell>
+                                            <TableCell>{row.loanId.slice(-8)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principalDisbursed)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principalOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.interestOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.serviceFeeOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.penaltyOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.daysInArrears}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={
+                                                    row.status === 'Overdue' || row.status === 'Defaulted' ? 'destructive' :
+                                                    row.status === 'Paid' ? 'default' : 'secondary'
+                                                }
+                                                className={cn(row.status === 'Paid' && 'bg-green-600 text-white')}
+                                                >
+                                                    {row.status}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={10} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                             </TableBody>
+                        </Table>
+                     </ScrollArea>
+                </TabsContent>
+            </Tabs>
+        </div>
     );
-}
-
-
-export function ReportsClient({ initialLoans, providers, initialBorrowers }: ReportsClientProps) {
-  const { currentUser } = useAuth();
-
-  const themeColor = useMemo(() => {
-    if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
-        return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
-    }
-    return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
-  }, [currentUser, providers]);
-
-
-  return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
-      </div>
-      <Tabs defaultValue="loans">
-        <TabsList>
-            <TabsTrigger value="loans">Loans</TabsTrigger>
-            <TabsTrigger value="borrowers">Borrowers</TabsTrigger>
-        </TabsList>
-        <TabsContent value="loans" className="mt-4">
-             <LoansTab loans={initialLoans} providers={providers} themeColor={themeColor} />
-        </TabsContent>
-        <TabsContent value="borrowers" className="mt-4">
-            <BorrowersTab initialBorrowers={initialBorrowers} themeColor={themeColor} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
 }

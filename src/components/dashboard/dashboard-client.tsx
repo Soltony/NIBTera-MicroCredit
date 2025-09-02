@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React from 'react';
@@ -8,7 +9,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
@@ -23,6 +24,9 @@ import { checkLoanEligibility } from '@/actions/eligibility';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
+import { ScrollArea } from '../ui/scroll-area';
+import { Checkbox } from '../ui/checkbox';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
@@ -38,6 +42,11 @@ interface EligibilityState {
     reasons: Record<string, string>;
 }
 
+interface AgreementState {
+    terms?: TermsAndConditions;
+    hasAgreed?: boolean;
+}
+
 export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,8 +60,51 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [eligibility, setEligibility] = useState<EligibilityState>({ limits: {}, reasons: {} });
+  
+  const [agreementState, setAgreementState] = useState<AgreementState>({});
+  const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
+  const [productToApply, setProductToApply] = useState<string | null>(null);
+  const [agreementChecked, setAgreementChecked] = useState(false);
 
   
+  const checkAgreement = useCallback(async (providerId: string) => {
+        if (!borrowerId) return;
+
+        try {
+            const response = await fetch(`/api/borrowers/agreements?providerId=${providerId}&borrowerId=${borrowerId}`);
+            if (!response.ok) throw new Error('Failed to check agreement status');
+            const data = await response.json();
+            setAgreementState(data);
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Could not verify agreement status.', variant: 'destructive'});
+        }
+    }, [borrowerId, toast]);
+    
+    const handleAcceptAgreement = async () => {
+        if (!borrowerId || !agreementState.terms) return;
+        try {
+            const response = await fetch('/api/borrowers/agreements', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ borrowerId, termsId: agreementState.terms.id }),
+            });
+            if (!response.ok) throw new Error('Failed to accept agreement.');
+            
+            setAgreementState(prev => ({ ...prev, hasAgreed: true }));
+            setIsAgreementDialogOpen(false);
+            
+            // Now proceed with the original action
+            if (productToApply) {
+                handleApply(productToApply);
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Could not save agreement.', variant: 'destructive'});
+        }
+    };
+
+
   const recalculateEligibility = useCallback(async (providerId: string) => {
     if (!borrowerId) return;
 
@@ -103,6 +155,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         if (Object.keys(eligibility.limits).length === 0) { // Only run on initial load
           recalculateEligibility(providerIdToUse);
         }
+         checkAgreement(providerIdToUse);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,6 +190,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
         return;
     }
+
+    if (agreementState.terms && !agreementState.hasAgreed) {
+        setProductToApply(productId);
+        setIsAgreementDialogOpen(true);
+        return;
+    }
+    
     const productLimit = eligibility.limits[productId] ?? 0;
     
     // The true max loan is the lesser of the product's individual limit and the overall available limit.
@@ -156,6 +216,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     params.set('providerId', providerId);
     router.push(`/loan?${params.toString()}`, { scroll: false });
     recalculateEligibility(providerId);
+    checkAgreement(providerId);
   }
   
   const handleRepay = (loan: LoanDetails, balanceDue: number) => {
@@ -230,7 +291,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     <ArrowLeft className="h-6 w-6" />
                 </Button>
                <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
-                  {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
+                  NIBTera Loan
               </h1>
             </div>
              <div className="ml-auto">
@@ -238,10 +299,10 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
           </div>
         </header>
         <main className="flex-1">
-          <div className="container py-8 md:py-12">
-              <div className="flex flex-col space-y-8">
-                  <div>
-                      <div className="flex justify-center space-x-4 overflow-x-auto pb-4">
+          <div className="container py-2 md:py-4">
+              <div className="flex flex-col">
+                  <div className="py-2">
+                      <div className="flex justify-center space-x-4 overflow-x-auto">
                           {providers.map((provider) => (
                               <div key={provider.id} onClick={() => handleProviderSelect(provider.id)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
                                   <div 
@@ -264,14 +325,16 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                       </div>
                   </div>
 
-                  <LoanSummaryCard
-                      maxLoanLimit={overallMaxLimit}
-                      availableToBorrow={availableToBorrow}
-                      color={selectedProvider?.colorHex}
-                      isLoading={isRecalculating}
-                  />
+                  <div className="mt-2">
+                    <LoanSummaryCard
+                        maxLoanLimit={overallMaxLimit}
+                        availableToBorrow={availableToBorrow}
+                        color={selectedProvider?.colorHex}
+                        isLoading={isRecalculating}
+                    />
+                  </div>
               
-                  <div className="flex justify-end">
+                  <div className="flex justify-end mt-4">
                     <Link
                         href={`/history?${searchParams.toString()}`}
                         className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors"
@@ -282,7 +345,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     </Link>
                   </div>
                   
-                  <div className="grid gap-8 grid-cols-1">
+                  <div className="grid gap-8 grid-cols-1 mt-4">
                       <div className="md:col-span-2">
                         {selectedProvider && (
                             <Card>
@@ -337,6 +400,39 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
             providerColor={selectedProvider?.colorHex}
         />
       )}
+       <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Terms & Conditions</DialogTitle>
+                    <DialogDescription>
+                        Please read and accept the terms and conditions of {selectedProvider?.name} to proceed.
+                    </DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="h-96 border rounded-md p-4 whitespace-pre-wrap">
+                    {agreementState.terms?.content}
+                </ScrollArea>
+                 <div className="flex items-center space-x-2 mt-4">
+                    <Checkbox id="terms" checked={agreementChecked} onCheckedChange={(checked) => setAgreementChecked(!!checked)} />
+                    <label
+                        htmlFor="terms"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                        I have read and agree to the terms and conditions.
+                    </label>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button 
+                        onClick={handleAcceptAgreement} 
+                        style={{backgroundColor: selectedProvider?.colorHex}} 
+                        className="text-white"
+                        disabled={!agreementChecked}
+                    >
+                        I Agree
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </>
   );
 }

@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { startingCapital, ...restOfBody } = body;
         
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_CREATE_INITIATED',
+            actorId: session.userId,
+            details: { providerName: restOfBody.name }
+        }));
+
         // Use a transaction to create the provider and its ledger accounts
         const newProvider = await prisma.$transaction(async (tx) => {
             const provider = await tx.loanProvider.create({
@@ -67,7 +74,13 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(newProvider, { status: 201 });
     } catch (error) {
-        console.error('Error creating provider:', error);
+        const errorMessage = (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_CREATE_FAILED',
+            actorId: session.userId,
+            details: { error: errorMessage }
+        }));
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -86,6 +99,13 @@ export async function PUT(req: NextRequest) {
             return NextResponse.json({ error: 'Provider ID is required for update.' }, { status: 400 });
         }
         
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_UPDATE_INITIATED',
+            actorId: session.userId,
+            details: { providerId: id, updatedFields: Object.keys(dataToUpdate) }
+        }));
+
         // Do not allow startingCapital to be changed on update
         if ('startingCapital' in dataToUpdate) {
             delete dataToUpdate.startingCapital;
@@ -109,7 +129,13 @@ export async function PUT(req: NextRequest) {
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
-        console.error('Error updating provider:', error);
+        const errorMessage = (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_UPDATE_FAILED',
+            actorId: session.userId,
+            details: { error: errorMessage }
+        }));
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -122,15 +148,22 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-
-    if (!id) {
-        return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
-    }
     
     try {
+        if (!id) {
+            throw new Error('Provider ID is required');
+        }
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_DELETE_INITIATED',
+            actorId: session.userId,
+            details: { providerId: id }
+        }));
+        
         const productCount = await prisma.loanProduct.count({ where: { providerId: id } });
         if (productCount > 0) {
-            return NextResponse.json({ error: 'Cannot delete provider with associated products.' }, { status: 400 });
+            throw new Error('Cannot delete provider with associated products.');
         }
 
         const providerToDelete = await prisma.loanProvider.findUnique({ where: { id }});
@@ -151,7 +184,13 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ message: 'Provider deleted successfully' });
     } catch (error) {
-        console.error('Error deleting provider:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        const errorMessage = (error as Error).message;
+         console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PROVIDER_DELETE_FAILED',
+            actorId: session.userId,
+            details: { providerId: id, error: errorMessage }
+        }));
+        return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }

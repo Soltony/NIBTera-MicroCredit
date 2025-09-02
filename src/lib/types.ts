@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -70,6 +71,7 @@ export interface LoanProvider {
   initialBalance: number;
   allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];
+  termsAndConditions?: TermsAndConditions[];
 }
 
 export interface LoanProduct {
@@ -247,6 +249,8 @@ interface IncomeData {
 export interface DashboardData {
     totalLoans: number;
     totalDisbursed: number;
+    dailyDisbursement: number;
+    dailyRepayments: number;
     repaymentRate: number;
     atRiskLoans: number;
     totalUsers: number;
@@ -260,3 +264,89 @@ export interface DashboardData {
     collections: LedgerData;
     income: IncomeData;
 }
+
+
+export interface TermsAndConditions {
+    id: string;
+    providerId: string;
+    content: string;
+    version: number;
+    isActive: boolean;
+    publishedAt: Date;
+}
+
+export interface BorrowerAgreement {
+    id: string;
+    borrowerId: string;
+    termsId: string;
+    acceptedAt: Date;
+}
+
+export interface ProviderReportData {
+    portfolioSummary: {
+        disbursed: number;
+        repaid: number;
+        outstanding: number;
+    };
+    collectionsReport: {
+        principal: number;
+        interest: number;
+        servicefee: number;
+        penalty: number;
+        total: number;
+    };
+    incomeStatement: {
+        accrued: {
+            interest: number;
+            servicefee: number;
+            penalty: number;
+        };
+        collected: {
+            interest: number;
+            servicefee: number;
+            penalty: number;
+        };
+        net: number;
+    };
+    fundUtilization: number;
+    agingReport: {
+        buckets: Record<'1-30' | '31-60' | '61-90' | '91+', number>;
+        totalOverdue: number;
+    };
+}
+
+
+export type LoanReportData = {
+    provider: string;
+    loanId: string;
+    borrowerId: string;
+    borrowerName: string;
+    principalDisbursed: number;
+    principalOutstanding: number;
+    interestOutstanding: number;
+    serviceFeeOutstanding: number;
+    penaltyOutstanding: number;
+    totalOutstanding: number;
+    status: string;
+    daysInArrears: number;
+};
+
+export type CollectionsReportData = {
+    provider: string;
+    date: string;
+    principal: number;
+    interest: number;
+    serviceFee: number;
+    penalty: number;
+    total: number;
+};
+
+export type IncomeReportData = {
+    provider: string;
+    accruedInterest: number;
+    collectedInterest: number;
+    accruedServiceFee: number;
+    collectedServiceFee: number;
+    accruedPenalty: number;
+    collectedPenalty: number;
+};

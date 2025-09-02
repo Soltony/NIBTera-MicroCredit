@@ -73,16 +73,16 @@ const allMenuItems = [
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
   },
   {
-    path: '/admin/access-control',
-    label: 'Access Control',
-    icon: ShieldCheck,
-    roles: ['Super Admin'],
-  },
-  {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
+  },
+   {
+    path: '/admin/access-control',
+    label: 'Access Control',
+    icon: ShieldCheck,
+    roles: ['Super Admin'],
   },
   {
     path: '/admin/credit-score-engine',
@@ -226,7 +226,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
             </DropdownMenu>
           </header>
           <main
-            className="flex-1"
+            className="flex-1 overflow-x-auto"
           >
             {children}
           </main>

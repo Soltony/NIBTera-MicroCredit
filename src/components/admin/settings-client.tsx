@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -22,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule, TermsAndConditions } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -42,6 +41,8 @@ import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '../ui/textarea';
+import { Skeleton } from '../ui/skeleton';
 
 // Helper to safely parse JSON fields that might be strings
 const safeParseJson = (data: any, field: string, defaultValue: any) => {
@@ -93,11 +94,12 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         e.preventDefault();
         setIsSaving(true);
         try {
+            const parsedDuration = parseInt(String(formData.duration));
             const payload = {
                 ...formData,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                duration: parseInt(String(formData.duration)) || 30,
+                duration: isNaN(parsedDuration) ? 30 : parsedDuration,
             };
 
             const response = await fetch('/api/settings/products', {
@@ -900,6 +902,95 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     );
 }
 
+function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const [content, setContent] = useState('');
+    const [activeVersion, setActiveVersion] = useState<TermsAndConditions | null>(null);
+
+    useEffect(() => {
+        setIsLoading(true);
+        fetch(`/api/settings/terms?providerId=${provider.id}`)
+            .then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to fetch terms')))
+            .then(data => {
+                if (data) {
+                    setContent(data.content);
+                    setActiveVersion(data);
+                } else {
+                    setContent('');
+                    setActiveVersion(null);
+                }
+            })
+            .catch(() => toast({ title: "Error", description: "Could not load agreement.", variant: "destructive" }))
+            .finally(() => setIsLoading(false));
+    }, [provider.id, toast]);
+
+    const handleSave = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/settings/terms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ providerId: provider.id, content })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save agreement.');
+            }
+            
+            const newVersion = await response.json();
+            setActiveVersion(newVersion);
+            
+            toast({ title: 'Success', description: `New agreement (Version ${newVersion.version}) has been published.` });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+         <Card>
+            <CardHeader>
+                <CardTitle>Borrower Agreement</CardTitle>
+                <CardDescription>
+                    Manage the Terms & Conditions for {provider.name}. Saving will publish a new version.
+                </CardDescription>
+                {activeVersion && (
+                     <p className="text-xs text-muted-foreground pt-2">
+                        Current active version: <span className="font-semibold">{activeVersion.version}</span> (Published on {new Date(activeVersion.publishedAt).toLocaleDateString()})
+                    </p>
+                )}
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                     <div className="space-y-2">
+                        <Skeleton className="h-6 w-1/4" />
+                        <Skeleton className="h-40 w-full" />
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <Label htmlFor="agreement-content">Agreement Content</Label>
+                        <Textarea 
+                            id="agreement-content"
+                            value={content}
+                            onChange={(e) => setContent(e.target.value)}
+                            rows={15}
+                            placeholder="Enter your terms and conditions here..."
+                        />
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter>
+                 <Button onClick={handleSave} style={{ backgroundColor: provider.colorHex }} className="text-white ml-auto" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save & Publish New Version
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
 
 function ConfigurationTab({ providers, onProductUpdate }: { 
     providers: LoanProvider[],
@@ -980,6 +1071,15 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
     const handleProvidersChange = useCallback((updater: React.SetStateAction<LoanProvider[]>) => {
         setProviders(updater);
     }, []);
+    
+    const handleProviderUpdate = useCallback((update: Partial<LoanProvider>) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === update.id);
+            if (provider) {
+                Object.assign(provider, update);
+            }
+        }));
+    }, []);
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -988,6 +1088,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
                     <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
+                    <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">
                     <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
@@ -995,7 +1096,26 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                 <TabsContent value="configuration">
                      <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} />
                 </TabsContent>
+                 <TabsContent value="agreement">
+                    <Accordion type="multiple" className="w-full space-y-4">
+                        {providers.map((provider) => (
+                             <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                                 <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                                    <div className="flex items-center gap-4">
+                                        <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                                        <div className="text-lg font-semibold">{provider.name}</div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-4 border-t">
+                                    <AgreementTab provider={provider} onProviderUpdate={handleProviderUpdate} />
+                                </AccordionContent>
+                             </AccordionItem>
+                        ))}
+                    </Accordion>
+                </TabsContent>
             </Tabs>
         </div>
     );
 }
+
+    

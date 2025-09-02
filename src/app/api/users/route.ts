@@ -55,13 +55,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
 
+    console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'USER_CREATE_INITIATED',
+        actorId: session.userId,
+        details: { userEmail: userData.email, assignedRole: roleName }
+    }));
+
     if (!password) {
-      return NextResponse.json({ error: 'Password is required for new users.' }, { status: 400 });
+      throw new Error('Password is required for new users.');
     }
 
     const role = await prisma.role.findUnique({ where: { name: roleName }});
     if (!role) {
-      return NextResponse.json({ error: 'Invalid role selected.' }, { status: 400 });
+      throw new Error('Invalid role selected.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -94,11 +101,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
-    console.error('Error creating user:', error);
+     const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+     console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'USER_CREATE_FAILED',
+        actorId: session.userId,
+        details: { error: errorMessage }
+    }));
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
 
@@ -113,15 +126,22 @@ export async function PUT(req: NextRequest) {
     const { id, role: roleName, providerId, ...userData } = body;
 
     if (!id) {
-        return NextResponse.json({ error: 'User ID is required for an update.' }, { status: 400 });
+        throw new Error('User ID is required for an update.');
     }
+
+    console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'USER_UPDATE_INITIATED',
+        actorId: session.userId,
+        details: { updatedUserId: id, updatedFields: Object.keys(userData) }
+    }));
 
     let dataToUpdate: any = { ...userData };
 
     if (roleName) {
         const role = await prisma.role.findUnique({ where: { name: roleName }});
         if (!role) {
-            return NextResponse.json({ error: 'Invalid role selected.' }, { status: 400 });
+            throw new Error('Invalid role selected.');
         }
         dataToUpdate.roleId = role.id;
     }
@@ -151,7 +171,13 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(updatedUser);
   } catch (error) {
-    console.error('Error updating user:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    const errorMessage = (error as Error).message;
+    console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: 'USER_UPDATE_FAILED',
+        actorId: session.userId,
+        details: { error: errorMessage }
+    }));
+    return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }

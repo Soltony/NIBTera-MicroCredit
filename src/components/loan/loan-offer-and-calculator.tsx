@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput, FeeRule, PenaltyRule } from '@/lib/types';
-import { addDays, format } from 'date-fns';
+import { addDays, format, endOfDay } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -87,7 +88,8 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
     
     const disbursedDate = new Date();
-    const dueDate = addDays(disbursedDate, product.duration || 30);
+    const duration = product.duration ?? 30;
+    const dueDate = duration === 0 ? endOfDay(disbursedDate) : addDays(disbursedDate, duration);
     
     let serviceFee = 0;
     if (product.serviceFeeEnabled && product.serviceFee && product.serviceFee.value) {

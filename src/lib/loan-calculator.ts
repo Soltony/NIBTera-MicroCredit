@@ -1,4 +1,5 @@
 
+
 import { differenceInDays, startOfDay } from 'date-fns';
 import type { LoanDetails, LoanProduct } from './types';
 
@@ -54,7 +55,9 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     // 3. Penalty - Calculated only if overdue.
     const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
     if (penaltyRules.length > 0 && finalDate > dueDate) {
-        const daysOverdueTotal = differenceInDays(finalDate, dueDate);
+        // For same-day loans (duration=0), penalties start the day after.
+        const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
+        const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
         
         penaltyRules.forEach(rule => {
              const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
