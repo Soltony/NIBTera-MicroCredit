@@ -4,6 +4,7 @@ import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
 import { toCamelCase } from '@/lib/utils';
+import { startOfDay, endOfToday } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,12 @@ export interface BorrowerReportInfo {
     overdueLoans: number;
 }
 
-async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[], providers: LoanProviderType[] }> {
+export interface ReportSummary {
+    dailyDisbursement: number;
+    dailyRepayments: number;
+}
+
+async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[], providers: LoanProviderType[], summary: ReportSummary }> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: { loanProvider: true }
@@ -61,6 +67,41 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
 
     const allProviders = await prisma.loanProvider.findMany();
 
+    // Calculate summary data
+    const today = new Date();
+    const startOfTodayDate = startOfToday(today);
+    const endOfTodayDate = endOfToday(today);
+
+    const dailyDisbursementResult = await prisma.loan.aggregate({
+        _sum: { loanAmount: true },
+        where: {
+            ...whereClause,
+            disbursedDate: {
+                gte: startOfTodayDate,
+                lt: endOfTodayDate,
+            },
+        },
+    });
+
+    const paymentWhereClause = isSuperAdminOrAdmin ? {} : { loan: { product: { providerId: user?.loanProvider?.id }}};
+    
+    const dailyRepaymentResult = await prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+             ...paymentWhereClause,
+            date: {
+                gte: startOfTodayDate,
+                lt: endOfTodayDate,
+            },
+        }
+    });
+    
+    const summary = {
+        dailyDisbursement: dailyDisbursementResult._sum.loanAmount || 0,
+        dailyRepayments: dailyRepaymentResult._sum.amount || 0,
+    };
+
+
     return {
         loans: loans.map(l => ({
             id: l.id,
@@ -76,7 +117,8 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
             productName: l.product.name,
             paymentsCount: l._count.payments,
         })),
-        providers: allProviders as LoanProviderType[]
+        providers: allProviders as LoanProviderType[],
+        summary: summary,
     };
 }
 
@@ -127,7 +169,7 @@ export default async function AdminReportsPage() {
         return <div>Not authenticated</div>;
     }
 
-    const { loans, providers } = await getLoanReportData(user.id);
+    const { loans, providers, summary } = await getLoanReportData(user.id);
     const borrowers = await getBorrowerReportData(user.id);
-    return <ReportsClient initialLoans={loans} providers={providers} initialBorrowers={borrowers}/>;
+    return <ReportsClient initialLoans={loans} providers={providers} initialBorrowers={borrowers} summary={summary}/>;
 }
