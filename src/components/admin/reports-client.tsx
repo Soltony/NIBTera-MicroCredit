@@ -22,9 +22,9 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, Loader2, RefreshCw, ArrowUpNarrowWide, ArrowDownWideNarrow } from 'lucide-react';
+import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
-import type { ReportLoan, BorrowerReportInfo, ReportSummary } from '@/app/admin/reports/page';
+import type { ReportLoan, BorrowerReportInfo } from '@/app/admin/reports/page';
 import type { LoanProvider } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel } from '../ui/dropdown-menu';
@@ -43,7 +43,6 @@ interface ReportsClientProps {
     initialLoans: ReportLoan[];
     providers: LoanProvider[];
     initialBorrowers: BorrowerReportInfo[];
-    summary: ReportSummary;
 }
 
 function LoansTab({ loans, providers, themeColor }: { loans: ReportLoan[], providers: LoanProvider[], themeColor: string }) {
@@ -313,7 +312,7 @@ function BorrowersTab({ initialBorrowers, themeColor }: { initialBorrowers: Borr
 }
 
 
-export function ReportsClient({ initialLoans, providers, initialBorrowers, summary }: ReportsClientProps) {
+export function ReportsClient({ initialLoans, providers, initialBorrowers }: ReportsClientProps) {
   const { currentUser } = useAuth();
 
   const themeColor = useMemo(() => {
@@ -329,28 +328,6 @@ export function ReportsClient({ initialLoans, providers, initialBorrowers, summa
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
       </div>
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Daily Disbursement</CardTitle>
-                    <ArrowUpNarrowWide className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.dailyDisbursement)}</div>
-                    <p className="text-xs text-muted-foreground">Total disbursed today</p>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Daily Repayments</CardTitle>
-                    <ArrowDownWideNarrow className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.dailyRepayments)}</div>
-                    <p className="text-xs text-muted-foreground">Total repaid today</p>
-                </CardContent>
-            </Card>
-        </div>
       <Tabs defaultValue="loans" className="mt-6">
         <TabsList>
             <TabsTrigger value="loans">Loans</TabsTrigger>
