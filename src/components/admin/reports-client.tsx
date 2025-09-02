@@ -5,12 +5,14 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import type { LoanProvider, ProviderReportData } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '../ui/skeleton';
 import { Separator } from '../ui/separator';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined) return '0.00 ETB';
@@ -87,6 +89,70 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         setSelectedProviderId(providerId);
     };
 
+    const handleExcelExport = () => {
+        if (!reportData || !selectedProviderId) {
+            toast({ title: "Cannot Export", description: "No data available to export.", variant: "destructive" });
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        const providerName = providers.find(p => p.id === selectedProviderId)?.name || 'Provider';
+        const fileName = `${providerName}_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+        // Sheet 1: Portfolio Summary
+        const portfolioData = [
+            { Metric: "Total Disbursed", Value: reportData.portfolioSummary.disbursed },
+            { Metric: "Total Repaid", Value: reportData.portfolioSummary.repaid },
+            { Metric: "Outstanding Loans (as of today)", Value: reportData.portfolioSummary.outstanding },
+        ];
+        const portfolioWs = XLSX.utils.json_to_sheet(portfolioData);
+        XLSX.utils.book_append_sheet(wb, portfolioWs, "Portfolio Summary");
+
+        // Sheet 2: Collections Report
+        const collectionsData = [
+            { Metric: "Principal Received", Value: reportData.collectionsReport.principal },
+            { Metric: "Interest Received", Value: reportData.collectionsReport.interest },
+            { Metric: "Service Fee Received", Value: reportData.collectionsReport.servicefee },
+            { Metric: "Penalty Received", Value: reportData.collectionsReport.penalty },
+            { Metric: "Total Collected", Value: reportData.collectionsReport.total },
+        ];
+        const collectionsWs = XLSX.utils.json_to_sheet(collectionsData);
+        XLSX.utils.book_append_sheet(wb, collectionsWs, "Collections Report");
+
+        // Sheet 3: Income Statement
+        const incomeData = [
+            { Type: "Accrued", "Service Fees": reportData.incomeStatement.accrued.servicefee, "Interest": reportData.incomeStatement.accrued.interest, "Penalties": reportData.incomeStatement.accrued.penalty },
+            { Type: "Collected", "Service Fees": reportData.incomeStatement.collected.servicefee, "Interest": reportData.incomeStatement.collected.interest, "Penalties": reportData.incomeStatement.collected.penalty },
+            {},
+            { Type: "Net Realized Income", "Value": reportData.incomeStatement.net },
+        ];
+        const incomeWs = XLSX.utils.json_to_sheet(incomeData);
+        XLSX.utils.book_append_sheet(wb, incomeWs, "Income Statement");
+
+        // Sheet 4: Aging Report
+        const agingData = [
+            { "Days Overdue": "1 - 30", "Number of Loans": reportData.agingReport.buckets['1-30'] },
+            { "Days Overdue": "31 - 60", "Number of Loans": reportData.agingReport.buckets['31-60'] },
+            { "Days Overdue": "61 - 90", "Number of Loans": reportData.agingReport.buckets['61-90'] },
+            { "Days Overdue": "91+", "Number of Loans": reportData.agingReport.buckets['91+'] },
+            { "Days Overdue": "Total Overdue Loans", "Number of Loans": reportData.agingReport.totalOverdue },
+        ];
+        const agingWs = XLSX.utils.json_to_sheet(agingData);
+        XLSX.utils.book_append_sheet(wb, agingWs, "Aging Report");
+        
+        // Sheet 5: Other Metrics
+        const otherData = [
+            { "Metric": "Fund Utilization Rate", "Value": `${reportData.fundUtilization.toFixed(2)}%` }
+        ]
+        const otherWs = XLSX.utils.json_to_sheet(otherData);
+        XLSX.utils.book_append_sheet(wb, otherWs, "Other Metrics");
+
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        saveAs(new Blob([wbout], { type: "application/octet-stream" }), fileName);
+    };
+
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
@@ -112,6 +178,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             </Button>
                         ))}
                     </div>
+                     <Button variant="outline" onClick={handleExcelExport} disabled={!reportData}>
+                        <Download className="mr-2 h-4 w-4" /> Export to Excel
+                    </Button>
                 </div>
             </div>
 
@@ -174,7 +243,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                              <ReportRow label="1 - 30 Days" value={reportData.agingReport.buckets['1-30']} />
                              <ReportRow label="31 - 60 Days" value={reportData.agingReport.buckets['31-60']} />
                              <ReportRow label="61 - 90 Days" value={reportData.agingReport.buckets['61-90']} />
-                             <ReportRow label="91+ Days" value={reportData.agingReport.buckets['91+']} />
+                             <ReportRow label="91+" value={reportData.agingReport.buckets['91+']} />
                               <Separator className="my-2"/>
                              <ReportRow label="Total Overdue Loans" value={reportData.agingReport.totalOverdue} />
                         </ReportCard>
