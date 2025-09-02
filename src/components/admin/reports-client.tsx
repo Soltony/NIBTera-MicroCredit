@@ -10,7 +10,7 @@ import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData } from '@/lib/types';
+import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData, ProviderReportData } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
@@ -44,42 +44,60 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [loansData, setLoansData] = useState<LoanReportData[]>([]);
     const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
     const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
+    const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
+
 
     const fetchReportData = useCallback(async (tab: string, currentProviderId: string, currentTimeframe: string) => {
         setIsLoading(true);
         try {
             let endpoint = '';
-            let setData: (data: any) => void;
+            
+            const fetchDataForTab = async (url: string) => {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Failed to fetch data for ${tab}.`);
+                return response.json();
+            }
 
             switch (tab) {
                 case 'providerReport':
                     endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setData = setLoansData;
+                    setLoansData(await fetchDataForTab(endpoint));
                     break;
                 case 'collectionsReport':
                     endpoint = `/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setData = setCollectionsData;
+                    setCollectionsData(await fetchDataForTab(endpoint));
                     break;
                  case 'incomeReport':
                     endpoint = `/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setData = setIncomeData;
+                    setIncomeData(await fetchDataForTab(endpoint));
+                    break;
+                 case 'utilizationReport':
+                 case 'agingReport':
+                    const summaryPromises = (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!])
+                        .filter(Boolean)
+                        .map(p => 
+                            fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
+                                .then(data => ({ [p.id]: data }))
+                        );
+                    const results = await Promise.all(summaryPromises);
+                    const newSummaryData = results.reduce((acc, current) => ({ ...acc, ...current }), {});
+                    setProviderSummaryData(prev => ({...prev, ...newSummaryData}));
+                    break;
+                 case 'borrowerReport':
+                    // This uses the same endpoint as providerReport but is displayed differently
+                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
+                    setLoansData(await fetchDataForTab(endpoint));
                     break;
                 default:
-                    setIsLoading(false);
-                    return;
+                    break;
             }
-
-            const response = await fetch(endpoint);
-            if (!response.ok) throw new Error(`Failed to fetch ${tab} data.`);
-            const data = await response.json();
-            setData(data);
             
         } catch (error: any) {
             toast({ title: "Error fetching data", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
+    }, [toast, providers]);
     
     // Effect to refetch data when filters change
     useEffect(() => {
@@ -119,6 +137,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${activeTab}_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
+    
+    const renderProviderList = () => (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!]).filter(Boolean);
+
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -293,17 +314,134 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     </ScrollArea>
                 </TabsContent>
                  <TabsContent value="utilizationReport">
-                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead className="text-right">Provider Fund</TableHead>
+                                    <TableHead className="text-right">Loans Disbursed</TableHead>
+                                    <TableHead className="text-right">Available Fund</TableHead>
+                                    <TableHead className="text-right">Utilization %</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                 {isLoading ? (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : renderProviderList().length > 0 ? (
+                                    renderProviderList().map(provider => {
+                                        const data = providerSummaryData[provider.id];
+                                        return (
+                                        <TableRow key={provider.id}>
+                                            <TableCell>{provider.name}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(provider.initialBalance)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(data?.portfolioSummary.disbursed || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(provider.initialBalance - (data?.portfolioSummary.disbursed || 0))}</TableCell>
+                                            <TableCell className="text-right font-mono">{data?.fundUtilization.toFixed(2) || '0.00'}%</TableCell>
+                                        </TableRow>
+                                    )})
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                     </ScrollArea>
                 </TabsContent>
                  <TabsContent value="agingReport">
-                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Provider</TableHead>
+                                    <TableHead className="text-right">0-30 Days</TableHead>
+                                    <TableHead className="text-right">31-60 Days</TableHead>
+                                    <TableHead className="text-right">61-90 Days</TableHead>
+                                    <TableHead className="text-right">90+ Days</TableHead>
+                                    <TableHead className="text-right">Total Overdue</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : renderProviderList().length > 0 ? (
+                                    renderProviderList().map(provider => {
+                                        const data = providerSummaryData[provider.id];
+                                        const aging = data?.agingReport;
+                                        return (
+                                        <TableRow key={provider.id}>
+                                            <TableCell>{provider.name}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['1-30'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['31-60'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['61-90'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['91+'] || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(aging?.totalOverdue || 0)}</TableCell>
+                                        </TableRow>
+                                    )})
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                     </ScrollArea>
                 </TabsContent>
                 <TabsContent value="borrowerReport">
-                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                    <TableHead>Borrower ID</TableHead>
+                                    <TableHead>Borrower Name</TableHead>
+                                    <TableHead>Loan ID</TableHead>
+                                    <TableHead className="text-right">Principal Disbursed</TableHead>
+                                    <TableHead className="text-right">Principal Outstanding</TableHead>
+                                    <TableHead className="text-right">Interest Outstanding</TableHead>
+                                    <TableHead className="text-right">Service Fee Outstanding</TableHead>
+                                    <TableHead className="text-right">Penalty Outstanding</TableHead>
+                                    <TableHead className="text-right">Days in Arrears</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                             <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={10} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : loansData.length > 0 ? (
+                                    loansData.map((row) => (
+                                        <TableRow key={row.loanId}>
+                                            <TableCell>{row.borrowerId.slice(-8)}</TableCell>
+                                            <TableCell>{row.borrowerName}</TableCell>
+                                            <TableCell>{row.loanId.slice(-8)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principalDisbursed)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.principalOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.interestOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.serviceFeeOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.penaltyOutstanding)}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.daysInArrears}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={
+                                                    row.status === 'Overdue' || row.status === 'Defaulted' ? 'destructive' :
+                                                    row.status === 'Paid' ? 'default' : 'secondary'
+                                                }
+                                                className={cn(row.status === 'Paid' && 'bg-green-600 text-white')}
+                                                >
+                                                    {row.status}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={10} className="h-24 text-center">No results found.</TableCell>
+                                    </TableRow>
+                                )}
+                             </TableBody>
+                        </Table>
+                     </ScrollArea>
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
-
-    

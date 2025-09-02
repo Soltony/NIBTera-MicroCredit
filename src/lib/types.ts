@@ -350,5 +350,3 @@ export type IncomeReportData = {
     accruedPenalty: number;
     collectedPenalty: number;
 };
-
-    
