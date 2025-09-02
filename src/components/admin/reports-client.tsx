@@ -55,19 +55,18 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('providerReport');
     
-    // State for each report
     const [loansData, setLoansData] = useState<LoanReportData[]>([]);
 
-    const fetchReportData = useCallback(async (tab: string) => {
+    const fetchReportData = useCallback(async (tab: string, currentProviderId: string, currentTimeframe: string) => {
         setIsLoading(true);
         try {
+            let endpoint = '';
             // In a real app, you would have different endpoints for each report type
             // For this example, we'll focus on the main loan report.
-            let endpoint = '';
             switch (tab) {
                 case 'providerReport':
                 default:
-                    endpoint = `/api/reports/loans?providerId=${providerId}&timeframe=${timeframe}`;
+                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
                     break;
             }
 
@@ -78,18 +77,19 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             if (tab === 'providerReport') {
                 setLoansData(data);
             }
-            // Set other data states here for other tabs
             
         } catch (error: any) {
             toast({ title: "Error fetching data", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    }, [providerId, timeframe, toast]);
-
+    }, [toast]);
+    
+    // Effect to refetch data when filters change
     useEffect(() => {
-        fetchReportData(activeTab);
-    }, [activeTab, fetchReportData]);
+        fetchReportData(activeTab, providerId, timeframe);
+    }, [activeTab, providerId, timeframe, fetchReportData]);
+
     
     const handleExcelExport = () => {
         if (loansData.length === 0) {
@@ -99,11 +99,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
         const wb = XLSX.utils.book_new();
         
-        // Sheet 1: Loans Report
         const loansWs = XLSX.utils.json_to_sheet(loansData);
         XLSX.utils.book_append_sheet(wb, loansWs, "Provider Loans Report");
-
-        // Add other sheets here for other reports as they are implemented
 
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Reports_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -131,9 +128,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                     <Button variant="outline" onClick={() => fetchReportData(activeTab)} disabled={isLoading}>
-                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Apply'}
-                    </Button>
                     <Button variant="outline" onClick={handleExcelExport}><Download className="mr-2 h-4 w-4"/>Excel</Button>
                     <Button variant="outline" disabled><FileIcon className="mr-2 h-4 w-4"/>PDF</Button>
                 </div>
@@ -142,12 +136,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="providerReport">Provider Report</TabsTrigger>
-                    {/* Placeholder for other reports */}
-                    <TabsTrigger value="collectionsReport" disabled>Collections Report</TabsTrigger>
-                    <TabsTrigger value="incomeReport" disabled>Income Report</TabsTrigger>
-                    <TabsTrigger value="utilizationReport" disabled>Fund Utilization</TabsTrigger>
-                    <TabsTrigger value="agingReport" disabled>Aging Report</TabsTrigger>
-                    <TabsTrigger value="borrowerReport" disabled>Borrower Performance</TabsTrigger>
+                    <TabsTrigger value="collectionsReport">Collections Report</TabsTrigger>
+                    <TabsTrigger value="incomeReport">Income Report</TabsTrigger>
+                    <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
+                    <TabsTrigger value="agingReport">Aging Report</TabsTrigger>
+                    <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providerReport" className="space-y-4">
                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
@@ -210,8 +203,22 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                         </Table>
                     </ScrollArea>
                 </TabsContent>
+                <TabsContent value="collectionsReport">
+                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                </TabsContent>
+                 <TabsContent value="incomeReport">
+                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                </TabsContent>
+                 <TabsContent value="utilizationReport">
+                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                </TabsContent>
+                 <TabsContent value="agingReport">
+                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                </TabsContent>
+                <TabsContent value="borrowerReport">
+                     <div className="h-24 flex items-center justify-center text-muted-foreground">Coming Soon</div>
+                </TabsContent>
             </Tabs>
         </div>
     );
 }
-

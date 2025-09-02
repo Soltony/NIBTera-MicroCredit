@@ -4,8 +4,6 @@ import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, differenceInDays } from 'date-fns';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import type { Loan, LoanProduct, Payment, ProvisionedData } from '@prisma/client';
-import { toCamelCase } from '@/lib/utils';
-
 
 const getDates = (timeframe: string) => {
     const now = new Date();
@@ -97,11 +95,21 @@ export async function GET(req: NextRequest) {
             
             const totalRepaid = (loan.repaidAmount || 0);
 
-            const principalOutstanding = Math.max(0, principal - totalRepaid);
-            const interestOutstanding = Math.max(0, interest - Math.max(0, totalRepaid - principal));
-            const serviceFeeOutstanding = Math.max(0, serviceFee - Math.max(0, totalRepaid - principal - interest));
-            const penaltyOutstanding = Math.max(0, penalty - Math.max(0, totalRepaid - principal - interest - serviceFee));
+            // Correct calculation for outstanding amounts
+            const penaltyPaid = Math.min(totalRepaid, penalty);
+            const penaltyOutstanding = penalty - penaltyPaid;
+
+            const serviceFeePaid = Math.min(Math.max(0, totalRepaid - penalty), serviceFee);
+            const serviceFeeOutstanding = serviceFee - serviceFeePaid;
+            
+            const interestPaid = Math.min(Math.max(0, totalRepaid - penalty - serviceFee), interest);
+            const interestOutstanding = interest - interestPaid;
+
+            const principalPaid = Math.max(0, totalRepaid - penalty - serviceFee - interest);
+            const principalOutstanding = principal - principalPaid;
+
             const totalOutstanding = Math.max(0, total - totalRepaid);
+
 
             let status = 'Current';
             const daysInArrears = differenceInDays(today, loan.dueDate);
