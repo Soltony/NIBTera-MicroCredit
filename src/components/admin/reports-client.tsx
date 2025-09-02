@@ -106,39 +106,34 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
     
     const handleExcelExport = () => {
-        let dataToExport;
-        let sheetName;
-        switch(activeTab) {
-            case 'providerReport':
-                dataToExport = loansData;
-                sheetName = "Provider Loans Report";
-                break;
-            case 'collectionsReport':
-                dataToExport = collectionsData;
-                sheetName = "Collections Report";
-                break;
-            case 'incomeReport':
-                dataToExport = incomeData;
-                sheetName = "Income Report";
-                break;
-            default:
-                toast({ description: "No data to export for this tab yet.", variant: "destructive" });
-                return;
-        }
+        const wb = XLSX.utils.book_new();
 
-        if (!dataToExport || dataToExport.length === 0) {
-            toast({ description: "No data to export.", variant: "destructive" });
+        // Export all tabs into different sheets
+        if (loansData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(loansData);
+            XLSX.utils.book_append_sheet(wb, ws, "Provider Loans");
+        }
+        if (collectionsData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(collectionsData);
+            XLSX.utils.book_append_sheet(wb, ws, "Collections");
+        }
+        if (incomeData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(incomeData);
+            XLSX.utils.book_append_sheet(wb, ws, "Income");
+        }
+        
+        // Add other reports to export here if needed
+        
+        if (wb.SheetNames.length === 0) {
+            toast({ description: "No data available to export.", variant: "destructive" });
             return;
         }
 
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${activeTab}_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    const renderProviderList = () => (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!]).filter(Boolean);
+    const renderProviderList = () => (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
 
 
     return (
