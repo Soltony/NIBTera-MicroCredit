@@ -69,7 +69,7 @@ async function getLoanReportData(userId: string): Promise<{ loans: ReportLoan[],
 
     // Calculate summary data
     const today = new Date();
-    const startOfTodayDate = startOfToday(today);
+    const startOfTodayDate = startOfDay(today);
     const endOfTodayDate = endOfToday(today);
 
     const dailyDisbursementResult = await prisma.loan.aggregate({
