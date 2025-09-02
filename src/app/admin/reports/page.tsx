@@ -1,8 +1,10 @@
 
+
 import { ReportsClient } from '@/components/admin/reports-client';
-import type { LoanProvider as LoanProviderType } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, LoanReportData, CollectionsReportData, IncomeReportData } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
+import { startOfToday, endOfToday, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, format } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
