@@ -73,16 +73,16 @@ const allMenuItems = [
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
   },
   {
-    path: '/admin/access-control',
-    label: 'Access Control',
-    icon: ShieldCheck,
-    roles: ['Super Admin'],
-  },
-  {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
+  },
+   {
+    path: '/admin/access-control',
+    label: 'Access Control',
+    icon: ShieldCheck,
+    roles: ['Super Admin'],
   },
   {
     path: '/admin/credit-score-engine',

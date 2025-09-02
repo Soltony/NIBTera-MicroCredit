@@ -281,3 +281,36 @@ export interface BorrowerAgreement {
     termsId: string;
     acceptedAt: Date;
 }
+
+export interface ProviderReportData {
+    portfolioSummary: {
+        disbursed: number;
+        repaid: number;
+        outstanding: number;
+    };
+    collectionsReport: {
+        principal: number;
+        interest: number;
+        servicefee: number;
+        penalty: number;
+        total: number;
+    };
+    incomeStatement: {
+        accrued: {
+            interest: number;
+            servicefee: number;
+            penalty: number;
+        };
+        collected: {
+            interest: number;
+            servicefee: number;
+            penalty: number;
+        };
+        net: number;
+    };
+    fundUtilization: number;
+    agingReport: {
+        buckets: Record<'1-30' | '31-60' | '61-90' | '91+', number>;
+        totalOverdue: number;
+    };
+}
