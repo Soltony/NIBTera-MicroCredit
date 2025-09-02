@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule, TermsAndConditions } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,7 @@ import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '../ui/textarea';
+import { Skeleton } from '../ui/skeleton';
 
 // Helper to safely parse JSON fields that might be strings
 const safeParseJson = (data: any, field: string, defaultValue: any) => {
@@ -905,7 +906,7 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [content, setContent] = useState('');
-    const [activeVersion, setActiveVersion] = useState<any>(null);
+    const [activeVersion, setActiveVersion] = useState<TermsAndConditions | null>(null);
 
     useEffect(() => {
         setIsLoading(true);
