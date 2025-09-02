@@ -238,10 +238,10 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
           </div>
         </header>
         <main className="flex-1">
-          <div className="container py-8 md:py-12">
-              <div className="flex flex-col space-y-8">
+          <div className="container py-4 md:py-6">
+              <div className="flex flex-col space-y-4">
                   <div>
-                      <div className="flex justify-center space-x-4 overflow-x-auto pb-4">
+                      <div className="flex justify-center space-x-4 overflow-x-auto py-2">
                           {providers.map((provider) => (
                               <div key={provider.id} onClick={() => handleProviderSelect(provider.id)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
                                   <div 
