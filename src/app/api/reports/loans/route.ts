@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, differenceInDays } from 'date-fns';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
-import type { Loan, LoanProduct, Payment } from '@prisma/client';
+import type { Loan, LoanProduct, Payment, ProvisionedData } from '@prisma/client';
+import { toCamelCase } from '@/lib/utils';
+
 
 const getDates = (timeframe: string) => {
     const now = new Date();
@@ -25,8 +27,31 @@ const getDates = (timeframe: string) => {
 type LoanWithRelations = Loan & {
     product: LoanProduct & { provider: { name: string } };
     payments: Payment[];
-    borrower: { id: string, fullName: string | null };
+    borrower: { 
+        id: string;
+        provisionedData: ProvisionedData[];
+     };
 };
+
+const getBorrowerName = (borrower: { provisionedData: ProvisionedData[] }): string => {
+    if (!borrower || !borrower.provisionedData || borrower.provisionedData.length === 0) {
+        return 'N/A';
+    }
+    // Find the latest provisioned data that might have a name
+    for (const entry of borrower.provisionedData) {
+         try {
+            const data = JSON.parse(entry.data as string);
+            const fullNameKey = Object.keys(data).find(k => k.toLowerCase() === 'fullname' || k.toLowerCase() === 'full name');
+            if (fullNameKey && data[fullNameKey]) {
+                return data[fullNameKey];
+            }
+        } catch (e) {
+            // Ignore parsing errors
+        }
+    }
+    return 'N/A';
+};
+
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -41,7 +66,7 @@ export async function GET(req: NextRequest) {
     };
 
     try {
-        const loans = await prisma.loan.findMany({
+        const loans: LoanWithRelations[] = await prisma.loan.findMany({
             where: whereClause,
             include: {
                 product: {
@@ -51,9 +76,13 @@ export async function GET(req: NextRequest) {
                 },
                 payments: true,
                 borrower: {
-                    select: {
-                        id: true,
-                        fullName: true,
+                   include: {
+                        // Include all provisioned data and sort by latest, we'll find the name in code.
+                        provisionedData: {
+                            orderBy: {
+                                createdAt: 'desc'
+                            }
+                        }
                     }
                 }
             },
@@ -78,18 +107,20 @@ export async function GET(req: NextRequest) {
             const daysInArrears = differenceInDays(today, loan.dueDate);
             if (loan.repaymentStatus === 'Unpaid' && daysInArrears > 0) {
                 status = 'Overdue';
-                if (daysIn2ars > 60) { // Example for NPL/Defaulted
+                if (daysInArrears > 60) { // Example for NPL/Defaulted
                     status = 'Defaulted';
                 }
             } else if (loan.repaymentStatus === 'Paid') {
                 status = 'Paid';
             }
             
+            const borrowerName = getBorrowerName(loan.borrower);
+            
             return {
                 provider: loan.product.provider.name,
                 loanId: loan.id,
                 borrowerId: loan.borrowerId,
-                borrowerName: loan.borrower?.fullName || `B-${loan.borrowerId.slice(0, 4)}`,
+                borrowerName: borrowerName !== 'N/A' ? borrowerName : `B-${loan.borrowerId.slice(0, 4)}`,
                 principalDisbursed: loan.loanAmount,
                 principalOutstanding,
                 interestOutstanding,
