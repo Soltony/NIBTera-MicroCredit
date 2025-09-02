@@ -58,14 +58,22 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { borrowerId, termsId } = agreementSchema.parse(body);
 
-        const newAgreement = await prisma.borrowerAgreement.create({
-            data: {
+        // Use upsert to avoid creating duplicate agreements
+        const agreement = await prisma.borrowerAgreement.upsert({
+            where: {
+                borrowerId_termsId: {
+                    borrowerId,
+                    termsId,
+                }
+            },
+            update: {}, // No fields to update if it exists
+            create: {
                 borrowerId,
                 termsId,
             }
         });
 
-        return NextResponse.json(newAgreement, { status: 201 });
+        return NextResponse.json(agreement, { status: 201 });
 
     } catch (error) {
         if (error instanceof z.ZodError) {
