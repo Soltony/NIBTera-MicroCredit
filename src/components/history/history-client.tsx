@@ -179,7 +179,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                     
                     <div className="my-6">
                       {activeTab === 'active' ? (
-                          <Card className="shadow-lg" style={{backgroundColor: '#4ade80', color: 'white'}}>
+                          <Card className="shadow-lg bg-green-500 text-white">
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</p>
@@ -192,7 +192,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                             </CardContent>
                           </Card>
                       ) : (
-                          <Card className="shadow-lg" style={{backgroundColor: 'hsl(220 13% 47%)', color: 'white'}}>
+                          <Card className="shadow-lg bg-gray-500 text-white">
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalRepaidAmount)}</p>
