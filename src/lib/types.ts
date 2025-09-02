@@ -249,6 +249,8 @@ interface IncomeData {
 export interface DashboardData {
     totalLoans: number;
     totalDisbursed: number;
+    dailyDisbursement: number;
+    dailyRepayments: number;
     repaymentRate: number;
     atRiskLoans: number;
     totalUsers: number;

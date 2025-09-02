@@ -37,7 +37,7 @@ import {
   Cell,
 } from 'recharts';
 import type { LoanProvider, DashboardData } from '@/lib/types';
-import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown, Users } from 'lucide-react';
+import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown, Users, Landmark, ArrowUpNarrowWide, ArrowDownWideNarrow } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 
 
@@ -77,6 +77,8 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
     const {
         totalLoans,
         totalDisbursed,
+        dailyDisbursement,
+        dailyRepayments,
         repaymentRate,
         atRiskLoans,
         totalUsers,
@@ -115,8 +117,50 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
 
     return (
       <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Daily Disbursement</CardTitle>
+                    <ArrowUpNarrowWide className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(dailyDisbursement)}</div>
+                    <p className="text-xs text-muted-foreground">Total disbursed today</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Daily Repayments</CardTitle>
+                    <ArrowDownWideNarrow className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(dailyRepayments)}</div>
+                    <p className="text-xs text-muted-foreground">Total repaid today</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
+                    <Landmark className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{totalLoans}</div>
+                    <p className="text-xs text-muted-foreground">All-time total loans issued</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Borrowers</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{totalUsers}</div>
+                    <p className="text-xs text-muted-foreground">Unique customers with loans</p>
+                </CardContent>
+            </Card>
+        </div>
+         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Initial Fund</CardTitle>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -144,26 +188,6 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(totalIncome)}</div>
                     <p className="text-xs text-muted-foreground">All collected fees & interest</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Portfolio Size (Disbursed)</CardTitle>
-                    <Banknote className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(totalDisbursed)}</div>
-                    <p className="text-xs text-muted-foreground">Total amount loaned out</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Borrowers</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{totalUsers}</div>
-                    <p className="text-xs text-muted-foreground">Unique customers with loans</p>
                 </CardContent>
             </Card>
         </div>
