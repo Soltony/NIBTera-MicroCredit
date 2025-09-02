@@ -226,7 +226,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
             </DropdownMenu>
           </header>
           <main
-            className="flex-1"
+            className="flex-1 overflow-x-auto"
           >
             {children}
           </main>
