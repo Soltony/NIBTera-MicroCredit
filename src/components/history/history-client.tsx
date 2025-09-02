@@ -69,7 +69,8 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
   const themeColor = useMemo(() => {
     const loans = activeTab === 'active' ? activeLoans : closedLoans;
     if (loans.length > 0) {
-      const firstProvider = providers.find(p => p.id === loans[0].product.providerId);
+      const providerId = loans[0]?.product?.providerId;
+      const firstProvider = providers.find(p => p.id === providerId);
       return firstProvider?.colorHex || '#fdb913';
     }
     return '#fdb913'; // Default color if no loans
