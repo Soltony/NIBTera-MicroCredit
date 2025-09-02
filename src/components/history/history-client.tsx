@@ -125,7 +125,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
   const renderLoanCard = (loan: LoanDetails) => {
     const balanceDue = calculateTotalRepayable(loan, loan.product, new Date()).total - (loan.repaidAmount || 0);
     const provider = providers.find(p => p.id === loan.product.providerId);
-    const color = provider?.colorHex || '#4ade80';
+    const color = provider?.colorHex || '#fdb913';
 
     return (
       <Card key={loan.id} className="shadow-md">
@@ -192,7 +192,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                             </CardContent>
                           </Card>
                       ) : (
-                          <Card className="shadow-lg bg-gray-600 text-white">
+                          <Card className="shadow-lg" style={{backgroundColor: 'hsl(220 13% 47%)', color: 'white'}}>
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalRepaidAmount)}</p>
