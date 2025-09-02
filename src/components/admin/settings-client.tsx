@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -95,11 +94,12 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         e.preventDefault();
         setIsSaving(true);
         try {
+            const parsedDuration = parseInt(String(formData.duration));
             const payload = {
                 ...formData,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                duration: parseInt(String(formData.duration)) || 30,
+                duration: isNaN(parsedDuration) ? 30 : parsedDuration,
             };
 
             const response = await fetch('/api/settings/products', {
@@ -1117,3 +1117,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
+
+    

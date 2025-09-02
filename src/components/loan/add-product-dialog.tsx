@@ -63,6 +63,8 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     e.preventDefault();
     if (productName.trim() === '') return;
 
+    const parsedDuration = parseInt(duration);
+    
     // The parent component will add the providerId
     onAddProduct({
       name: productName,
@@ -70,7 +72,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       icon: selectedIconName,
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
-      duration: parseInt(duration) || 30,
+      duration: isNaN(parsedDuration) ? 30 : parsedDuration,
     } as any);
     
     // Reset form
@@ -162,3 +164,5 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     </Dialog>
   );
 }
+
+    
