@@ -314,3 +314,41 @@ export interface ProviderReportData {
         totalOverdue: number;
     };
 }
+
+
+export type LoanReportData = {
+    provider: string;
+    loanId: string;
+    borrowerId: string;
+    borrowerName: string;
+    principalDisbursed: number;
+    principalOutstanding: number;
+    interestOutstanding: number;
+    serviceFeeOutstanding: number;
+    penaltyOutstanding: number;
+    totalOutstanding: number;
+    status: string;
+    daysInArrears: number;
+};
+
+export type CollectionsReportData = {
+    provider: string;
+    date: string;
+    principal: number;
+    interest: number;
+    serviceFee: number;
+    penalty: number;
+    total: number;
+};
+
+export type IncomeReportData = {
+    provider: string;
+    accruedInterest: number;
+    collectedInterest: number;
+    accruedServiceFee: number;
+    collectedServiceFee: number;
+    accruedPenalty: number;
+    collectedPenalty: number;
+};
+
+    
