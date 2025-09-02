@@ -65,6 +65,15 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
   const totalRepaidAmount = useMemo(() => {
     return loanHistory.reduce((acc, loan) => acc + (loan.repaidAmount || 0), 0);
   }, [loanHistory]);
+  
+  const themeColor = useMemo(() => {
+    const loans = activeTab === 'active' ? activeLoans : closedLoans;
+    if (loans.length > 0) {
+      const firstProvider = providers.find(p => p.id === loans[0].product.providerId);
+      return firstProvider?.colorHex || '#fdb913';
+    }
+    return '#fdb913'; // Default color if no loans
+  }, [activeTab, activeLoans, closedLoans, providers]);
 
 
   const handleRepay = (loan: LoanDetails) => {
@@ -179,7 +188,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                     
                     <div className="my-6">
                       {activeTab === 'active' ? (
-                          <Card className="shadow-lg bg-green-500 text-white">
+                          <Card className="shadow-lg text-white" style={{ backgroundColor: themeColor }}>
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</p>
@@ -192,7 +201,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                             </CardContent>
                           </Card>
                       ) : (
-                          <Card className="shadow-lg bg-gray-500 text-white">
+                          <Card className="shadow-lg text-white" style={{ backgroundColor: themeColor }}>
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalRepaidAmount)}</p>
