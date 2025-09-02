@@ -10,9 +10,22 @@ const paymentSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+    let paymentDetailsForLogging: any = {};
+    let borrowerIdForLogging: string | null = null;
     try {
         const body = await req.json();
         const { loanId, amount: paymentAmount } = paymentSchema.parse(body);
+        paymentDetailsForLogging = { loanId, amount: paymentAmount };
+        
+        const loanForBorrowerId = await prisma.loan.findUnique({ where: { id: loanId }, select: { borrowerId: true }});
+        borrowerIdForLogging = loanForBorrowerId?.borrowerId || null;
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'REPAYMENT_INITIATED',
+            actorId: borrowerIdForLogging,
+            details: paymentDetailsForLogging
+        }));
 
         const loan = await prisma.loan.findUnique({
             where: { id: loanId },
@@ -30,7 +43,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (!loan) {
-            return NextResponse.json({ error: 'Loan not found' }, { status: 404 });
+            throw new Error('Loan not found');
         }
         
         const provider = loan.product.provider;
@@ -48,7 +61,7 @@ export async function POST(req: NextRequest) {
 
 
         if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
-             return NextResponse.json({ error: 'Payment amount exceeds balance due.' }, { status: 400 });
+             throw new Error('Payment amount exceeds balance due.');
         }
         
         const updatedLoan = await prisma.$transaction(async (tx) => {
@@ -168,10 +181,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(updatedLoan, { status: 200 });
 
     } catch (error: any) {
+        const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'REPAYMENT_FAILED',
+            actorId: borrowerIdForLogging,
+            details: {
+                ...paymentDetailsForLogging,
+                error: errorMessage,
+            }
+        }));
+
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
-        console.error('Error processing payment:', error);
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }

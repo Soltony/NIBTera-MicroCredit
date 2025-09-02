@@ -16,9 +16,22 @@ const loanSchema = z.object({
 
 
 export async function POST(req: NextRequest) {
+    let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();
         const data = loanSchema.parse(body);
+        loanDetailsForLogging = { ...data };
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'LOAN_DISBURSEMENT_INITIATED',
+            actorId: 'system',
+            details: {
+                borrowerId: data.borrowerId,
+                productId: data.productId,
+                amount: data.loanAmount,
+            }
+        }));
 
         const product = await prisma.loanProduct.findUnique({
             where: { id: data.productId },
@@ -32,7 +45,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (!product) {
-            return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+            throw new Error('Product not found');
         }
         
         const provider = product.provider;
@@ -42,10 +55,10 @@ export async function POST(req: NextRequest) {
         const serviceFeeIncomeAccount = provider.ledgerAccounts.find(acc => acc.category === 'ServiceFee' && acc.type === 'Income');
 
         if (!principalReceivableAccount) {
-            return NextResponse.json({ error: 'Principal Receivable ledger account not found for this provider.' }, { status: 400 });
+            throw new Error('Principal Receivable ledger account not found for this provider.');
         }
         if (data.serviceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) {
-            return NextResponse.json({ error: 'Service Fee ledger accounts not configured for this provider.' }, { status: 400 });
+            throw new Error('Service Fee ledger accounts not configured for this provider.');
         }
 
 
@@ -132,7 +145,7 @@ export async function POST(req: NextRequest) {
         console.log(JSON.stringify({
             timestamp: new Date().toISOString(),
             action: 'LOAN_DISBURSEMENT_SUCCESS',
-            actorId: 'system', // Or could be a user ID if an admin initiated it
+            actorId: 'system',
             details: {
                 loanId: newLoan.id,
                 borrowerId: newLoan.borrowerId,
@@ -144,10 +157,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(newLoan, { status: 201 });
 
     } catch (error) {
+        const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'LOAN_DISBURSEMENT_FAILED',
+            actorId: 'system',
+            details: {
+                ...loanDetailsForLogging,
+                error: errorMessage,
+            }
+        }));
+
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
-        console.error('Error creating loan:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: (error as Error).message || 'Internal Server Error' }, { status: 500 });
     }
 }

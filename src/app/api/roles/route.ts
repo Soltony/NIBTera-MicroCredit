@@ -47,6 +47,13 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { name, permissions } = roleSchema.parse(body);
         
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_CREATE_INITIATED',
+            actorId: session.userId,
+            details: { roleName: name }
+        }));
+
         const newRole = await prisma.role.create({
             data: {
                 name,
@@ -66,7 +73,13 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ ...newRole, permissions }, { status: 201 });
     } catch (error) {
-        console.error('Error creating role:', error);
+        const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_CREATE_FAILED',
+            actorId: session.userId,
+            details: { error: errorMessage }
+        }));
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
@@ -82,6 +95,13 @@ export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
         const { id, name, permissions } = roleSchema.extend({ id: z.string() }).parse(body);
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_UPDATE_INITIATED',
+            actorId: session.userId,
+            details: { roleId: id, roleName: name }
+        }));
 
         const updatedRole = await prisma.role.update({
             where: { id },
@@ -104,7 +124,13 @@ export async function PUT(req: NextRequest) {
 
         return NextResponse.json({ ...updatedRole, permissions });
     } catch (error) {
-        console.error('Error updating role:', error);
+        const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_UPDATE_FAILED',
+            actorId: session.userId,
+            details: { error: errorMessage }
+        }));
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
@@ -117,16 +143,25 @@ export async function DELETE(req: NextRequest) {
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    let roleId = '';
     try {
         const { id } = await req.json();
+        roleId = id;
         if (!id) {
             return NextResponse.json({ error: 'Role ID is required' }, { status: 400 });
         }
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_DELETE_INITIATED',
+            actorId: session.userId,
+            details: { roleId: id }
+        }));
         
         // Check if any user is assigned to this role
         const usersWithRole = await prisma.user.count({ where: { roleId: id } });
         if (usersWithRole > 0) {
-            return NextResponse.json({ error: 'Cannot delete role. It is currently assigned to one or more users.' }, { status: 400 });
+            throw new Error('Cannot delete role. It is currently assigned to one or more users.');
         }
         
         const roleToDelete = await prisma.role.findUnique({ where: { id }});
@@ -148,7 +183,13 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ message: 'Role deleted successfully' });
 
     } catch (error) {
-        console.error('Error deleting role:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        const errorMessage = (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'ROLE_DELETE_FAILED',
+            actorId: session.userId,
+            details: { roleId: roleId, error: errorMessage }
+        }));
+        return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }

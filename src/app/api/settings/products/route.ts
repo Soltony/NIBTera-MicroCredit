@@ -1,7 +1,9 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { createProductSchema, updateProductSchema } from '@/lib/schemas';
+import { z } from 'zod';
 
 
 // POST a new product
@@ -14,6 +16,13 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { providerId, ...productData } = createProductSchema.parse(body);
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_CREATE_INITIATED',
+            actorId: session.userId,
+            details: { productName: productData.name, providerId: providerId }
+        }));
 
         const newProduct = await prisma.loanProduct.create({
             data: {
@@ -50,7 +59,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(newProduct, { status: 201 });
 
     } catch (error) {
-        console.error('Error creating product:', error);
+        const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_CREATE_FAILED',
+            actorId: session.userId,
+            details: { error: errorMessage }
+        }));
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: error.errors }, { status: 400 });
+        }
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -66,6 +84,13 @@ export async function PUT(req: NextRequest) {
         const body = await req.json();
         const parsedData = updateProductSchema.parse(body);
         const { id, ...updateData } = parsedData;
+
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_UPDATE_INITIATED',
+            actorId: session.userId,
+            details: { productId: id, updatedFields: Object.keys(updateData) }
+        }));
         
         const dataToUpdate: any = { ...updateData };
 
@@ -98,8 +123,14 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json(updatedProduct);
 
     } catch (error: any) {
-        console.error('Error updating product:', error);
-        return NextResponse.json({ error: 'Internal Server Error', 'details': error.message }, { status: 500 });
+        const errorMessage = (error as Error).message;
+         console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_UPDATE_FAILED',
+            actorId: session.userId,
+            details: { error: errorMessage }
+        }));
+        return NextResponse.json({ error: 'Internal Server Error', 'details': errorMessage }, { status: 500 });
     }
 }
 
@@ -110,16 +141,25 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     
+    let productId = '';
     try {
         const { id } = await req.json();
+        productId = id;
         if (!id) {
             return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
         }
         
+        console.log(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_DELETE_INITIATED',
+            actorId: session.userId,
+            details: { productId: id }
+        }));
+        
         // Add check if product has associated loans
         const loanCount = await prisma.loan.count({ where: { productId: id } });
         if (loanCount > 0) {
-            return NextResponse.json({ error: 'Cannot delete product. It has associated loans.' }, { status: 400 });
+            throw new Error('Cannot delete product. It has associated loans.');
         }
         
         const productToDelete = await prisma.loanProduct.findUnique({ where: { id }});
@@ -140,7 +180,13 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ message: 'Product deleted successfully' });
 
     } catch (error) {
-        console.error('Error deleting product:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        const errorMessage = (error as Error).message;
+        console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            action: 'PRODUCT_DELETE_FAILED',
+            actorId: session.userId,
+            details: { productId: productId, error: errorMessage }
+        }));
+        return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }
