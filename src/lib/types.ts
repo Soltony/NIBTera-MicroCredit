@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -70,6 +71,7 @@ export interface LoanProvider {
   initialBalance: number;
   allowCrossProviderLoans: boolean;
   ledgerAccounts?: LedgerAccount[];
+  termsAndConditions?: TermsAndConditions[];
 }
 
 export interface LoanProduct {
@@ -259,4 +261,21 @@ export interface DashboardData {
     receivables: LedgerData;
     collections: LedgerData;
     income: IncomeData;
+}
+
+
+export interface TermsAndConditions {
+    id: string;
+    providerId: string;
+    content: string;
+    version: number;
+    isActive: boolean;
+    publishedAt: Date;
+}
+
+export interface BorrowerAgreement {
+    id: string;
+    borrowerId: string;
+    termsId: string;
+    acceptedAt: Date;
 }
