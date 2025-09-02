@@ -230,7 +230,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     <ArrowLeft className="h-6 w-6" />
                 </Button>
                <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
-                  {selectedProvider ? `${selectedProvider.name} Dashboard` : 'Loan Dashboard'}
+                  NIBTera Loan
               </h1>
             </div>
              <div className="ml-auto">
@@ -239,9 +239,9 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         </header>
         <main className="flex-1">
           <div className="container py-4 md:py-6">
-              <div className="flex flex-col space-y-4">
-                  <div>
-                      <div className="flex justify-center space-x-4 overflow-x-auto py-2">
+              <div className="flex flex-col">
+                  <div className="py-2">
+                      <div className="flex justify-center space-x-4 overflow-x-auto">
                           {providers.map((provider) => (
                               <div key={provider.id} onClick={() => handleProviderSelect(provider.id)} className="flex flex-col items-center space-y-2 cursor-pointer flex-shrink-0">
                                   <div 
@@ -264,14 +264,16 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                       </div>
                   </div>
 
-                  <LoanSummaryCard
-                      maxLoanLimit={overallMaxLimit}
-                      availableToBorrow={availableToBorrow}
-                      color={selectedProvider?.colorHex}
-                      isLoading={isRecalculating}
-                  />
+                  <div className="mt-2">
+                    <LoanSummaryCard
+                        maxLoanLimit={overallMaxLimit}
+                        availableToBorrow={availableToBorrow}
+                        color={selectedProvider?.colorHex}
+                        isLoading={isRecalculating}
+                    />
+                  </div>
               
-                  <div className="flex justify-end">
+                  <div className="flex justify-end mt-4">
                     <Link
                         href={`/history?${searchParams.toString()}`}
                         className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors"
@@ -282,7 +284,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                     </Link>
                   </div>
                   
-                  <div className="grid gap-8 grid-cols-1">
+                  <div className="grid gap-8 grid-cols-1 mt-4">
                       <div className="md:col-span-2">
                         {selectedProvider && (
                             <Card>
