@@ -51,7 +51,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
     
     const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
-    const isProviderUser = currentUser?.role === 'Loan Provider' || currentUser?.role === 'Loan Manager';
+    const isProviderUser = !isSuperAdminOrAdmin;
 
 
     const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string) => {
@@ -107,27 +107,32 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     
     // Effect to set the initial providerId based on user role
     useEffect(() => {
-        if (!isAuthLoading && currentUser) {
-            if (isSuperAdminOrAdmin) {
-                setProviderId('all');
-            } else if (isProviderUser) {
-                setProviderId(currentUser.providerId || 'none');
+        if (isAuthLoading) return;
+
+        if (isSuperAdminOrAdmin) {
+            setProviderId('all');
+        } else if (isProviderUser) {
+            // For provider users, they should only have one provider passed in props
+            if (providers.length > 0) {
+                 setProviderId(providers[0].id);
+            } else {
+                 setProviderId('none');
             }
         }
-    }, [isAuthLoading, currentUser, isSuperAdminOrAdmin, isProviderUser]);
+    }, [isAuthLoading, isSuperAdminOrAdmin, isProviderUser, providers]);
     
     // Effect to refetch data when filters change
     useEffect(() => {
         if(providerId && providerId !== 'none') {
             fetchAllReportData(providerId, timeframe);
-        } else if (providerId === 'none') {
+        } else if (providerId === 'none' || providers.length === 0) {
             setIsLoading(false);
             setLoansData([]);
             setCollectionsData([]);
             setIncomeData([]);
             setProviderSummaryData({});
         }
-    }, [providerId, timeframe, fetchAllReportData]);
+    }, [providerId, timeframe, fetchAllReportData, providers.length]);
 
     
     const handleExcelExport = () => {
@@ -249,7 +254,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    if (isAuthLoading) {
+    if (isAuthLoading || !providerId) {
         return (
              <div className="flex-1 space-y-4 p-8 pt-6">
                 <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
@@ -260,7 +265,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         )
     }
 
-    if (isProviderUser && providerId === 'none') {
+    if (providerId === 'none') {
          return (
             <div className="flex-1 space-y-4 p-8 pt-6">
                 <h2 className="text-3xl font-bold tracking-tight">Reports</h2>

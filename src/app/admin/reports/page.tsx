@@ -37,7 +37,6 @@ export default async function AdminReportsPage() {
         return <div>Not authenticated</div>;
     }
 
-    // The component now receives all providers and will filter them on the client-side based on the current user's role.
     const providers = await getProviders(user.id);
     
     return <ReportsClient providers={providers} />;
