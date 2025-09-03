@@ -43,7 +43,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
     const [timeframe, setTimeframe] = useState('overall');
     const [providerId, setProviderId] = useState(() => 
-        isSuperAdminOrAdmin ? 'all' : (providers[0]?.id || 'all')
+        isSuperAdminOrAdmin ? 'all' : (currentUser?.providerId || 'all')
     );
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('providerReport');
@@ -75,6 +75,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 .map(p => 
                     fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
                         .then(data => ({ [p.id]: data }))
+                        .catch(err => {
+                            console.error(`Failed to fetch summary for provider ${p.id}:`, err.message);
+                            return { [p.id]: null }; // Return null on error for this provider
+                        })
                 );
             
             const [loans, collections, income, ...summaryResults] = await Promise.all([
@@ -213,9 +217,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
-    
-    const renderProviderList = () => (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
-
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -402,8 +403,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                  {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : renderProviderList().length > 0 ? (
-                                    renderProviderList().map(provider => {
+                                ) : providers.length > 0 ? (
+                                    providers.map(provider => {
                                         const data = providerSummaryData[provider.id];
                                         if (!data) return <TableRow key={provider.id}><TableCell colSpan={5} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const availableFund = provider.initialBalance - data.portfolioSummary.outstanding;
@@ -441,8 +442,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : renderProviderList().length > 0 ? (
-                                    renderProviderList().map(provider => {
+                                ) : providers.length > 0 ? (
+                                    providers.map(provider => {
                                         const data = providerSummaryData[provider.id];
                                         if (!data) return <TableRow key={provider.id}><TableCell colSpan={6} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const aging = data?.agingReport;
