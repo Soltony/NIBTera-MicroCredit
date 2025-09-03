@@ -8,16 +8,26 @@ import { startOfToday, endOfToday, startOfWeek, endOfWeek, startOfMonth, endOfMo
 
 export const dynamic = 'force-dynamic';
 
-// This function now simply fetches all providers. 
-// The client will handle filtering based on the user's role.
-async function getProviders(): Promise<LoanProviderType[]> {
-    const providers = await prisma.loanProvider.findMany({
-        orderBy: {
-            displayOrder: 'asc'
+async function getProviders(userId: string): Promise<LoanProviderType[]> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { 
+            role: true,
+            loanProvider: true 
         }
     });
 
-    return providers as LoanProviderType[];
+    const isSuperAdminOrAdmin = user?.role.name === 'Super Admin' || user?.role.name === 'Admin';
+    
+    if (isSuperAdminOrAdmin) {
+        return (await prisma.loanProvider.findMany({
+            orderBy: { displayOrder: 'asc' }
+        })) as LoanProviderType[];
+    } else if (user?.loanProvider) {
+        return [user.loanProvider] as LoanProviderType[];
+    }
+    
+    return [];
 }
 
 
@@ -28,7 +38,7 @@ export default async function AdminReportsPage() {
     }
 
     // The component now receives all providers and will filter them on the client-side based on the current user's role.
-    const providers = await getProviders();
+    const providers = await getProviders(user.id);
     
     return <ReportsClient providers={providers} />;
 }
