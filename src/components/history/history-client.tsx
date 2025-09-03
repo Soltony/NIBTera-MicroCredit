@@ -124,7 +124,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
         description: `${formatCurrency(amount)} ETB has been paid towards your loan.`,
       });
 
-    } catch (error: any) => {
+    } catch (error: any) {
        toast({
         title: 'Payment Error',
         description: error.message,
