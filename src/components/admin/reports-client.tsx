@@ -53,7 +53,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
     
-    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Reconciliation';
     const isProviderUser = !isSuperAdminOrAdmin;
 
 
