@@ -63,6 +63,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
             switch (tab) {
                 case 'providerReport':
+                case 'borrowerReport':
                     endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
                     setLoansData(await fetchDataForTab(endpoint));
                     break;
@@ -86,10 +87,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     const newSummaryData = results.reduce((acc, current) => ({ ...acc, ...current }), {});
                     setProviderSummaryData(prev => ({...prev, ...newSummaryData}));
                     break;
-                 case 'borrowerReport':
-                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setLoansData(await fetchDataForTab(endpoint));
-                    break;
                 default:
                     break;
             }
@@ -109,8 +106,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     
     const handleExcelExport = () => {
         const wb = XLSX.utils.book_new();
+        const providerList = (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
 
-        // Export all tabs into different sheets
+        // 1. Provider Loans
         if (loansData.length > 0) {
             const providerLoanData = loansData.map(d => ({
                 'Provider': d.provider,
@@ -126,26 +124,15 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             }));
             const wsProvider = XLSX.utils.json_to_sheet(providerLoanData);
             XLSX.utils.book_append_sheet(wb, wsProvider, "Provider Loans");
-            
-            const borrowerPerfData = loansData.map(d => ({
-                 'Borrower ID': d.borrowerId,
-                 'Borrower Name': d.borrowerName,
-                 'Loan ID': d.loanId,
-                 'Principal Disbursed': d.principalDisbursed,
-                 'Principal Outstanding': d.principalOutstanding,
-                 'Interest Outstanding': d.interestOutstanding,
-                 'Service Fee Outstanding': d.serviceFeeOutstanding,
-                 'Penalty Outstanding': d.penaltyOutstanding,
-                 'Days in Arrears': d.daysInArrears,
-                 'Status': d.status,
-            }));
-            const wsBorrower = XLSX.utils.json_to_sheet(borrowerPerfData);
-            XLSX.utils.book_append_sheet(wb, wsBorrower, "Borrower Performance");
         }
+
+        // 2. Collections
         if (collectionsData.length > 0) {
             const ws = XLSX.utils.json_to_sheet(collectionsData);
             XLSX.utils.book_append_sheet(wb, ws, "Collections");
         }
+        
+        // 3. Income
         if (incomeData.length > 0) {
             const incomeExportData = incomeData.map(d => ({
                 'Provider': d.provider,
@@ -162,16 +149,16 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             XLSX.utils.book_append_sheet(wb, ws, "Income");
         }
         
-        const utilizationData = renderProviderList().map(p => {
+        // 4. Fund Utilization
+        const utilizationData = providerList.map(p => {
              const data = providerSummaryData[p.id];
              if (!data) return null;
-             const outstandingPrincipal = data.portfolioSummary.outstanding;
-             const availableFund = p.initialBalance - outstandingPrincipal;
+             const availableFund = p.initialBalance - data.portfolioSummary.outstanding;
              return {
                 'Provider': p.name,
                 'Provider Fund': p.initialBalance,
                 'Loans Disbursed': data.portfolioSummary.disbursed,
-                'Outstanding Principal': outstandingPrincipal,
+                'Outstanding Principal': data.portfolioSummary.outstanding,
                 'Available Fund': availableFund,
                 'Utilization %': data.fundUtilization,
              }
@@ -182,7 +169,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             XLSX.utils.book_append_sheet(wb, ws, "Fund Utilization");
         }
         
-        const agingData = renderProviderList().map(p => {
+        // 5. Aging Report
+        const agingData = providerList.map(p => {
             const data = providerSummaryData[p.id];
             if (!data) return null;
             const aging = data.agingReport;
@@ -190,8 +178,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 'Provider': p.name,
                 '0-30 Days': aging.buckets['1-30'],
                 '31-60 Days': aging.buckets['31-60'],
-                '61-90 Days': aging.buckets['61-90'],
-                '90+ Days': aging.buckets['91+'],
+                '61-90 Days': aging.buckets['91+'],
                 'Total Overdue': aging.totalOverdue,
             }
         }).filter(Boolean);
@@ -199,6 +186,24 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         if (agingData.length > 0) {
             const ws = XLSX.utils.json_to_sheet(agingData);
             XLSX.utils.book_append_sheet(wb, ws, "Aging Report");
+        }
+        
+        // 6. Borrower Performance
+        if (loansData.length > 0) {
+            const borrowerPerfData = loansData.map(d => ({
+                 'Borrower ID': d.borrowerId,
+                 'Borrower Name': d.borrowerName,
+                 'Loan ID': d.loanId,
+                 'Principal Disbursed': d.principalDisbursed,
+                 'Principal Outstanding': d.principalOutstanding,
+                 'Interest Outstanding': d.interestOutstanding,
+                 'Service Fee Outstanding': d.serviceFeeOutstanding,
+                 'Penalty Outstanding': d.penaltyOutstanding,
+                 'Days in Arrears': d.daysInArrears,
+                 'Status': d.status,
+            }));
+            const wsBorrower = XLSX.utils.json_to_sheet(borrowerPerfData);
+            XLSX.utils.book_append_sheet(wb, wsBorrower, "Borrower Performance");
         }
         
         if (wb.SheetNames.length === 0) {
@@ -310,7 +315,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     </div>
                 </TabsContent>
                 <TabsContent value="collectionsReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                     <div className="overflow-auto rounded-md border h-[60vh]">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -345,10 +350,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </ScrollArea>
+                    </div>
                 </TabsContent>
                  <TabsContent value="incomeReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                     <div className="overflow-auto rounded-md border h-[60vh]">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -383,10 +388,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </ScrollArea>
+                    </div>
                 </TabsContent>
                  <TabsContent value="utilizationReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                     <div className="overflow-auto rounded-md border h-[60vh]">
                         <Table>
                              <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -404,8 +409,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                     renderProviderList().map(provider => {
                                         const data = providerSummaryData[provider.id];
                                         if (!data) return null;
-                                        const outstandingPrincipal = data.portfolioSummary.outstanding;
-                                        const availableFund = provider.initialBalance - outstandingPrincipal;
+                                        const availableFund = provider.initialBalance - data.portfolioSummary.outstanding;
                                         return (
                                         <TableRow key={provider.id}>
                                             <TableCell>{provider.name}</TableCell>
@@ -422,10 +426,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                     </ScrollArea>
+                     </div>
                 </TabsContent>
                  <TabsContent value="agingReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                     <div className="overflow-auto rounded-md border h-[60vh]">
                         <Table>
                              <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -461,7 +465,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                     </ScrollArea>
+                     </div>
                 </TabsContent>
                 <TabsContent value="borrowerReport">
                      <div className="overflow-auto rounded-md border h-[60vh]">
@@ -519,4 +523,5 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             </Tabs>
         </div>
     );
-}
+
+    
