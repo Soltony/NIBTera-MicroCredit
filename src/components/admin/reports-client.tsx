@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -36,22 +37,19 @@ const TIMEFRAMES = [
 
 export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const { toast } = useToast();
-    const { currentUser } = useAuth();
+    const { currentUser, isLoading: isAuthLoading } = useAuth();
 
     const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
 
     const [timeframe, setTimeframe] = useState('overall');
-    const [providerId, setProviderId] = useState(() => 
-        isSuperAdminOrAdmin ? 'all' : (currentUser?.providerId || '')
-    );
-    const [isLoading, setIsLoading] = useState(false);
+    const [providerId, setProviderId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('providerReport');
     
     const [loansData, setLoansData] = useState<LoanReportData[]>([]);
     const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
     const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
-
 
     const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string) => {
         setIsLoading(true);
@@ -103,6 +101,17 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             setIsLoading(false);
         }
     }, [toast, providers]);
+    
+    // Effect to set the initial providerId based on user role
+    useEffect(() => {
+        if (!isAuthLoading && currentUser) {
+            if (isSuperAdminOrAdmin) {
+                setProviderId('all');
+            } else {
+                setProviderId(currentUser.providerId || null);
+            }
+        }
+    }, [isAuthLoading, currentUser, isSuperAdminOrAdmin]);
     
     // Effect to refetch data when filters change
     useEffect(() => {
@@ -220,6 +229,17 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+    
+    if (isAuthLoading || !providerId) {
+        return (
+             <div className="flex-1 space-y-4 p-8 pt-6">
+                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+            </div>
+        )
     }
 
     return (
