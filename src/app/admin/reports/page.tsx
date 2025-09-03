@@ -11,10 +11,13 @@ export const dynamic = 'force-dynamic';
 async function getProviders(userId: string): Promise<LoanProviderType[]> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { loanProvider: true }
+        include: { 
+            loanProvider: true,
+            role: true 
+        }
     });
 
-    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    const isSuperAdminOrAdmin = user?.role.name === 'Super Admin' || user?.role.name === 'Admin';
     
     const whereClause = isSuperAdminOrAdmin 
         ? {} 
