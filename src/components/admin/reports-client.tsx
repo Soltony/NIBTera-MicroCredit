@@ -4,17 +4,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Download, File as FileIcon, Loader2 } from 'lucide-react';
+import { Download, File as FileIcon, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData, ProviderReportData } from '@/lib/types';
-import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
+import { useAuth } from '@/hooks/use-auth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Calendar } from '../ui/calendar';
+import { DateRange } from 'react-day-picker';
 
 
 const formatCurrency = (amount: number | null | undefined) => {
@@ -36,81 +40,123 @@ const TIMEFRAMES = [
 
 export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const { toast } = useToast();
+    const { currentUser, isLoading: isAuthLoading } = useAuth();
+
     const [timeframe, setTimeframe] = useState('overall');
-    const [providerId, setProviderId] = useState('all');
-    const [isLoading, setIsLoading] = useState(false);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>();
+    const [providerId, setProviderId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('providerReport');
     
     const [loansData, setLoansData] = useState<LoanReportData[]>([]);
     const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
     const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
+    
+    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+    const isProviderUser = !isSuperAdminOrAdmin;
 
 
-    const fetchReportData = useCallback(async (tab: string, currentProviderId: string, currentTimeframe: string) => {
+    const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string, currentDateRange?: DateRange) => {
         setIsLoading(true);
         try {
-            let endpoint = '';
-            
             const fetchDataForTab = async (url: string) => {
                 const response = await fetch(url);
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || `Failed to fetch data for ${tab}.`);
+                    throw new Error(errorData.error || `Failed to fetch data.`);
                 }
                 return response.json();
+            };
+
+            const buildUrl = (baseUrl: string) => {
+                const params = new URLSearchParams({
+                    providerId: currentProviderId,
+                    timeframe: currentTimeframe,
+                });
+                if (currentDateRange?.from) {
+                    params.set('from', currentDateRange.from.toISOString());
+                }
+                if (currentDateRange?.to) {
+                    params.set('to', currentDateRange.to.toISOString());
+                }
+                return `${baseUrl}?${params.toString()}`;
             }
 
-            switch (tab) {
-                case 'providerReport':
-                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setLoansData(await fetchDataForTab(endpoint));
-                    break;
-                case 'collectionsReport':
-                    endpoint = `/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setCollectionsData(await fetchDataForTab(endpoint));
-                    break;
-                 case 'incomeReport':
-                    endpoint = `/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setIncomeData(await fetchDataForTab(endpoint));
-                    break;
-                 case 'utilizationReport':
-                 case 'agingReport':
-                    const summaryPromises = (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!])
-                        .filter(Boolean)
-                        .map(p => 
-                            fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
-                                .then(data => ({ [p.id]: data }))
-                        );
-                    const results = await Promise.all(summaryPromises);
-                    const newSummaryData = results.reduce((acc, current) => ({ ...acc, ...current }), {});
-                    setProviderSummaryData(prev => ({...prev, ...newSummaryData}));
-                    break;
-                 case 'borrowerReport':
-                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setLoansData(await fetchDataForTab(endpoint));
-                    break;
-                default:
-                    break;
-            }
+            const loansPromise = fetchDataForTab(buildUrl('/api/reports/loans'));
+            const collectionsPromise = fetchDataForTab(buildUrl('/api/reports/collections'));
+            const incomePromise = fetchDataForTab(buildUrl('/api/reports/income'));
             
+            const summaryProviders = (currentProviderId === 'all' && providers.length > 1 && isSuperAdminOrAdmin) 
+              ? providers 
+              : [providers.find(p => p.id === currentProviderId)!].filter(Boolean);
+
+            const summaryPromises = summaryProviders
+                .map(p => 
+                    fetchDataForTab(buildUrl(`/api/reports/provider-summary`).replace(`providerId=${currentProviderId}`, `providerId=${p.id}`))
+                        .then(data => ({ [p.id]: data }))
+                        .catch(err => {
+                            console.error(`Failed to fetch summary for provider ${p.id}:`, err.message);
+                            return { [p.id]: null }; // Return null on error for this provider
+                        })
+                );
+            
+            const [loans, collections, income, ...summaryResults] = await Promise.all([
+                loansPromise,
+                collectionsPromise,
+                incomePromise,
+                ...summaryPromises
+            ]);
+
+            setLoansData(loans);
+            setCollectionsData(collections);
+            setIncomeData(income);
+            
+            const newSummaryData = summaryResults.reduce((acc, current) => ({ ...acc, ...current }), {});
+            setProviderSummaryData(newSummaryData);
+
         } catch (error: any) {
-            toast({ title: "Error fetching data", description: error.message, variant: "destructive" });
+            toast({ title: "Error fetching report data", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    }, [toast, providers]);
+    }, [toast, providers, isSuperAdminOrAdmin]);
+    
+    // Effect to set the initial providerId based on user role
+    useEffect(() => {
+        if (isAuthLoading) return;
+
+        if (isSuperAdminOrAdmin) {
+            setProviderId('all');
+        } else if (isProviderUser) {
+            // For provider users, they should only have one provider passed in props
+            if (providers.length > 0 && currentUser?.providerId) {
+                 setProviderId(currentUser.providerId);
+            } else {
+                 setProviderId('none');
+            }
+        }
+    }, [isAuthLoading, isSuperAdminOrAdmin, isProviderUser, providers, currentUser?.providerId]);
     
     // Effect to refetch data when filters change
     useEffect(() => {
-        fetchReportData(activeTab, providerId, timeframe);
-    }, [activeTab, providerId, timeframe, fetchReportData]);
+        if(providerId && providerId !== 'none') {
+            fetchAllReportData(providerId, timeframe, dateRange);
+        } else if (providerId === 'none' || providers.length === 0) {
+            setIsLoading(false);
+            setLoansData([]);
+            setCollectionsData([]);
+            setIncomeData([]);
+            setProviderSummaryData({});
+        }
+    }, [providerId, timeframe, dateRange, fetchAllReportData, providers.length]);
 
     
     const handleExcelExport = () => {
         const wb = XLSX.utils.book_new();
+        const providerList = (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
 
-        // Export all tabs into different sheets
+        // 1. Provider Loans
         if (loansData.length > 0) {
             const providerLoanData = loansData.map(d => ({
                 'Provider': d.provider,
@@ -126,26 +172,24 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             }));
             const wsProvider = XLSX.utils.json_to_sheet(providerLoanData);
             XLSX.utils.book_append_sheet(wb, wsProvider, "Provider Loans");
-            
-            const borrowerPerfData = loansData.map(d => ({
-                 'Borrower ID': d.borrowerId,
-                 'Borrower Name': d.borrowerName,
-                 'Loan ID': d.loanId,
-                 'Principal Disbursed': d.principalDisbursed,
-                 'Principal Outstanding': d.principalOutstanding,
-                 'Interest Outstanding': d.interestOutstanding,
-                 'Service Fee Outstanding': d.serviceFeeOutstanding,
-                 'Penalty Outstanding': d.penaltyOutstanding,
-                 'Days in Arrears': d.daysInArrears,
-                 'Status': d.status,
-            }));
-            const wsBorrower = XLSX.utils.json_to_sheet(borrowerPerfData);
-            XLSX.utils.book_append_sheet(wb, wsBorrower, "Borrower Performance");
         }
+
+        // 2. Collections
         if (collectionsData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(collectionsData);
+            const collectionsExportData = collectionsData.map(d => ({
+                'Provider': d.provider,
+                'Date': format(new Date(d.date), 'yyyy-MM-dd'),
+                'Principal Received': d.principal,
+                'Interest Received': d.interest,
+                'Service Fee Received': d.serviceFee,
+                'Penalty Received': d.penalty,
+                'Total Collected': d.total,
+            }));
+            const ws = XLSX.utils.json_to_sheet(collectionsExportData);
             XLSX.utils.book_append_sheet(wb, ws, "Collections");
         }
+        
+        // 3. Income
         if (incomeData.length > 0) {
             const incomeExportData = incomeData.map(d => ({
                 'Provider': d.provider,
@@ -162,27 +206,27 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             XLSX.utils.book_append_sheet(wb, ws, "Income");
         }
         
-        const utilizationData = renderProviderList().map(p => {
-             const data = providerSummaryData[p.id];
-             if (!data) return null;
-             const outstandingPrincipal = data.portfolioSummary.outstanding;
-             const availableFund = p.initialBalance - outstandingPrincipal;
-             return {
+        // 4. Fund Utilization
+        const utilizationExportData = providerList.map(p => {
+            const data = providerSummaryData[p.id];
+            if (!data) return null;
+            const availableFund = p.initialBalance - data.portfolioSummary.outstanding;
+            return {
                 'Provider': p.name,
                 'Provider Fund': p.initialBalance,
                 'Loans Disbursed': data.portfolioSummary.disbursed,
-                'Outstanding Principal': outstandingPrincipal,
+                'Outstanding Principal': data.portfolioSummary.outstanding,
                 'Available Fund': availableFund,
                 'Utilization %': data.fundUtilization,
-             }
+            };
         }).filter(Boolean);
-
-        if (utilizationData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(utilizationData);
+        if (utilizationExportData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(utilizationExportData as any[]);
             XLSX.utils.book_append_sheet(wb, ws, "Fund Utilization");
         }
         
-        const agingData = renderProviderList().map(p => {
+        // 5. Aging Report
+        const agingExportData = providerList.map(p => {
             const data = providerSummaryData[p.id];
             if (!data) return null;
             const aging = data.agingReport;
@@ -193,14 +237,31 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 '61-90 Days': aging.buckets['61-90'],
                 '90+ Days': aging.buckets['91+'],
                 'Total Overdue': aging.totalOverdue,
-            }
+            };
         }).filter(Boolean);
-        
-        if (agingData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(agingData);
+        if (agingExportData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(agingExportData as any[]);
             XLSX.utils.book_append_sheet(wb, ws, "Aging Report");
         }
         
+        // 6. Borrower Performance
+        if (loansData.length > 0) {
+            const borrowerPerfData = loansData.map(d => ({
+                 'Borrower ID': d.borrowerId,
+                 'Borrower Name': d.borrowerName,
+                 'Loan ID': d.loanId,
+                 'Principal Disbursed': d.principalDisbursed,
+                 'Principal Outstanding': d.principalOutstanding,
+                 'Interest Outstanding': d.interestOutstanding,
+                 'Service Fee Outstanding': d.serviceFeeOutstanding,
+                 'Penalty Outstanding': d.penaltyOutstanding,
+                 'Days in Arrears': d.daysInArrears,
+                 'Status': d.status,
+            }));
+            const wsBorrower = XLSX.utils.json_to_sheet(borrowerPerfData);
+            XLSX.utils.book_append_sheet(wb, wsBorrower, "Borrower Performance");
+        }
+
         if (wb.SheetNames.length === 0) {
             toast({ description: "No data available to export.", variant: "destructive" });
             return;
@@ -210,15 +271,39 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    const renderProviderList = () => (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
+    if (isAuthLoading || providerId === null) {
+        return (
+             <div className="flex-1 space-y-4 p-8 pt-6">
+                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+            </div>
+        )
+    }
 
+    if (providerId === 'none') {
+         return (
+            <div className="flex-1 space-y-4 p-8 pt-6">
+                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <Card className="mt-4">
+                    <CardHeader>
+                        <CardTitle>Access Restricted</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-muted-foreground">You are not currently associated with a loan provider. Please contact an administrator to get access to reports.</p>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
                 <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
                 <div className="flex items-center space-x-2">
-                    <Select onValueChange={setTimeframe} value={timeframe}>
+                    <Select onValueChange={(value) => { setTimeframe(value); setDateRange(undefined); }} value={timeframe}>
                         <SelectTrigger className="w-[180px]">
                             <SelectValue placeholder="Select Timeframe" />
                         </SelectTrigger>
@@ -226,15 +311,53 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             {TIMEFRAMES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                     <Select onValueChange={setProviderId} value={providerId}>
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Select Provider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Providers</SelectItem>
-                            {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                            id="date"
+                            variant={"outline"}
+                            className={cn(
+                                "w-[300px] justify-start text-left font-normal",
+                                !dateRange && "text-muted-foreground"
+                            )}
+                            >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {dateRange?.from ? (
+                                dateRange.to ? (
+                                <>
+                                    {format(dateRange.from, "LLL dd, y")} -{" "}
+                                    {format(dateRange.to, "LLL dd, y")}
+                                </>
+                                ) : (
+                                format(dateRange.from, "LLL dd, y")
+                                )
+                            ) : (
+                                <span>Pick a date</span>
+                            )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={dateRange?.from}
+                            selected={dateRange}
+                            onSelect={(range) => { setDateRange(range); if (range?.from) setTimeframe('custom'); }}
+                            numberOfMonths={2}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                     {isSuperAdminOrAdmin && (
+                        <Select onValueChange={setProviderId} value={providerId || ''}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Select Provider" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Providers</SelectItem>
+                                {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                     )}
                     <Button variant="outline" onClick={handleExcelExport}><Download className="mr-2 h-4 w-4"/>Excel</Button>
                 </div>
             </div>
@@ -248,8 +371,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     <TabsTrigger value="agingReport">Aging</TabsTrigger>
                     <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
                 </TabsList>
-                <TabsContent value="providerReport" className="space-y-4">
-                    <div className="overflow-auto rounded-md border h-[60vh]">
+                <div className="overflow-auto rounded-md border h-[60vh]">
+                    <TabsContent value="providerReport" className="space-y-4 m-0">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -267,13 +390,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    Array.from({ length: 10 }).map((_, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell colSpan={10} className="text-center p-4">
-                                                 <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    <TableRow>
+                                        <TableCell colSpan={10} className="h-24 text-center">
+                                            <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
+                                        </TableCell>
+                                    </TableRow>
                                 ) : loansData.length > 0 ? (
                                     loansData.map((row) => (
                                         <TableRow key={row.loanId}>
@@ -307,10 +428,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
-                </TabsContent>
-                <TabsContent value="collectionsReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                    </TabsContent>
+                    <TabsContent value="collectionsReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -345,10 +464,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </ScrollArea>
-                </TabsContent>
-                 <TabsContent value="incomeReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                    </TabsContent>
+                    <TabsContent value="incomeReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -383,12 +500,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </ScrollArea>
-                </TabsContent>
-                 <TabsContent value="utilizationReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                    </TabsContent>
+                    <TabsContent value="utilizationReport">
                         <Table>
-                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
                                     <TableHead className="text-right">Provider Fund</TableHead>
@@ -398,14 +513,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                 {isLoading ? (
+                                {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : renderProviderList().length > 0 ? (
-                                    renderProviderList().map(provider => {
+                                ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
+                                    providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
                                         const data = providerSummaryData[provider.id];
-                                        if (!data) return null;
-                                        const outstandingPrincipal = data.portfolioSummary.outstanding;
-                                        const availableFund = provider.initialBalance - outstandingPrincipal;
+                                        if (!data) return <TableRow key={provider.id}><TableCell colSpan={5} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
+                                        const availableFund = provider.initialBalance - data.portfolioSummary.outstanding;
                                         return (
                                         <TableRow key={provider.id}>
                                             <TableCell>{provider.name}</TableCell>
@@ -422,12 +536,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                     </ScrollArea>
-                </TabsContent>
-                 <TabsContent value="agingReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                    </TabsContent>
+                    <TabsContent value="agingReport">
                         <Table>
-                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
                                     <TableHead className="text-right">0-30 Days</TableHead>
@@ -440,18 +552,19 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : renderProviderList().length > 0 ? (
-                                    renderProviderList().map(provider => {
+                                ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
+                                    providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
                                         const data = providerSummaryData[provider.id];
+                                        if (!data) return <TableRow key={provider.id}><TableCell colSpan={6} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const aging = data?.agingReport;
                                         return (
                                         <TableRow key={provider.id}>
                                             <TableCell>{provider.name}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['1-30'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['31-60'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['61-90'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['91+'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(aging?.totalOverdue || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['1-30'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['31-60'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['61-90'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['91+'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{aging?.totalOverdue || 0}</TableCell>
                                         </TableRow>
                                     )})
                                 ) : (
@@ -461,12 +574,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                     </ScrollArea>
-                </TabsContent>
-                <TabsContent value="borrowerReport">
-                     <div className="overflow-auto rounded-md border h-[60vh]">
+                    </TabsContent>
+                    <TabsContent value="borrowerReport">
                         <Table>
-                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Borrower ID</TableHead>
                                     <TableHead>Borrower Name</TableHead>
@@ -480,7 +591,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                     <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
-                             <TableBody>
+                                <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={10} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
                                 ) : loansData.length > 0 ? (
@@ -512,10 +623,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                         <TableCell colSpan={10} className="h-24 text-center">No results found.</TableCell>
                                     </TableRow>
                                 )}
-                             </TableBody>
+                                </TableBody>
                         </Table>
-                     </div>
-                </TabsContent>
+                    </TabsContent>
+                </div>
             </Tabs>
         </div>
     );
