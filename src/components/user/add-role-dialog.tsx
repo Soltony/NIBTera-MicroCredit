@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Role, Permissions } from '@/lib/types';
 import { produce } from 'immer';
+import { allMenuItems } from '@/lib/menu-items';
 
 interface AddRoleDialogProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ interface AddRoleDialogProps {
   primaryColor?: string;
 }
 
-const PERMISSION_MODULES: (keyof Permissions)[] = ['users', 'roles', 'reports', 'settings', 'products'];
+const PERMISSION_MODULES: (keyof Permissions)[] = allMenuItems.map(item => item.label.toLowerCase().replace(' ', '-') as keyof Permissions).concat(['products']);
 const PERMISSION_ACTIONS: (keyof Permissions[keyof Permissions])[] = ['create', 'read', 'update', 'delete'];
 
 const initialPermissions = PERMISSION_MODULES.reduce((acc, module) => {
@@ -117,7 +118,7 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, primaryColor = '#
                       <TableBody>
                           {PERMISSION_MODULES.map(module => (
                               <TableRow key={module}>
-                                  <TableCell className="font-medium capitalize">{module}</TableCell>
+                                  <TableCell className="font-medium capitalize">{module.replace('-', ' ')}</TableCell>
                                   {PERMISSION_ACTIONS.map(action => (
                                       <TableCell key={action} className="text-center">
                                           <Checkbox

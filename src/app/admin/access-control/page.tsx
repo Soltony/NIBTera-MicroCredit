@@ -17,9 +17,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { allMenuItems } from '@/lib/menu-items';
 
 
-const PERMISSION_MODULES = ['users', 'roles', 'reports', 'settings', 'products'];
+const PERMISSION_MODULES = allMenuItems.map(item => item.label.toLowerCase().replace(' ', '-')).concat(['products']);
+
 
 function UsersTab() {
     const [users, setUsers] = useState<User[]>([]);
@@ -361,7 +363,7 @@ function RolesTab() {
                             <TableRow>
                                 <TableHead className="w-[150px]">Role Name</TableHead>
                                 {PERMISSION_MODULES.map(module => (
-                                    <TableHead key={module} className="text-center">{module}</TableHead>
+                                    <TableHead key={module} className="text-center capitalize">{module.replace('-', ' ')}</TableHead>
                                 ))}
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>

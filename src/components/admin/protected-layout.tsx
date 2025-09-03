@@ -38,6 +38,7 @@ import { Logo } from '@/components/icons';
 import { useAuth } from '@/hooks/use-auth';
 import type { LoanProvider } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { allMenuItems } from '@/lib/menu-items';
 
 
 // Function to convert hex to HSL
@@ -64,39 +65,6 @@ const hexToHsl = (hex: string): string => {
 
   return `${(h * 360).toFixed(0)} ${(s * 100).toFixed(0)}% ${(l * 100).toFixed(0)}%`;
 }
-
-const allMenuItems = [
-  {
-    path: '/admin',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
-  },
-  {
-    path: '/admin/reports',
-    label: 'Reports',
-    icon: FileText,
-    roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
-  },
-   {
-    path: '/admin/access-control',
-    label: 'Access Control',
-    icon: ShieldCheck,
-    roles: ['Super Admin'],
-  },
-  {
-    path: '/admin/credit-score-engine',
-    label: 'Scoring Engine',
-    icon: FileCog,
-    roles: ['Super Admin', 'Loan Manager'],
-  },
-  {
-    path: '/admin/settings',
-    label: 'Settings',
-    icon: Settings,
-    roles: ['Super Admin', 'Loan Manager', 'Loan Provider'],
-  },
-];
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
