@@ -15,6 +15,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useAuth } from '@/hooks/use-auth';
 
 
 const formatCurrency = (amount: number | null | undefined) => {
@@ -36,8 +37,14 @@ const TIMEFRAMES = [
 
 export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const { toast } = useToast();
+    const { currentUser } = useAuth();
+
+    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+
     const [timeframe, setTimeframe] = useState('overall');
-    const [providerId, setProviderId] = useState('all');
+    const [providerId, setProviderId] = useState(() => 
+        isSuperAdminOrAdmin ? 'all' : (providers[0]?.id || 'all')
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('providerReport');
     
@@ -228,7 +235,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <SelectValue placeholder="Select Provider" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Providers</SelectItem>
+                            {isSuperAdminOrAdmin && <SelectItem value="all">All Providers</SelectItem>}
                             {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                         </SelectContent>
                     </Select>

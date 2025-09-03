@@ -18,7 +18,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
     
     const whereClause = isSuperAdminOrAdmin 
         ? {} 
-        : { id: user?.loanProvider?.id };
+        : { id: user?.loanProvider?.id || '' };
 
     const providers = await prisma.loanProvider.findMany({
         where: whereClause,
