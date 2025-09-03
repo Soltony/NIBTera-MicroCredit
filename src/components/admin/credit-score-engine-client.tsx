@@ -204,6 +204,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
     const [selectedProducts, setSelectedProducts] = useState<Record<string, boolean>>({});
     const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
+    const [restoringHistoryItem, setRestoringHistoryItem] = useState<ScoringHistoryItem | null>(null);
 
     const { toast } = useToast();
 
@@ -424,6 +425,23 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
         }
     };
 
+    const handleRestoreFromHistory = () => {
+        if (!restoringHistoryItem) return;
+        try {
+            const paramsFromHistory = JSON.parse(restoringHistoryItem.parameters);
+            if (Array.isArray(paramsFromHistory)) {
+                setCurrentParameters(paramsFromHistory);
+                toast({ title: 'Configuration Loaded', description: 'The historical configuration has been loaded into the editor.' });
+            } else {
+                throw new Error("Invalid history data format.");
+            }
+        } catch (error: any) {
+            toast({ title: 'Error Loading History', description: error.message, variant: 'destructive' });
+        } finally {
+            setRestoringHistoryItem(null);
+        }
+    };
+
 
     if (providers.length === 0) {
         return (
@@ -592,9 +610,14 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                                     <p className="font-semibold">{format(new Date(item.savedAt), 'MMMM d, yyyy h:mm a')}</p>
                                     <p className="text-sm text-muted-foreground">Applied to: <span className="font-medium text-foreground">{item.appliedProducts.map(p => p.product.name).join(', ') || 'N/A'}</span></p>
                                 </div>
-                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setDeletingHistoryId(item.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setRestoringHistoryItem(item)}>
+                                        <FileClock className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setDeletingHistoryId(item.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </li>
                         ))}
                         </ul>
@@ -646,6 +669,21 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDeleteHistory} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+            <AlertDialog open={!!restoringHistoryItem} onOpenChange={() => setRestoringHistoryItem(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Load Configuration?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will replace your current unsaved configuration in the editor with the selected historical version. Are you sure you want to proceed?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleRestoreFromHistory} style={{ backgroundColor: themeColor }} className="text-white">Load Configuration</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
