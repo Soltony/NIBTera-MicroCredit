@@ -150,27 +150,26 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         }
         
         // 4. Fund Utilization
-        const utilizationData = providerList.map(p => {
-             const data = providerSummaryData[p.id];
-             if (!data) return null;
+        const utilizationExportData = providerList.map(p => {
+            const data = providerSummaryData[p.id];
+            if (!data) return null;
              const availableFund = p.initialBalance - data.portfolioSummary.outstanding;
-             return {
+            return {
                 'Provider': p.name,
                 'Provider Fund': p.initialBalance,
                 'Loans Disbursed': data.portfolioSummary.disbursed,
                 'Outstanding Principal': data.portfolioSummary.outstanding,
                 'Available Fund': availableFund,
                 'Utilization %': data.fundUtilization,
-             }
+            };
         }).filter(Boolean);
-
-        if (utilizationData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(utilizationData);
+        if (utilizationExportData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(utilizationExportData);
             XLSX.utils.book_append_sheet(wb, ws, "Fund Utilization");
         }
         
         // 5. Aging Report
-        const agingData = providerList.map(p => {
+        const agingExportData = providerList.map(p => {
             const data = providerSummaryData[p.id];
             if (!data) return null;
             const aging = data.agingReport;
@@ -178,13 +177,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 'Provider': p.name,
                 '0-30 Days': aging.buckets['1-30'],
                 '31-60 Days': aging.buckets['31-60'],
-                '61-90 Days': aging.buckets['91+'],
+                '61-90 Days': aging.buckets['61-90'],
+                '90+ Days': aging.buckets['91+'],
                 'Total Overdue': aging.totalOverdue,
-            }
+            };
         }).filter(Boolean);
-        
-        if (agingData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(agingData);
+        if (agingExportData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(agingExportData);
             XLSX.utils.book_append_sheet(wb, ws, "Aging Report");
         }
         
@@ -205,7 +204,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             const wsBorrower = XLSX.utils.json_to_sheet(borrowerPerfData);
             XLSX.utils.book_append_sheet(wb, wsBorrower, "Borrower Performance");
         }
-        
+
         if (wb.SheetNames.length === 0) {
             toast({ description: "No data available to export.", variant: "destructive" });
             return;
@@ -523,5 +522,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             </Tabs>
         </div>
     );
+
+    
 
     
