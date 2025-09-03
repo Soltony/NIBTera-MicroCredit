@@ -7,19 +7,29 @@ const prisma = new PrismaClient();
 
 const permissions = {
   superAdmin: {
-    users: { create: true, read: true, update: true, delete: true },
-    roles: { create: true, read: true, update: true, delete: true },
+    dashboard: { create: true, read: true, update: true, delete: true },
     reports: { create: true, read: true, update: true, delete: true },
+    'access-control': { create: true, read: true, update: true, delete: true },
+    'scoring-engine': { create: true, read: true, update: true, delete: true },
     settings: { create: true, read: true, update: true, delete: true },
     products: { create: true, read: true, update: true, delete: true },
   },
   loanProvider: {
-    users: { create: false, read: true, update: false, delete: false },
-    roles: { create: false, read: false, update: false, delete: false },
+    dashboard: { create: false, read: true, update: false, delete: false },
     reports: { create: true, read: true, update: false, delete: false },
+    'access-control': { create: false, read: false, update: false, delete: false },
+    'scoring-engine': { create: false, read: true, update: true, delete: false },
     settings: { create: false, read: true, update: true, delete: false },
     products: { create: true, read: true, update: true, delete: true },
   },
+   reconciliation: {
+    dashboard: { create: false, read: true, update: false, delete: false },
+    reports: { create: false, read: true, update: false, delete: false },
+    'access-control': { create: false, read: false, update: false, delete: false },
+    'scoring-engine': { create: false, read: false, update: false, delete: false },
+    settings: { create: false, read: false, update: false, delete: false },
+    products: { create: false, read: false, update: false, delete: false },
+  }
 };
 
 const defaultLedgerAccounts = [
@@ -45,7 +55,9 @@ async function main() {
   // Seed Roles
   const superAdminRole = await prisma.role.upsert({
     where: { name: 'Super Admin' },
-    update: {},
+    update: {
+      permissions: JSON.stringify(permissions.superAdmin),
+    },
     create: {
       name: 'Super Admin',
       permissions: JSON.stringify(permissions.superAdmin),
@@ -54,10 +66,23 @@ async function main() {
 
   const loanProviderRole = await prisma.role.upsert({
     where: { name: 'Loan Provider' },
-    update: {},
+    update: {
+       permissions: JSON.stringify(permissions.loanProvider),
+    },
     create: {
       name: 'Loan Provider',
       permissions: JSON.stringify(permissions.loanProvider),
+    },
+  });
+
+  const reconciliationRole = await prisma.role.upsert({
+    where: { name: 'Reconciliation' },
+    update: {
+      permissions: JSON.stringify(permissions.reconciliation),
+    },
+    create: {
+      name: 'Reconciliation',
+      permissions: JSON.stringify(permissions.reconciliation),
     },
   });
 
