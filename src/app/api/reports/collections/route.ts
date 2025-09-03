@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
     const dateRange = getDates(timeframe);
 
     const whereClause: any = {
-        ...(providerId && providerId !== 'all' && { journalEntry: { providerId } }),
         ...(dateRange.gte && { journalEntry: { date: { gte: dateRange.gte } } }),
         ...(dateRange.lte && { journalEntry: { date: { lte: dateRange.lte } } }),
         type: 'Debit',
@@ -35,6 +34,10 @@ export async function GET(req: NextRequest) {
             type: 'Received'
         }
     };
+    
+    if (providerId && providerId !== 'all') {
+        whereClause.journalEntry = { ...whereClause.journalEntry, providerId };
+    }
 
     try {
         const ledgerEntries = await prisma.ledgerEntry.findMany({

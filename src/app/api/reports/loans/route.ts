@@ -58,10 +58,13 @@ export async function GET(req: NextRequest) {
     const dateRange = getDates(timeframe);
 
     const whereClause: any = {
-        ...(providerId && providerId !== 'all' && { product: { providerId } }),
         ...(dateRange.gte && { disbursedDate: { gte: dateRange.gte } }),
         ...(dateRange.lte && { disbursedDate: { lte: dateRange.lte } }),
     };
+
+    if (providerId && providerId !== 'all') {
+        whereClause.product = { providerId };
+    }
 
     try {
         const loans: LoanWithRelations[] = await prisma.loan.findMany({

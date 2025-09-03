@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData, ProviderReportData } from '@/lib/types';
-import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -43,7 +42,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
     const [timeframe, setTimeframe] = useState('overall');
     const [providerId, setProviderId] = useState(() => 
-        isSuperAdminOrAdmin ? 'all' : (currentUser?.providerId || 'all')
+        isSuperAdminOrAdmin ? 'all' : (currentUser?.providerId || '')
     );
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('providerReport');
@@ -70,8 +69,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             const collectionsPromise = fetchDataForTab(`/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
             const incomePromise = fetchDataForTab(`/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
             
-            const summaryPromises = (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!])
-                .filter(Boolean)
+            const summaryProviders = (currentProviderId === 'all' && providers.length > 1) 
+              ? providers 
+              : [providers.find(p => p.id === currentProviderId)!].filter(Boolean);
+
+            const summaryPromises = summaryProviders
                 .map(p => 
                     fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
                         .then(data => ({ [p.id]: data }))
@@ -104,7 +106,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     
     // Effect to refetch data when filters change
     useEffect(() => {
-        fetchAllReportData(providerId, timeframe);
+        if(providerId) {
+            fetchAllReportData(providerId, timeframe);
+        }
     }, [providerId, timeframe, fetchAllReportData]);
 
     
@@ -157,7 +161,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         const utilizationExportData = providerList.map(p => {
             const data = providerSummaryData[p.id];
             if (!data) return null;
-             const availableFund = p.initialBalance - data.portfolioSummary.outstanding;
+            const availableFund = p.initialBalance - data.portfolioSummary.outstanding;
             return {
                 'Provider': p.name,
                 'Provider Fund': p.initialBalance,
@@ -168,7 +172,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             };
         }).filter(Boolean);
         if (utilizationExportData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(utilizationExportData);
+            const ws = XLSX.utils.json_to_sheet(utilizationExportData as any[]);
             XLSX.utils.book_append_sheet(wb, ws, "Fund Utilization");
         }
         
@@ -187,7 +191,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             };
         }).filter(Boolean);
         if (agingExportData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(agingExportData);
+            const ws = XLSX.utils.json_to_sheet(agingExportData as any[]);
             XLSX.utils.book_append_sheet(wb, ws, "Aging Report");
         }
         
@@ -231,15 +235,17 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             {TIMEFRAMES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                     <Select onValueChange={setProviderId} value={providerId}>
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Select Provider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {isSuperAdminOrAdmin && <SelectItem value="all">All Providers</SelectItem>}
-                            {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                     {isSuperAdminOrAdmin && (
+                        <Select onValueChange={setProviderId} value={providerId}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Select Provider" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Providers</SelectItem>
+                                {providers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                     )}
                     <Button variant="outline" onClick={handleExcelExport}><Download className="mr-2 h-4 w-4"/>Excel</Button>
                 </div>
             </div>
@@ -253,8 +259,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     <TabsTrigger value="agingReport">Aging</TabsTrigger>
                     <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
                 </TabsList>
-                <TabsContent value="providerReport" className="space-y-4">
-                    <div className="overflow-auto rounded-md border h-[60vh]">
+                <div className="overflow-auto rounded-md border h-[60vh]">
+                    <TabsContent value="providerReport" className="space-y-4 m-0">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -310,10 +316,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
-                </TabsContent>
-                <TabsContent value="collectionsReport">
-                     <div className="overflow-auto rounded-md border h-[60vh]">
+                    </TabsContent>
+                    <TabsContent value="collectionsReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -348,10 +352,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
-                </TabsContent>
-                 <TabsContent value="incomeReport">
-                     <div className="overflow-auto rounded-md border h-[60vh]">
+                    </TabsContent>
+                    <TabsContent value="incomeReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -386,12 +388,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
-                </TabsContent>
-                 <TabsContent value="utilizationReport">
-                     <div className="overflow-auto rounded-md border h-[60vh]">
+                    </TabsContent>
+                    <TabsContent value="utilizationReport">
                         <Table>
-                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
                                     <TableHead className="text-right">Provider Fund</TableHead>
@@ -401,10 +401,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                 {isLoading ? (
+                                    {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : providers.length > 0 ? (
-                                    providers.map(provider => {
+                                ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
+                                    providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
                                         const data = providerSummaryData[provider.id];
                                         if (!data) return <TableRow key={provider.id}><TableCell colSpan={5} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const availableFund = provider.initialBalance - data.portfolioSummary.outstanding;
@@ -424,12 +424,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                     </div>
-                </TabsContent>
-                 <TabsContent value="agingReport">
-                     <div className="overflow-auto rounded-md border h-[60vh]">
+                    </TabsContent>
+                    <TabsContent value="agingReport">
                         <Table>
-                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
                                     <TableHead className="text-right">0-30 Days</TableHead>
@@ -442,19 +440,19 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : providers.length > 0 ? (
-                                    providers.map(provider => {
+                                ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
+                                    providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
                                         const data = providerSummaryData[provider.id];
                                         if (!data) return <TableRow key={provider.id}><TableCell colSpan={6} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const aging = data?.agingReport;
                                         return (
                                         <TableRow key={provider.id}>
                                             <TableCell>{provider.name}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['1-30'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['31-60'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['61-90'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(aging?.buckets['91+'] || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(aging?.totalOverdue || 0)}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['1-30'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['31-60'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['61-90'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono">{aging?.buckets['91+'] || 0}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{aging?.totalOverdue || 0}</TableCell>
                                         </TableRow>
                                     )})
                                 ) : (
@@ -464,12 +462,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                     </div>
-                </TabsContent>
-                <TabsContent value="borrowerReport">
-                     <div className="overflow-auto rounded-md border h-[60vh]">
+                    </TabsContent>
+                    <TabsContent value="borrowerReport">
                         <Table>
-                             <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Borrower ID</TableHead>
                                     <TableHead>Borrower Name</TableHead>
@@ -483,7 +479,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                     <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
-                             <TableBody>
+                                <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={10} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
                                 ) : loansData.length > 0 ? (
@@ -515,10 +511,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                         <TableCell colSpan={10} className="h-24 text-center">No results found.</TableCell>
                                     </TableRow>
                                 )}
-                             </TableBody>
+                                </TableBody>
                         </Table>
-                     </div>
-                </TabsContent>
+                    </TabsContent>
+                </div>
             </Tabs>
         </div>
     );
