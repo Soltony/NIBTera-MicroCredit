@@ -36,6 +36,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
+  const [selectedLoanProviderColor, setSelectedLoanProviderColor] = useState<string>('#fdb913');
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
@@ -66,15 +67,19 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
     return loanHistory.reduce((acc, loan) => acc + (loan.repaidAmount || 0), 0);
   }, [loanHistory]);
   
-  const themeColor = useMemo(() => {
-    const loans = activeTab === 'active' ? activeLoans : closedLoans;
-    if (loans.length > 0) {
-      const providerId = loans[0]?.product?.providerId;
-      const firstProvider = providers.find(p => p.id === providerId);
-      return firstProvider?.colorHex || '#fdb913';
-    }
-    return '#fdb913'; // Default color if no loans
-  }, [activeTab, activeLoans, closedLoans, providers]);
+  const handleToggleExpand = (loanId: string) => {
+      const newExpandedLoanId = expandedLoan === loanId ? null : loanId;
+      setExpandedLoan(newExpandedLoanId);
+      if (newExpandedLoanId) {
+          const loan = loanHistory.find(l => l.id === newExpandedLoanId);
+          const provider = providers.find(p => p.id === loan?.product.providerId);
+          setSelectedLoanProviderColor(provider?.colorHex || '#fdb913');
+      } else {
+          // Reset to default or first loan's color when all are collapsed
+           const firstLoanProvider = providers.find(p => p.id === loanHistory[0]?.product.providerId);
+           setSelectedLoanProviderColor(firstLoanProvider?.colorHex || '#fdb913');
+      }
+  }
 
 
   const handleRepay = (loan: LoanDetails) => {
@@ -119,7 +124,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
         description: `${formatCurrency(amount)} ETB has been paid towards your loan.`,
       });
 
-    } catch (error: any) {
+    } catch (error: any) => {
        toast({
         title: 'Payment Error',
         description: error.message,
@@ -138,7 +143,11 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
     const color = provider?.colorHex || '#fdb913';
 
     return (
-      <Card key={loan.id} className="shadow-md">
+      <Card 
+        key={loan.id} 
+        className="shadow-md transition-all" 
+        style={{ borderLeft: `4px solid ${color}`}}
+      >
         <CardContent className="p-4">
           <div className="flex justify-between items-center">
             <div>
@@ -147,7 +156,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
               <p className="text-xs text-muted-foreground">{loan.id}</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setExpandedLoan(expandedLoan === loan.id ? null : loan.id)}>View</Button>
+              <Button variant="outline" size="sm" onClick={() => handleToggleExpand(loan.id)}>View</Button>
               {loan.repaymentStatus === 'Unpaid' && <Button size="sm" style={{backgroundColor: color}} className="text-white" onClick={() => handleRepay(loan)}>Repay</Button>}
             </div>
           </div>
@@ -189,7 +198,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                     
                     <div className="my-6">
                       {activeTab === 'active' ? (
-                          <Card className="shadow-lg text-white" style={{ backgroundColor: themeColor }}>
+                          <Card className="shadow-lg text-white transition-colors duration-300" style={{ backgroundColor: selectedLoanProviderColor }}>
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</p>
@@ -202,7 +211,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                             </CardContent>
                           </Card>
                       ) : (
-                          <Card className="shadow-lg text-white" style={{ backgroundColor: themeColor }}>
+                          <Card className="shadow-lg text-white transition-colors duration-300" style={{ backgroundColor: selectedLoanProviderColor }}>
                             <CardContent className="p-4 flex justify-around items-center">
                               <div className="text-center">
                                 <p className="text-2xl font-bold">{formatCurrency(totalRepaidAmount)}</p>
