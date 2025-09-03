@@ -1,9 +1,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, differenceInDays } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, differenceInDays, isValid } from 'date-fns';
 
-const getDates = (timeframe: string) => {
+const getDates = (timeframe: string, from?: string, to?: string) => {
+    if (from && to) {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        if(isValid(fromDate) && isValid(toDate)) {
+            return { gte: startOfDay(fromDate), lte: endOfDay(toDate) };
+        }
+    }
     const now = new Date();
     switch (timeframe) {
         case 'daily':
@@ -20,8 +27,8 @@ const getDates = (timeframe: string) => {
     }
 }
 
-async function getAggregatedLedgerEntries(providerId: string, timeframe: string, type: 'Debit' | 'Credit', categories: string[]) {
-     const dateRange = getDates(timeframe);
+async function getAggregatedLedgerEntries(providerId: string, timeframe: string, from: string | null, to: string | null, type: 'Debit' | 'Credit', categories: string[]) {
+     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
      const result = await prisma.ledgerEntry.groupBy({
         by: ['ledgerAccountId'],
         where: {
@@ -62,13 +69,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const providerId = searchParams.get('providerId');
     const timeframe = searchParams.get('timeframe') || 'daily';
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
 
     if (!providerId) {
         return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
     }
 
     try {
-        const dateRange = getDates(timeframe);
+        const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
         // 1. Portfolio Summary
         const disbursedResult = await prisma.loan.aggregate({
@@ -104,12 +113,12 @@ export async function GET(req: NextRequest) {
         };
         
         // 2. Collections Report
-        const collections = await getAggregatedLedgerEntries(providerId, timeframe, 'Debit', ['Principal', 'Interest', 'ServiceFee', 'Penalty']);
+        const collections = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Debit', ['Principal', 'Interest', 'ServiceFee', 'Penalty']);
         const totalCollected = Object.values(collections).reduce((sum, val) => sum + val, 0);
 
         // 3. Income Statement
-        const accruedIncome = await getAggregatedLedgerEntries(providerId, timeframe, 'Credit', ['Interest', 'ServiceFee', 'Penalty']);
-        const collectedIncome = await getAggregatedLedgerEntries(providerId, timeframe, 'Debit', ['Interest', 'ServiceFee', 'Penalty']);
+        const accruedIncome = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Credit', ['Interest', 'ServiceFee', 'Penalty']);
+        const collectedIncome = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Debit', ['Interest', 'ServiceFee', 'Penalty']);
         const netRealizedIncome = (collectedIncome.interest || 0) + (collectedIncome.servicefee || 0) + (collectedIncome.penalty || 0);
 
         // 4. Fund Utilization

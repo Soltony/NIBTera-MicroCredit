@@ -1,11 +1,10 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Download, File as FileIcon, Loader2 } from 'lucide-react';
+import { Download, File as FileIcon, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -14,9 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData, ProviderReportData } from '@/lib/types';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Calendar } from '../ui/calendar';
+import { DateRange } from 'react-day-picker';
 
 
 const formatCurrency = (amount: number | null | undefined) => {
@@ -41,6 +43,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const { currentUser, isLoading: isAuthLoading } = useAuth();
 
     const [timeframe, setTimeframe] = useState('overall');
+    const [dateRange, setDateRange] = useState<DateRange | undefined>();
     const [providerId, setProviderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('providerReport');
@@ -54,7 +57,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const isProviderUser = !isSuperAdminOrAdmin;
 
 
-    const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string) => {
+    const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string, currentDateRange?: DateRange) => {
         setIsLoading(true);
         try {
             const fetchDataForTab = async (url: string) => {
@@ -66,9 +69,23 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 return response.json();
             };
 
-            const loansPromise = fetchDataForTab(`/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
-            const collectionsPromise = fetchDataForTab(`/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
-            const incomePromise = fetchDataForTab(`/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
+            const buildUrl = (baseUrl: string) => {
+                const params = new URLSearchParams({
+                    providerId: currentProviderId,
+                    timeframe: currentTimeframe,
+                });
+                if (currentDateRange?.from) {
+                    params.set('from', currentDateRange.from.toISOString());
+                }
+                if (currentDateRange?.to) {
+                    params.set('to', currentDateRange.to.toISOString());
+                }
+                return `${baseUrl}?${params.toString()}`;
+            }
+
+            const loansPromise = fetchDataForTab(buildUrl('/api/reports/loans'));
+            const collectionsPromise = fetchDataForTab(buildUrl('/api/reports/collections'));
+            const incomePromise = fetchDataForTab(buildUrl('/api/reports/income'));
             
             const summaryProviders = (currentProviderId === 'all' && providers.length > 1 && isSuperAdminOrAdmin) 
               ? providers 
@@ -76,7 +93,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
             const summaryPromises = summaryProviders
                 .map(p => 
-                    fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
+                    fetchDataForTab(buildUrl(`/api/reports/provider-summary`).replace(`providerId=${currentProviderId}`, `providerId=${p.id}`))
                         .then(data => ({ [p.id]: data }))
                         .catch(err => {
                             console.error(`Failed to fetch summary for provider ${p.id}:`, err.message);
@@ -113,18 +130,18 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             setProviderId('all');
         } else if (isProviderUser) {
             // For provider users, they should only have one provider passed in props
-            if (providers.length > 0) {
-                 setProviderId(providers[0].id);
+            if (providers.length > 0 && currentUser?.providerId) {
+                 setProviderId(currentUser.providerId);
             } else {
                  setProviderId('none');
             }
         }
-    }, [isAuthLoading, isSuperAdminOrAdmin, isProviderUser, providers]);
+    }, [isAuthLoading, isSuperAdminOrAdmin, isProviderUser, providers, currentUser?.providerId]);
     
     // Effect to refetch data when filters change
     useEffect(() => {
         if(providerId && providerId !== 'none') {
-            fetchAllReportData(providerId, timeframe);
+            fetchAllReportData(providerId, timeframe, dateRange);
         } else if (providerId === 'none' || providers.length === 0) {
             setIsLoading(false);
             setLoansData([]);
@@ -132,7 +149,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             setIncomeData([]);
             setProviderSummaryData({});
         }
-    }, [providerId, timeframe, fetchAllReportData, providers.length]);
+    }, [providerId, timeframe, dateRange, fetchAllReportData, providers.length]);
 
     
     const handleExcelExport = () => {
@@ -254,7 +271,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    if (isAuthLoading || !providerId) {
+    if (isAuthLoading || providerId === null) {
         return (
              <div className="flex-1 space-y-4 p-8 pt-6">
                 <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
@@ -286,7 +303,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
                 <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
                 <div className="flex items-center space-x-2">
-                    <Select onValueChange={setTimeframe} value={timeframe}>
+                    <Select onValueChange={(value) => { setTimeframe(value); setDateRange(undefined); }} value={timeframe}>
                         <SelectTrigger className="w-[180px]">
                             <SelectValue placeholder="Select Timeframe" />
                         </SelectTrigger>
@@ -294,6 +311,42 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             {TIMEFRAMES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                     </Select>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                            id="date"
+                            variant={"outline"}
+                            className={cn(
+                                "w-[300px] justify-start text-left font-normal",
+                                !dateRange && "text-muted-foreground"
+                            )}
+                            >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {dateRange?.from ? (
+                                dateRange.to ? (
+                                <>
+                                    {format(dateRange.from, "LLL dd, y")} -{" "}
+                                    {format(dateRange.to, "LLL dd, y")}
+                                </>
+                                ) : (
+                                format(dateRange.from, "LLL dd, y")
+                                )
+                            ) : (
+                                <span>Pick a date</span>
+                            )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={dateRange?.from}
+                            selected={dateRange}
+                            onSelect={(range) => { setDateRange(range); if (range?.from) setTimeframe('custom'); }}
+                            numberOfMonths={2}
+                            />
+                        </PopoverContent>
+                    </Popover>
                      {isSuperAdminOrAdmin && (
                         <Select onValueChange={setProviderId} value={providerId || ''}>
                             <SelectTrigger className="w-[180px]">

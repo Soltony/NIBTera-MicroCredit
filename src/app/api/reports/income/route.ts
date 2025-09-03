@@ -1,9 +1,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isValid } from 'date-fns';
 
-const getDates = (timeframe: string) => {
+const getDates = (timeframe: string, from?: string, to?: string) => {
+    if (from && to) {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        if(isValid(fromDate) && isValid(toDate)) {
+            return { gte: startOfDay(fromDate), lte: endOfDay(toDate) };
+        }
+    }
     const now = new Date();
     switch (timeframe) {
         case 'daily':
@@ -78,7 +85,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const providerId = searchParams.get('providerId');
     const timeframe = searchParams.get('timeframe') || 'overall';
-    const dateRange = getDates(timeframe);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
     try {
         const allProviders = await prisma.loanProvider.findMany({
@@ -108,5 +117,3 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
-
-    
