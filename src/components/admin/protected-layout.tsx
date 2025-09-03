@@ -191,7 +191,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
             </SidebarMenu>
           </SidebarContent>
         </Sidebar>
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-w-0">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6 justify-end">
             <Button variant="outline" size="icon" className="h-8 w-8">
               <Bell className="h-4 w-4" />
