@@ -172,7 +172,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providerReport" className="space-y-4">
-                    <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                    <div className="w-full overflow-auto rounded-md border h-[60vh]">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -230,7 +230,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                    </ScrollArea>
+                    </div>
                 </TabsContent>
                 <TabsContent value="collectionsReport">
                      <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
@@ -384,7 +384,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                      </ScrollArea>
                 </TabsContent>
                 <TabsContent value="borrowerReport">
-                     <ScrollArea className="h-[60vh] w-full whitespace-nowrap rounded-md border">
+                     <div className="w-full overflow-auto rounded-md border h-[60vh]">
                         <Table>
                              <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
@@ -434,9 +434,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                              </TableBody>
                         </Table>
-                     </ScrollArea>
+                     </div>
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
+
+    
