@@ -3,7 +3,7 @@
 
 import { getSession } from './session';
 import prisma from './prisma';
-import type { User as AuthUser } from '@/lib/types';
+import type { User as AuthUser, Permissions } from '@/lib/types';
 
 export async function getUserFromSession() {
   try {
@@ -31,6 +31,7 @@ export async function getUserFromSession() {
       ...userWithoutPassword,
       role: user.role.name as AuthUser['role'],
       providerName: user.loanProvider?.name,
+      permissions: JSON.parse(user.role.permissions as string) as Permissions,
     };
 
     return authUser;

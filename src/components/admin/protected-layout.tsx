@@ -99,10 +99,14 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
       .join('');
 
   const menuItems = React.useMemo(() => {
-    if (!currentUser) return [];
-    return allMenuItems.filter((item) =>
-      item.roles.includes(currentUser.role as string)
-    );
+    if (!currentUser || !currentUser.permissions) return [];
+    
+    return allMenuItems.filter((item) => {
+        const moduleName = item.label.toLowerCase().replace(' ', '-');
+        // Fallback for roles that might not have all permission keys yet
+        return currentUser.permissions[moduleName]?.read;
+    });
+
   }, [currentUser]);
 
   const handleLogout = async () => {
