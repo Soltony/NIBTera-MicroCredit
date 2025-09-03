@@ -16,6 +16,7 @@ import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
 
 const formatCurrency = (amount: number | null | undefined) => {
@@ -39,8 +40,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const { toast } = useToast();
     const { currentUser, isLoading: isAuthLoading } = useAuth();
 
-    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
-
     const [timeframe, setTimeframe] = useState('overall');
     const [providerId, setProviderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -50,6 +49,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
     const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
+    
+    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+    const isProviderUser = currentUser?.role === 'Loan Provider' || currentUser?.role === 'Loan Manager';
+
 
     const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string) => {
         setIsLoading(true);
@@ -67,7 +70,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             const collectionsPromise = fetchDataForTab(`/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
             const incomePromise = fetchDataForTab(`/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
             
-            const summaryProviders = (currentProviderId === 'all' && providers.length > 1) 
+            const summaryProviders = (currentProviderId === 'all' && providers.length > 1 && isSuperAdminOrAdmin) 
               ? providers 
               : [providers.find(p => p.id === currentProviderId)!].filter(Boolean);
 
@@ -100,23 +103,29 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         } finally {
             setIsLoading(false);
         }
-    }, [toast, providers]);
+    }, [toast, providers, isSuperAdminOrAdmin]);
     
     // Effect to set the initial providerId based on user role
     useEffect(() => {
         if (!isAuthLoading && currentUser) {
             if (isSuperAdminOrAdmin) {
                 setProviderId('all');
-            } else {
-                setProviderId(currentUser.providerId || null);
+            } else if (isProviderUser) {
+                setProviderId(currentUser.providerId || 'none');
             }
         }
-    }, [isAuthLoading, currentUser, isSuperAdminOrAdmin]);
+    }, [isAuthLoading, currentUser, isSuperAdminOrAdmin, isProviderUser]);
     
     // Effect to refetch data when filters change
     useEffect(() => {
-        if(providerId) {
+        if(providerId && providerId !== 'none') {
             fetchAllReportData(providerId, timeframe);
+        } else if (providerId === 'none') {
+            setIsLoading(false);
+            setLoansData([]);
+            setCollectionsData([]);
+            setIncomeData([]);
+            setProviderSummaryData({});
         }
     }, [providerId, timeframe, fetchAllReportData]);
 
@@ -145,7 +154,16 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
         // 2. Collections
         if (collectionsData.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(collectionsData);
+            const collectionsExportData = collectionsData.map(d => ({
+                'Provider': d.provider,
+                'Date': format(new Date(d.date), 'yyyy-MM-dd'),
+                'Principal Received': d.principal,
+                'Interest Received': d.interest,
+                'Service Fee Received': d.serviceFee,
+                'Penalty Received': d.penalty,
+                'Total Collected': d.total,
+            }));
+            const ws = XLSX.utils.json_to_sheet(collectionsExportData);
             XLSX.utils.book_append_sheet(wb, ws, "Collections");
         }
         
@@ -231,13 +249,29 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    if (isAuthLoading || !providerId) {
+    if (isAuthLoading) {
         return (
              <div className="flex-1 space-y-4 p-8 pt-6">
                 <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
+            </div>
+        )
+    }
+
+    if (isProviderUser && providerId === 'none') {
+         return (
+            <div className="flex-1 space-y-4 p-8 pt-6">
+                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <Card className="mt-4">
+                    <CardHeader>
+                        <CardTitle>Access Restricted</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-muted-foreground">You are not currently associated with a loan provider. Please contact an administrator to get access to reports.</p>
+                    </CardContent>
+                </Card>
             </div>
         )
     }
@@ -256,7 +290,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                         </SelectContent>
                     </Select>
                      {isSuperAdminOrAdmin && (
-                        <Select onValueChange={setProviderId} value={providerId}>
+                        <Select onValueChange={setProviderId} value={providerId || ''}>
                             <SelectTrigger className="w-[180px]">
                                 <SelectValue placeholder="Select Provider" />
                             </SelectTrigger>
@@ -421,7 +455,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                    {isLoading ? (
+                                {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
                                 ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
                                     providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
