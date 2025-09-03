@@ -47,52 +47,45 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
 
 
-    const fetchReportData = useCallback(async (tab: string, currentProviderId: string, currentTimeframe: string) => {
+    const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string) => {
         setIsLoading(true);
         try {
-            let endpoint = '';
-            
             const fetchDataForTab = async (url: string) => {
                 const response = await fetch(url);
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || `Failed to fetch data for ${tab}.`);
+                    throw new Error(errorData.error || `Failed to fetch data.`);
                 }
                 return response.json();
-            }
+            };
 
-            switch (tab) {
-                case 'providerReport':
-                case 'borrowerReport':
-                    endpoint = `/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setLoansData(await fetchDataForTab(endpoint));
-                    break;
-                case 'collectionsReport':
-                    endpoint = `/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setCollectionsData(await fetchDataForTab(endpoint));
-                    break;
-                 case 'incomeReport':
-                    endpoint = `/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`;
-                    setIncomeData(await fetchDataForTab(endpoint));
-                    break;
-                 case 'utilizationReport':
-                 case 'agingReport':
-                    const summaryPromises = (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!])
-                        .filter(Boolean)
-                        .map(p => 
-                            fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
-                                .then(data => ({ [p.id]: data }))
-                        );
-                    const results = await Promise.all(summaryPromises);
-                    const newSummaryData = results.reduce((acc, current) => ({ ...acc, ...current }), {});
-                    setProviderSummaryData(prev => ({...prev, ...newSummaryData}));
-                    break;
-                default:
-                    break;
-            }
+            const loansPromise = fetchDataForTab(`/api/reports/loans?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
+            const collectionsPromise = fetchDataForTab(`/api/reports/collections?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
+            const incomePromise = fetchDataForTab(`/api/reports/income?providerId=${currentProviderId}&timeframe=${currentTimeframe}`);
             
+            const summaryPromises = (currentProviderId === 'all' ? providers : [providers.find(p => p.id === currentProviderId)!])
+                .filter(Boolean)
+                .map(p => 
+                    fetchDataForTab(`/api/reports/provider-summary?providerId=${p.id}&timeframe=${currentTimeframe}`)
+                        .then(data => ({ [p.id]: data }))
+                );
+            
+            const [loans, collections, income, ...summaryResults] = await Promise.all([
+                loansPromise,
+                collectionsPromise,
+                incomePromise,
+                ...summaryPromises
+            ]);
+
+            setLoansData(loans);
+            setCollectionsData(collections);
+            setIncomeData(income);
+            
+            const newSummaryData = summaryResults.reduce((acc, current) => ({ ...acc, ...current }), {});
+            setProviderSummaryData(newSummaryData);
+
         } catch (error: any) {
-            toast({ title: "Error fetching data", description: error.message, variant: "destructive" });
+            toast({ title: "Error fetching report data", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -100,8 +93,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     
     // Effect to refetch data when filters change
     useEffect(() => {
-        fetchReportData(activeTab, providerId, timeframe);
-    }, [activeTab, providerId, timeframe, fetchReportData]);
+        fetchAllReportData(providerId, timeframe);
+    }, [providerId, timeframe, fetchAllReportData]);
 
     
     const handleExcelExport = () => {
@@ -271,13 +264,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    Array.from({ length: 10 }).map((_, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell colSpan={10} className="text-center p-4">
-                                                 <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    <TableRow>
+                                        <TableCell colSpan={10} className="h-24 text-center">
+                                            <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
+                                        </TableCell>
+                                    </TableRow>
                                 ) : loansData.length > 0 ? (
                                     loansData.map((row) => (
                                         <TableRow key={row.loanId}>
@@ -407,7 +398,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 ) : renderProviderList().length > 0 ? (
                                     renderProviderList().map(provider => {
                                         const data = providerSummaryData[provider.id];
-                                        if (!data) return null;
+                                        if (!data) return <TableRow key={provider.id}><TableCell colSpan={5} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const availableFund = provider.initialBalance - data.portfolioSummary.outstanding;
                                         return (
                                         <TableRow key={provider.id}>
@@ -446,6 +437,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 ) : renderProviderList().length > 0 ? (
                                     renderProviderList().map(provider => {
                                         const data = providerSummaryData[provider.id];
+                                        if (!data) return <TableRow key={provider.id}><TableCell colSpan={6} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
                                         const aging = data?.agingReport;
                                         return (
                                         <TableRow key={provider.id}>
@@ -522,7 +514,4 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             </Tabs>
         </div>
     );
-
-    
-
-    
+}
