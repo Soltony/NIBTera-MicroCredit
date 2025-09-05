@@ -127,15 +127,12 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
 
     return (
        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
-            <div className="flex items-center justify-between space-x-4 px-4 py-2 border rounded-lg bg-background">
-                <h4 className="text-sm font-semibold">{product.name}</h4>
-                <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-9 p-0">
-                        <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
-                        <span className="sr-only">Toggle</span>
-                    </Button>
-                </CollapsibleTrigger>
-            </div>
+            <CollapsibleTrigger asChild>
+                <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                </button>
+            </CollapsibleTrigger>
             <CollapsibleContent>
                  <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1133,3 +1130,4 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
