@@ -53,11 +53,14 @@ export async function POST(req: NextRequest) {
             providerName: product.provider.name,
             repaidAmount: 0,
             penaltyAmount: 0,
-            product: product as any, // Cast to any to satisfy type temporarily
+            product: { 
+                ...product,
+                serviceFeeEnabled: product.serviceFeeEnabled // Ensure this is passed correctly
+            } as any,
         };
         
         // Use the centralized calculator to get the correct service fee
-        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product as any, new Date(data.disbursedDate));
+        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, tempLoanForCalc.product, new Date(data.disbursedDate));
         // --- END OF NEW CALCULATION LOGIC ---
 
         const provider = product.provider;
