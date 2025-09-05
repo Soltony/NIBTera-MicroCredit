@@ -758,6 +758,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     onProductUpdate: (updatedProduct: LoanProduct) => void;
 }) {
     const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
 
     // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
@@ -825,91 +826,100 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     };
 
     return (
-        <Card>
-            <CardHeader><CardTitle>{config.name}</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex items-center justify-between border-b pb-4">
-                    <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
-                    <Switch
-                        id={`serviceFeeEnabled-${config.id}`}
-                        checked={config.serviceFeeEnabled}
-                        onCheckedChange={(checked) => handleUpdate({ serviceFeeEnabled: checked })}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                </div>
-               <FeeInput 
-                    label="Fee Details"
-                    fee={config.serviceFee}
-                    onChange={(fee) => handleUpdate({ serviceFee: fee })}
-                    isEnabled={!!config.serviceFeeEnabled}
-                />
-                
-                <div className="flex items-center justify-between border-b pb-4 pt-4">
-                    <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
-                    <Switch
-                        id={`dailyFeeEnabled-${config.id}`}
-                        checked={config.dailyFeeEnabled}
-                        onCheckedChange={(checked) => handleUpdate({ dailyFeeEnabled: checked })}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                </div>
-                 <DailyFeeInput 
-                    label="Fee Details"
-                    fee={config.dailyFee}
-                    onChange={(fee) => handleUpdate({ dailyFee: fee })}
-                    isEnabled={!!config.dailyFeeEnabled}
-                />
-                
-                 <div className="flex items-center justify-between border-b pb-4 pt-4">
-                    <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
-                    <Switch
-                        id={`penaltyRulesEnabled-${config.id}`}
-                        checked={config.penaltyRulesEnabled}
-                        onCheckedChange={(checked) => handleUpdate({ penaltyRulesEnabled: checked })}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                </div>
-                <div>
-                    <div className="space-y-2 p-4 border rounded-md bg-muted/50">
-                        {config.penaltyRules.map((rule) => (
-                            <PenaltyRuleRow
-                                key={rule.id}
-                                rule={rule}
-                                onChange={(updatedRule) => handleUpdatePenaltyRule(rule.id, updatedRule)}
-                                onRemove={() => handleRemovePenaltyRule(rule.id)}
-                                color={providerColor}
-                                isEnabled={!!config.penaltyRulesEnabled}
+        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+            <CollapsibleTrigger asChild>
+                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                 <Card className="border-t-0 rounded-t-none">
+                    <CardContent className="space-y-4 pt-6">
+                        <div className="flex items-center justify-between border-b pb-4">
+                            <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
+                            <Switch
+                                id={`serviceFeeEnabled-${config.id}`}
+                                checked={config.serviceFeeEnabled}
+                                onCheckedChange={(checked) => handleUpdate({ serviceFeeEnabled: checked })}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
-                        ))}
-                        <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled}>
-                            <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
-                        </Button>
-                    </div>
-                </div>
-                
-                <div className="pt-4">
-                    <LoanTiersForm
-                        product={config}
-                        onUpdate={(updatedProductData) => handleUpdate(updatedProductData)}
-                        color={providerColor}
-                    />
-                </div>
+                        </div>
+                    <FeeInput 
+                            label="Fee Details"
+                            fee={config.serviceFee}
+                            onChange={(fee) => handleUpdate({ serviceFee: fee })}
+                            isEnabled={!!config.serviceFeeEnabled}
+                        />
+                        
+                        <div className="flex items-center justify-between border-b pb-4 pt-4">
+                            <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
+                            <Switch
+                                id={`dailyFeeEnabled-${config.id}`}
+                                checked={config.dailyFeeEnabled}
+                                onCheckedChange={(checked) => handleUpdate({ dailyFeeEnabled: checked })}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                        </div>
+                        <DailyFeeInput 
+                            label="Fee Details"
+                            fee={config.dailyFee}
+                            onChange={(fee) => handleUpdate({ dailyFee: fee })}
+                            isEnabled={!!config.dailyFeeEnabled}
+                        />
+                        
+                        <div className="flex items-center justify-between border-b pb-4 pt-4">
+                            <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
+                            <Switch
+                                id={`penaltyRulesEnabled-${config.id}`}
+                                checked={config.penaltyRulesEnabled}
+                                onCheckedChange={(checked) => handleUpdate({ penaltyRulesEnabled: checked })}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                        </div>
+                        <div>
+                            <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                                {config.penaltyRules.map((rule) => (
+                                    <PenaltyRuleRow
+                                        key={rule.id}
+                                        rule={rule}
+                                        onChange={(updatedRule) => handleUpdatePenaltyRule(rule.id, updatedRule)}
+                                        onRemove={() => handleRemovePenaltyRule(rule.id)}
+                                        color={providerColor}
+                                        isEnabled={!!config.penaltyRulesEnabled}
+                                    />
+                                ))}
+                                <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled}>
+                                    <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
+                                </Button>
+                            </div>
+                        </div>
+                        
+                        <div className="pt-4">
+                            <LoanTiersForm
+                                product={config}
+                                onUpdate={(updatedProductData) => handleUpdate(updatedProductData)}
+                                color={providerColor}
+                            />
+                        </div>
 
-           </CardContent>
-           <CardFooter>
-                <Button 
-                    onClick={handleSave} 
-                    size="sm"
-                    style={{ backgroundColor: providerColor }}
-                    className="text-white ml-auto"
-                >
-                    Save Configuration for {config.name}
-                </Button>
-           </CardFooter>
-       </Card>
+                </CardContent>
+                <CardFooter>
+                        <Button 
+                            onClick={handleSave} 
+                            size="sm"
+                            style={{ backgroundColor: providerColor }}
+                            className="text-white ml-auto"
+                        >
+                            Save Configuration for {config.name}
+                        </Button>
+                </CardFooter>
+            </Card>
+            </CollapsibleContent>
+        </Collapsible>
     );
 }
 
@@ -1130,4 +1140,5 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
 
