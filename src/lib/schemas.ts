@@ -58,6 +58,7 @@ export const updateProductSchema = productSchema.partial().extend({
   dataProvisioningConfigId: z.string().nullable().optional(),
 });
 
+// This is the old schema, which is now deprecated for loan creation.
 export const loanSchema = z.object({
     providerId: z.string(),
     productId: z.string(),
@@ -67,4 +68,13 @@ export const loanSchema = z.object({
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
     repaymentStatus: z.enum(['Paid', 'Unpaid']),
+});
+
+// New schema for loan creation via API. Service fee is no longer provided by the client.
+export const loanCreationSchema = z.object({
+    productId: z.string(),
+    borrowerId: z.string(),
+    loanAmount: z.number(),
+    disbursedDate: z.string().datetime(),
+    dueDate: z.string().datetime(),
 });
