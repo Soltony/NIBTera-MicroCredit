@@ -41,7 +41,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const serviceFee = loanDetails.serviceFee || 0;
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
-    if (loanProduct.dailyFeeEnabled && dailyFeeRule && dailyFeeRule.value > 0) {
+    if (dailyFeeRule && dailyFeeRule.value > 0) {
         const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
         const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
         const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
@@ -67,7 +67,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const runningBalanceForPenalty = principal + interestComponent + serviceFee;
 
     // 3. Penalty - Calculated only if overdue.
-    if (loanProduct.penaltyRulesEnabled && penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
+    if (penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
         // For same-day loans (duration=0), penalties start the day after.
         const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
         const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
@@ -118,3 +118,4 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         penalty: penaltyComponent,
     };
 };
+
