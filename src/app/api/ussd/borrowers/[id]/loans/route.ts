@@ -1,6 +1,9 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Loan } from '@prisma/client';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import type { LoanDetails } from '@/lib/types';
+
 
 export async function GET(
   req: NextRequest,
@@ -23,17 +26,24 @@ export async function GET(
       },
     });
 
-    const formattedLoans = loans.map(loan => ({
-      id: loan.id,
-      providerId: loan.product.providerId,
-      productId: loan.productId,
-      productName: loan.product.name,
-      loanAmount: loan.loanAmount,
-      repaidAmount: loan.repaidAmount || 0,
-      penaltyAmount: loan.penaltyAmount,
-      dueDate: loan.dueDate,
-      repaymentStatus: loan.repaymentStatus,
-    }));
+    const formattedLoans = loans.map(loan => {
+      // Use the centralized calculator to get the full, real-time balance
+      const { total } = calculateTotalRepayable(loan as any, loan.product, new Date());
+      const totalRepayable = total;
+
+      return {
+        id: loan.id,
+        providerId: loan.product.providerId,
+        productId: loan.productId,
+        productName: loan.product.name,
+        loanAmount: loan.loanAmount,
+        totalRepayableAmount: totalRepayable, // Add the calculated total
+        repaidAmount: loan.repaidAmount || 0,
+        penaltyAmount: loan.penaltyAmount,
+        dueDate: loan.dueDate,
+        repaymentStatus: loan.repaymentStatus,
+      }
+    });
 
     return NextResponse.json(formattedLoans);
 
