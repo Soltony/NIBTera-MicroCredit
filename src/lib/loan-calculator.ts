@@ -37,7 +37,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const penaltyRules = safeParse(loanProduct.penaltyRules, []);
 
 
-    // 1. Service Fee (One-time charge)
+    // 1. Service Fee (One-time charge, already calculated and stored on the loan)
     const serviceFee = loanDetails.serviceFee || 0;
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
