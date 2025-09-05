@@ -50,7 +50,7 @@ async function getIncomeData(providerIdFilter: any, dateFilter: any) {
     const accountIds = results.map(r => r.ledgerAccountId);
     const accounts = await prisma.ledgerAccount.findMany({ 
         where: { id: { in: accountIds } },
-        select: { id: true, category: true, providerId: true }
+        select: { id: true, category: true, type: true, providerId: true }
     });
     const accountMap = new Map(accounts.map(acc => [acc.id, acc]));
 
