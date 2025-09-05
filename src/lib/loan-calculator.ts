@@ -22,7 +22,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     let penaltyComponent = 0;
     let runningBalanceForPenalty = principal;
 
-    // Safely parse JSON fields from the product
+    // Safely parse JSON fields from the product, as they might be strings from the DB
     const safeParse = (field: any, defaultValue: any) => {
         if (typeof field === 'string') {
             try {
@@ -43,7 +43,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const serviceFee = loanDetails.serviceFee || 0;
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
-    if (dailyFeeRule && dailyFeeRule.value) {
+    if (dailyFeeRule && (dailyFeeRule.value > 0)) {
         const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
         const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
         const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
