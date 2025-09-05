@@ -37,16 +37,18 @@ export async function GET(req: NextRequest) {
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
     const whereClause: any = {
-        ...(dateRange.gte && { journalEntry: { date: { gte: dateRange.gte } } }),
-        ...(dateRange.lte && { journalEntry: { date: { lte: dateRange.lte } } }),
         type: 'Debit',
         ledgerAccount: {
             type: 'Received'
+        },
+        journalEntry: {
+            ...(dateRange.gte && { date: { gte: dateRange.gte } }),
+            ...(dateRange.lte && { date: { lte: dateRange.lte } }),
         }
     };
     
     if (providerId && providerId !== 'all') {
-        whereClause.journalEntry = { ...whereClause.journalEntry, providerId };
+        whereClause.journalEntry.providerId = providerId;
     }
 
     try {
