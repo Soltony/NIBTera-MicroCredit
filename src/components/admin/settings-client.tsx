@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -43,6 +44,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '../ui/textarea';
 import { Skeleton } from '../ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+
 
 // Helper to safely parse JSON fields that might be strings
 const safeParseJson = (data: any, field: string, defaultValue: any) => {
@@ -66,6 +69,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
 }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -122,73 +126,83 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     }
 
     return (
-        <div className="space-y-4">
-            <div className="text-md font-semibold">{product.name}</div>
-            <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex items-center space-x-2">
-                         <Switch 
-                            id={`status-${product.id}`}
-                            checked={formData.status === 'Active'} 
-                            onCheckedChange={(checked) => handleSwitchChange('status', checked)}
-                            className="data-[state=checked]:bg-[--provider-color]"
-                            style={{'--provider-color': providerColor} as React.CSSProperties}
-                        />
-                        <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
-                    </div>
-                     <div className="flex items-center space-x-2">
-                        <Switch
-                            id={`allowConcurrentLoans-${product.id}`}
-                            checked={!!formData.allowConcurrentLoans}
-                            onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
-                            className="data-[state=checked]:bg-[--provider-color]"
-                            style={{'--provider-color': providerColor} as React.CSSProperties}
-                        />
-                        <Label htmlFor={`allowConcurrentLoans-${product.id}`}>Combinable with Other Loans</Label>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
-                        <Input
-                            id={`minLoan-${product.id}`}
-                            name="minLoan"
-                            type="number"
-                            value={formData.minLoan ?? ''}
-                            onChange={handleChange}
-                            placeholder="e.g., 500"
-                        />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor={`maxLoan-${product.id}`}>Max Loan Amount</Label>
-                        <Input
-                            id={`maxLoan-${product.id}`}
-                            name="maxLoan"
-                            type="number"
-                            value={formData.maxLoan ?? ''}
-                            onChange={handleChange}
-                            placeholder="e.g., 2500"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor={`duration-${product.id}`}>Loan Duration (days)</Label>
-                        <Input
-                            id={`duration-${product.id}`}
-                            name="duration"
-                            type="number"
-                            value={formData.duration ?? ''}
-                            onChange={handleChange}
-                            placeholder="e.g., 30"
-                        />
-                    </div>
-                </div>
-                 <div className="flex items-center space-x-2 justify-end mt-6">
-                    <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                    <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Changes
+       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+            <div className="flex items-center justify-between space-x-4 px-4 py-2 border rounded-lg bg-background">
+                <h4 className="text-sm font-semibold">{product.name}</h4>
+                <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-9 p-0">
+                        <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                        <span className="sr-only">Toggle</span>
                     </Button>
-                </div>
-            </form>
-        </div>
+                </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+                 <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex items-center space-x-2">
+                            <Switch 
+                                id={`status-${product.id}`}
+                                checked={formData.status === 'Active'} 
+                                onCheckedChange={(checked) => handleSwitchChange('status', checked)}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                            <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Switch
+                                id={`allowConcurrentLoans-${product.id}`}
+                                checked={!!formData.allowConcurrentLoans}
+                                onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                            <Label htmlFor={`allowConcurrentLoans-${product.id}`}>Combinable with Other Loans</Label>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
+                            <Input
+                                id={`minLoan-${product.id}`}
+                                name="minLoan"
+                                type="number"
+                                value={formData.minLoan ?? ''}
+                                onChange={handleChange}
+                                placeholder="e.g., 500"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`maxLoan-${product.id}`}>Max Loan Amount</Label>
+                            <Input
+                                id={`maxLoan-${product.id}`}
+                                name="maxLoan"
+                                type="number"
+                                value={formData.maxLoan ?? ''}
+                                onChange={handleChange}
+                                placeholder="e.g., 2500"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`duration-${product.id}`}>Loan Duration (days)</Label>
+                            <Input
+                                id={`duration-${product.id}`}
+                                name="duration"
+                                type="number"
+                                value={formData.duration ?? ''}
+                                onChange={handleChange}
+                                placeholder="e.g., 30"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-2 justify-end mt-6">
+                        <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
+                    </div>
+                </form>
+            </CollapsibleContent>
+        </Collapsible>
     )
 }
 
