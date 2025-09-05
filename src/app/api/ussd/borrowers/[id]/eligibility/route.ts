@@ -1,6 +1,7 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { recalculateScoreAndLoanLimit } from '@/actions/eligibility';
+import { checkLoanEligibility } from '@/actions/eligibility';
 
 
 export async function GET(
@@ -42,7 +43,7 @@ export async function GET(
     const limits = [];
 
     for (const product of provider.products) {
-        const { score, maxLoanAmount } = await recalculateScoreAndLoanLimit(borrowerId, providerId, product.id);
+        const { score, maxLoanAmount } = await checkLoanEligibility(borrowerId, providerId, product.id);
         // The score should be consistent across products for the same provider, so we can just take the last one.
         overallScore = score;
         limits.push({

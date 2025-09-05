@@ -22,12 +22,28 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     let penaltyComponent = 0;
     let runningBalanceForPenalty = principal;
 
+    // Safely parse JSON fields from the product, as they might be strings from the DB
+    const safeParse = (field: any, defaultValue: any) => {
+        if (typeof field === 'string') {
+            try {
+                return JSON.parse(field);
+            } catch (e) {
+                return defaultValue;
+            }
+        }
+        return field ?? defaultValue;
+    };
+
+    const serviceFeeRule = safeParse(loanProduct.serviceFee, undefined);
+    const dailyFeeRule = safeParse(loanProduct.dailyFee, undefined);
+    const penaltyRules = safeParse(loanProduct.penaltyRules, []);
+
+
     // 1. Service Fee (One-time charge)
     const serviceFee = loanDetails.serviceFee || 0;
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
-    const dailyFeeRule = loanProduct.dailyFeeEnabled ? loanProduct.dailyFee : undefined;
-    if (dailyFeeRule && dailyFeeRule.value) {
+    if (dailyFeeRule && dailyFeeRule.value > 0) {
         const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
         const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
         const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
@@ -53,13 +69,12 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     runningBalanceForPenalty += interestComponent + serviceFee;
 
     // 3. Penalty - Calculated only if overdue.
-    const penaltyRules = loanProduct.penaltyRulesEnabled ? loanProduct.penaltyRules : [];
-    if (penaltyRules.length > 0 && finalDate > dueDate) {
+    if (penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
         // For same-day loans (duration=0), penalties start the day after.
         const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
         const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
         
-        penaltyRules.forEach(rule => {
+        penaltyRules.forEach((rule: any) => {
              const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
              const toDayRaw = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
              const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;

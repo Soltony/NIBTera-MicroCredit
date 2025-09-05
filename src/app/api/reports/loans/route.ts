@@ -32,7 +32,7 @@ const getDates = (timeframe: string, from?: string, to?: string) => {
 type LoanWithRelations = Loan & {
     product: LoanProduct & { provider: { name: string } };
     payments: Payment[];
-    borrower: { 
+    borrower: {
         id: string;
         provisionedData: ProvisionedData[];
      };
@@ -66,10 +66,14 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get('to');
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
-    const whereClause: any = {
-        ...(dateRange.gte && { disbursedDate: { gte: dateRange.gte } }),
-        ...(dateRange.lte && { disbursedDate: { lte: dateRange.lte } }),
-    };
+    const whereClause: any = {};
+
+    if (dateRange.gte && dateRange.lte) {
+        whereClause.disbursedDate = {
+            gte: dateRange.gte,
+            lte: dateRange.lte,
+        };
+    }
 
     if (providerId && providerId !== 'all') {
         whereClause.product = { providerId };

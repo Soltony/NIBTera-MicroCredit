@@ -17,7 +17,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
         }
     });
 
-    const isSuperAdminOrAdmin = user?.role.name === 'Super Admin' || user?.role.name === 'Admin';
+    const isSuperAdminOrAdmin = user?.role.name === 'Super Admin' || user?.role.name === 'Admin' || user?.role.name === 'Reconciliation';
     
     if (isSuperAdminOrAdmin) {
         return (await prisma.loanProvider.findMany({

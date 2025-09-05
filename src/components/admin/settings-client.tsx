@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -43,6 +44,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '../ui/textarea';
 import { Skeleton } from '../ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+
 
 // Helper to safely parse JSON fields that might be strings
 const safeParseJson = (data: any, field: string, defaultValue: any) => {
@@ -66,6 +69,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
 }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -122,73 +126,80 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     }
 
     return (
-        <div className="space-y-4">
-            <div className="text-md font-semibold">{product.name}</div>
-            <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex items-center space-x-2">
-                         <Switch 
-                            id={`status-${product.id}`}
-                            checked={formData.status === 'Active'} 
-                            onCheckedChange={(checked) => handleSwitchChange('status', checked)}
-                            className="data-[state=checked]:bg-[--provider-color]"
-                            style={{'--provider-color': providerColor} as React.CSSProperties}
-                        />
-                        <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+            <CollapsibleTrigger asChild>
+                <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                 <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex items-center space-x-2">
+                            <Switch 
+                                id={`status-${product.id}`}
+                                checked={formData.status === 'Active'} 
+                                onCheckedChange={(checked) => handleSwitchChange('status', checked)}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                            <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Switch
+                                id={`allowConcurrentLoans-${product.id}`}
+                                checked={!!formData.allowConcurrentLoans}
+                                onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                            <Label htmlFor={`allowConcurrentLoans-${product.id}`}>Combinable with Other Loans</Label>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
+                            <Input
+                                id={`minLoan-${product.id}`}
+                                name="minLoan"
+                                type="number"
+                                value={formData.minLoan ?? ''}
+                                onChange={handleChange}
+                                placeholder="e.g., 500"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`maxLoan-${product.id}`}>Max Loan Amount</Label>
+                            <Input
+                                id={`maxLoan-${product.id}`}
+                                name="maxLoan"
+                                type="number"
+                                value={formData.maxLoan ?? ''}
+                                onChange={handleChange}
+                                placeholder="e.g., 2500"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor={`duration-${product.id}`}>Loan Duration (days)</Label>
+                            <Input
+                                id={`duration-${product.id}`}
+                                name="duration"
+                                type="number"
+                                value={formData.duration ?? ''}
+                                onChange={handleChange}
+                                placeholder="e.g., 30"
+                            />
+                        </div>
                     </div>
-                     <div className="flex items-center space-x-2">
-                        <Switch
-                            id={`allowConcurrentLoans-${product.id}`}
-                            checked={!!formData.allowConcurrentLoans}
-                            onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
-                            className="data-[state=checked]:bg-[--provider-color]"
-                            style={{'--provider-color': providerColor} as React.CSSProperties}
-                        />
-                        <Label htmlFor={`allowConcurrentLoans-${product.id}`}>Combinable with Other Loans</Label>
+                    <div className="flex items-center space-x-2 justify-end mt-6">
+                        <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor={`minLoan-${product.id}`}>Min Loan Amount</Label>
-                        <Input
-                            id={`minLoan-${product.id}`}
-                            name="minLoan"
-                            type="number"
-                            value={formData.minLoan ?? ''}
-                            onChange={handleChange}
-                            placeholder="e.g., 500"
-                        />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor={`maxLoan-${product.id}`}>Max Loan Amount</Label>
-                        <Input
-                            id={`maxLoan-${product.id}`}
-                            name="maxLoan"
-                            type="number"
-                            value={formData.maxLoan ?? ''}
-                            onChange={handleChange}
-                            placeholder="e.g., 2500"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor={`duration-${product.id}`}>Loan Duration (days)</Label>
-                        <Input
-                            id={`duration-${product.id}`}
-                            name="duration"
-                            type="number"
-                            value={formData.duration ?? ''}
-                            onChange={handleChange}
-                            placeholder="e.g., 30"
-                        />
-                    </div>
-                </div>
-                 <div className="flex items-center space-x-2 justify-end mt-6">
-                    <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                    <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Changes
-                    </Button>
-                </div>
-            </form>
-        </div>
+                </form>
+            </CollapsibleContent>
+        </Collapsible>
     )
 }
 
@@ -591,6 +602,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
 }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     const tiers = product.loanAmountTiers || [];
 
     const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
@@ -694,50 +706,61 @@ function LoanTiersForm({ product, onUpdate, color }: {
 
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Loan Amount Tiers</CardTitle>
-                <CardDescription>Define loan amounts based on credit scores for this product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 {tiers.map((tier, index) => (
-                    <div key={tier.id} className="flex items-center gap-4 p-2 rounded-md bg-muted/50">
-                        <Label className="w-20">From Score</Label>
-                        <Input
-                            type="number"
-                            value={tier.fromScore ?? ''}
-                            onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
-                            className="w-28"
-                            disabled={index > 0} // Only first "from" is editable
-                        />
-                        <Label className="w-16">To Score</Label>
-                         <Input
-                            type="number"
-                            value={tier.toScore ?? ''}
-                            onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
-                            className="w-28"
-                        />
-                        <Label className="w-24">Loan Amount</Label>
-                         <Input
-                            type="number"
-                            value={tier.loanAmount ?? ''}
-                            onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
-                            className="flex-1"
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                ))}
-                 <Button variant="outline" onClick={handleAddTier} className="w-full">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
-                </Button>
-            </CardContent>
-            <CardFooter>
-                 <Button onClick={handleSaveTiers} style={{ backgroundColor: color }} className="text-white ml-auto" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save Tiers for {product.name}
-                </Button>
-            </CardFooter>
-        </Card>
+         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+            <Card>
+                <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle>Loan Amount Tiers</CardTitle>
+                                <CardDescription>Define loan amounts based on credit scores for this product.</CardDescription>
+                            </div>
+                            <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                        </div>
+                    </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                    <CardContent className="space-y-4 pt-0">
+                         {tiers.map((tier, index) => (
+                            <div key={tier.id} className="flex items-center gap-4 p-2 rounded-md bg-muted/50">
+                                <Label className="w-20">From Score</Label>
+                                <Input
+                                    type="number"
+                                    value={tier.fromScore ?? ''}
+                                    onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
+                                    className="w-28"
+                                    disabled={index > 0} // Only first "from" is editable
+                                />
+                                <Label className="w-16">To Score</Label>
+                                 <Input
+                                    type="number"
+                                    value={tier.toScore ?? ''}
+                                    onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
+                                    className="w-28"
+                                />
+                                <Label className="w-24">Loan Amount</Label>
+                                 <Input
+                                    type="number"
+                                    value={tier.loanAmount ?? ''}
+                                    onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
+                                    className="flex-1"
+                                />
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                        ))}
+                         <Button variant="outline" onClick={handleAddTier} className="w-full">
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
+                        </Button>
+                    </CardContent>
+                    <CardFooter>
+                         <Button onClick={handleSaveTiers} style={{ backgroundColor: color }} className="text-white ml-auto" disabled={isLoading}>
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Save Tiers for {product.name}
+                        </Button>
+                    </CardFooter>
+                </CollapsibleContent>
+            </Card>
+        </Collapsible>
     );
 }
 
@@ -747,6 +770,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     onProductUpdate: (updatedProduct: LoanProduct) => void;
 }) {
     const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
 
     // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
@@ -814,91 +838,100 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
     };
 
     return (
-        <Card>
-            <CardHeader><CardTitle>{config.name}</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex items-center justify-between border-b pb-4">
-                    <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
-                    <Switch
-                        id={`serviceFeeEnabled-${config.id}`}
-                        checked={config.serviceFeeEnabled}
-                        onCheckedChange={(checked) => handleUpdate({ serviceFeeEnabled: checked })}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                </div>
-               <FeeInput 
-                    label="Fee Details"
-                    fee={config.serviceFee}
-                    onChange={(fee) => handleUpdate({ serviceFee: fee })}
-                    isEnabled={!!config.serviceFeeEnabled}
-                />
-                
-                <div className="flex items-center justify-between border-b pb-4 pt-4">
-                    <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
-                    <Switch
-                        id={`dailyFeeEnabled-${config.id}`}
-                        checked={config.dailyFeeEnabled}
-                        onCheckedChange={(checked) => handleUpdate({ dailyFeeEnabled: checked })}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                </div>
-                 <DailyFeeInput 
-                    label="Fee Details"
-                    fee={config.dailyFee}
-                    onChange={(fee) => handleUpdate({ dailyFee: fee })}
-                    isEnabled={!!config.dailyFeeEnabled}
-                />
-                
-                 <div className="flex items-center justify-between border-b pb-4 pt-4">
-                    <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
-                    <Switch
-                        id={`penaltyRulesEnabled-${config.id}`}
-                        checked={config.penaltyRulesEnabled}
-                        onCheckedChange={(checked) => handleUpdate({ penaltyRulesEnabled: checked })}
-                        className="data-[state=checked]:bg-[--provider-color]"
-                        style={{'--provider-color': providerColor} as React.CSSProperties}
-                    />
-                </div>
-                <div>
-                    <div className="space-y-2 p-4 border rounded-md bg-muted/50">
-                        {config.penaltyRules.map((rule) => (
-                            <PenaltyRuleRow
-                                key={rule.id}
-                                rule={rule}
-                                onChange={(updatedRule) => handleUpdatePenaltyRule(rule.id, updatedRule)}
-                                onRemove={() => handleRemovePenaltyRule(rule.id)}
-                                color={providerColor}
-                                isEnabled={!!config.penaltyRulesEnabled}
+        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+            <CollapsibleTrigger asChild>
+                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                 <Card className="border-t-0 rounded-t-none">
+                    <CardContent className="space-y-4 pt-6">
+                        <div className="flex items-center justify-between border-b pb-4">
+                            <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
+                            <Switch
+                                id={`serviceFeeEnabled-${config.id}`}
+                                checked={config.serviceFeeEnabled}
+                                onCheckedChange={(checked) => handleUpdate({ serviceFeeEnabled: checked })}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
-                        ))}
-                        <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled}>
-                            <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
-                        </Button>
-                    </div>
-                </div>
-                
-                <div className="pt-4">
-                    <LoanTiersForm
-                        product={config}
-                        onUpdate={(updatedProductData) => handleUpdate(updatedProductData)}
-                        color={providerColor}
-                    />
-                </div>
+                        </div>
+                    <FeeInput 
+                            label="Fee Details"
+                            fee={config.serviceFee}
+                            onChange={(fee) => handleUpdate({ serviceFee: fee })}
+                            isEnabled={!!config.serviceFeeEnabled}
+                        />
+                        
+                        <div className="flex items-center justify-between border-b pb-4 pt-4">
+                            <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
+                            <Switch
+                                id={`dailyFeeEnabled-${config.id}`}
+                                checked={config.dailyFeeEnabled}
+                                onCheckedChange={(checked) => handleUpdate({ dailyFeeEnabled: checked })}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                        </div>
+                        <DailyFeeInput 
+                            label="Fee Details"
+                            fee={config.dailyFee}
+                            onChange={(fee) => handleUpdate({ dailyFee: fee })}
+                            isEnabled={!!config.dailyFeeEnabled}
+                        />
+                        
+                        <div className="flex items-center justify-between border-b pb-4 pt-4">
+                            <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
+                            <Switch
+                                id={`penaltyRulesEnabled-${config.id}`}
+                                checked={config.penaltyRulesEnabled}
+                                onCheckedChange={(checked) => handleUpdate({ penaltyRulesEnabled: checked })}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                        </div>
+                        <div>
+                            <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                                {config.penaltyRules.map((rule) => (
+                                    <PenaltyRuleRow
+                                        key={rule.id}
+                                        rule={rule}
+                                        onChange={(updatedRule) => handleUpdatePenaltyRule(rule.id, updatedRule)}
+                                        onRemove={() => handleRemovePenaltyRule(rule.id)}
+                                        color={providerColor}
+                                        isEnabled={!!config.penaltyRulesEnabled}
+                                    />
+                                ))}
+                                <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled}>
+                                    <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
+                                </Button>
+                            </div>
+                        </div>
+                        
+                        <div className="pt-4">
+                            <LoanTiersForm
+                                product={config}
+                                onUpdate={(updatedProductData) => handleUpdate(updatedProductData)}
+                                color={providerColor}
+                            />
+                        </div>
 
-           </CardContent>
-           <CardFooter>
-                <Button 
-                    onClick={handleSave} 
-                    size="sm"
-                    style={{ backgroundColor: providerColor }}
-                    className="text-white ml-auto"
-                >
-                    Save Configuration for {config.name}
-                </Button>
-           </CardFooter>
-       </Card>
+                </CardContent>
+                <CardFooter>
+                        <Button 
+                            onClick={handleSave} 
+                            size="sm"
+                            style={{ backgroundColor: providerColor }}
+                            className="text-white ml-auto"
+                        >
+                            Save Configuration for {config.name}
+                        </Button>
+                </CardFooter>
+            </Card>
+            </CollapsibleContent>
+        </Collapsible>
     );
 }
 
@@ -1119,3 +1152,6 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
+
+

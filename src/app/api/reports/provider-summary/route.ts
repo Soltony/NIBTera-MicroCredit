@@ -27,7 +27,7 @@ const getDates = (timeframe: string, from?: string, to?: string) => {
     }
 }
 
-async function getAggregatedLedgerEntries(providerId: string, timeframe: string, from: string | null, to: string | null, type: 'Debit' | 'Credit', categories: string[]) {
+async function getAggregatedLedgerEntries(providerId: string, timeframe: string, from: string | null, to: string | null, entryType: 'Debit' | 'Credit', accountTypes: string[], categories: string[]) {
      const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
      const result = await prisma.ledgerEntry.groupBy({
         by: ['ledgerAccountId'],
@@ -37,8 +37,9 @@ async function getAggregatedLedgerEntries(providerId: string, timeframe: string,
                 ...(dateRange.gte && { date: { gte: dateRange.gte } }),
                 ...(dateRange.lte && { date: { lte: dateRange.lte } }),
             },
-            type: type,
+            type: entryType,
             ledgerAccount: {
+                type: { in: accountTypes },
                 category: { in: categories }
             }
         },
@@ -113,12 +114,12 @@ export async function GET(req: NextRequest) {
         };
         
         // 2. Collections Report
-        const collections = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Debit', ['Principal', 'Interest', 'ServiceFee', 'Penalty']);
+        const collections = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Debit', ['Received'], ['Principal', 'Interest', 'ServiceFee', 'Penalty']);
         const totalCollected = Object.values(collections).reduce((sum, val) => sum + val, 0);
 
         // 3. Income Statement
-        const accruedIncome = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Credit', ['Interest', 'ServiceFee', 'Penalty']);
-        const collectedIncome = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Debit', ['Interest', 'ServiceFee', 'Penalty']);
+        const accruedIncome = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Credit', ['Income'], ['Interest', 'ServiceFee', 'Penalty']);
+        const collectedIncome = await getAggregatedLedgerEntries(providerId, timeframe, from, to, 'Debit', ['Received'], ['Interest', 'ServiceFee', 'Penalty']);
         const netRealizedIncome = (collectedIncome.interest || 0) + (collectedIncome.servicefee || 0) + (collectedIncome.penalty || 0);
 
         // 4. Fund Utilization

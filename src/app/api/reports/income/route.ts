@@ -28,9 +28,11 @@ const getDates = (timeframe: string, from?: string, to?: string) => {
 };
 
 async function getIncomeData(providerIdFilter: any, dateFilter: any) {
-    const whereClause = {
-        ...providerIdFilter,
-        ...dateFilter,
+    const whereClause: any = {
+        journalEntry: {
+            ...providerIdFilter.journalEntry,
+            ...dateFilter.journalEntry,
+        },
         ledgerAccount: {
             type: { in: ['Income', 'Received'] },
             category: { in: ['Interest', 'ServiceFee', 'Penalty'] }
@@ -48,7 +50,7 @@ async function getIncomeData(providerIdFilter: any, dateFilter: any) {
     const accountIds = results.map(r => r.ledgerAccountId);
     const accounts = await prisma.ledgerAccount.findMany({ 
         where: { id: { in: accountIds } },
-        select: { id: true, category: true, providerId: true }
+        select: { id: true, category: true, type: true, providerId: true }
     });
     const accountMap = new Map(accounts.map(acc => [acc.id, acc]));
 
@@ -64,17 +66,17 @@ async function getIncomeData(providerIdFilter: any, dateFilter: any) {
 
         const amount = res._sum.amount || 0;
         const category = account.category;
-        const type = res.type; // 'Credit' for accrued, 'Debit' for collected
         
+        // Income is a credit to the income account, but a debit to the received account
         if (category === 'Interest') {
-            if (type === 'Credit') income.accruedInterest += amount;
-            else income.collectedInterest += amount;
+            if (account.type === 'Income') income.accruedInterest += amount;
+            else if (account.type === 'Received') income.collectedInterest += amount;
         } else if (category === 'ServiceFee') {
-            if (type === 'Credit') income.accruedServiceFee += amount;
-            else income.collectedServiceFee += amount;
+            if (account.type === 'Income') income.accruedServiceFee += amount;
+            else if (account.type === 'Received') income.collectedServiceFee += amount;
         } else if (category === 'Penalty') {
-            if (type === 'Credit') income.accruedPenalty += amount;
-            else income.collectedPenalty += amount;
+            if (account.type === 'Income') income.accruedPenalty += amount;
+            else if (account.type === 'Received') income.collectedPenalty += amount;
         }
     }
     return income;
@@ -99,8 +101,10 @@ export async function GET(req: NextRequest) {
         for (const provider of allProviders) {
             const providerIdFilter = { journalEntry: { providerId: provider.id } };
             const dateFilter = {
-                ...(dateRange.gte && { journalEntry: { date: { gte: dateRange.gte } } }),
-                ...(dateRange.lte && { journalEntry: { date: { lte: dateRange.lte } } }),
+                journalEntry: {
+                    ...(dateRange.gte && { date: { gte: dateRange.gte } }),
+                    ...(dateRange.lte && { date: { lte: dateRange.lte } }),
+                }
             };
             
             const income = await getIncomeData(providerIdFilter, dateFilter);
