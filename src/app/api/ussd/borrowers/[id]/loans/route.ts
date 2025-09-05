@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, LoanProduct } from '@/lib/types';
 
 
 export async function GET(
@@ -27,8 +27,17 @@ export async function GET(
     });
 
     const formattedLoans = loans.map(loan => {
-      // Use the centralized calculator to get the full, real-time balance
-      const { total } = calculateTotalRepayable(loan as any, loan.product, new Date());
+      // The loan.product from prisma might have fee/penalty rules as JSON strings.
+      // The calculator expects them to be parsed objects.
+      const parsedProduct: LoanProduct = {
+          ...loan.product,
+          serviceFee: typeof loan.product.serviceFee === 'string' ? JSON.parse(loan.product.serviceFee) : loan.product.serviceFee,
+          dailyFee: typeof loan.product.dailyFee === 'string' ? JSON.parse(loan.product.dailyFee) : loan.product.dailyFee,
+          penaltyRules: typeof loan.product.penaltyRules === 'string' ? JSON.parse(loan.product.penaltyRules) : loan.product.penaltyRules,
+      };
+
+      // Use the centralized calculator with the fully parsed product data
+      const { total } = calculateTotalRepayable(loan as any, parsedProduct, new Date());
       const totalRepayable = total;
 
       return {
