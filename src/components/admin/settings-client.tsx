@@ -602,6 +602,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
 }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     const tiers = product.loanAmountTiers || [];
 
     const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
@@ -705,50 +706,61 @@ function LoanTiersForm({ product, onUpdate, color }: {
 
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Loan Amount Tiers</CardTitle>
-                <CardDescription>Define loan amounts based on credit scores for this product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 {tiers.map((tier, index) => (
-                    <div key={tier.id} className="flex items-center gap-4 p-2 rounded-md bg-muted/50">
-                        <Label className="w-20">From Score</Label>
-                        <Input
-                            type="number"
-                            value={tier.fromScore ?? ''}
-                            onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
-                            className="w-28"
-                            disabled={index > 0} // Only first "from" is editable
-                        />
-                        <Label className="w-16">To Score</Label>
-                         <Input
-                            type="number"
-                            value={tier.toScore ?? ''}
-                            onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
-                            className="w-28"
-                        />
-                        <Label className="w-24">Loan Amount</Label>
-                         <Input
-                            type="number"
-                            value={tier.loanAmount ?? ''}
-                            onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
-                            className="flex-1"
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                ))}
-                 <Button variant="outline" onClick={handleAddTier} className="w-full">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
-                </Button>
-            </CardContent>
-            <CardFooter>
-                 <Button onClick={handleSaveTiers} style={{ backgroundColor: color }} className="text-white ml-auto" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save Tiers for {product.name}
-                </Button>
-            </CardFooter>
-        </Card>
+         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+            <Card>
+                <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle>Loan Amount Tiers</CardTitle>
+                                <CardDescription>Define loan amounts based on credit scores for this product.</CardDescription>
+                            </div>
+                            <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                        </div>
+                    </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                    <CardContent className="space-y-4 pt-0">
+                         {tiers.map((tier, index) => (
+                            <div key={tier.id} className="flex items-center gap-4 p-2 rounded-md bg-muted/50">
+                                <Label className="w-20">From Score</Label>
+                                <Input
+                                    type="number"
+                                    value={tier.fromScore ?? ''}
+                                    onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
+                                    className="w-28"
+                                    disabled={index > 0} // Only first "from" is editable
+                                />
+                                <Label className="w-16">To Score</Label>
+                                 <Input
+                                    type="number"
+                                    value={tier.toScore ?? ''}
+                                    onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
+                                    className="w-28"
+                                />
+                                <Label className="w-24">Loan Amount</Label>
+                                 <Input
+                                    type="number"
+                                    value={tier.loanAmount ?? ''}
+                                    onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
+                                    className="flex-1"
+                                />
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                        ))}
+                         <Button variant="outline" onClick={handleAddTier} className="w-full">
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
+                        </Button>
+                    </CardContent>
+                    <CardFooter>
+                         <Button onClick={handleSaveTiers} style={{ backgroundColor: color }} className="text-white ml-auto" disabled={isLoading}>
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Save Tiers for {product.name}
+                        </Button>
+                    </CardFooter>
+                </CollapsibleContent>
+            </Card>
+        </Collapsible>
     );
 }
 
@@ -1140,5 +1152,6 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
 
 
