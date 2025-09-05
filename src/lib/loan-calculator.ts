@@ -31,7 +31,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                 return defaultValue;
             }
         }
-        return field || defaultValue;
+        return field ?? defaultValue;
     };
 
     const serviceFeeRule = safeParse(loanProduct.serviceFee, undefined);
@@ -43,7 +43,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const serviceFee = loanDetails.serviceFee || 0;
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
-    if (dailyFeeRule && (dailyFeeRule.value > 0)) {
+    if (dailyFeeRule && dailyFeeRule.value > 0) {
         const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
         const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
         const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
