@@ -1,7 +1,7 @@
 
 
 import { differenceInDays, startOfDay } from 'date-fns';
-import type { LoanDetails, LoanProduct } from './types';
+import type { LoanDetails, LoanProduct, PenaltyRule } from './types';
 
 interface CalculatedRepayment {
     total: number;
@@ -18,9 +18,9 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const dueDate = startOfDay(new Date(loanDetails.dueDate));
 
     const principal = loanDetails.loanAmount;
+    let serviceFee = 0;
     let interestComponent = 0;
     let penaltyComponent = 0;
-    let runningBalanceForPenalty = principal;
 
     // Safely parse JSON fields from the product, as they might be strings from the DB
     const safeParse = (field: any, defaultValue: any) => {
@@ -40,10 +40,18 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
 
 
     // 1. Service Fee (One-time charge)
-    const serviceFee = loanDetails.serviceFee || 0;
+    // Always calculate from the product rules to ensure consistency.
+    if (loanProduct.serviceFeeEnabled && serviceFeeRule && serviceFeeRule.value > 0) {
+        const feeValue = typeof serviceFeeRule.value === 'string' ? parseFloat(serviceFeeRule.value) : serviceFeeRule.value;
+        if (serviceFeeRule.type === 'fixed') {
+            serviceFee = feeValue;
+        } else if (serviceFeeRule.type === 'percentage') {
+            serviceFee = principal * (feeValue / 100);
+        }
+    }
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
-    if (dailyFeeRule && dailyFeeRule.value > 0) {
+    if (loanProduct.dailyFeeEnabled && dailyFeeRule && dailyFeeRule.value > 0) {
         const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
         const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
         const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
@@ -66,15 +74,15 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         }
     }
     
-    runningBalanceForPenalty += interestComponent + serviceFee;
+    const runningBalanceForPenalty = principal + interestComponent + serviceFee;
 
     // 3. Penalty - Calculated only if overdue.
-    if (penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
+    if (loanProduct.penaltyRulesEnabled && penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
         // For same-day loans (duration=0), penalties start the day after.
         const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
         const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
         
-        penaltyRules.forEach((rule: any) => {
+        penaltyRules.forEach((rule: PenaltyRule) => {
              const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
              const toDayRaw = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
              const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;
@@ -120,3 +128,4 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         penalty: penaltyComponent,
     };
 };
+

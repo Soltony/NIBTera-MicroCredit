@@ -2,24 +2,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
-
-const loanSchema = z.object({
-    productId: z.string(),
-    borrowerId: z.string(),
-    loanAmount: z.number(),
-    serviceFee: z.number(),
-    penaltyAmount: z.number(),
-    disbursedDate: z.string().datetime(),
-    dueDate: z.string().datetime(),
-    repaymentStatus: z.enum(['Paid', 'Unpaid']),
-});
-
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { loanCreationSchema } from '@/lib/schemas';
 
 export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();
-        const data = loanSchema.parse(body);
+        // Use the new schema without serviceFee
+        const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
         console.log(JSON.stringify({
@@ -48,6 +39,28 @@ export async function POST(req: NextRequest) {
             throw new Error('Product not found');
         }
         
+        // --- CALCULATION LOGIC MOVED TO BACKEND ---
+        // Create a temporary loan object to calculate the service fee
+        const tempLoanForCalc = {
+            id: 'temp',
+            loanAmount: data.loanAmount,
+            disbursedDate: new Date(data.disbursedDate),
+            dueDate: new Date(data.dueDate),
+            serviceFee: 0, // This will be calculated
+            repaymentStatus: 'Unpaid' as 'Unpaid' | 'Paid',
+            payments: [],
+            productName: product.name,
+            providerName: product.provider.name,
+            repaidAmount: 0,
+            penaltyAmount: 0,
+            product: product as any, // Attach product for context, though it's passed separately now
+        };
+        
+        // Use the centralized calculator to get the correct service fee
+        // Pass the original `product` object directly to ensure all flags are read correctly.
+        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+        // --- END OF NEW CALCULATION LOGIC ---
+
         const provider = product.provider;
 
         const principalReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'Principal' && acc.type === 'Receivable');
@@ -57,23 +70,23 @@ export async function POST(req: NextRequest) {
         if (!principalReceivableAccount) {
             throw new Error('Principal Receivable ledger account not found for this provider.');
         }
-        if (data.serviceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) {
+        if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) {
             throw new Error('Service Fee ledger accounts not configured for this provider.');
         }
 
 
         const newLoan = await prisma.$transaction(async (tx) => {
-            // Create the loan
+            // Create the loan with the server-calculated service fee
             const createdLoan = await tx.loan.create({
                 data: {
                     borrowerId: data.borrowerId,
                     productId: data.productId,
                     loanAmount: data.loanAmount,
-                    serviceFee: data.serviceFee,
-                    penaltyAmount: data.penaltyAmount,
+                    serviceFee: calculatedServiceFee,
+                    penaltyAmount: 0, // Penalty is always 0 at disbursement
                     disbursedDate: data.disbursedDate,
                     dueDate: data.dueDate,
-                    repaymentStatus: data.repaymentStatus,
+                    repaymentStatus: 'Unpaid',
                     repaidAmount: 0,
                 }
             });
@@ -102,7 +115,7 @@ export async function POST(req: NextRequest) {
             });
             
             // Ledger Entry for Service Fee if applicable
-            if (data.serviceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
+            if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
                 await tx.ledgerEntry.createMany({
                     data: [
                          // Debit: Service Fee Receivable (Asset ↑)
@@ -110,14 +123,14 @@ export async function POST(req: NextRequest) {
                             journalEntryId: journalEntry.id,
                             ledgerAccountId: serviceFeeReceivableAccount.id,
                             type: 'Debit',
-                            amount: data.serviceFee
+                            amount: calculatedServiceFee
                         },
                         // Credit: Service Fee Income (Income ↑)
                         {
                             journalEntryId: journalEntry.id,
                             ledgerAccountId: serviceFeeIncomeAccount.id,
                             type: 'Credit',
-                            amount: data.serviceFee
+                            amount: calculatedServiceFee
                         }
                     ]
                 });
@@ -128,9 +141,9 @@ export async function POST(req: NextRequest) {
                 where: { id: principalReceivableAccount.id },
                 data: { balance: { increment: data.loanAmount } }
             });
-            if (data.serviceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
-                await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: data.serviceFee } } });
-                await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: data.serviceFee } } });
+            if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
+                await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
+                await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
             }
 
             // Credit: Provider Fund (Asset ↓)
@@ -151,6 +164,7 @@ export async function POST(req: NextRequest) {
                 borrowerId: newLoan.borrowerId,
                 productId: newLoan.productId,
                 amount: newLoan.loanAmount,
+                serviceFee: newLoan.serviceFee,
             }
         }));
 
