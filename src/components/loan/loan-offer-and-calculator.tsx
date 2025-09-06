@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -73,9 +72,9 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
   
-  const minLoan = product.minLoan ?? 0;
+  const minLoan = Math.max(product.minLoan ?? 0, suggestedLoanAmountMin);
   // The true max loan is the lesser of the product's limit and the user's available credit.
-  const maxLoan = Math.min(product.maxLoan ?? 0, suggestedLoanAmountMax);
+  const maxLoan = Math.min(product.maxLoan ?? Infinity, suggestedLoanAmountMax);
 
   useEffect(() => {
     // Set the initial amount to the product's min, but not exceeding the true max loan.
