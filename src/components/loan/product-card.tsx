@@ -78,7 +78,7 @@ export function ProductCard({
             onClick={onApply} 
             style={{ backgroundColor: providerColor }} 
             className="text-white"
-            disabled={!isEligible}
+            disabled={!isEligible || availableToBorrow <= 0}
         >
             Apply
         </Button>
