@@ -162,11 +162,18 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   }, [providers, borrowerId, providerIdFromUrl]);
 
   const { overallMaxLimit, totalBorrowed, availableToBorrow } = useMemo(() => {
-    const overallMaxLimit = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
-    const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
-    const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount, 0);
-    const availableToBorrow = Math.max(0, overallMaxLimit - totalBorrowed);
-    return { overallMaxLimit, totalBorrowed, availableToBorrow };
+      // The backend now returns the true available limit for each product,
+      // accounting for outstanding loans. The highest of these is the max available to borrow.
+      const availableToBorrow = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
+      
+      const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
+      // totalBorrowed is the sum of outstanding principals.
+      const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount - (loan.repaidAmount || 0), 0);
+      
+      // The overallMaxLimit is the user's credit ceiling, which is their current available credit plus what they've already borrowed.
+      const overallMaxLimit = availableToBorrow + totalBorrowed;
+
+      return { overallMaxLimit, totalBorrowed, availableToBorrow };
   }, [eligibility.limits, loanHistory]);
 
 
