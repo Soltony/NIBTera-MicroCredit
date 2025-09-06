@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { loanCreationSchema } from '@/lib/schemas';
+import { checkLoanEligibility } from '@/actions/eligibility';
 
 export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
@@ -38,6 +39,18 @@ export async function POST(req: NextRequest) {
         if (!product) {
             throw new Error('Product not found');
         }
+
+        // --- VALIDATION ADDED HERE ---
+        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, data.productId);
+
+        if (!isEligible) {
+            throw new Error(`Loan denied: ${reason}`);
+        }
+
+        if (data.loanAmount > maxLoanAmount) {
+            throw new Error(`Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`);
+        }
+        // --- END OF VALIDATION ---
         
         // --- CALCULATION LOGIC MOVED TO BACKEND ---
         // Create a temporary loan object to calculate the service fee
