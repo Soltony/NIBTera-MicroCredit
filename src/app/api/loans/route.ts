@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
             throw new Error('Product not found');
         }
 
-        // --- VALIDATION ADDED HERE ---
+        // --- SERVER-SIDE VALIDATION ---
         const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, data.productId);
 
         if (!isEligible) {
