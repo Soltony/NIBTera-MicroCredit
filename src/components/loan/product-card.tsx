@@ -35,6 +35,7 @@ interface ProductCardProps {
     IconDisplayComponent: React.ComponentType<{ iconName: string, className?: string }>;
     isEligible: boolean;
     eligibilityReason: string;
+    availableToBorrow: number;
 }
 
 export function ProductCard({ 
@@ -45,7 +46,8 @@ export function ProductCard({
     onRepay, 
     IconDisplayComponent,
     isEligible,
-    eligibilityReason
+    eligibilityReason,
+    availableToBorrow
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -63,6 +65,13 @@ export function ProductCard({
         // Return 0 if the balance is negative (overpayment)
         return Math.max(0, remainingBalance);
     }, [activeLoan, product]);
+
+    const trueAvailableLimit = useMemo(() => {
+        // The available limit for this specific product is the smaller of the product's general
+        // available limit and the user's overall available credit.
+        return Math.min(product.availableLimit || 0, availableToBorrow);
+    }, [product.availableLimit, availableToBorrow]);
+
 
     const applyButton = (
         <Button 
@@ -168,7 +177,7 @@ export function ProductCard({
                             ) : null}
                              {product.availableLimit ? (
                                 <div>
-                                    <p className="text-lg font-semibold">{formatCurrency(product.availableLimit)}</p>
+                                    <p className="text-lg font-semibold">{formatCurrency(trueAvailableLimit)}</p>
                                     <p className="text-xs text-muted-foreground">Available Limit</p>
                                 </div>
                              ) : null}

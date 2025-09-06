@@ -375,6 +375,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                                     IconDisplayComponent={IconDisplay}
                                                     isEligible={isEligible}
                                                     eligibilityReason={reason}
+                                                    availableToBorrow={availableToBorrow}
                                                 />
                                             )
                                         })}
