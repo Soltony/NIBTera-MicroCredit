@@ -156,10 +156,21 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         }
     });
         
-    const maxLoanAmount = applicableTier?.loanAmount || 0;
+    const productMaxLoan = applicableTier?.loanAmount || 0;
 
-    if (maxLoanAmount <= 0) {
+    if (productMaxLoan <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
+    }
+    
+    // ** NEW GLOBAL LIMIT CHECK **
+    // Calculate the total outstanding principal from all active loans.
+    const totalOutstandingPrincipal = allActiveLoans.reduce((sum, loan) => sum + loan.loanAmount - (loan.repaidAmount || 0), 0);
+    
+    // The true available amount is the product's limit minus what's already borrowed.
+    const maxLoanAmount = Math.max(0, productMaxLoan - totalOutstandingPrincipal);
+    
+    if (maxLoanAmount <= 0) {
+         return { isEligible: false, reason: `You have reached your credit limit with this provider. Your current outstanding balance is ${totalOutstandingPrincipal}. Please repay your active loans to be eligible for more.`, score, maxLoanAmount: 0 };
     }
         
     return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score, maxLoanAmount };
