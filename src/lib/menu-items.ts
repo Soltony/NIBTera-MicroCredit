@@ -22,7 +22,7 @@ export const allMenuItems = [
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider', 'Reconciliation'],
   },
   {
-    path: '/admin/npl-management',
+    path: '/admin/npl',
     label: 'NPL Management',
     icon: BadgeAlert,
     roles: ['Super Admin', 'Loan Manager', 'Auditor'],

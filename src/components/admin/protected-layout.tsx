@@ -13,6 +13,7 @@ import {
   LogOut,
   User,
   FileCog,
+  BadgeAlert
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -102,7 +103,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
     if (!currentUser || !currentUser.permissions) return [];
     
     return allMenuItems.filter((item) => {
-        const moduleName = item.label.toLowerCase().replace(' ', '-');
+        const moduleName = item.label.toLowerCase().replace(/\s+/g, '-');
         // Fallback for roles that might not have all permission keys yet
         return currentUser.permissions[moduleName]?.read;
     });
@@ -149,7 +150,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
                 <SidebarMenuItem key={item.label}>
                   <Link href={item.path}>
                     <SidebarMenuButton
-                      isActive={pathname === item.path}
+                      isActive={pathname.startsWith(item.path) && (item.path !== '/admin' || pathname === '/admin')}
                       tooltip={{
                         children: item.label,
                       }}
