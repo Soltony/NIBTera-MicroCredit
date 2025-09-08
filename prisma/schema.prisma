@@ -11,16 +11,6 @@ datasource db {
 }
 
 // --------------------------------------
-// ENUMS
-// --------------------------------------
-
-enum RepaymentBehavior {
-  ON_TIME
-  LATE
-  EARLY
-}
-
-// --------------------------------------
 // AUTH & USERS
 // --------------------------------------
 
@@ -110,8 +100,8 @@ model Loan {
   disbursedDate               DateTime
   dueDate                     DateTime
   repaymentStatus             String // Paid, Unpaid
+  repaymentBehavior           String?     // ON_TIME, LATE, EARLY
   repaidAmount                Float?
-  repaymentBehavior           RepaymentBehavior?
   payments                    Payment[]
   journalEntries              JournalEntry[]
   createdAt                   DateTime    @default(now())
