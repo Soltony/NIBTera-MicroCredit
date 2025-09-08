@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { startOfDay, isBefore, isEqual } from 'date-fns';
+import type { RepaymentBehavior } from '@prisma/client';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -149,13 +151,30 @@ export async function POST(req: NextRequest) {
             });
 
             const newRepaidAmount = alreadyRepaid + paymentAmount;
+            const isFullyPaid = newRepaidAmount >= total;
+            let repaymentBehavior: RepaymentBehavior | null = null;
             
+            // --- NEW: Set Repayment Behavior on final payment ---
+            if (isFullyPaid) {
+                const today = startOfDay(new Date());
+                const dueDate = startOfDay(loan.dueDate);
+                if (isBefore(today, dueDate)) {
+                    repaymentBehavior = 'EARLY';
+                } else if (isEqual(today, dueDate)) {
+                    repaymentBehavior = 'ON_TIME';
+                } else {
+                    repaymentBehavior = 'LATE';
+                }
+            }
+            // --- END NEW ---
+
             // Update loan status
             const finalLoan = await tx.loan.update({
                 where: { id: loanId },
                 data: {
                     repaidAmount: newRepaidAmount,
-                    repaymentStatus: newRepaidAmount >= total ? 'Paid' : 'Unpaid'
+                    repaymentStatus: isFullyPaid ? 'Paid' : 'Unpaid',
+                    ...(repaymentBehavior && { repaymentBehavior: repaymentBehavior }), // Only set if not null
                 },
                 include: {
                     payments: { orderBy: { date: 'asc' } },

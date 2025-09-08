@@ -10,7 +10,7 @@
 import prisma from '@/lib/prisma';
 import { evaluateCondition } from '@/lib/utils';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
-import { Loan, LoanProduct, Prisma } from '@prisma/client';
+import { Loan, LoanProduct, Prisma, RepaymentBehavior } from '@prisma/client';
 
 
 // Helper to convert strings to camelCase
@@ -48,6 +48,19 @@ async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<str
             console.error(`Failed to parse data for entry ${entry.id}:`, e);
         }
     }
+    
+    // --- NEW: Add repayment behavior metrics ---
+    const previousLoans = await prisma.loan.findMany({
+        where: { borrowerId },
+        select: { repaymentBehavior: true },
+    });
+
+    combinedData['totalLoansCount'] = previousLoans.length;
+    combinedData['loansOnTime'] = previousLoans.filter(l => l.repaymentBehavior === 'ON_TIME').length;
+    combinedData['loansLate'] = previousLoans.filter(l => l.repaymentBehavior === 'LATE').length;
+    combinedData['loansEarly'] = previousLoans.filter(l => l.repaymentBehavior === 'EARLY').length;
+    // --- END NEW ---
+    
     return combinedData;
 }
 
