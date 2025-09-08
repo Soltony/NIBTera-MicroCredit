@@ -514,7 +514,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                              <AccordionItem value={param.id} key={param.id} className="border-none">
                                 <Card className="overflow-hidden">
                                     <div className="flex items-center p-4 bg-muted/50">
-                                        <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
+                                         <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
                                         <AccordionTrigger className="w-full p-0 hover:no-underline flex-1 ml-4">
                                             <div className="flex-1 grid grid-cols-2 gap-4 items-center">
                                                 <div className="space-y-1">
@@ -879,7 +879,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                                         </Button>
                                         <input
                                             type="file"
-                                            ref={fileInputRefs.current[config.id]},
+                                            ref={fileInputRefs.current[config.id]}
                                             className="hidden"
                                             accept=".xlsx, .xls"
                                             onChange={(e) => handleExcelUpload(e, config)}
