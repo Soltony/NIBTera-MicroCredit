@@ -514,38 +514,36 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                              <AccordionItem value={param.id} key={param.id} className="border-none">
                                 <Card className="overflow-hidden">
                                     <div className="flex items-center p-4 bg-muted/50">
-                                        <AccordionTrigger className="w-full p-0 hover:no-underline flex-1">
-                                             <div className="flex items-center w-full">
-                                                <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
-                                                <div className="flex-1 grid grid-cols-2 gap-4 items-center ml-4">
-                                                    <div className="space-y-1">
-                                                        <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
-                                                        <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
-                                                            <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties}>
-                                                                <SelectValue placeholder="Select Parameter Field" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectGroup>
-                                                                    <SelectLabel>Custom Fields</SelectLabel>
-                                                                    {customParams.length > 0 ? customParams.map(field => (
-                                                                        <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                                                                    )) : <div className="text-xs text-muted-foreground px-2 py-1.5">No custom fields found.</div>}
-                                                                </SelectGroup>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                        <div className="space-y-1">
-                                                        <Label htmlFor={`param-weight-${param.id}`}>Weight (Max Points)</Label>
-                                                        <Input
-                                                            id={`param-weight-${param.id}`}
-                                                            type="number"
-                                                            value={param.weight}
-                                                            onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
-                                                            className="w-full bg-background"
-                                                        />
-                                                    </div>
+                                        <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab"/>
+                                        <AccordionTrigger className="w-full p-0 hover:no-underline flex-1 ml-4">
+                                            <div className="flex-1 grid grid-cols-2 gap-4 items-center">
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
+                                                    <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
+                                                        <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties}>
+                                                            <SelectValue placeholder="Select Parameter Field" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectGroup>
+                                                                <SelectLabel>Custom Fields</SelectLabel>
+                                                                {customParams.length > 0 ? customParams.map(field => (
+                                                                    <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                                                                )) : <div className="text-xs text-muted-foreground px-2 py-1.5">No custom fields found.</div>}
+                                                            </SelectGroup>
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
-                                             </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`param-weight-${param.id}`}>Weight (Max Points)</Label>
+                                                    <Input
+                                                        id={`param-weight-${param.id}`}
+                                                        type="number"
+                                                        value={param.weight}
+                                                        onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
+                                                        className="w-full bg-background"
+                                                    />
+                                                </div>
+                                            </div>
                                         </AccordionTrigger>
                                         <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id); }}>
                                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -881,7 +879,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                                         </Button>
                                         <input
                                             type="file"
-                                            ref={fileInputRefs.current[config.id]}
+                                            ref={fileInputRefs.current[config.id]},
                                             className="hidden"
                                             accept=".xlsx, .xls"
                                             onChange={(e) => handleExcelUpload(e, config)}
@@ -1109,3 +1107,5 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
         </Dialog>
     )
 }
+
+    
