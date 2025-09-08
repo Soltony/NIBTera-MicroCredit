@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
                     providerId: provider.id,
                     loanId: loan.id,
                     date: paymentDate,
-                    description: `Repayment of ${formatCurrency(paymentAmount)} for loan ${loan.id}`
+                    description: `Repayment of ${paymentAmount} for loan ${loan.id}`
                 }
             });
 
@@ -216,9 +216,4 @@ export async function POST(req: NextRequest) {
         }
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
-}
-
-// Helper to format currency
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ETB' }).format(amount);
 }
