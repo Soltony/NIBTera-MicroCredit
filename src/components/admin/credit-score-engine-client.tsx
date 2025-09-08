@@ -847,7 +847,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {configs?.map(config => (
+                    {configs?.map((config) => (
                         <Card key={config.id} className="mb-4">
                             <CardHeader className="flex flex-row justify-between items-center">
                                  <div>
@@ -1107,5 +1107,3 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
         </Dialog>
     )
 }
-
-    
