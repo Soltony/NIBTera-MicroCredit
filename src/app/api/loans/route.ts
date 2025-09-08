@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
+import { createAuditLog } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
@@ -14,16 +15,14 @@ export async function POST(req: NextRequest) {
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
-        console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'LOAN_DISBURSEMENT_INITIATED',
-            actorId: 'system',
-            details: {
-                borrowerId: data.borrowerId,
-                productId: data.productId,
-                amount: data.loanAmount,
-            }
-        }));
+        const logDetails = {
+            borrowerId: data.borrowerId,
+            productId: data.productId,
+            amount: data.loanAmount,
+        };
+
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
+        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_INITIATED' }));
 
         const product = await prisma.loanProduct.findUnique({
             where: { id: data.productId },
@@ -168,32 +167,26 @@ export async function POST(req: NextRequest) {
             return createdLoan;
         });
 
-        console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'LOAN_DISBURSEMENT_SUCCESS',
-            actorId: 'system',
-            details: {
-                loanId: newLoan.id,
-                borrowerId: newLoan.borrowerId,
-                productId: newLoan.productId,
-                amount: newLoan.loanAmount,
-                serviceFee: newLoan.serviceFee,
-            }
-        }));
+        const successLogDetails = {
+            loanId: newLoan.id,
+            borrowerId: newLoan.borrowerId,
+            productId: newLoan.productId,
+            amount: newLoan.loanAmount,
+            serviceFee: newLoan.serviceFee,
+        };
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_SUCCESS', entity: 'LOAN', entityId: newLoan.id, details: successLogDetails });
+        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_SUCCESS' }));
 
         return NextResponse.json(newLoan, { status: 201 });
 
     } catch (error) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
-        console.error(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'LOAN_DISBURSEMENT_FAILED',
-            actorId: 'system',
-            details: {
-                ...loanDetailsForLogging,
-                error: errorMessage,
-            }
-        }));
+        const failureLogDetails = {
+            ...loanDetailsForLogging,
+            error: errorMessage,
+        };
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_FAILED', entity: 'LOAN', details: failureLogDetails });
+        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_FAILED' }));
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });

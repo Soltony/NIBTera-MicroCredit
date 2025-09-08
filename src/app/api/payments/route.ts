@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay, isBefore, isEqual } from 'date-fns';
 import type { RepaymentBehavior } from '@prisma/client';
+import { createAuditLog } from '@/lib/audit-log';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
         const loanForBorrowerId = await prisma.loan.findUnique({ where: { id: loanId }, select: { borrowerId: true }});
         borrowerIdForLogging = loanForBorrowerId?.borrowerId || null;
 
+        await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
         console.log(JSON.stringify({
             timestamp: new Date().toISOString(),
             action: 'REPAYMENT_INITIATED',
@@ -182,17 +184,14 @@ export async function POST(req: NextRequest) {
                 }
             });
             
-             console.log(JSON.stringify({
-                timestamp: new Date().toISOString(),
-                action: 'REPAYMENT_SUCCESS',
-                actorId: loan.borrowerId,
-                details: {
-                    loanId: loan.id,
-                    paymentId: newPayment.id,
-                    amount: paymentAmount,
-                    repaymentStatus: finalLoan.repaymentStatus,
-                }
-            }));
+             const logDetails = {
+                loanId: loan.id,
+                paymentId: newPayment.id,
+                amount: paymentAmount,
+                repaymentStatus: finalLoan.repaymentStatus,
+             };
+             await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
+             console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_SUCCESS' }));
             
             return finalLoan;
         });
@@ -201,15 +200,12 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
-        console.error(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'REPAYMENT_FAILED',
-            actorId: borrowerIdForLogging,
-            details: {
-                ...paymentDetailsForLogging,
-                error: errorMessage,
-            }
-        }));
+        const failureLogDetails = {
+            ...paymentDetailsForLogging,
+            error: errorMessage,
+        };
+        await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_FAILED', entity: 'LOAN', entityId: paymentDetailsForLogging.loanId, details: failureLogDetails });
+        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_FAILED' }));
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
