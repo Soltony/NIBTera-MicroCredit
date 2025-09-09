@@ -19,14 +19,18 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
 
     const isSuperAdminOrAdmin = user?.role.name === 'Super Admin' || user?.role.name === 'Admin' || user?.role.name === 'Reconciliation';
     
+    // If the user is a super admin or has a reconciliation role, they can see all providers.
     if (isSuperAdminOrAdmin) {
         return (await prisma.loanProvider.findMany({
             orderBy: { displayOrder: 'asc' }
         })) as LoanProviderType[];
-    } else if (user?.loanProvider) {
+    } 
+    // Otherwise, if they are a user associated with a specific provider, return only that one.
+    else if (user?.loanProvider) {
         return [user.loanProvider] as LoanProviderType[];
     }
     
+    // If neither, they have no access.
     return [];
 }
 
