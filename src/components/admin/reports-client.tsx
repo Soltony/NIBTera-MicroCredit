@@ -122,32 +122,39 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         }
     }, [toast, providers, isSuperAdminOrRecon]);
     
-    // Effect to set the initial providerId based on user role
+    // Effect to set the initial providerId and fetch data ONCE
     useEffect(() => {
-        if (isAuthLoading) return;
+        if (isAuthLoading) return; // Wait for user data to be available
 
+        let initialProviderId: string | null = null;
         if (isSuperAdminOrRecon) {
-            setProviderId('all');
+            initialProviderId = 'all';
         } else if (currentUser?.providerId) {
-            // For provider users, they should only have one provider passed in props
-            setProviderId(currentUser.providerId);
-        } else if (providers.length === 0) {
-            setProviderId('none');
+            initialProviderId = currentUser.providerId;
+        } else if (providers.length > 0) {
+            // This case might be for other roles that see reports but aren't super admin
+            initialProviderId = 'all';
+        } else {
+            initialProviderId = 'none'; // No providers available
         }
-    }, [isAuthLoading, isSuperAdminOrRecon, providers, currentUser?.providerId]);
-    
-    // Effect to refetch data when filters change
-    useEffect(() => {
-        if(providerId && providerId !== 'none') {
-            fetchAllReportData(providerId, timeframe, dateRange);
-        } else if (providerId === 'none' || providers.length === 0) {
+        
+        setProviderId(initialProviderId);
+
+        if (initialProviderId && initialProviderId !== 'none') {
+            fetchAllReportData(initialProviderId, 'overall', undefined);
+        } else {
             setIsLoading(false);
-            setLoansData([]);
-            setCollectionsData([]);
-            setIncomeData([]);
-            setProviderSummaryData({});
         }
-    }, [providerId, timeframe, dateRange, fetchAllReportData, providers.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthLoading, currentUser?.providerId, isSuperAdminOrRecon]);
+    
+    // Effect to refetch data when filters change, but not on initial load
+    useEffect(() => {
+        // This check prevents refetching on the initial render where providerId is still null
+        if (providerId !== null) { 
+            fetchAllReportData(providerId, timeframe, dateRange);
+        }
+    }, [providerId, timeframe, dateRange, fetchAllReportData]);
 
     
     const handleExcelExport = () => {
@@ -269,10 +276,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    if (isAuthLoading || providerId === null) {
+    if (isLoading || isAuthLoading || providerId === null) {
         return (
              <div className="flex-1 space-y-4 p-8 pt-6">
-                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
+                    <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                </div>
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
