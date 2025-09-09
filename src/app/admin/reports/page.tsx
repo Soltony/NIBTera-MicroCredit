@@ -9,28 +9,23 @@ import { startOfToday, endOfToday, startOfWeek, endOfWeek, startOfMonth, endOfMo
 export const dynamic = 'force-dynamic';
 
 async function getProviders(userId: string): Promise<LoanProviderType[]> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { 
-            role: true,
-            loanProvider: true 
-        }
-    });
+    const user = await getUserFromSession();
 
-    const isSuperAdminOrAdmin = user?.role.name === 'Super Admin' || user?.role.name === 'Admin' || user?.role.name === 'Reconciliation';
-    
-    // If the user is a super admin or has a reconciliation role, they can see all providers.
-    if (isSuperAdminOrAdmin) {
+    const isSuperAdminOrRecon = user?.role === 'Super Admin' || user?.role === 'Reconciliation';
+
+    if (isSuperAdminOrRecon) {
         return (await prisma.loanProvider.findMany({
             orderBy: { displayOrder: 'asc' }
         })) as LoanProviderType[];
-    } 
-    // Otherwise, if they are a user associated with a specific provider, return only that one.
-    else if (user?.loanProvider) {
-        return [user.loanProvider] as LoanProviderType[];
     }
     
-    // If neither, they have no access.
+    if (user?.loanProviderId) {
+        const provider = await prisma.loanProvider.findUnique({
+            where: { id: user.loanProviderId }
+        });
+        return provider ? [provider] as LoanProviderType[] : [];
+    }
+    
     return [];
 }
 
