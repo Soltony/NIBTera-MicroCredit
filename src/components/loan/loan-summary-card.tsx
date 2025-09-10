@@ -71,7 +71,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
                     {isAvailableVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
                 </button>
             </div>
-             {isLoading ? <Skeleton className="h-10 w-40 bg-white/20 ml-auto" /> : <p className="text-3xl md:text-4xl font-bold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>}
+             {isLoading ? <Skeleton className="h-8 w-40 bg-white/20 ml-auto" /> : <p className="text-xl md:text-2xl font-semibold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>}
         </div>
       </div>
     </div>
