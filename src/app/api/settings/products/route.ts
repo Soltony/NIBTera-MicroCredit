@@ -23,13 +23,11 @@ export async function POST(req: NextRequest) {
 
         const logDetails = { productName: productData.name, providerId: providerId };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_CREATE_INITIATED', entity: 'PRODUCT', details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_CREATE_INITIATED', actorId: session.userId }));
 
         const newProduct = await prisma.loanProduct.create({
             data: {
                 providerId: providerId,
                 name: productData.name,
-                productType: productData.productType,
                 description: productData.description || '',
                 icon: productData.icon,
                 minLoan: productData.minLoan,
@@ -49,7 +47,6 @@ export async function POST(req: NextRequest) {
         
         const successLogDetails = { productId: newProduct.id, productName: newProduct.name, providerId: newProduct.providerId };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_CREATE_SUCCESS', entity: 'PRODUCT', entityId: newProduct.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_CREATE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json(newProduct, { status: 201 });
 
@@ -57,7 +54,6 @@ export async function POST(req: NextRequest) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
         const failureLogDetails = { error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_CREATE_FAILED', entity: 'PRODUCT', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_CREATE_FAILED', actorId: session.userId }));
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
@@ -81,7 +77,6 @@ export async function PUT(req: NextRequest) {
 
         const logDetails = { productId: id, updatedFields: Object.keys(updateData) };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_UPDATE_INITIATED', entity: 'PRODUCT', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_UPDATE_INITIATED', actorId: session.userId }));
         
         const dataToUpdate: any = { ...updateData };
 
@@ -103,7 +98,6 @@ export async function PUT(req: NextRequest) {
 
         const successLogDetails = { productId: updatedProduct.id, updatedFields: Object.keys(dataToUpdate) };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_UPDATE_SUCCESS', entity: 'PRODUCT', entityId: updatedProduct.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_UPDATE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json(updatedProduct);
 
@@ -111,7 +105,6 @@ export async function PUT(req: NextRequest) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_UPDATE_FAILED', entity: 'PRODUCT', details: failureLogDetails, ipAddress, userAgent });
-         console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_UPDATE_FAILED', actorId: session.userId }));
         return NextResponse.json({ error: 'Internal Server Error', 'details': errorMessage }, { status: 500 });
     }
 }
@@ -135,7 +128,6 @@ export async function DELETE(req: NextRequest) {
         
         const logDetails = { productId: id };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_DELETE_INITIATED', entity: 'PRODUCT', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_DELETE_INITIATED', actorId: session.userId }));
         
         // Add check if product has associated loans
         const loanCount = await prisma.loan.count({ where: { productId: id } });
@@ -149,7 +141,6 @@ export async function DELETE(req: NextRequest) {
 
         const successLogDetails = { deletedProductId: id, deletedProductName: productToDelete?.name, providerId: productToDelete?.providerId };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_DELETE_SUCCESS', entity: 'PRODUCT', entityId: id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_DELETE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json({ message: 'Product deleted successfully' });
 
@@ -157,7 +148,6 @@ export async function DELETE(req: NextRequest) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { productId: productId, error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'PRODUCT_DELETE_FAILED', entity: 'PRODUCT', entityId: productId, details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'PRODUCT_DELETE_FAILED', actorId: session.userId }));
         return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }

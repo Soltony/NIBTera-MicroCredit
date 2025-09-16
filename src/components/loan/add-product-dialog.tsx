@@ -19,7 +19,6 @@ import { Briefcase, Home, PersonStanding, type LucideIcon, Upload } from 'lucide
 import { cn } from '@/lib/utils';
 import type { LoanProduct } from '@/lib/types';
 import { IconDisplay } from '@/components/icons';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -36,7 +35,6 @@ const icons: { name: string; component: LucideIcon }[] = [
 export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
   const [productName, setProductName] = useState('');
   const [description, setDescription] = useState('');
-  const [productType, setProductType] = useState<'PERSONAL' | 'SME'>('PERSONAL');
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
   const [minLoan, setMinLoan] = useState('');
   const [maxLoan, setMaxLoan] = useState('');
@@ -73,7 +71,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       name: productName,
       description,
       icon: selectedIconName,
-      productType,
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
       duration: isNaN(parsedDuration) ? 30 : parsedDuration,
@@ -82,7 +79,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     // Reset form
     setProductName('');
     setDescription('');
-    setProductType('PERSONAL');
     setSelectedIconName(icons[0].name);
     setMinLoan('');
     setMaxLoan('');
@@ -105,18 +101,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="description" className="text-right">Description</Label>
               <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} className="col-span-3" />
-            </div>
-             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="product-type" className="text-right">Product Type</Label>
-                 <Select onValueChange={(value: 'PERSONAL' | 'SME') => setProductType(value)} value={productType}>
-                    <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="PERSONAL">Personal</SelectItem>
-                        <SelectItem value="SME">SME</SelectItem>
-                    </SelectContent>
-                </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">Icon</Label>

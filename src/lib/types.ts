@@ -56,34 +56,6 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
-export interface RequiredDocument {
-    id: string;
-    productId: string;
-    name: string;
-    description?: string;
-}
-
-export interface LoanApplication {
-    id: string;
-    borrowerId: string;
-    productId: string;
-    loanAmount: number;
-    status: 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED' | 'DISBURSED';
-    product: LoanProduct;
-    uploadedDocuments: UploadedDocument[];
-}
-
-export interface UploadedDocument {
-    id: string;
-    loanApplicationId: string;
-    requiredDocumentId: string;
-    fileName: string;
-    fileType: string;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    reviewComment?: string | null;
-}
-
-
 export interface LoanProvider {
   id: string;
   name: string;
@@ -123,8 +95,6 @@ export interface LoanProduct {
   dataProvisioningEnabled?: boolean;
   dataProvisioningConfigId?: string | null;
   dataProvisioningConfig?: DataProvisioningConfig;
-  productType: 'PERSONAL' | 'SME';
-  requiredDocuments?: RequiredDocument[];
 }
 
 export interface Payment {
@@ -136,7 +106,6 @@ export interface Payment {
 
 export interface LoanDetails {
   id: string; // Added for unique identification
-  loanApplicationId: string | null;
   borrowerId: string;
   providerName: string;
   productName: string;

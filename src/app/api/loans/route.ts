@@ -15,26 +15,8 @@ export async function POST(req: NextRequest) {
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
-        // --- VALIDATION: Check application status ---
-        const application = await prisma.loanApplication.findUnique({
-            where: { id: data.loanApplicationId },
-            include: { product: true }
-        });
-
-        if (!application) {
-            throw new Error('Loan application not found.');
-        }
-
-        if (application.status !== 'APPROVED') {
-             throw new Error(`Loan application is not in an approved state. Current status: ${application.status}`);
-        }
-        
-        if (application.loanId) {
-            throw new Error(`This loan application has already been disbursed (Loan ID: ${application.loanId}).`);
-        }
-
         const product = await prisma.loanProduct.findUnique({
-            where: { id: application.productId },
+            where: { id: data.productId },
             include: {
                 provider: {
                     include: {
@@ -50,7 +32,7 @@ export async function POST(req: NextRequest) {
 
         const logDetails = {
             borrowerId: data.borrowerId,
-            productId: application.productId,
+            productId: data.productId,
             amount: data.loanAmount
         };
 
@@ -81,7 +63,6 @@ export async function POST(req: NextRequest) {
             repaidAmount: 0,
             penaltyAmount: 0,
             product: product as any,
-            loanApplicationId: application.id,
         };
         
         const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
@@ -104,7 +85,7 @@ export async function POST(req: NextRequest) {
             const createdLoan = await tx.loan.create({
                 data: {
                     borrowerId: data.borrowerId,
-                    productId: application.productId,
+                    productId: data.productId,
                     loanAmount: data.loanAmount,
                     disbursedDate: data.disbursedDate,
                     dueDate: data.dueDate,
@@ -112,19 +93,8 @@ export async function POST(req: NextRequest) {
                     penaltyAmount: 0,
                     repaymentStatus: 'Unpaid',
                     repaidAmount: 0,
-                    loanApplicationId: application.id, // Link the loan to the application
                 }
             });
-            
-            // Update the application status to DISBURSED and link to the new loan
-            await tx.loanApplication.update({
-                where: { id: application.id },
-                data: {
-                    status: 'DISBURSED',
-                    loanId: createdLoan.id,
-                }
-            });
-
             
             const journalEntry = await tx.journalEntry.create({
                 data: {
