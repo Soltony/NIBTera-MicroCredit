@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
             data: {
                 providerId: providerId,
                 name: productData.name,
+                productType: productData.productType,
                 description: productData.description || '',
                 icon: productData.icon,
                 minLoan: productData.minLoan,
