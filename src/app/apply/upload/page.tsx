@@ -1,4 +1,5 @@
 
+
 import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import type { LoanProvider, LoanProduct } from '@/lib/types';
@@ -29,9 +30,9 @@ async function getProviderAndProduct(providerId: string, productId: string): Pro
 
 
 export default async function ApplyUploadPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const providerId = searchParams.providerId as string;
-    const productId = searchParams.product as string;
-    const borrowerId = searchParams.borrowerId as string;
+    const providerId = searchParams['providerId'] as string;
+    const productId = searchParams['product'] as string;
+    const borrowerId = searchParams['borrowerId'] as string;
 
     if (!providerId || !productId || !borrowerId) {
         notFound();
@@ -56,3 +57,5 @@ export default async function ApplyUploadPage({ searchParams }: { searchParams: 
 
     return <ApplyUploadClient provider={data.provider} product={data.product} borrowerId={borrowerId} />;
 }
+
+    

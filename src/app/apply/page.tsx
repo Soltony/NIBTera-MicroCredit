@@ -1,4 +1,5 @@
 
+
 import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import type { LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
@@ -76,3 +77,5 @@ export default async function ApplyPage({ searchParams }: { searchParams: { [key
 
     return <ApplyClient provider={selectedProvider} />;
 }
+
+    
