@@ -1,4 +1,5 @@
 
+
 import { SettingsClient } from '@/components/admin/settings-client';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import prisma from '@/lib/prisma';
@@ -20,6 +21,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             products: {
                 include: {
                     loanAmountTiers: true,
+                    requiredDocuments: true,
                 },
                 orderBy: { name: 'asc' }
             },
@@ -66,3 +68,4 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} />;
 }
+

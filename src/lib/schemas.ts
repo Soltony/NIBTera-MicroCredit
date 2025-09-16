@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 export const productSchema = z.object({
@@ -15,6 +16,7 @@ export const createProductSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   icon: z.string().min(1, 'Icon is required'),
+  productType: z.enum(['PERSONAL', 'SME']),
   minLoan: z.number().min(0, 'Min loan cannot be negative'),
   maxLoan: z.number().min(0, 'Max loan cannot be negative'),
   duration: z.number().int().min(0, 'Duration must be a non-negative number of days'),
@@ -46,6 +48,7 @@ const penaltyRuleSchema = z.object({
 
 export const updateProductSchema = productSchema.partial().extend({
   id: z.string(),
+  productType: z.enum(['PERSONAL', 'SME']).optional(),
   status: z.enum(['Active', 'Disabled']).optional(),
   allowConcurrentLoans: z.boolean().optional(),
   serviceFee: feeRuleSchema.optional(),
@@ -78,3 +81,4 @@ export const loanCreationSchema = z.object({
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
 });
+

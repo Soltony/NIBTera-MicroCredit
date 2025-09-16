@@ -56,6 +56,13 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
+export interface RequiredDocument {
+    id: string;
+    productId: string;
+    name: string;
+    description: string | null;
+}
+
 
 export interface LoanProvider {
   id: string;
@@ -80,12 +87,14 @@ export interface LoanProduct {
   name: string;
   description: string;
   icon: string;
+  productType: 'PERSONAL' | 'SME';
   minLoan?: number;
   maxLoan?: number;
   duration?: number;
   serviceFee: FeeRule;
   dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];
+  requiredDocuments?: RequiredDocument[];
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';

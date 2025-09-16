@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
             data: {
                 providerId: providerId,
                 name: productData.name,
+                productType: productData.productType,
                 description: productData.description || '',
                 icon: productData.icon,
                 minLoan: productData.minLoan,
@@ -159,3 +161,4 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }
+

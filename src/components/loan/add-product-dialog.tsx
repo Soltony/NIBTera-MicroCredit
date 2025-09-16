@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState } from 'react';
@@ -18,11 +19,12 @@ import { Briefcase, Home, PersonStanding, type LucideIcon, Upload } from 'lucide
 import { cn } from '@/lib/utils';
 import type { LoanProduct } from '@/lib/types';
 import { IconDisplay } from '@/components/icons';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId'> & {providerId: string}) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' | 'requiredDocuments' > & {providerId: string}) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [
@@ -35,6 +37,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
   const [productName, setProductName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIconName, setSelectedIconName] = useState(icons[0].name);
+  const [productType, setProductType] = useState<'PERSONAL' | 'SME'>('PERSONAL');
   const [minLoan, setMinLoan] = useState('');
   const [maxLoan, setMaxLoan] = useState('');
   const [duration, setDuration] = useState('30');
@@ -70,6 +73,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       name: productName,
       description,
       icon: selectedIconName,
+      productType: productType,
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
       duration: isNaN(parsedDuration) ? 30 : parsedDuration,
@@ -79,6 +83,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     setProductName('');
     setDescription('');
     setSelectedIconName(icons[0].name);
+    setProductType('PERSONAL');
     setMinLoan('');
     setMaxLoan('');
     setDuration('30');
@@ -96,6 +101,18 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="product-name" className="text-right">Name</Label>
               <Input id="product-name" value={productName} onChange={(e) => setProductName(e.target.value)} className="col-span-3" required />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="product-type" className="text-right">Product Type</Label>
+                <Select value={productType} onValueChange={(value: 'PERSONAL' | 'SME') => setProductType(value)}>
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="PERSONAL">Personal Loan</SelectItem>
+                        <SelectItem value="SME">SME Loan (Document-driven)</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="description" className="text-right">Description</Label>

@@ -21,8 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule, TermsAndConditions } from '@/lib/types';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FileText } from 'lucide-react';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, DailyFeeRule, TermsAndConditions, RequiredDocument } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -60,16 +60,18 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { 
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete, onUpdateRequiredDocs }: { 
     providerId: string; 
     product: LoanProduct; 
     providerColor?: string; 
     onSave: (providerId: string, product: LoanProduct) => void;
     onDelete: (providerId: string, productId: string) => void;
+    onUpdateRequiredDocs: (productId: string, docs: RequiredDocument[]) => void;
 }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    const [isDocsOpen, setIsDocsOpen] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -129,7 +131,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
-                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold">{product.name}</h4>
+                        <Badge variant="outline">{product.productType}</Badge>
+                    </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                 </button>
             </CollapsibleTrigger>
@@ -189,6 +194,16 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                                 placeholder="e.g., 30"
                             />
                         </div>
+                         {product.productType === 'SME' && (
+                            <div className="md:col-span-2">
+                                <RequiredDocumentsManager 
+                                    productId={product.id}
+                                    initialDocs={product.requiredDocuments || []}
+                                    onUpdate={onUpdateRequiredDocs}
+                                    providerColor={providerColor}
+                                />
+                            </div>
+                        )}
                     </div>
                     <div className="flex items-center space-x-2 justify-end mt-6">
                         <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
@@ -200,6 +215,88 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                 </form>
             </CollapsibleContent>
         </Collapsible>
+    )
+}
+
+function RequiredDocumentsManager({ productId, initialDocs, onUpdate, providerColor }: {
+    productId: string;
+    initialDocs: RequiredDocument[];
+    onUpdate: (productId: string, docs: RequiredDocument[]) => void;
+    providerColor?: string;
+}) {
+    const { toast } = useToast();
+    const [docs, setDocs] = useState(initialDocs);
+    const [newDocName, setNewDocName] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        setDocs(initialDocs);
+    }, [initialDocs]);
+    
+    const handleAddDoc = async () => {
+        if (!newDocName.trim()) return;
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/settings/required-documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId, name: newDocName }),
+            });
+            if (!response.ok) throw new Error('Failed to add document.');
+            const newDoc = await response.json();
+            const updatedDocs = [...docs, newDoc];
+            setDocs(updatedDocs);
+            onUpdate(productId, updatedDocs);
+            setNewDocName('');
+        } catch (error) {
+            toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const handleDeleteDoc = async (docId: string) => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/api/settings/required-documents?id=${docId}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete document.');
+            const updatedDocs = docs.filter(d => d.id !== docId);
+            setDocs(updatedDocs);
+            onUpdate(productId, updatedDocs);
+        } catch (error) {
+            toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+         <Card>
+            <CardHeader className='pb-4'>
+                <CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4"/> Required Documents</CardTitle>
+                <CardDescription>Define which documents must be uploaded for this SME loan product.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ul className="space-y-2 mb-4">
+                    {docs.map(doc => (
+                        <li key={doc.id} className="flex items-center justify-between bg-muted/50 p-2 rounded-md">
+                            <span className="text-sm font-medium">{doc.name}</span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteDoc(doc.id)} disabled={isLoading}><Trash2 className="h-4 w-4"/></Button>
+                        </li>
+                    ))}
+                </ul>
+                <div className="flex items-center gap-2">
+                    <Input 
+                        value={newDocName}
+                        onChange={(e) => setNewDocName(e.target.value)}
+                        placeholder="e.g., Business License"
+                    />
+                    <Button onClick={handleAddDoc} disabled={isLoading || !newDocName.trim()} style={{backgroundColor: providerColor}} className="text-white">
+                        {isLoading && docs.length === 0 ? <Loader2 className="h-4 w-4 animate-spin"/> : <PlusCircle className="h-4 w-4"/>}
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
     )
 }
 
@@ -316,6 +413,18 @@ function ProvidersTab({ providers, onProvidersChange }: {
             }
         }));
     }
+
+    const handleUpdateRequiredDocs = (productId: string, docs: RequiredDocument[]) => {
+        onProvidersChange(produce(draft => {
+            for (const provider of draft) {
+                const product = provider.products.find(p => p.id === productId);
+                if (product) {
+                    product.requiredDocuments = docs;
+                    break;
+                }
+            }
+        }));
+    };
     
     const confirmDelete = () => {
         if (!deletingId) return;
@@ -423,6 +532,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     providerColor={provider.colorHex} 
                     onSave={handleSaveProduct}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
+                    onUpdateRequiredDocs={handleUpdateRequiredDocs}
                   />
                 ))}
                 <Button 
@@ -841,7 +951,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
                  <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
-                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold">{product.name}</h4>
+                        <Badge variant="outline">{product.productType}</Badge>
+                    </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                 </button>
             </CollapsibleTrigger>
@@ -1152,6 +1265,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
 
 
 
