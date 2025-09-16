@@ -17,9 +17,12 @@ export async function POST(req: NextRequest) {
         const { borrowerId, productId, status, loanAmount } = appSchema.parse(body);
 
         const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
+        if (!product) {
+            return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
+        }
 
         // For SME loans, we try to find an existing, incomplete application.
-        if (product?.productType === 'SME') {
+        if (product.productType === 'SME') {
              let application = await prisma.loanApplication.findFirst({
                 where: {
                     borrowerId,
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
             data: {
                 borrowerId,
                 productId,
-                status: status || 'PENDING_DOCUMENTS',
+                status: status || (product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED'),
                 loanAmount: loanAmount || 0,
             },
             include: {
