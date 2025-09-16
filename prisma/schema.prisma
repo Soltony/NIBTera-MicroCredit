@@ -159,8 +159,6 @@ model LoanApplication {
     loan                Loan?       @relation(fields: [loanId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     createdAt           DateTime    @default(now())
     updatedAt           DateTime    @updatedAt
-    
-    @@unique([borrowerId, productId, status])
 }
 
 model UploadedDocument {
@@ -175,7 +173,7 @@ model UploadedDocument {
     status              String      @default("PENDING") // PENDING, APPROVED, REJECTED
     reviewComment       String?     @db.Text
     uploadedAt          DateTime    @default(now())
-    
+
     @@unique([loanApplicationId, requiredDocumentId])
 }
 
