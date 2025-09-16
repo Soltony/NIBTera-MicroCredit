@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement, LoanApplication } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
@@ -192,7 +192,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
   }, [selectedProviderId, providers]);
 
-  const handleApply = (product: LoanProduct) => {
+  const handleApply = async (product: LoanProduct) => {
     if (!borrowerId) {
         toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
         return;
@@ -203,16 +203,23 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         setIsAgreementDialogOpen(true);
         return;
     }
-    
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('providerId', selectedProviderId);
-    params.set('product', product.id);
 
-    const productLimit = eligibility.limits[product.id] ?? 0;
-    const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-    params.set('max', String(trueMaxLoan));
-    params.set('step', 'calculator');
-    router.push(`/apply?${params.toString()}`);
+    // This is where the logic diverges
+    if (product.productType === 'SME') {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('providerId', selectedProviderId);
+        params.set('product', product.id);
+        router.push(`/apply/upload?${params.toString()}`);
+    } else {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('providerId', selectedProviderId);
+        params.set('product', product.id);
+        const productLimit = eligibility.limits[product.id] ?? 0;
+        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+        params.set('max', String(trueMaxLoan));
+        params.set('step', 'calculator');
+        router.push(`/apply?${params.toString()}`);
+    }
   }
   
    const handleProviderSelect = (providerId: string) => {

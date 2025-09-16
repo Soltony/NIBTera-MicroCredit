@@ -60,10 +60,10 @@ export const updateProductSchema = productSchema.partial().extend({
   dataProvisioningConfigId: z.string().nullable().optional(),
 });
 
-// New schema for loan creation via API. Service fee is no longer provided by the client.
 export const loanCreationSchema = z.object({
     borrowerId: z.string(),
     productId: z.string(),
+    loanApplicationId: z.string().optional(),
     loanAmount: z.number(),
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
