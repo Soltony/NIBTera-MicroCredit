@@ -446,5 +446,3 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
-
-    
