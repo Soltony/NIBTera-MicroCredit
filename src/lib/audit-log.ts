@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import prisma from './prisma';
@@ -20,16 +21,6 @@ interface AuditLogData {
  */
 export async function createAuditLog(data: AuditLogData) {
     try {
-        let detailsJson: string | undefined = undefined;
-        if (data.details) {
-            try {
-                detailsJson = JSON.stringify(data.details);
-            } catch (e) {
-                console.error("Failed to stringify audit log details:", data.details);
-                detailsJson = JSON.stringify({ error: "Failed to serialize details." });
-            }
-        }
-
         await prisma.auditLog.create({
             data: {
                 actorId: data.actorId,
@@ -38,7 +29,7 @@ export async function createAuditLog(data: AuditLogData) {
                 entityId: data.entityId,
                 ipAddress: data.ipAddress,
                 userAgent: data.userAgent,
-                details: detailsJson,
+                details: data.details ? JSON.stringify(data.details) : null,
             },
         });
     } catch (error) {

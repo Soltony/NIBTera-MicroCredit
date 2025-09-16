@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
@@ -11,44 +12,35 @@ export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();
-        // Use the new schema with loanApplicationId
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
-        const application = await prisma.loanApplication.findUnique({
-            where: { id: data.loanApplicationId },
+        const product = await prisma.loanProduct.findUnique({
+            where: { id: data.productId },
             include: {
-                product: {
+                provider: {
                     include: {
-                        provider: {
-                            include: {
-                                ledgerAccounts: true
-                            }
-                        }
+                        ledgerAccounts: true
                     }
                 }
             }
         });
-
-        if (!application) {
-            throw new Error('Loan Application not found.');
+        
+        if (!product) {
+            throw new Error('Loan product not found.');
         }
 
-        const product = application.product;
-        const borrowerId = application.borrowerId;
-
         const logDetails = {
-            borrowerId: borrowerId,
-            productId: product.id,
-            amount: data.loanAmount,
-            applicationId: application.id
+            borrowerId: data.borrowerId,
+            productId: data.productId,
+            amount: data.loanAmount
         };
 
         await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
         console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_INITIATED' }));
 
         // --- SERVER-SIDE VALIDATION ---
-        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(borrowerId, product.providerId, product.id);
+        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, product.id);
 
         if (!isEligible) {
             throw new Error(`Loan denied: ${reason}`);
@@ -93,22 +85,12 @@ export async function POST(req: NextRequest) {
         const newLoan = await prisma.$transaction(async (tx) => {
             const createdLoan = await tx.loan.create({
                 data: {
-                    borrowerId: borrowerId,
-                    productId: product.id,
-                    loanApplicationId: application.id,
-                    loanAmount: data.loanAmount,
+                    ...data,
                     serviceFee: calculatedServiceFee,
                     penaltyAmount: 0,
-                    disbursedDate: data.disbursedDate,
-                    dueDate: data.dueDate,
                     repaymentStatus: 'Unpaid',
                     repaidAmount: 0,
                 }
-            });
-            
-            await tx.loanApplication.update({
-                where: { id: application.id },
-                data: { status: 'DISBURSED', loanAmount: data.loanAmount }
             });
             
             const journalEntry = await tx.journalEntry.create({
@@ -116,7 +98,7 @@ export async function POST(req: NextRequest) {
                     providerId: provider.id,
                     loanId: createdLoan.id,
                     date: new Date(data.disbursedDate),
-                    description: `Loan disbursement for ${product.name} to borrower ${borrowerId}`,
+                    description: `Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
                 }
             });
             

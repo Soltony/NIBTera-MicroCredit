@@ -56,13 +56,6 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
-export interface RequiredDocument {
-    id: string;
-    productId: string;
-    name: string;
-    description?: string | null;
-}
-
 
 export interface LoanProvider {
   id: string;
@@ -87,14 +80,12 @@ export interface LoanProduct {
   name: string;
   description: string;
   icon: string;
-  productType: 'PERSONAL' | 'SME';
   minLoan?: number;
   maxLoan?: number;
   duration?: number;
   serviceFee: FeeRule;
   dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];
-  requiredDocuments: RequiredDocument[];
   loanAmountTiers?: LoanAmountTier[];
   availableLimit?: number;
   status: 'Active' | 'Disabled';
@@ -360,32 +351,3 @@ export type IncomeReportData = {
     accruedPenalty: number;
     collectedPenalty: number;
 };
-
-
-// New types for SME loan applications
-export type ApplicationStatus = 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED';
-export type DocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-
-export interface UploadedDocument {
-  id: string;
-  loanApplicationId: string;
-  requiredDocumentId: string;
-  requiredDocument: RequiredDocument;
-  fileName: string;
-  fileType: string;
-  fileContent: string; // Base64 encoded file
-  status: DocumentStatus;
-  reviewComment?: string | null;
-  uploadedAt: Date;
-}
-
-export interface LoanApplication {
-  id: string;
-  borrowerId: string;
-  productId: string;
-  product: LoanProduct;
-  status: ApplicationStatus;
-  createdAt: Date;
-  updatedAt: Date;
-  uploadedDocuments: UploadedDocument[];
-}

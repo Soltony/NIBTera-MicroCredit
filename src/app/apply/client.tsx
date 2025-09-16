@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -50,24 +51,9 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         }
 
         try {
-            // For Personal loans, we create a pre-approved application record first.
-            const appResponse = await fetch('/api/applications', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    borrowerId,
-                    productId: selectedProduct.id,
-                    status: 'APPROVED', // Personal loans are auto-approved for disbursement
-                    loanAmount: details.loanAmount
-                }),
-            });
-            if (!appResponse.ok) {
-                throw new Error('Failed to create a loan application record.');
-            }
-            const application = await appResponse.json();
-
             const finalDetails = {
-                loanApplicationId: application.id,
+                borrowerId,
+                productId: selectedProduct.id,
                 loanAmount: details.loanAmount,
                 disbursedDate: details.disbursedDate,
                 dueDate: details.dueDate,
