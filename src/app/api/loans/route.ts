@@ -11,36 +11,44 @@ export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();
-        // Use the new schema without serviceFee
+        // Use the new schema with loanApplicationId
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
-        const logDetails = {
-            borrowerId: data.borrowerId,
-            productId: data.productId,
-            amount: data.loanAmount,
-        };
-
-        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_INITIATED' }));
-
-        const product = await prisma.loanProduct.findUnique({
-            where: { id: data.productId },
-            include: { 
-                provider: {
+        const application = await prisma.loanApplication.findUnique({
+            where: { id: data.loanApplicationId },
+            include: {
+                product: {
                     include: {
-                        ledgerAccounts: true
+                        provider: {
+                            include: {
+                                ledgerAccounts: true
+                            }
+                        }
                     }
                 }
             }
         });
 
-        if (!product) {
-            throw new Error('Product not found');
+        if (!application) {
+            throw new Error('Loan Application not found.');
         }
 
+        const product = application.product;
+        const borrowerId = application.borrowerId;
+
+        const logDetails = {
+            borrowerId: borrowerId,
+            productId: product.id,
+            amount: data.loanAmount,
+            applicationId: application.id
+        };
+
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
+        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_INITIATED' }));
+
         // --- SERVER-SIDE VALIDATION ---
-        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, data.productId);
+        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(borrowerId, product.providerId, product.id);
 
         if (!isEligible) {
             throw new Error(`Loan denied: ${reason}`);
@@ -51,27 +59,22 @@ export async function POST(req: NextRequest) {
         }
         // --- END OF VALIDATION ---
         
-        // --- CALCULATION LOGIC MOVED TO BACKEND ---
-        // Create a temporary loan object to calculate the service fee
         const tempLoanForCalc = {
             id: 'temp',
             loanAmount: data.loanAmount,
             disbursedDate: new Date(data.disbursedDate),
             dueDate: new Date(data.dueDate),
-            serviceFee: 0, // This will be calculated
+            serviceFee: 0,
             repaymentStatus: 'Unpaid' as 'Unpaid' | 'Paid',
             payments: [],
             productName: product.name,
             providerName: product.provider.name,
             repaidAmount: 0,
             penaltyAmount: 0,
-            product: product as any, // Attach product for context, though it's passed separately now
+            product: product as any,
         };
         
-        // Use the centralized calculator to get the correct service fee
-        // Pass the original `product` object directly to ensure all flags are read correctly.
         const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
-        // --- END OF NEW CALCULATION LOGIC ---
 
         const provider = product.provider;
 
@@ -88,14 +91,14 @@ export async function POST(req: NextRequest) {
 
 
         const newLoan = await prisma.$transaction(async (tx) => {
-            // Create the loan with the server-calculated service fee
             const createdLoan = await tx.loan.create({
                 data: {
-                    borrowerId: data.borrowerId,
-                    productId: data.productId,
+                    borrowerId: borrowerId,
+                    productId: product.id,
+                    loanApplicationId: application.id,
                     loanAmount: data.loanAmount,
                     serviceFee: calculatedServiceFee,
-                    penaltyAmount: 0, // Penalty is always 0 at disbursement
+                    penaltyAmount: 0,
                     disbursedDate: data.disbursedDate,
                     dueDate: data.dueDate,
                     repaymentStatus: 'Unpaid',
@@ -103,20 +106,22 @@ export async function POST(req: NextRequest) {
                 }
             });
             
-            // Create Journal Entry for the disbursement
+            await tx.loanApplication.update({
+                where: { id: application.id },
+                data: { status: 'DISBURSED', loanAmount: data.loanAmount }
+            });
+            
             const journalEntry = await tx.journalEntry.create({
                 data: {
                     providerId: provider.id,
                     loanId: createdLoan.id,
                     date: new Date(data.disbursedDate),
-                    description: `Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
+                    description: `Loan disbursement for ${product.name} to borrower ${borrowerId}`,
                 }
             });
             
-            // Ledger Entry for Principal: Debit Receivable, Credit Provider Fund
             await tx.ledgerEntry.createMany({
                 data: [
-                    // Debit: Loan Principal Receivable (Asset ↑)
                     {
                         journalEntryId: journalEntry.id,
                         ledgerAccountId: principalReceivableAccount.id,
@@ -126,18 +131,15 @@ export async function POST(req: NextRequest) {
                 ]
             });
             
-            // Ledger Entry for Service Fee if applicable
             if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
                 await tx.ledgerEntry.createMany({
                     data: [
-                         // Debit: Service Fee Receivable (Asset ↑)
                         {
                             journalEntryId: journalEntry.id,
                             ledgerAccountId: serviceFeeReceivableAccount.id,
                             type: 'Debit',
                             amount: calculatedServiceFee
                         },
-                        // Credit: Service Fee Income (Income ↑)
                         {
                             journalEntryId: journalEntry.id,
                             ledgerAccountId: serviceFeeIncomeAccount.id,
@@ -148,7 +150,6 @@ export async function POST(req: NextRequest) {
                 });
             }
 
-            // Update Balances
             await tx.ledgerAccount.update({
                 where: { id: principalReceivableAccount.id },
                 data: { balance: { increment: data.loanAmount } }
@@ -158,7 +159,6 @@ export async function POST(req: NextRequest) {
                 await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
             }
 
-            // Credit: Provider Fund (Asset ↓)
             await tx.loanProvider.update({
                 where: { id: provider.id },
                 data: { initialBalance: { decrement: data.loanAmount } }

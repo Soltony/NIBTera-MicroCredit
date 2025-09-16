@@ -44,51 +44,69 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
     }, [searchParams, selectedProduct]);
 
     const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
-        if (provider && selectedProduct && borrowerId) {
-            
-             const finalDetails: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'repaidAmount' | 'payments' > & { providerId: string; productId: string; borrowerId: string; } = {
-                ...details,
-                providerId: provider.id,
-                productId: selectedProduct.id,
-                borrowerId: borrowerId,
+        if (!selectedProduct || !borrowerId) {
+            toast({ title: 'Error', description: 'Missing required information.', variant: 'destructive'});
+            return;
+        }
+
+        try {
+            // For Personal loans, we create a pre-approved application record first.
+            const appResponse = await fetch('/api/applications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    borrowerId,
+                    productId: selectedProduct.id,
+                    status: 'APPROVED', // Personal loans are auto-approved for disbursement
+                    loanAmount: details.loanAmount
+                }),
+            });
+            if (!appResponse.ok) {
+                throw new Error('Failed to create a loan application record.');
+            }
+            const application = await appResponse.json();
+
+            const finalDetails = {
+                loanApplicationId: application.id,
+                loanAmount: details.loanAmount,
+                disbursedDate: details.disbursedDate,
+                dueDate: details.dueDate,
             };
 
-            try {
-                const response = await fetch('/api/loans', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finalDetails),
-                });
+            const response = await fetch('/api/loans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(finalDetails),
+            });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to save the loan.');
-                }
-                
-                const savedLoan = await response.json();
-
-                const displayLoan: LoanDetails = {
-                    ...savedLoan,
-                    providerName: provider.name,
-                    productName: selectedProduct.name,
-                    disbursedDate: new Date(savedLoan.disbursedDate),
-                    dueDate: new Date(savedLoan.dueDate),
-                    payments: [],
-                }
-                setLoanDetails(displayLoan);
-                setStep('details');
-                 toast({
-                    title: 'Success!',
-                    description: 'Your loan has been successfully disbursed.',
-                });
-
-            } catch (error: any) {
-                toast({
-                    title: 'Error',
-                    description: error.message,
-                    variant: 'destructive',
-                });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save the loan.');
             }
+            
+            const savedLoan = await response.json();
+
+            const displayLoan: LoanDetails = {
+                ...savedLoan,
+                providerName: provider.name,
+                productName: selectedProduct.name,
+                disbursedDate: new Date(savedLoan.disbursedDate),
+                dueDate: new Date(savedLoan.dueDate),
+                payments: [],
+            }
+            setLoanDetails(displayLoan);
+            setStep('details');
+                toast({
+                title: 'Success!',
+                description: 'Your loan has been successfully disbursed.',
+            });
+
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message,
+                variant: 'destructive',
+            });
         }
     };
 
@@ -113,7 +131,7 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
                     return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
                 }
                 if (productId && !selectedProduct) {
-                     return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;
+                        return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;
                 }
                 return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 

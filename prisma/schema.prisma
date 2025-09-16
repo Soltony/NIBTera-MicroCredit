@@ -65,9 +65,9 @@ model LoanProduct {
   providerId                  String
   provider                    LoanProvider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name                        String
-  productType                 String                        @default("PERSONAL") // PERSONAL, SME
   description                 String
   icon                        String                        @db.Text
+  productType                 String                        @default("PERSONAL") // PERSONAL, SME
   minLoan                     Float
   maxLoan                     Float
   duration                    Int
@@ -86,19 +86,19 @@ model LoanProduct {
   loanAmountTiers             LoanAmountTier[]
   scoringConfiguration        ScoringConfigurationProduct[]
   requiredDocuments           RequiredDocument[]
-  loanApplications            LoanApplication[]
-
+  applications                LoanApplication[]
+  
   @@unique([name, providerId])
 }
 
 model Loan {
-  id                          String          @id @default(cuid())
+  id                          String      @id @default(cuid())
   borrowerId                  String
-  borrower                    Borrower        @relation(fields: [borrowerId], references: [id])
+  borrower                    Borrower    @relation(fields: [borrowerId], references: [id])
   productId                   String
-  product                     LoanProduct     @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  loanApplicationId           String?         @unique
-  loanApplication             LoanApplication? @relation(fields: [loanApplicationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product                     LoanProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loanApplicationId           String?      @unique
+  loanApplication             LoanApplication? @relation(fields: [loanApplicationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   loanAmount                  Float
   serviceFee                  Float
   penaltyAmount               Float
@@ -109,8 +109,8 @@ model Loan {
   repaidAmount                Float?
   payments                    Payment[]
   journalEntries              JournalEntry[]
-  createdAt                   DateTime        @default(now())
-  updatedAt                   DateTime        @updatedAt
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
 }
 
 model Payment {
@@ -125,54 +125,57 @@ model Payment {
 }
 
 model Borrower {
-  id                String             @id
-  status            String             @default("Active") // Active, NPL
-  provisionedData   ProvisionedData[]
-  loans             Loan[]
-  agreements        BorrowerAgreement[]
-  loanApplications  LoanApplication[]
+  id              String           @id
+  status          String           @default("Active") // Active, NPL
+  provisionedData ProvisionedData[]
+  loans           Loan[]
+  agreements      BorrowerAgreement[]
+  applications    LoanApplication[]
 }
 
 // --------------------------------------
-// LOAN APPLICATION & DOCUMENTS
+// SME LOAN APPLICATION
 // --------------------------------------
-
-model RequiredDocument {
-    id          String @id @default(cuid())
-    productId   String
-    product     LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-    name        String
-    description String?
-}
 
 model LoanApplication {
-    id                  String      @id @default(cuid())
-    borrowerId          String
-    borrower            Borrower    @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
-    productId           String
-    product             LoanProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-    requestedAmount     Float
-    status              String      @default("PENDING_DOCUMENTS") // PENDING_DOCUMENTS, PENDING_REVIEW, REQUIRES_ATTENTION, APPROVED, REJECTED
-    documents           UploadedDocument[]
-    loan                Loan?
-    createdAt           DateTime    @default(now())
-    updatedAt           DateTime    @updatedAt
+  id                 String       @id @default(cuid())
+  borrowerId         String
+  borrower           Borrower     @relation(fields: [borrowerId], references: [id])
+  productId          String
+  product            LoanProduct  @relation(fields: [productId], references: [id])
+  status             String       // PENDING_DOCUMENTS, PENDING_REVIEW, REJECTED, APPROVED, DISBURSED
+  loanAmount         Float?       // Store the requested amount for personal loans
+  loan               Loan?
+  uploadedDocuments  UploadedDocument[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model RequiredDocument {
+  id                 String       @id @default(cuid())
+  productId          String
+  product            LoanProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name               String
+  description        String?
+  uploadedDocuments  UploadedDocument[]
 }
 
 model UploadedDocument {
-    id                  String      @id @default(cuid())
-    applicationId       String
-    application         LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-    requiredDocumentId  String
-    // requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id])
-    fileName            String
-    fileUrl             String      @db.Text
-    status              String      @default("PENDING") // PENDING, APPROVED, REJECTED
-    reviewComments      String?     @db.Text
-    reviewedAt          DateTime?
-    reviewedBy          String?     // User ID of the reviewer
-    uploadedAt          DateTime    @default(now())
+  id                  String           @id @default(cuid())
+  loanApplicationId   String
+  loanApplication     LoanApplication  @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+  requiredDocumentId  String
+  requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fileName            String
+  fileType            String
+  fileContent         String           @db.Text
+  status              String           @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewComment       String?          @db.Text
+  uploadedAt          DateTime         @default(now())
+  
+  @@unique([loanApplicationId, requiredDocumentId])
 }
+
 
 // --------------------------------------
 // DATA & SCORING
@@ -208,7 +211,7 @@ model ProvisionedData {
     data        String // JSON string of the uploaded data for this borrower
     createdAt   DateTime    @default(now())
     updatedAt   DateTime    @updatedAt
-
+    
     @@unique([borrowerId, configId])
 }
 
@@ -276,7 +279,7 @@ model LedgerAccount {
     category    String // Principal, Interest, ServiceFee, Penalty
     balance     Float @default(0)
     entries     LedgerEntry[]
-
+    
     @@unique([providerId, name])
 }
 
@@ -329,6 +332,7 @@ model BorrowerAgreement {
 
   @@unique([borrowerId, termsId])
 }
+
 
 // --------------------------------------
 // AUDITING

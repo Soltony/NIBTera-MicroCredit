@@ -6,20 +6,44 @@ import { z } from 'zod';
 const appSchema = z.object({
   borrowerId: z.string(),
   productId: z.string(),
+  status: z.enum(['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'REJECTED', 'APPROVED', 'DISBURSED']).optional(),
+  loanAmount: z.number().optional(),
 });
 
 // GET or CREATE a loan application
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { borrowerId, productId } = appSchema.parse(body);
+        const { borrowerId, productId, status, loanAmount } = appSchema.parse(body);
 
-        // Find an existing application that is not yet a real loan
-        let application = await prisma.loanApplication.findFirst({
-            where: {
+        // For document-driven SME loans, we might want to find an existing one.
+        // For personal loans, we usually create a new one each time.
+        const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
+        if (product?.productType === 'SME') {
+             let application = await prisma.loanApplication.findFirst({
+                where: {
+                    borrowerId,
+                    productId,
+                    status: { notIn: ['DISBURSED', 'REJECTED'] }
+                },
+                include: {
+                    product: { include: { requiredDocuments: true } },
+                    uploadedDocuments: true,
+                }
+            });
+
+            if (application) {
+                 return NextResponse.json(application, { status: 200 });
+            }
+        }
+        
+        // If no existing application, or it's a personal loan, create a new one.
+        const application = await prisma.loanApplication.create({
+            data: {
                 borrowerId,
                 productId,
-                status: { notIn: ['APPROVED'] } // Or whatever status means "converted to loan"
+                status: status || 'PENDING_DOCUMENTS',
+                loanAmount,
             },
             include: {
                 product: { include: { requiredDocuments: true } },
@@ -27,21 +51,8 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        if (!application) {
-            application = await prisma.loanApplication.create({
-                data: {
-                    borrowerId,
-                    productId,
-                    status: 'PENDING_DOCUMENTS',
-                },
-                include: {
-                    product: { include: { requiredDocuments: true } },
-                    uploadedDocuments: true,
-                }
-            });
-        }
 
-        return NextResponse.json(application, { status: 200 });
+        return NextResponse.json(application, { status: 201 });
 
     } catch (error) {
          if (error instanceof z.ZodError) {
@@ -53,7 +64,7 @@ export async function POST(req: NextRequest) {
 }
 
 const updateAppSchema = z.object({
-  status: z.enum(['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'REJECTED', 'APPROVED']),
+  status: z.enum(['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'REJECTED', 'APPROVED', 'DISBURSED']),
 });
 
 

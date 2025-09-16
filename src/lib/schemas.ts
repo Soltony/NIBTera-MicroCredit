@@ -75,10 +75,10 @@ export const loanSchema = z.object({
 
 // New schema for loan creation via API. Service fee is no longer provided by the client.
 export const loanCreationSchema = z.object({
-    productId: z.string(),
-    borrowerId: z.string(),
+    loanApplicationId: z.string(),
     loanAmount: z.number(),
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
 });
+
 
