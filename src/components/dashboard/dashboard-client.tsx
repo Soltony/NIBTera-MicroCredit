@@ -63,7 +63,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const [agreementState, setAgreementState] = useState<AgreementState>({});
   const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
-  const [productToApply, setProductToApply] = useState<string | null>(null);
+  const [productToApply, setProductToApply] = useState<LoanProduct | null>(null);
   const [agreementChecked, setAgreementChecked] = useState(false);
 
   
@@ -192,29 +192,31 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
   }, [selectedProviderId, providers]);
 
-  const handleApply = (productId: string) => {
+  const handleApply = (product: LoanProduct) => {
     if (!borrowerId) {
         toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
         return;
     }
 
     if (agreementState.terms && !agreementState.hasAgreed) {
-        setProductToApply(productId);
+        setProductToApply(product);
         setIsAgreementDialogOpen(true);
         return;
     }
     
-    const productLimit = eligibility.limits[productId] ?? 0;
-    
-    // The true max loan is the lesser of the product's individual limit and the overall available limit.
-    const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
-    params.set('product', productId);
-    params.set('max', String(trueMaxLoan));
-    params.set('step', 'calculator');
-    router.push(`/apply?${params.toString()}`);
+    params.set('product', product.id);
+
+    if (product.productType === 'SME') {
+        router.push(`/apply/upload?${params.toString()}`);
+    } else {
+        const productLimit = eligibility.limits[product.id] ?? 0;
+        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+        params.set('max', String(trueMaxLoan));
+        params.set('step', 'calculator');
+        router.push(`/apply?${params.toString()}`);
+    }
   }
   
    const handleProviderSelect = (providerId: string) => {
@@ -377,7 +379,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                                     }}
                                                     providerColor={selectedProvider.colorHex}
                                                     activeLoan={activeLoansByProduct[product.id]}
-                                                    onApply={() => handleApply(product.id)}
+                                                    onApply={() => handleApply(product)}
                                                     onRepay={handleRepay}
                                                     IconDisplayComponent={IconDisplay}
                                                     isEligible={isEligible}
