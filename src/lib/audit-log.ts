@@ -20,6 +20,16 @@ interface AuditLogData {
  */
 export async function createAuditLog(data: AuditLogData) {
     try {
+        let detailsJson: string | undefined = undefined;
+        if (data.details) {
+            try {
+                detailsJson = JSON.stringify(data.details);
+            } catch (e) {
+                console.error("Failed to stringify audit log details:", data.details);
+                detailsJson = JSON.stringify({ error: "Failed to serialize details." });
+            }
+        }
+
         await prisma.auditLog.create({
             data: {
                 actorId: data.actorId,
@@ -28,7 +38,7 @@ export async function createAuditLog(data: AuditLogData) {
                 entityId: data.entityId,
                 ipAddress: data.ipAddress,
                 userAgent: data.userAgent,
-                details: data.details ? JSON.parse(JSON.stringify(data.details)) : undefined,
+                details: detailsJson,
             },
         });
     } catch (error) {
