@@ -21,7 +21,6 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             products: {
                 include: {
                     loanAmountTiers: true,
-                    requiredDocuments: true,
                 },
                 orderBy: { name: 'asc' }
             },
@@ -68,4 +67,5 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} />;
 }
+
 
