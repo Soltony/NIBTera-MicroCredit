@@ -2,11 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+import { LoanProduct } from '@prisma/client';
 
 const appSchema = z.object({
   borrowerId: z.string(),
   productId: z.string(),
-  status: z.enum(['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'REJECTED', 'APPROVED', 'DISBURSED']).optional(),
   loanAmount: z.number().optional(),
 });
 
@@ -14,7 +14,7 @@ const appSchema = z.object({
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { borrowerId, productId, status, loanAmount } = appSchema.parse(body);
+        const { borrowerId, productId, loanAmount } = appSchema.parse(body);
 
         const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
         if (!product) {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
             data: {
                 borrowerId,
                 productId,
-                status: status || (product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED'),
+                status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED', // Personal loans are pre-approved
                 loanAmount: loanAmount || 0,
             },
             include: {
@@ -98,3 +98,4 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

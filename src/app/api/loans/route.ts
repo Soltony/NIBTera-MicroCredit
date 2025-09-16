@@ -15,8 +15,26 @@ export async function POST(req: NextRequest) {
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
+        // --- VALIDATION: Check application status ---
+        const application = await prisma.loanApplication.findUnique({
+            where: { id: data.loanApplicationId },
+            include: { product: true }
+        });
+
+        if (!application) {
+            throw new Error('Loan application not found.');
+        }
+
+        if (application.status !== 'APPROVED') {
+             throw new Error(`Loan application is not in an approved state. Current status: ${application.status}`);
+        }
+        
+        if (application.loanId) {
+            throw new Error(`This loan application has already been disbursed (Loan ID: ${application.loanId}).`);
+        }
+
         const product = await prisma.loanProduct.findUnique({
-            where: { id: data.productId },
+            where: { id: application.productId },
             include: {
                 provider: {
                     include: {
@@ -32,12 +50,11 @@ export async function POST(req: NextRequest) {
 
         const logDetails = {
             borrowerId: data.borrowerId,
-            productId: data.productId,
+            productId: application.productId,
             amount: data.loanAmount
         };
 
         await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_INITIATED' }));
 
         // --- SERVER-SIDE VALIDATION ---
         const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, product.id);
@@ -85,13 +102,28 @@ export async function POST(req: NextRequest) {
         const newLoan = await prisma.$transaction(async (tx) => {
             const createdLoan = await tx.loan.create({
                 data: {
-                    ...data,
+                    borrowerId: data.borrowerId,
+                    productId: application.productId,
+                    loanAmount: data.loanAmount,
+                    disbursedDate: data.disbursedDate,
+                    dueDate: data.dueDate,
                     serviceFee: calculatedServiceFee,
                     penaltyAmount: 0,
                     repaymentStatus: 'Unpaid',
                     repaidAmount: 0,
+                    loanApplicationId: application.id, // Link the loan to the application
                 }
             });
+            
+            // Update the application status to DISBURSED and link to the new loan
+            await tx.loanApplication.update({
+                where: { id: application.id },
+                data: {
+                    status: 'DISBURSED',
+                    loanId: createdLoan.id,
+                }
+            });
+
             
             const journalEntry = await tx.journalEntry.create({
                 data: {
@@ -157,7 +189,6 @@ export async function POST(req: NextRequest) {
             serviceFee: newLoan.serviceFee,
         };
         await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_SUCCESS', entity: 'LOAN', entityId: newLoan.id, details: successLogDetails });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_SUCCESS' }));
 
         return NextResponse.json(newLoan, { status: 201 });
 
@@ -168,7 +199,6 @@ export async function POST(req: NextRequest) {
             error: errorMessage,
         };
         await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_FAILED', entity: 'LOAN', details: failureLogDetails });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'LOAN_DISBURSEMENT_FAILED' }));
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });

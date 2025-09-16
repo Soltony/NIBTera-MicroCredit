@@ -51,9 +51,27 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         }
 
         try {
+            // Step 1: Create a loan application first
+            const appResponse = await fetch('/api/applications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    borrowerId,
+                    productId: selectedProduct.id,
+                    loanAmount: details.loanAmount
+                }),
+            });
+            
+            if (!appResponse.ok) {
+                const errorData = await appResponse.json();
+                throw new Error(errorData.error || 'Failed to create loan application.');
+            }
+            const application = await appResponse.json();
+
+            // Step 2: Disburse the loan using the application ID
             const finalDetails = {
+                loanApplicationId: application.id,
                 borrowerId,
-                productId: selectedProduct.id,
                 loanAmount: details.loanAmount,
                 disbursedDate: details.disbursedDate,
                 dueDate: details.dueDate,
@@ -97,14 +115,14 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
     };
 
     const handleBack = () => {
-        const params = new URLSearchParams(searchParams);
+        const params = new URLSearchParams(searchParams.toString());
         params.delete('product');
         params.delete('step');
         router.push(`/loan?${params.toString()}`);
     };
 
     const handleReset = () => {
-        const params = new URLSearchParams(searchParams);
+        const params = new URLSearchParams(searchParams.toString());
         params.delete('product');
         params.delete('step');
         router.push(`/loan?${params.toString()}`);
