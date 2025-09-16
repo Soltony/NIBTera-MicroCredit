@@ -1,5 +1,4 @@
 
-
 import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import type { LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
@@ -40,9 +39,12 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
         colorHex: provider.colorHex,
         displayOrder: provider.displayOrder,
         accountNumber: provider.accountNumber,
+        startingCapital: provider.startingCapital,
+        initialBalance: provider.initialBalance,
         allowCrossProviderLoans: provider.allowCrossProviderLoans,
         products: provider.products.map(prod => ({
             ...prod,
+            productType: prod.productType,
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
             dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
             penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
@@ -52,7 +54,7 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
 
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const providerId = searchParams.providerId;
+    const providerId = searchParams['providerId'] as string;
 
     if (!providerId || typeof providerId !== 'string') {
         notFound();

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React from 'react';
@@ -207,11 +206,16 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     const params = new URLSearchParams(searchParams.toString());
     params.set('providerId', selectedProviderId);
     params.set('product', product.id);
-    const productLimit = eligibility.limits[product.id] ?? 0;
-    const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-    params.set('max', String(trueMaxLoan));
-    params.set('step', 'calculator');
-    router.push(`/apply?${params.toString()}`);
+
+    if (product.productType === 'SME') {
+        router.push(`/apply/upload?${params.toString()}`);
+    } else {
+        const productLimit = eligibility.limits[product.id] ?? 0;
+        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+        params.set('max', String(trueMaxLoan));
+        params.set('step', 'calculator');
+        router.push(`/apply?${params.toString()}`);
+    }
   }
   
    const handleProviderSelect = (providerId: string) => {
@@ -250,6 +254,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         productName: repayingLoanInfo.loan.productName,
         product: repayingLoanInfo.loan.product,
         provider: repayingLoanInfo.loan.provider,
+        loanApplicationId: updatedLoanData.loanApplicationId,
         disbursedDate: new Date(updatedLoanData.disbursedDate),
         dueDate: new Date(updatedLoanData.dueDate),
         payments: updatedLoanData.payments,

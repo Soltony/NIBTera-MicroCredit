@@ -24,7 +24,10 @@ async function getProviderAndProduct(providerId: string, productId: string): Pro
     
     return {
         provider: provider as LoanProvider,
-        product: product as LoanProduct,
+        product: {
+            ...product,
+            productType: product.productType as 'SME' | 'PERSONAL',
+        } as LoanProduct,
     };
 }
 

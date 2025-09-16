@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
             repaidAmount: 0,
             penaltyAmount: 0,
             product: product as any,
+            loanApplicationId: application.id,
         };
         
         const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
