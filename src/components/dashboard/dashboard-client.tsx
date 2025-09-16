@@ -210,7 +210,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
 
     if (product.productType === 'SME') {
         router.push(`/apply/upload?${params.toString()}`);
-    } else {
+    } else { // It's a PERSONAL loan
         const productLimit = eligibility.limits[product.id] ?? 0;
         const trueMaxLoan = Math.min(productLimit, availableToBorrow);
         params.set('max', String(trueMaxLoan));

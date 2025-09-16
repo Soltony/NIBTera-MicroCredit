@@ -16,9 +16,9 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { borrowerId, productId, status, loanAmount } = appSchema.parse(body);
 
-        // For document-driven SME loans, we might want to find an existing one.
-        // For personal loans, we usually create a new one each time.
         const product = await prisma.loanProduct.findUnique({ where: { id: productId }});
+
+        // For SME loans, we try to find an existing, incomplete application.
         if (product?.productType === 'SME') {
              let application = await prisma.loanApplication.findFirst({
                 where: {
@@ -37,13 +37,13 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // If no existing application, or it's a personal loan, create a new one.
+        // For PERSONAL loans, or if no active SME application exists, create a new one.
         const application = await prisma.loanApplication.create({
             data: {
                 borrowerId,
                 productId,
                 status: status || 'PENDING_DOCUMENTS',
-                loanAmount,
+                loanAmount: loanAmount || 0,
             },
             include: {
                 product: { include: { requiredDocuments: true } },
