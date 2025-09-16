@@ -77,5 +77,3 @@ export default async function ApplyPage({ searchParams }: { searchParams: { [key
 
     return <ApplyClient provider={selectedProvider} />;
 }
-
-    

@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
         if (!product) {
             return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
         }
-
-        // For SME loans, we try to find an existing, incomplete application.
+        
+        // For SME loans, try to find an existing, incomplete application to allow resuming.
         if (product.productType === 'SME') {
              let application = await prisma.loanApplication.findFirst({
                 where: {
@@ -98,5 +98,3 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
-
-    

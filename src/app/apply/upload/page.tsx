@@ -57,5 +57,3 @@ export default async function ApplyUploadPage({ searchParams }: { searchParams: 
 
     return <ApplyUploadClient provider={data.provider} product={data.product} borrowerId={borrowerId} />;
 }
-
-    
