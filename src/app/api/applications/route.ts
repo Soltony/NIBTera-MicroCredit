@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
         // For PERSONAL loans, or if no active SME application exists, create a new one.
         const application = await prisma.loanApplication.create({
             data: {
-                borrowerId,
-                productId,
+                borrower: { connect: { id: borrowerId } },
+                product: { connect: { id: productId } },
                 status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED', // Personal loans are auto-approved for calculation
             }
         });
