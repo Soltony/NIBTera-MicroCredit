@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
             data: {
                 borrowerId,
                 productId,
-                status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED',
+                status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED', // Personal loans are auto-approved for calculation
             }
         });
 
