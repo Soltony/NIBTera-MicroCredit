@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React from 'react';
@@ -204,15 +203,22 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         return;
     }
 
+    let response;
     try {
-        const response = await fetch('/api/applications', {
+        response = await fetch('/api/applications', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ borrowerId, productId: product.id }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (jsonError) {
+                // If the response is not JSON (e.g., an HTML error page), this will catch it.
+                throw new Error('An unexpected server error occurred. Please check the server logs.');
+            }
             throw new Error(errorData.error || 'Failed to create loan application.');
         }
 
@@ -467,5 +473,3 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
-
-    
