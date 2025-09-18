@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
             repaidAmount: 0,
             penaltyAmount: 0,
             product: product as any,
+            loanApplicationId: 'temp',
         };
         
         const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
@@ -82,20 +83,10 @@ export async function POST(req: NextRequest) {
 
 
         const newLoan = await prisma.$transaction(async (tx) => {
-            const application = await tx.loanApplication.create({
-                data: {
-                    borrowerId: data.borrowerId,
-                    productId: data.productId,
-                    status: 'DISBURSED',
-                    loanAmount: data.loanAmount
-                }
-            });
-
             const createdLoan = await tx.loan.create({
                 data: {
                     borrowerId: data.borrowerId,
                     productId: data.productId,
-                    loanApplicationId: application.id,
                     loanAmount: data.loanAmount,
                     disbursedDate: data.disbursedDate,
                     dueDate: data.dueDate,
@@ -103,6 +94,14 @@ export async function POST(req: NextRequest) {
                     penaltyAmount: 0,
                     repaymentStatus: 'Unpaid',
                     repaidAmount: 0,
+                    loanApplication: {
+                        create: {
+                            borrowerId: data.borrowerId,
+                            productId: data.productId,
+                            loanAmount: data.loanAmount,
+                            status: 'DISBURSED',
+                        }
+                    }
                 }
             });
             
@@ -184,6 +183,7 @@ export async function POST(req: NextRequest) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
+        console.error("Error in POST /api/loans:", error);
         return NextResponse.json({ error: (error as Error).message || 'Internal Server Error' }, { status: 500 });
     }
 }
