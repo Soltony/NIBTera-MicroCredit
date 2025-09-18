@@ -204,21 +204,39 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         return;
     }
 
-    // This is where the logic diverges
-    if (product.productType === 'SME') {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('providerId', selectedProviderId);
-        params.set('product', product.id);
-        router.push(`/apply/upload?${params.toString()}`);
-    } else {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('providerId', selectedProviderId);
-        params.set('product', product.id);
-        const productLimit = eligibility.limits[product.id] ?? 0;
-        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-        params.set('max', String(trueMaxLoan));
-        params.set('step', 'calculator');
-        router.push(`/apply?${params.toString()}`);
+    try {
+        const response = await fetch('/api/applications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ borrowerId, productId: product.id }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create loan application.');
+        }
+
+        const application = await response.json();
+
+        // This is where the logic diverges
+        if (product.productType === 'SME') {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set('providerId', selectedProviderId);
+            params.set('loanApplicationId', application.id);
+            router.push(`/apply/upload?${params.toString()}`);
+        } else {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set('providerId', selectedProviderId);
+            params.set('product', product.id);
+            params.set('loanApplicationId', application.id);
+            const productLimit = eligibility.limits[product.id] ?? 0;
+            const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+            params.set('max', String(trueMaxLoan));
+            params.set('step', 'calculator');
+            router.push(`/apply?${params.toString()}`);
+        }
+    } catch (error: any) {
+        toast({ title: 'Application Error', description: error.message, variant: 'destructive' });
     }
   }
   
@@ -449,3 +467,5 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
+
+    
