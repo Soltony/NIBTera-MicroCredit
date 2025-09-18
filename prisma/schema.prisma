@@ -166,7 +166,7 @@ model UploadedDocument {
     loanApplicationId   String
     loanApplication     LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
     requiredDocumentId  String
-    requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction) // Changed from Cascade
+    requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     fileName            String
     fileType            String
     fileContent         String      @db.Text
