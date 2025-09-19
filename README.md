@@ -26,14 +26,26 @@ The loan lifecycle follows a clear, structured path from initial eligibility che
 
 2.  **Product Selection**: The borrower is presented with a dashboard showing available loan products from different providers. They can see their specific credit limit for each product and choose the one that best suits their needs.
 
-3.  **Application & Calculation**: After selecting a product, the borrower is taken to a calculator where they can enter their desired loan amount (up to their approved limit). The system instantly calculates the total repayable amount, including any service fees.
+3.  **Application & Calculation**:
+    *   **Personal Loans**: After selecting a product, the borrower is taken to a calculator where they can enter their desired loan amount. The system instantly calculates the total repayable amount, including any service fees.
+    *   **SME Loans**: For SME products, the borrower is directed to a document upload portal. They must submit all required documents (defined by the admin) before the application can proceed.
 
-4.  **Disbursement**: Upon accepting the terms, the loan is disbursed. The backend records the transaction, creates the necessary ledger entries for accounting, and decrements the provider's available capital.
+4.  **Approval Workflow (SME Loans)**: Once all documents are submitted, the application enters a "Pending Approval" state. An admin or loan officer reviews the application and the uploaded documents. They can then approve or reject the application.
 
-5.  **Loan Monitoring**: The system automatically tracks the loan's status. Daily fees are accrued based on the product's rules. If the loan becomes overdue, penalties are applied according to the configured penalty tiers (e.g., a daily fixed fee or a percentage of the outstanding principal).
+5.  **Disbursement**:
+    *   **Personal Loans**: Upon accepting the terms in the calculator, the loan is disbursed immediately.
+    *   **SME Loans**: After an application is approved, the loan becomes "Ready for Disbursement" and can be triggered by an admin.
+    
+    Upon disbursement, the backend records the transaction, creates the necessary ledger entries for accounting, and decrements the provider's available capital. The disbursed `Loan` is linked to its originating `LoanApplication` via the `loanApplicationId`.
 
-6.  **Repayment**: The borrower can make repayments at any time. The system prioritizes payments, settling any outstanding penalties and fees before applying the remainder to the principal.
+6.  **Loan Monitoring**: The system automatically tracks the loan's status. Daily fees are accrued based on the product's rules. If the loan becomes overdue, penalties are applied according to the configured penalty tiers.
 
-7.  **Automated Services**:
+7.  **Repayment**: The borrower can make repayments at any time. The system prioritizes payments, settling any outstanding penalties and fees before applying the remainder to the principal.
+
+8.  **Automated Services**:
     *   **Automated Repayment**: A background service runs periodically to attempt to deduct payments for overdue loans from the borrower's account (simulated via provisioned data).
     *   **NPL Flagging**: Another service identifies loans that have been overdue for a configurable period (e.g., 60 days) and flags the borrower's account as a Non-Performing Loan (NPL), restricting them from taking new loans.
+
+## The `loanApplicationId`
+
+The `loanApplicationId` is the key that connects the entire loan lifecycle. It serves as a container for the application process, linking the initial request, all uploaded documents (for SME loans), the approval status, and the final disbursed `Loan` record. This ensures a complete and auditable trail for every loan in the system from start to finish.
