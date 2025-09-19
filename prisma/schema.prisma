@@ -1,3 +1,5 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -151,8 +153,8 @@ model LoanApplication {
     productId           String
     product             LoanProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     loanAmount          Float?
-    status              String      @default("PENDING_DOCUMENTS") // PENDING_DOCUMENTS, PENDING_REVIEW, NEEDS_REVISION, REJECTED, APPROVED, DISBURSED
-    rejectionReason     String?     @db.Text
+    status              String      @default("PENDING_DOCUMENTS") // PENDING_DOCUMENTS, PENDING_REVIEW, NEEDS_REVISION, APPROVED, DISBURSED
+    rejectionReason     String?
     uploadedDocuments   UploadedDocument[]
     loan                Loan?
     createdAt           DateTime    @default(now())
