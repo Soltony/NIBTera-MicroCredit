@@ -17,3 +17,23 @@ This application is a multi-provider micro-credit platform built with Next.js, P
 *   **Comprehensive Reporting & Auditing**: Admins have access to a detailed reporting suite to monitor key metrics like portfolio health, collections, income, and fund utilization. All critical actions are logged for compliance and security.
 
 *   **Role-Based Access Control**: The platform features a robust access control system, allowing administrators to define granular roles and permissions for different user types.
+
+## The Loan Process
+
+The loan lifecycle follows a clear, structured path from initial eligibility check to final repayment.
+
+1.  **Eligibility Check**: A borrower's journey begins by selecting their profile from a list of provisioned customer data. The system then automatically runs an eligibility check for each available loan provider, calculating the borrower's credit score based on the provider's unique rules and determining their maximum loan limit.
+
+2.  **Product Selection**: The borrower is presented with a dashboard showing available loan products from different providers. They can see their specific credit limit for each product and choose the one that best suits their needs.
+
+3.  **Application & Calculation**: After selecting a product, the borrower is taken to a calculator where they can enter their desired loan amount (up to their approved limit). The system instantly calculates the total repayable amount, including any service fees.
+
+4.  **Disbursement**: Upon accepting the terms, the loan is disbursed. The backend records the transaction, creates the necessary ledger entries for accounting, and decrements the provider's available capital.
+
+5.  **Loan Monitoring**: The system automatically tracks the loan's status. Daily fees are accrued based on the product's rules. If the loan becomes overdue, penalties are applied according to the configured penalty tiers (e.g., a daily fixed fee or a percentage of the outstanding principal).
+
+6.  **Repayment**: The borrower can make repayments at any time. The system prioritizes payments, settling any outstanding penalties and fees before applying the remainder to the principal.
+
+7.  **Automated Services**:
+    *   **Automated Repayment**: A background service runs periodically to attempt to deduct payments for overdue loans from the borrower's account (simulated via provisioned data).
+    *   **NPL Flagging**: Another service identifies loans that have been overdue for a configurable period (e.g., 60 days) and flags the borrower's account as a Non-Performing Loan (NPL), restricting them from taking new loans.
