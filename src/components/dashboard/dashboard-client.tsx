@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React from 'react';
@@ -209,13 +210,14 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                 });
 
                 if (!response.ok) {
-                    const errorText = await response.text();
+                    let errorText;
                     try {
-                        const errorJson = JSON.parse(errorText);
-                        throw new Error(errorJson.error || 'Failed to create loan application.');
+                        const errorJson = await response.json();
+                        errorText = errorJson.error || 'Failed to create loan application.';
                     } catch (e) {
-                         throw new Error(`An unexpected server error occurred: ${errorText}`);
+                        errorText = await response.text();
                     }
+                    throw new Error(errorText);
                 }
 
                 const application = await response.json();
@@ -468,3 +470,5 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
+
+    
