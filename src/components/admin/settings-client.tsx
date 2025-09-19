@@ -1113,7 +1113,7 @@ function RequiredDocumentsForm({ product, onUpdate, providerColor }: {
     onUpdate: (productId: string, docs: RequiredDocument[]) => void, 
     providerColor?: string 
 }) {
-    const [docs, setDocs] = useState<RequiredDocument[]>([]);
+    const docs = product.requiredDocuments || [];
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1127,7 +1127,6 @@ function RequiredDocumentsForm({ product, onUpdate, providerColor }: {
                 const response = await fetch(`/api/settings/required-documents?productId=${product.id}`);
                 if (!response.ok) throw new Error("Failed to load documents.");
                 const data = await response.json();
-                setDocs(data);
                 onUpdate(product.id, data);
             } catch (error: any) {
                 toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1135,8 +1134,14 @@ function RequiredDocumentsForm({ product, onUpdate, providerColor }: {
                 setIsLoading(false);
             }
         };
-        fetchDocs();
-    }, [product.id, onUpdate, toast]);
+        
+        // Only fetch if docs are not already populated
+        if (!product.requiredDocuments) {
+            fetchDocs();
+        } else {
+            setIsLoading(false);
+        }
+    }, [product.id, product.requiredDocuments, onUpdate, toast]);
     
     const handleSave = async (docData: Partial<RequiredDocument>) => {
         setIsSaving(true);
@@ -1161,7 +1166,6 @@ function RequiredDocumentsForm({ product, onUpdate, providerColor }: {
                 ? docs.map(d => d.id === savedDoc.id ? savedDoc : d)
                 : [...docs, savedDoc];
                 
-            setDocs(newDocs);
             onUpdate(product.id, newDocs);
             toast({ title: "Success", description: "Document requirement saved." });
 
@@ -1184,7 +1188,6 @@ function RequiredDocumentsForm({ product, onUpdate, providerColor }: {
                 throw new Error(errorData.error || `Failed to delete document.`);
             }
             const newDocs = docs.filter(d => d.id !== docId);
-            setDocs(newDocs);
             onUpdate(product.id, newDocs);
             toast({ title: "Success", description: "Document requirement deleted." });
         } catch (error: any) {
@@ -1217,6 +1220,9 @@ function RequiredDocumentsForm({ product, onUpdate, providerColor }: {
                                 </div>
                             </div>
                         ))}
+                         {docs.length === 0 && (
+                            <p className="text-center text-sm text-muted-foreground py-4">No documents required for this product yet.</p>
+                        )}
                     </div>
                 )}
             </CardContent>
@@ -1364,6 +1370,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
 
 
 
