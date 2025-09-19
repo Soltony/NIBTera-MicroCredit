@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Borrower not found' }, { status: 404 });
         }
 
-        // --- FIX: Check for an existing pending application ---
+        // --- FIX: Check for an existing pending application FOR THIS BORROWER ---
         const existingApplication = await prisma.loanApplication.findFirst({
             where: {
                 borrowerId,
