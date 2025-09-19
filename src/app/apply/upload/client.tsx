@@ -111,7 +111,7 @@ export function UploadClient({ application: initialApplication }: UploadClientPr
             }
             
             const updatedApplication = await response.json();
-            setApplication(updatedApplication);
+            setApplication(prev => ({...prev, ...updatedApplication}));
             
             toast({
                 title: 'Application Submitted',
