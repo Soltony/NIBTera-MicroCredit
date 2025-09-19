@@ -55,6 +55,28 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
+export interface RequiredDocument {
+    id: string;
+    productId: string;
+    name: string;
+    description: string | null;
+}
+
+export interface UploadedDocument {
+    id: string;
+    loanApplicationId: string;
+    requiredDocumentId: string;
+    fileName: string;
+    fileType: string;
+    fileContent?: string; // Not always needed on client
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    reviewComment: string | null;
+    uploadedAt: Date;
+    // For client-side display
+    requiredDocument?: RequiredDocument;
+}
+
+
 export interface LoanProvider {
   id: string;
   name: string;
@@ -76,6 +98,7 @@ export interface LoanProduct {
   id:string;
   providerId: string;
   name: string;
+  productType: 'PERSONAL' | 'SME';
   description: string;
   icon: string;
   minLoan?: number;
@@ -94,7 +117,22 @@ export interface LoanProduct {
   dataProvisioningEnabled?: boolean;
   dataProvisioningConfigId?: string | null;
   dataProvisioningConfig?: DataProvisioningConfig;
+  requiredDocuments?: RequiredDocument[];
 }
+
+export interface LoanApplication {
+    id: string;
+    borrowerId: string;
+    productId: string;
+    product?: LoanProduct;
+    loanAmount: number | null;
+    status: 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED' | 'DISBURSED';
+    uploadedDocuments: UploadedDocument[];
+    loanId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 
 export interface Payment {
   id: string;
@@ -119,6 +157,7 @@ export interface LoanDetails {
   // For calculation purposes, not stored in DB
   product: LoanProduct;
   provider?: LoanProvider;
+  loanApplicationId?: string;
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({
@@ -137,7 +176,7 @@ export const CheckLoanEligibilityOutputSchema = z.object({
 export type CheckLoanEligibilityOutput = z.infer<typeof CheckLoanEligibilityOutputSchema>;
 
 
-export type UserRole = 'Super Admin' | 'Admin' | 'Loan Manager' | 'Auditor' | 'Loan Provider' | 'Reconciliation';
+export type UserRole = 'Super Admin' | 'Admin' | 'Loan Manager' | 'Auditor' | 'Loan Provider' | 'Reconciliation' | 'Application Reviewer';
 export type UserStatus = 'Active' | 'Inactive';
 
 export interface User {
