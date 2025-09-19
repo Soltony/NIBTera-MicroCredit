@@ -7,7 +7,22 @@ import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
 import { createAuditLog } from '@/lib/audit-log';
 
-async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>, product: any) {
+async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
+    const product = await prisma.loanProduct.findUnique({
+        where: { id: data.productId },
+        include: {
+            provider: {
+                include: {
+                    ledgerAccounts: true
+                }
+            }
+        }
+    });
+
+    if (!product) {
+        throw new Error('Loan product not found.');
+    }
+
     const provider = product.provider;
     
     const tempLoanForCalc = {
@@ -98,12 +113,15 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>, prod
 }
 
 
-async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>, product: any) {
+export async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>) {
     if (!data.loanApplicationId) {
         throw new Error('SME loan disbursement requires a valid Loan Application ID.');
     }
 
-    const application = await prisma.loanApplication.findUnique({ where: { id: data.loanApplicationId } });
+    const application = await prisma.loanApplication.findUnique({
+         where: { id: data.loanApplicationId },
+         include: { product: { include: { provider: { include: { ledgerAccounts: true }}}}}
+    });
 
     if (!application) {
         throw new Error('Loan Application not found.');
@@ -112,9 +130,10 @@ async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>, product: 
         throw new Error(`Cannot disburse loan. Application status is "${application.status}", but must be "APPROVED".`);
     }
 
+    const product = application.product;
     const provider = product.provider;
-    const tempLoanForCalc = { /* ... as in handlePersonalLoan ... */ };
-    const { serviceFee: calculatedServiceFee } = calculateTotalRepayable({
+
+    const tempLoanForCalc = {
         id: 'temp',
         loanAmount: data.loanAmount,
         disbursedDate: new Date(data.disbursedDate),
@@ -127,7 +146,8 @@ async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>, product: 
         repaidAmount: 0,
         penaltyAmount: 0,
         product: product as any,
-    }, product, new Date(data.disbursedDate));
+    };
+    const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
 
     // Ledger Account Checks
     const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
@@ -146,7 +166,7 @@ async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>, product: 
                 penaltyAmount: 0,
                 repaymentStatus: 'Unpaid',
                 repaidAmount: 0,
-                loanApplicationId: data.loanApplicationId!, // It's guaranteed to be here
+                loanApplicationId: data.loanApplicationId!,
             }
         });
         
@@ -185,13 +205,6 @@ export async function POST(req: NextRequest) {
 
         const product = await prisma.loanProduct.findUnique({
             where: { id: data.productId },
-            include: {
-                provider: {
-                    include: {
-                        ledgerAccounts: true
-                    }
-                }
-            }
         });
         
         if (!product) {
@@ -215,9 +228,11 @@ export async function POST(req: NextRequest) {
 
         let newLoan;
         if (product.productType === 'SME') {
-            newLoan = await handleSmeLoan(data, product);
+            // SME loans are now disbursed via PUT /api/admin/applications, not here.
+            // This endpoint is now only for PERSONAL loans.
+            throw new Error('SME loans must be disbursed through the admin approval workflow.');
         } else {
-            newLoan = await handlePersonalLoan(data, product);
+            newLoan = await handlePersonalLoan(data);
         }
 
         const successLogDetails = {
@@ -246,5 +261,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: (error as Error).message || 'Internal Server Error' }, { status: 500 });
     }
 }
-
-    

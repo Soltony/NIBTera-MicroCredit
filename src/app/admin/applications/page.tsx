@@ -31,7 +31,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return 'N/A';
@@ -78,6 +80,43 @@ const DocumentViewerDialog = ({ application, isOpen, onClose }: { application: L
     );
 };
 
+const RejectionDialog = ({ isOpen, onClose, onConfirm, isUpdating }: { isOpen: boolean; onClose: () => void; onConfirm: (reason: string) => void; isUpdating: boolean; }) => {
+    const [reason, setReason] = useState('');
+
+    const handleConfirm = () => {
+        if (reason.trim()) {
+            onConfirm(reason);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Reason for Rejection</DialogTitle>
+                    <DialogDescription>Please provide a reason for rejecting this application. This will be recorded.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Label htmlFor="rejectionReason" className="sr-only">Rejection Reason</Label>
+                    <Textarea
+                        id="rejectionReason"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="Type rejection reason here..."
+                    />
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleConfirm} disabled={!reason.trim() || isUpdating} variant="destructive">
+                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Confirm Rejection
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 
 export default function ApplicationsPage() {
     const [applications, setApplications] = useState<LoanApplication[]>([]);
@@ -85,7 +124,8 @@ export default function ApplicationsPage() {
     const [isUpdating, setIsUpdating] = useState(false);
     const { toast } = useToast();
     
-    const [actionState, setActionState] = useState<{ type: 'approve' | 'reject' | 'view'; application: LoanApplication | null }>({ type: 'view', application: null });
+    type ActionType = 'approve' | 'reject' | 'view';
+    const [actionState, setActionState] = useState<{ type: ActionType; application: LoanApplication | null }>({ type: 'view', application: null });
 
     const fetchApplications = async () => {
         setIsLoading(true);
@@ -109,21 +149,27 @@ export default function ApplicationsPage() {
 
     useEffect(() => {
         fetchApplications();
-    }, [toast]);
+    }, []);
     
-    const handleStatusUpdate = async () => {
+    const handleStatusUpdate = async (rejectionReason?: string) => {
         if (!actionState.application) return;
 
         setIsUpdating(true);
         const { id, borrowerName } = actionState.application;
         const newStatus = actionState.type === 'approve' ? 'APPROVED' : 'REJECTED';
-        const successMessage = `Application for ${borrowerName} has been ${newStatus.toLowerCase()}.`;
+        const successMessage = `Application for ${borrowerName} has been ${newStatus.toLowerCase() === 'approved' ? 'approved and disbursed' : 'rejected'}.`;
+        
+        const body = {
+            applicationId: id,
+            status: newStatus,
+            ...(rejectionReason && { rejectionReason })
+        };
 
         try {
             const response = await fetch('/api/admin/applications', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ applicationId: id, status: newStatus }),
+                body: JSON.stringify(body),
             });
 
             if (!response.ok) {
@@ -146,7 +192,7 @@ export default function ApplicationsPage() {
             });
         } finally {
             setIsUpdating(false);
-            setActionState({ type: 'view', application: null }); // Close dialog
+            setActionState({ type: 'view', application: null }); // Close all dialogs
         }
     };
 
@@ -240,27 +286,33 @@ export default function ApplicationsPage() {
                 application={actionState.application}
             />
 
-            <AlertDialog open={actionState.type === 'approve' || actionState.type === 'reject'} onOpenChange={() => setActionState({ type: 'view', application: null })}>
+            <AlertDialog open={actionState.type === 'approve'} onOpenChange={(open) => !open && setActionState({ type: 'view', application: null })}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            You are about to {actionState.type} the application for <span className="font-bold">{actionState.application?.borrowerName}</span>. This action cannot be undone.
+                            You are about to approve and automatically disburse the loan for <span className="font-bold">{actionState.application?.borrowerName}</span>. This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction 
-                            onClick={handleStatusUpdate} 
+                            onClick={() => handleStatusUpdate()} 
                             disabled={isUpdating}
-                            className={actionState.type === 'reject' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
                         >
                             {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            Confirm {actionState.type === 'approve' ? 'Approval' : 'Rejection'}
+                            Confirm Approval
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+             <RejectionDialog
+                isOpen={actionState.type === 'reject'}
+                onClose={() => setActionState({ type: 'view', application: null })}
+                onConfirm={handleStatusUpdate}
+                isUpdating={isUpdating}
+            />
         </>
     );
 }

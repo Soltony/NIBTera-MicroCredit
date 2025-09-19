@@ -123,12 +123,13 @@ export interface LoanProduct {
 export interface LoanApplication {
     id: string;
     borrowerId: string;
+    borrowerName?: string;
     productId: string;
-    product?: LoanProduct;
+    product: LoanProduct;
     loanAmount: number | null;
     status: 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED' | 'DISBURSED';
     uploadedDocuments: UploadedDocument[];
-    loanId: string | null;
+    rejectionReason?: string | null;
     createdAt: Date;
     updatedAt: Date;
 }

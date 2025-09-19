@@ -98,7 +98,7 @@ model Loan {
   productId                   String
   product                     LoanProduct     @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   loanApplicationId           String          @unique
-  loanApplication             LoanApplication @relation(fields: [loanApplicationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  loanApplication             LoanApplication @relation(fields: [loanApplicationId], references: [id])
   loanAmount                  Float
   serviceFee                  Float
   penaltyAmount               Float
@@ -155,9 +155,10 @@ model LoanApplication {
     loanAmount          Float?
     status              String      @default("PENDING_DOCUMENTS") // PENDING_DOCUMENTS, PENDING_REVIEW, REJECTED, APPROVED, DISBURSED
     uploadedDocuments   UploadedDocument[]
-    loan                Loan?
+    rejectionReason     String?     @db.Text
     createdAt           DateTime    @default(now())
     updatedAt           DateTime    @updatedAt
+    loan                Loan?
 }
 
 model UploadedDocument {
