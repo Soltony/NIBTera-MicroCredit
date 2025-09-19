@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement, LoanApplication } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
@@ -191,59 +191,21 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
   }, [selectedProviderId, providers]);
 
-  const handleApply = async (product: LoanProduct) => {
-    if (!borrowerId) {
-        toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
-        return;
-    }
-
+  const handleApply = (product: LoanProduct) => {
     if (agreementState.terms && !agreementState.hasAgreed) {
         setProductToApply(product);
         setIsAgreementDialogOpen(true);
         return;
     }
 
-    let response;
-    try {
-        response = await fetch('/api/applications', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ borrowerId, productId: product.id }),
-        });
-
-        if (!response.ok) {
-            let errorData;
-            try {
-                errorData = await response.json();
-            } catch (jsonError) {
-                // If the response is not JSON (e.g., an HTML error page), this will catch it.
-                throw new Error('An unexpected server error occurred. Please check the server logs.');
-            }
-            throw new Error(errorData.error || 'Failed to create loan application.');
-        }
-
-        const application = await response.json();
-
-        // This is where the logic diverges
-        if (product.productType === 'SME') {
-            const params = new URLSearchParams(searchParams.toString());
-            params.set('providerId', selectedProviderId);
-            params.set('loanApplicationId', application.id);
-            router.push(`/apply/upload?${params.toString()}`);
-        } else {
-            const params = new URLSearchParams(searchParams.toString());
-            params.set('providerId', selectedProviderId);
-            params.set('product', product.id);
-            params.set('loanApplicationId', application.id);
-            const productLimit = eligibility.limits[product.id] ?? 0;
-            const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-            params.set('max', String(trueMaxLoan));
-            params.set('step', 'calculator');
-            router.push(`/apply?${params.toString()}`);
-        }
-    } catch (error: any) {
-        toast({ title: 'Application Error', description: error.message, variant: 'destructive' });
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('providerId', selectedProviderId);
+    params.set('product', product.id);
+    const productLimit = eligibility.limits[product.id] ?? 0;
+    const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+    params.set('max', String(trueMaxLoan));
+    params.set('step', 'calculator');
+    router.push(`/apply?${params.toString()}`);
   }
   
    const handleProviderSelect = (providerId: string) => {

@@ -17,7 +17,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Briefcase, Home, PersonStanding, type LucideIcon, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LoanProduct } from '@/lib/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -38,7 +37,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
   const [minLoan, setMinLoan] = useState('');
   const [maxLoan, setMaxLoan] = useState('');
   const [duration, setDuration] = useState('30');
-  const [productType, setProductType] = useState<'PERSONAL' | 'SME'>('PERSONAL');
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -74,7 +72,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
       minLoan: parseFloat(minLoan) || 0,
       maxLoan: parseFloat(maxLoan) || 0,
       duration: isNaN(parsedDuration) ? 30 : parsedDuration,
-      productType: productType,
     } as any);
     
     // Reset form
@@ -84,7 +81,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     setMinLoan('');
     setMaxLoan('');
     setDuration('30');
-    setProductType('PERSONAL');
 
     onClose();
   };
@@ -99,18 +95,6 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="product-name" className="text-right">Name</Label>
               <Input id="product-name" value={productName} onChange={(e) => setProductName(e.target.value)} className="col-span-3" required />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="product-type" className="text-right">Type</Label>
-               <Select value={productType} onValueChange={(value: 'PERSONAL' | 'SME') => setProductType(value)}>
-                    <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select product type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="PERSONAL">Personal</SelectItem>
-                        <SelectItem value="SME">SME</SelectItem>
-                    </SelectContent>
-                </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="description" className="text-right">Description</Label>

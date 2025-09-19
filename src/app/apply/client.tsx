@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,7 +20,6 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
 
     const productId = searchParams.get('product');
     const borrowerId = searchParams.get('borrowerId');
-    const loanApplicationId = searchParams.get('loanApplicationId');
 
     const selectedProduct = useMemo(() => {
         if (!provider || !productId) return null;
@@ -45,8 +43,8 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         };
     }, [searchParams, selectedProduct]);
 
-    const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments' | 'loanApplicationId'>) => {
-        if (!selectedProduct || !borrowerId || !loanApplicationId) {
+    const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments' >) => {
+        if (!selectedProduct || !borrowerId) {
             toast({ title: 'Error', description: 'Missing required information.', variant: 'destructive'});
             return;
         }
@@ -58,7 +56,6 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
                 loanAmount: details.loanAmount,
                 disbursedDate: details.disbursedDate,
                 dueDate: details.dueDate,
-                loanApplicationId: loanApplicationId,
             };
 
             const response = await fetch('/api/loans', {
@@ -102,7 +99,6 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         const params = new URLSearchParams(searchParams.toString());
         params.delete('product');
         params.delete('step');
-        params.delete('loanApplicationId');
         router.push(`/loan?${params.toString()}`);
     };
 
@@ -110,7 +106,6 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         const params = new URLSearchParams(searchParams.toString());
         params.delete('product');
         params.delete('step');
-        params.delete('loanApplicationId');
         router.push(`/loan?${params.toString()}`);
     };
 
@@ -155,5 +150,3 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         </div>
     );
 }
-
-    

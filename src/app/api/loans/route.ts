@@ -1,5 +1,4 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
@@ -49,19 +48,6 @@ export async function POST(req: NextRequest) {
             throw new Error(`Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`);
         }
         // --- END OF VALIDATION ---
-
-        // --- Check if application already has a loan ---
-        const application = await prisma.loanApplication.findUnique({
-            where: { id: data.loanApplicationId },
-        });
-
-        if (!application) {
-            throw new Error("Loan application not found.");
-        }
-
-        if (application.loanId) {
-            throw new Error("This loan application has already been disbursed.");
-        }
         
         const tempLoanForCalc = {
             id: 'temp',
@@ -76,7 +62,6 @@ export async function POST(req: NextRequest) {
             repaidAmount: 0,
             penaltyAmount: 0,
             product: product as any,
-            loanApplicationId: 'temp',
         };
         
         const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
@@ -107,15 +92,6 @@ export async function POST(req: NextRequest) {
                     penaltyAmount: 0,
                     repaymentStatus: 'Unpaid',
                     repaidAmount: 0,
-                    loanApplicationId: data.loanApplicationId,
-                }
-            });
-            
-            await tx.loanApplication.update({
-                where: { id: data.loanApplicationId },
-                data: {
-                    status: 'DISBURSED',
-                    loanId: createdLoan.id
                 }
             });
             

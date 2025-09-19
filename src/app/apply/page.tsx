@@ -44,7 +44,6 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
         allowCrossProviderLoans: provider.allowCrossProviderLoans,
         products: provider.products.map(prod => ({
             ...prod,
-            productType: prod.productType,
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
             dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
             penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],

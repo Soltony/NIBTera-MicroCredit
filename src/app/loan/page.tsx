@@ -43,7 +43,6 @@ async function getProviders(): Promise<LoanProvider[]> {
             startingCapital: p.startingCapital,
             initialBalance: p.initialBalance,
             allowCrossProviderLoans: p.allowCrossProviderLoans,
-            productType: p.products.map(prod => prod.productType),
             products: p.products.map(prod => ({
                 id: prod.id,
                 providerId: p.id,
@@ -58,7 +57,6 @@ async function getProviders(): Promise<LoanProvider[]> {
                 penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
                 status: prod.status as 'Active' | 'Disabled',
                 allowConcurrentLoans: prod.allowConcurrentLoans,
-                productType: prod.productType,
             }))
         })) as LoanProvider[];
     } catch(e) {
@@ -92,7 +90,6 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
 
         return loans.map(loan => ({
             id: loan.id,
-            loanApplicationId: loan.loanApplicationId,
             borrowerId: loan.borrowerId,
             providerName: loan.product.provider.name,
             productName: loan.product.name,

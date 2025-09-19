@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -56,17 +55,6 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
-export interface LoanApplication {
-    id: string;
-    borrowerId: string;
-    productId: string;
-    status: 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED' | 'DISBURSED';
-    loanId?: string | null;
-    loanAmount?: number | null;
-    product: LoanProduct;
-    uploadedDocuments: UploadedDocument[];
-}
-
 export interface LoanProvider {
   id: string;
   name: string;
@@ -90,7 +78,6 @@ export interface LoanProduct {
   name: string;
   description: string;
   icon: string;
-  productType: 'PERSONAL' | 'SME';
   minLoan?: number;
   maxLoan?: number;
   duration?: number;
@@ -107,7 +94,6 @@ export interface LoanProduct {
   dataProvisioningEnabled?: boolean;
   dataProvisioningConfigId?: string | null;
   dataProvisioningConfig?: DataProvisioningConfig;
-  requiredDocuments?: RequiredDocument[];
 }
 
 export interface Payment {
@@ -119,7 +105,6 @@ export interface Payment {
 
 export interface LoanDetails {
   id: string;
-  loanApplicationId: string;
   borrowerId: string;
   providerName: string;
   productName: string;
@@ -364,24 +349,3 @@ export type IncomeReportData = {
     accruedPenalty: number;
     collectedPenalty: number;
 };
-
-export interface RequiredDocument {
-    id: string;
-    productId: string;
-    name: string;
-    description?: string | null;
-}
-
-export interface UploadedDocument {
-    id: string;
-    loanApplicationId: string;
-    requiredDocumentId: string;
-    requiredDocument: RequiredDocument;
-    fileName: string;
-    fileType: string;
-    fileContent: string;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    reviewComment?: string | null;
-    uploadedAt: Date;
-}
-
