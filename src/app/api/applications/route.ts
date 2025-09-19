@@ -7,6 +7,7 @@ import { getSession } from '@/lib/session';
 const applicationSchema = z.object({
   borrowerId: z.string(),
   productId: z.string(),
+  loanAmount: z.number().optional(), // Added to capture amount from calculator
 });
 
 export async function POST(req: NextRequest) {
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { borrowerId, productId } = applicationSchema.parse(body);
+        const { borrowerId, productId, loanAmount } = applicationSchema.parse(body);
 
         const product = await prisma.loanProduct.findUnique({
             where: { id: productId },
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
             data: {
                 borrower: { connect: { id: borrowerId } },
                 product: { connect: { id: productId } },
+                loanAmount: loanAmount, // Save the requested loan amount
                 // SME loans start by needing documents. Personal loans might go straight to approved.
                 status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED',
             }
