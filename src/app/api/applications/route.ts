@@ -11,9 +11,6 @@ const applicationSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-    // This route is only for creating an initial LoanApplication record, primarily for SME loans.
-    // It does not disburse a loan.
-
     try {
         const body = await req.json();
         const { borrowerId, productId, loanAmount } = applicationSchema.parse(body);
@@ -35,6 +32,29 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Borrower not found' }, { status: 404 });
         }
 
+        // --- FIX: Check for an existing pending application ---
+        const existingApplication = await prisma.loanApplication.findFirst({
+            where: {
+                borrowerId,
+                productId,
+                status: 'PENDING_DOCUMENTS',
+            }
+        });
+        
+        if (existingApplication) {
+            // If an application already exists and is pending documents, update it and return it.
+            const updatedApplication = await prisma.loanApplication.update({
+                where: { id: existingApplication.id },
+                data: {
+                    loanAmount: loanAmount, // Update the amount from the calculator
+                }
+            });
+             return NextResponse.json(updatedApplication, { status: 200 });
+        }
+        // --- END FIX ---
+
+
+        // If no reusable application is found, create a new one.
         const newApplication = await prisma.loanApplication.create({
             data: {
                 borrower: { connect: { id: borrowerId } },
