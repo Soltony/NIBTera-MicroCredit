@@ -97,7 +97,7 @@ model Loan {
   borrower                    Borrower        @relation(fields: [borrowerId], references: [id])
   productId                   String
   product                     LoanProduct     @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  loanApplicationId           String?         @unique
+  loanApplicationId           String?
   loanApplication             LoanApplication?
   loanAmount                  Float
   serviceFee                  Float
