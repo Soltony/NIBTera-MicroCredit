@@ -238,7 +238,6 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
             const productLimit = eligibility.limits[product.id] ?? 0;
             const trueMaxLoan = Math.min(productLimit, availableToBorrow);
             params.set('max', String(trueMaxLoan));
-            params.set('step', 'calculator');
             router.push(`/apply?${params.toString()}`);
         }
     }
