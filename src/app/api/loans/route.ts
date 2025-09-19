@@ -49,7 +49,6 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
     if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
 
     return await prisma.$transaction(async (tx) => {
-        // For personal loans, we create the application and the loan.
         // Step 1: Create the LoanApplication record.
         const loanApplication = await tx.loanApplication.create({
             data: {
@@ -118,43 +117,46 @@ export async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>) {
         throw new Error('SME loan disbursement requires a valid Loan Application ID.');
     }
 
-    const application = await prisma.loanApplication.findUnique({
-         where: { id: data.loanApplicationId },
-         include: { product: { include: { provider: { include: { ledgerAccounts: true }}}}}
-    });
-
-    if (!application) {
-        throw new Error('Loan Application not found.');
-    }
-    if (application.status !== 'APPROVED') {
-        throw new Error(`Cannot disburse loan. Application status is "${application.status}", but must be "APPROVED".`);
-    }
-
-    const product = application.product;
-    const provider = product.provider;
-
-    const tempLoanForCalc = {
-        id: 'temp',
-        loanAmount: data.loanAmount,
-        disbursedDate: new Date(data.disbursedDate),
-        dueDate: new Date(data.dueDate),
-        serviceFee: 0,
-        repaymentStatus: 'Unpaid' as const,
-        payments: [],
-        productName: product.name,
-        providerName: provider.name,
-        repaidAmount: 0,
-        penaltyAmount: 0,
-        product: product as any,
-    };
-    const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
-
-    // Ledger Account Checks
-    const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
-    if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
-    // ... other account checks ...
-
     return await prisma.$transaction(async (tx) => {
+        // Find the application within the transaction
+        const application = await tx.loanApplication.findUnique({
+             where: { id: data.loanApplicationId },
+             include: { product: { include: { provider: { include: { ledgerAccounts: true }}}}}
+        });
+
+        if (!application) {
+            throw new Error('Loan Application not found.');
+        }
+
+        const product = application.product;
+        const provider = product.provider;
+
+        // Update the application to APPROVED first
+        await tx.loanApplication.update({
+            where: { id: data.loanApplicationId },
+            data: { status: 'APPROVED' },
+        });
+
+        const tempLoanForCalc = {
+            id: 'temp',
+            loanAmount: data.loanAmount,
+            disbursedDate: new Date(data.disbursedDate),
+            dueDate: new Date(data.dueDate),
+            serviceFee: 0,
+            repaymentStatus: 'Unpaid' as const,
+            payments: [],
+            productName: product.name,
+            providerName: provider.name,
+            repaidAmount: 0,
+            penaltyAmount: 0,
+            product: product as any,
+        };
+        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+
+        // Ledger Account Checks
+        const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
+        if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
+        
         const createdLoan = await tx.loan.create({
             data: {
                 borrowerId: data.borrowerId,
@@ -228,8 +230,6 @@ export async function POST(req: NextRequest) {
 
         let newLoan;
         if (product.productType === 'SME') {
-            // SME loans are now disbursed via PUT /api/admin/applications, not here.
-            // This endpoint is now only for PERSONAL loans.
             throw new Error('SME loans must be disbursed through the admin approval workflow.');
         } else {
             newLoan = await handlePersonalLoan(data);

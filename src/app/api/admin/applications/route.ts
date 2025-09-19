@@ -104,7 +104,7 @@ export async function PUT(req: NextRequest) {
         }
 
         if (status === 'APPROVED') {
-            // Automatically disburse the loan
+            
             const disbursementDate = new Date();
             const loanData = {
                 borrowerId: application.borrowerId,
@@ -114,8 +114,12 @@ export async function PUT(req: NextRequest) {
                 disbursedDate: disbursementDate.toISOString(),
                 dueDate: addDays(disbursementDate, application.product.duration || 30).toISOString(),
             };
-            
-            // This will create the loan, update the application status, and handle all ledger entries.
+
+            // This function now handles the entire transaction:
+            // 1. Updates application to APPROVED
+            // 2. Creates the loan
+            // 3. Updates application to DISBURSED
+            // 4. Handles all ledger entries
             const newLoan = await handleSmeLoan(loanData);
             
             await createAuditLog({
