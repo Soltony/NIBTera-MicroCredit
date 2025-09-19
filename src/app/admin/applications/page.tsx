@@ -93,23 +93,23 @@ const RejectionDialog = ({ isOpen, onClose, onConfirm, isUpdating }: { isOpen: b
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Reason for Rejection</DialogTitle>
-                    <DialogDescription>Please provide a reason for rejecting this application. This will be recorded.</DialogDescription>
+                    <DialogTitle>Request Revision</DialogTitle>
+                    <DialogDescription>Please provide a reason for requesting revisions. This will be shown to the borrower.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
-                    <Label htmlFor="rejectionReason" className="sr-only">Rejection Reason</Label>
+                    <Label htmlFor="rejectionReason" className="sr-only">Reason for Revision</Label>
                     <Textarea
                         id="rejectionReason"
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        placeholder="Type rejection reason here..."
+                        placeholder="e.g., 'The uploaded ID is blurry. Please upload a clearer copy.'..."
                     />
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
                     <Button onClick={handleConfirm} disabled={!reason.trim() || isUpdating} variant="destructive">
                         {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Confirm Rejection
+                        Request Revision
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -151,18 +151,18 @@ export default function ApplicationsPage() {
         fetchApplications();
     }, []);
     
-    const handleStatusUpdate = async (rejectionReason?: string) => {
+    const handleStatusUpdate = async (revisionReason?: string) => {
         if (!actionState.application) return;
 
         setIsUpdating(true);
         const { id, borrowerName } = actionState.application;
-        const newStatus = actionState.type === 'approve' ? 'APPROVED' : 'REJECTED';
-        const successMessage = `Application for ${borrowerName} has been ${newStatus.toLowerCase() === 'approved' ? 'approved and disbursed' : 'rejected'}.`;
+        const newStatus = actionState.type === 'approve' ? 'APPROVED' : 'NEEDS_REVISION';
+        const successMessage = `Application for ${borrowerName} has been ${newStatus.toLowerCase() === 'approved' ? 'approved and disbursed' : 'sent back for revision'}.`;
         
         const body = {
             applicationId: id,
             status: newStatus,
-            ...(rejectionReason && { rejectionReason })
+            ...(revisionReason && { rejectionReason: revisionReason })
         };
 
         try {
@@ -260,7 +260,7 @@ export default function ApplicationsPage() {
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem className="text-red-600" onClick={() => setActionState({ type: 'reject', application: app })}>
                                                             <XCircle className="mr-2 h-4 w-4"/>
-                                                            Reject
+                                                            Request Revision
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>

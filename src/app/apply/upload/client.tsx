@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { LoanApplication, RequiredDocument, UploadedDocument } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, CheckCircle, Clock, File, FileCheck, Loader2, Upload, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, File, FileCheck, Loader2, Upload, XCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -20,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 
 interface UploadClientProps {
@@ -34,11 +34,12 @@ interface UploadStatus {
     };
 }
 
-export function UploadClient({ application }: UploadClientProps) {
+export function UploadClient({ application: initialApplication }: UploadClientProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
     
+    const [application, setApplication] = useState(initialApplication);
     const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>(application.uploadedDocuments || []);
     const [uploadStatus, setUploadStatus] = useState<UploadStatus>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +82,11 @@ export function UploadClient({ application }: UploadClientProps) {
                 const otherDocs = prev.filter(d => d.requiredDocumentId !== requiredDocId);
                 return [...otherDocs, newUpload];
             });
+            
+            // If the status was needs revision, clear the reason now that a doc has been uploaded.
+            if (application.status === 'NEEDS_REVISION') {
+                setApplication(prev => ({...prev, status: 'PENDING_DOCUMENTS', rejectionReason: null }));
+            }
 
             toast({ title: 'Success', description: `${file.name} uploaded successfully.` });
         } catch (error: any) {
@@ -104,15 +110,13 @@ export function UploadClient({ application }: UploadClientProps) {
                 throw new Error(errorData.error || 'Failed to submit application.');
             }
             
+            const updatedApplication = await response.json();
+            setApplication(updatedApplication);
+            
             toast({
                 title: 'Application Submitted',
                 description: 'Your application is now pending review.',
             });
-            
-            // Redirect to a confirmation/status page
-            const params = new URLSearchParams(searchParams.toString());
-            params.delete('applicationId');
-            router.push(`/loan?${params.toString()}`);
 
         } catch (error: any) {
              toast({ title: 'Submission Error', description: error.message, variant: 'destructive' });
@@ -128,6 +132,43 @@ export function UploadClient({ application }: UploadClientProps) {
         params.delete('applicationId');
         router.push(`/loan?${params.toString()}`);
     };
+    
+    if (application.status === 'PENDING_REVIEW') {
+        return (
+             <div className="flex flex-col min-h-screen bg-background">
+                <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: providerColor }}>
+                    <div className="container flex h-16 items-center">
+                        <div className="flex items-center">
+                            <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">
+                                <ArrowLeft className="h-6 w-6" />
+                            </Button>
+                            <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Application Status</h1>
+                        </div>
+                    </div>
+                </header>
+                <main className="flex-1">
+                    <div className="container py-8 md:py-12 max-w-3xl mx-auto">
+                        <Card className="text-center">
+                            <CardHeader>
+                                <CardTitle>Application Submitted</CardTitle>
+                                <CardDescription>Your application is currently being reviewed by our team.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center gap-4 py-8">
+                                <Clock className="h-16 w-16 text-muted-foreground" />
+                                <p className="font-semibold text-lg">Status: Pending Review</p>
+                                <p className="text-muted-foreground max-w-md">You will be notified once a decision has been made. You can close this page.</p>
+                            </CardContent>
+                             <CardFooter>
+                                <Button className="w-full text-white" style={{backgroundColor: providerColor}} onClick={handleBack}>
+                                    Back to Dashboard
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    </div>
+                </main>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
@@ -151,6 +192,13 @@ export function UploadClient({ application }: UploadClientProps) {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                             {application.status === 'NEEDS_REVISION' && application.rejectionReason && (
+                                <Alert variant="destructive">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Revisions Requested</AlertTitle>
+                                    <AlertDescription>{application.rejectionReason}</AlertDescription>
+                                </Alert>
+                            )}
                             {requiredDocs.map(doc => {
                                 const uploadedDoc = uploadedDocs.find(ud => ud.requiredDocumentId === doc.id);
                                 const currentStatus = uploadStatus[doc.id];
@@ -170,16 +218,11 @@ export function UploadClient({ application }: UploadClientProps) {
                                         <div className="flex items-center gap-2">
                                              {currentStatus?.isUploading ? (
                                                 <Loader2 className="h-5 w-5 animate-spin" />
-                                            ) : uploadedDoc ? (
-                                                <div className="flex items-center gap-1 text-sm text-green-600 font-medium">
-                                                    <CheckCircle className="h-5 w-5"/>
-                                                    <span>Uploaded</span>
-                                                </div>
                                             ) : (
                                                 <Button asChild variant="outline" size="sm">
                                                     <label htmlFor={`file-upload-${doc.id}`} className="cursor-pointer">
                                                         <Upload className="h-4 w-4 mr-2"/>
-                                                        Upload File
+                                                        {uploadedDoc ? 'Re-upload' : 'Upload File'}
                                                         <input 
                                                             id={`file-upload-${doc.id}`} 
                                                             type="file" 
@@ -230,6 +273,3 @@ export function UploadClient({ application }: UploadClientProps) {
         </div>
     );
 }
-
-
-    

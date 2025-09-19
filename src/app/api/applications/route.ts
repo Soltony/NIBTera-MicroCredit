@@ -32,17 +32,18 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Borrower not found' }, { status: 404 });
         }
 
-        // --- FIX: Check for an existing pending application FOR THIS BORROWER ---
+        // --- FIX: Check for an existing pending or revision-needed application FOR THIS BORROWER ---
         const existingApplication = await prisma.loanApplication.findFirst({
             where: {
                 borrowerId,
                 productId,
-                status: 'PENDING_DOCUMENTS',
+                status: { in: ['PENDING_DOCUMENTS', 'NEEDS_REVISION'] },
             }
         });
         
         if (existingApplication) {
-            // If an application already exists and is pending documents, update it and return it.
+            // If an application already exists, update it and return it.
+            // This is useful if they go back and change the loan amount.
             const updatedApplication = await prisma.loanApplication.update({
                 where: { id: existingApplication.id },
                 data: {
@@ -60,7 +61,6 @@ export async function POST(req: NextRequest) {
                 borrower: { connect: { id: borrowerId } },
                 product: { connect: { id: productId } },
                 loanAmount: loanAmount, // Save the requested loan amount
-                // SME loans start by needing documents. Personal loans might go straight to approved.
                 status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED',
             }
         });

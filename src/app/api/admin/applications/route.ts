@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
 
 const updateStatusSchema = z.object({
   applicationId: z.string(),
-  status: z.enum(['APPROVED', 'REJECTED']),
+  status: z.enum(['APPROVED', 'NEEDS_REVISION']),
   rejectionReason: z.string().optional(),
 });
 
@@ -116,10 +116,9 @@ export async function PUT(req: NextRequest) {
             };
 
             // This function now handles the entire transaction:
-            // 1. Updates application to APPROVED
+            // 1. Updates application to APPROVED then DISBURSED
             // 2. Creates the loan
-            // 3. Updates application to DISBURSED
-            // 4. Handles all ledger entries
+            // 3. Handles all ledger entries
             const newLoan = await handleSmeLoan(loanData);
             
             await createAuditLog({
@@ -132,21 +131,21 @@ export async function PUT(req: NextRequest) {
             
             return NextResponse.json(newLoan);
 
-        } else if (status === 'REJECTED') {
+        } else if (status === 'NEEDS_REVISION') {
             if (!rejectionReason) {
-                return NextResponse.json({ error: 'Rejection reason is required.' }, { status: 400 });
+                return NextResponse.json({ error: 'A reason is required to request revisions.' }, { status: 400 });
             }
             const updatedApplication = await prisma.loanApplication.update({
                 where: { id: applicationId },
                 data: { 
-                    status: 'REJECTED',
+                    status: 'NEEDS_REVISION',
                     rejectionReason: rejectionReason,
                 }
             });
 
             await createAuditLog({
                 actorId: session.userId,
-                action: 'LOAN_APPLICATION_REJECTED',
+                action: 'LOAN_APPLICATION_REVISION_REQUESTED',
                 entity: 'LOAN_APPLICATION',
                 entityId: applicationId,
                 details: { borrowerId: updatedApplication.borrowerId, reason: rejectionReason }

@@ -21,6 +21,17 @@ async function getApplicationDetails(applicationId: string): Promise<LoanApplica
             uploadedDocuments: true,
         }
     });
+    
+    // If the application doesn't exist, we can't continue.
+    if (!application) {
+        return null;
+    }
+
+    // Don't allow access if the loan is already fully disbursed.
+    if (application.status === 'DISBURSED') {
+        // You might want to redirect or show a different page, but for now, we'll treat it as not found.
+        return null;
+    }
 
     return application as LoanApplication;
 }
@@ -53,4 +64,3 @@ export default async function UploadDocumentsPage({ searchParams }: { searchPara
         </Suspense>
     );
 }
-
