@@ -68,3 +68,11 @@ export const loanCreationSchema = z.object({
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
 });
+
+export const requiredDocumentSchema = z.object({
+    id: z.string().optional(),
+    productId: z.string(),
+    name: z.string().min(1, 'Document name is required.'),
+    description: z.string().optional(),
+});
+
