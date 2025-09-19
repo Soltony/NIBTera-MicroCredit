@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Dialog,
+  Dialog as UIDialog,
   DialogContent as UIDialogContent,
   DialogHeader as UIDialogHeader,
   DialogTitle as UIDialogTitle,
@@ -1364,6 +1364,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
 }
 
     
+
 
 
 
