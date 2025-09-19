@@ -34,11 +34,23 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>, prod
     if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
 
     return await prisma.$transaction(async (tx) => {
-        // For personal loans, we create the application and the loan in one go.
+        // For personal loans, we create the application and the loan.
+        // Step 1: Create the LoanApplication record.
+        const loanApplication = await tx.loanApplication.create({
+            data: {
+                borrowerId: data.borrowerId,
+                productId: data.productId,
+                loanAmount: data.loanAmount,
+                status: 'DISBURSED', // Personal loans are disbursed immediately
+            }
+        });
+
+        // Step 2: Create the Loan record and connect it to the application.
         const createdLoan = await tx.loan.create({
             data: {
                 borrowerId: data.borrowerId,
                 productId: data.productId,
+                loanApplicationId: loanApplication.id, // Link to the created application
                 loanAmount: data.loanAmount,
                 disbursedDate: data.disbursedDate,
                 dueDate: data.dueDate,
@@ -46,17 +58,6 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>, prod
                 penaltyAmount: 0,
                 repaymentStatus: 'Unpaid',
                 repaidAmount: 0,
-                loanApplication: {
-                    create: {
-                        borrower: { connect: { id: data.borrowerId } },
-                        product: { connect: { id: data.productId } },
-                        loanAmount: data.loanAmount,
-                        status: 'DISBURSED',
-                    }
-                }
-            },
-            include: {
-                loanApplication: true,
             }
         });
         
@@ -145,7 +146,7 @@ async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>, product: 
                 penaltyAmount: 0,
                 repaymentStatus: 'Unpaid',
                 repaidAmount: 0,
-                loanApplicationId: data.loanApplicationId,
+                loanApplicationId: data.loanApplicationId!, // It's guaranteed to be here
             }
         });
         
@@ -154,7 +155,6 @@ async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>, product: 
             where: { id: data.loanApplicationId },
             data: {
                 status: 'DISBURSED',
-                loanId: createdLoan.id
             }
         });
 
@@ -246,3 +246,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: (error as Error).message || 'Internal Server Error' }, { status: 500 });
     }
 }
+
+    
