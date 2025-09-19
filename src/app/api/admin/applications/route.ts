@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { z } from 'zod';
+import { createAuditLog } from '@/lib/audit-log';
 
 // GET all applications pending review
 export async function GET(req: NextRequest) {
@@ -65,6 +67,47 @@ export async function GET(req: NextRequest) {
 
     } catch (error) {
         console.error('Error fetching applications for review:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+
+const updateStatusSchema = z.object({
+  applicationId: z.string(),
+  status: z.enum(['APPROVED', 'REJECTED']),
+});
+
+// PUT to update an application's status
+export async function PUT(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    
+    try {
+        const body = await req.json();
+        const { applicationId, status } = updateStatusSchema.parse(body);
+
+        const updatedApplication = await prisma.loanApplication.update({
+            where: { id: applicationId },
+            data: { status: status }
+        });
+        
+        const auditAction = status === 'APPROVED' ? 'LOAN_APPLICATION_APPROVED' : 'LOAN_APPLICATION_REJECTED';
+        await createAuditLog({
+            actorId: session.userId,
+            action: auditAction,
+            entity: 'LOAN_APPLICATION',
+            entityId: applicationId,
+            details: { borrowerId: updatedApplication.borrowerId }
+        });
+
+        return NextResponse.json(updatedApplication);
+
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: error.errors }, { status: 400 });
+        }
+        console.error('Error updating application status:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
