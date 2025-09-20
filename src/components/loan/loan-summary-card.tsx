@@ -37,7 +37,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
 
   return (
     <div 
-      className="relative p-6 rounded-2xl text-primary-foreground shadow-lg flex flex-col justify-between min-h-[180px] overflow-hidden"
+      className="relative p-6 rounded-2xl text-primary-foreground shadow-lg flex flex-col justify-center min-h-[140px] overflow-hidden"
       style={{ backgroundColor: color }}
     >
       <div className="absolute inset-0 z-0 opacity-10">
@@ -51,24 +51,27 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         </svg>
       </div>
 
-      <div className="relative z-10 flex flex-col justify-between h-full">
-        <div>
+      <div className="relative z-10 flex flex-row items-center justify-between w-full">
+        {/* Left Side: Max Limit */}
+        <div className="text-left">
             <div className="flex items-center gap-2">
-                <p className="text-sm opacity-80 mb-1">Maximum Loan Limit</p>
+                <p className="text-sm opacity-80 mb-1">Max Limit</p>
                 <button onClick={toggleMaxLimitVisibility} className="text-primary-foreground focus:outline-none">
-                    {isMaxLimitVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
+                    {isMaxLimitVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
                 </button>
             </div>
-             {isLoading ? <Skeleton className="h-8 w-48 bg-white/20" /> : <p className="text-2xl font-semibold tracking-tight">{renderAmount(maxLoanLimit, isMaxLimitVisible)}</p>}
+             {isLoading ? <Skeleton className="h-8 w-32 bg-white/20" /> : <p className="text-xl md:text-2xl font-semibold tracking-tight">{renderAmount(maxLoanLimit, isMaxLimitVisible)}</p>}
         </div>
+
+        {/* Right Side: Available */}
         <div className="text-right">
             <div className="flex items-center gap-2 justify-end">
-                <p className="text-lg opacity-80 mb-1">Available to Borrow</p>
+                <p className="text-sm opacity-80 mb-1">Available</p>
                  <button onClick={toggleAvailableVisibility} className="text-primary-foreground focus:outline-none">
-                    {isAvailableVisible ? <Eye className="h-5 w-5 opacity-80" /> : <EyeOff className="h-5 w-5 opacity-80" />}
+                    {isAvailableVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
                 </button>
             </div>
-             {isLoading ? <Skeleton className="h-10 w-56 bg-white/20 ml-auto" /> : <p className="text-4xl font-bold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>}
+             {isLoading ? <Skeleton className="h-8 w-40 bg-white/20 ml-auto" /> : <p className="text-xl md:text-2xl font-semibold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>}
         </div>
       </div>
     </div>

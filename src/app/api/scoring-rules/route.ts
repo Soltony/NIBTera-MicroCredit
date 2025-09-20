@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { createAuditLog } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
     const session = await getSession();
@@ -44,6 +45,19 @@ export async function POST(req: NextRequest) {
                 createdParameters.push(newParam);
             }
             return createdParameters;
+        });
+
+        const logDetails = {
+            providerId: providerId,
+            parameterCount: parameters.length,
+            parameters: parameters,
+        };
+        await createAuditLog({
+            actorId: session.userId,
+            action: 'SCORING_RULES_UPDATE_SUCCESS',
+            entity: 'PROVIDER',
+            entityId: providerId,
+            details: logDetails
         });
 
         console.log(JSON.stringify({

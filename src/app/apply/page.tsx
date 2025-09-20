@@ -39,6 +39,8 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
         colorHex: provider.colorHex,
         displayOrder: provider.displayOrder,
         accountNumber: provider.accountNumber,
+        startingCapital: provider.startingCapital,
+        initialBalance: provider.initialBalance,
         allowCrossProviderLoans: provider.allowCrossProviderLoans,
         products: provider.products.map(prod => ({
             ...prod,
@@ -51,7 +53,7 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
 
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const providerId = searchParams.providerId;
+    const providerId = searchParams['providerId'] as string;
 
     if (!providerId || typeof providerId !== 'string') {
         notFound();

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { createSession } from '@/lib/session';
+import { createAuditLog } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
   const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
@@ -21,43 +22,54 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      console.log(JSON.stringify({
-          timestamp: new Date().toISOString(),
-          action: 'USER_LOGIN_FAILURE',
+      const logDetails = {
           reason: 'User not found',
           attemptedPhoneNumber: phoneNumber,
-          ipAddress,
-          userAgent,
-      }));
+      };
+      await createAuditLog({
+        actorId: 'anonymous',
+        action: 'USER_LOGIN_FAILURE',
+        ipAddress,
+        userAgent,
+        details: logDetails,
+      });
+      console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-       console.log(JSON.stringify({
-          timestamp: new Date().toISOString(),
-          action: 'USER_LOGIN_FAILURE',
-          reason: 'Invalid password',
-          userId: user.id,
-          attemptedPhoneNumber: phoneNumber,
-          ipAddress,
-          userAgent,
-      }));
-      return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+       const logDetails = {
+            reason: 'Invalid password',
+            userId: user.id,
+            attemptedPhoneNumber: phoneNumber,
+       };
+       await createAuditLog({
+           actorId: user.id,
+           action: 'USER_LOGIN_FAILURE',
+           ipAddress,
+           userAgent,
+           details: logDetails
+       });
+       console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
     // Create a session for the user
     await createSession(user.id);
     
-    console.log(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        action: 'USER_LOGIN_SUCCESS',
-        userId: user.id,
+    const logDetails = {
         role: user.role.name,
+    };
+    await createAuditLog({
+        actorId: user.id,
+        action: 'USER_LOGIN_SUCCESS',
         ipAddress,
         userAgent,
-    }));
+        details: logDetails
+    });
+    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_SUCCESS', userId: user.id, ipAddress, userAgent }));
 
     return NextResponse.json({ message: 'Login successful' }, { status: 200 });
 

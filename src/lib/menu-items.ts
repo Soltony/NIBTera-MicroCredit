@@ -5,6 +5,8 @@ import {
   FileText,
   ShieldCheck,
   FileCog,
+  BadgeAlert,
+  FileCheck,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -15,10 +17,22 @@ export const allMenuItems = [
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
   },
   {
+    path: '/admin/applications',
+    label: 'Applications',
+    icon: FileCheck,
+    roles: ['Super Admin', 'Loan Manager', 'Application Reviewer'],
+  },
+  {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider', 'Reconciliation'],
+  },
+  {
+    path: '/admin/npl',
+    label: 'NPL',
+    icon: BadgeAlert,
+    roles: ['Super Admin', 'Loan Manager', 'Auditor'],
   },
    {
     path: '/admin/access-control',

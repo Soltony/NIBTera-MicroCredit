@@ -288,10 +288,20 @@ async function main() {
     const disbursedDate = new Date();
     const dueDate = addDays(disbursedDate, 30);
 
+    const testApplication = await prisma.loanApplication.create({
+        data: {
+            borrowerId: testBorrower.id,
+            productId: personalLoan.id,
+            loanAmount: loanAmount,
+            status: 'DISBURSED'
+        }
+    });
+    
     await prisma.loan.create({
         data: {
             borrowerId: testBorrower.id,
             productId: personalLoan.id,
+            loanApplicationId: testApplication.id,
             loanAmount: loanAmount,
             serviceFee: serviceFeeAmount,
             penaltyAmount: 0,

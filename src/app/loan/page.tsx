@@ -40,6 +40,8 @@ async function getProviders(): Promise<LoanProvider[]> {
             colorHex: p.colorHex,
             displayOrder: p.displayOrder,
             accountNumber: p.accountNumber,
+            startingCapital: p.startingCapital,
+            initialBalance: p.initialBalance,
             allowCrossProviderLoans: p.allowCrossProviderLoans,
             products: p.products.map(prod => ({
                 id: prod.id,
@@ -88,7 +90,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
 
         return loans.map(loan => ({
             id: loan.id,
-            providerId: loan.product.providerId,
+            borrowerId: loan.borrowerId,
             providerName: loan.product.provider.name,
             productName: loan.product.name,
             loanAmount: loan.loanAmount,

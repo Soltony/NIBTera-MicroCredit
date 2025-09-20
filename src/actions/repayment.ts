@@ -9,6 +9,7 @@
 import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay } from 'date-fns';
+import { createAuditLog } from '@/lib/audit-log';
 
 async function getBorrowerBalance(borrowerId: string): Promise<number> {
     // In a real system, this would call a banking API.
@@ -182,41 +183,47 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 });
                 
                 processedCount++;
+                const logDetails = {
+                    loanId: loan.id,
+                    borrowerId: loan.borrowerId,
+                    amount: totalDue
+                };
+                await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
                 console.log(JSON.stringify({
                     timestamp: new Date().toISOString(),
                     action: 'AUTOMATED_REPAYMENT_SUCCESS',
                     actorId: 'system',
-                    details: {
-                        loanId: loan.id,
-                        borrowerId: loan.borrowerId,
-                        amount: totalDue
-                    }
+                    details: logDetails
                 }));
 
             } catch (error) {
+                const failureDetails = {
+                    loanId: loan.id,
+                    borrowerId: loan.borrowerId,
+                    error: (error as Error).message
+                };
+                await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_FAILURE', entity: 'LOAN', entityId: loan.id, details: failureDetails });
                  console.error(JSON.stringify({
                     timestamp: new Date().toISOString(),
                     action: 'AUTOMATED_REPAYMENT_FAILURE',
                     actorId: 'system',
-                    details: {
-                        loanId: loan.id,
-                        borrowerId: loan.borrowerId,
-                        error: (error as Error).message
-                    }
+                    details: failureDetails
                 }));
             }
         } else {
+            const skipDetails = {
+                loanId: loan.id,
+                borrowerId: loan.borrowerId,
+                balance: borrowerBalance,
+                amountDue: totalDue
+            };
+            await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SKIPPED', entity: 'LOAN', entityId: loan.id, details: { reason: 'Insufficient funds', ...skipDetails } });
              console.log(JSON.stringify({
                 timestamp: new Date().toISOString(),
                 action: 'AUTOMATED_REPAYMENT_SKIPPED',
                 actorId: 'system',
                 reason: 'Insufficient funds',
-                details: {
-                    loanId: loan.id,
-                    borrowerId: loan.borrowerId,
-                    balance: borrowerBalance,
-                    amountDue: totalDue
-                }
+                details: skipDetails
             }));
         }
     }

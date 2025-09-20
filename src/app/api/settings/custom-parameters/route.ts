@@ -2,8 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// This route fetches all columns from all data provisioning configs for a given provider.
-// These columns can be used as custom parameters in the credit scoring engine.
+// This route fetches all columns from all data provisioning configs for a given provider,
+// and now also includes hardcoded behavioral metrics.
+// These can be used as custom parameters in the credit scoring engine.
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const providerId = searchParams.get('providerId');
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
         });
 
         // Flatten all columns from all configs into a single array
-        const customParameters = configs.flatMap(config => {
+        let customParameters = configs.flatMap(config => {
             try {
                 const columns = JSON.parse(config.columns as string);
                 // Map to a more detailed object for the frontend
@@ -32,6 +33,17 @@ export async function GET(req: NextRequest) {
                 return [];
             }
         });
+
+        // --- NEW: Add hardcoded behavioral parameters ---
+        const behavioralParameters = [
+            { value: 'totalLoansCount', label: 'Total Loans Count', type: 'number', options: [] },
+            { value: 'loansOnTime', label: 'Loans Paid On Time', type: 'number', options: [] },
+            { value: 'loansLate', label: 'Loans Paid Late', type: 'number', options: [] },
+            { value: 'loansEarly', label: 'Loans Paid Early', type: 'number', options: [] },
+        ];
+        
+        customParameters = customParameters.concat(behavioralParameters);
+        // --- END NEW ---
 
         // Remove duplicates in case multiple configs have the same column name
         const uniqueParameters = Array.from(new Map(customParameters.map(item => [item['value'], item])).values());

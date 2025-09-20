@@ -13,6 +13,7 @@ export const productSchema = z.object({
 export const createProductSchema = z.object({
   providerId: z.string(),
   name: z.string().min(1, 'Name is required'),
+  productType: z.enum(['PERSONAL', 'SME']),
   description: z.string().optional(),
   icon: z.string().min(1, 'Icon is required'),
   minLoan: z.number().min(0, 'Min loan cannot be negative'),
@@ -46,6 +47,7 @@ const penaltyRuleSchema = z.object({
 
 export const updateProductSchema = productSchema.partial().extend({
   id: z.string(),
+  productType: z.enum(['PERSONAL', 'SME']).optional(),
   status: z.enum(['Active', 'Disabled']).optional(),
   allowConcurrentLoans: z.boolean().optional(),
   serviceFee: feeRuleSchema.optional(),
@@ -58,23 +60,19 @@ export const updateProductSchema = productSchema.partial().extend({
   dataProvisioningConfigId: z.string().nullable().optional(),
 });
 
-// This is the old schema, which is now deprecated for loan creation.
-export const loanSchema = z.object({
-    providerId: z.string(),
+export const loanCreationSchema = z.object({
+    borrowerId: z.string(),
     productId: z.string(),
+    loanApplicationId: z.string().optional(),
     loanAmount: z.number(),
-    serviceFee: z.number(),
-    penaltyAmount: z.number(),
     disbursedDate: z.string().datetime(),
     dueDate: z.string().datetime(),
-    repaymentStatus: z.enum(['Paid', 'Unpaid']),
 });
 
-// New schema for loan creation via API. Service fee is no longer provided by the client.
-export const loanCreationSchema = z.object({
+export const requiredDocumentSchema = z.object({
+    id: z.string().optional(),
     productId: z.string(),
-    borrowerId: z.string(),
-    loanAmount: z.number(),
-    disbursedDate: z.string().datetime(),
-    dueDate: z.string().datetime(),
+    name: z.string().min(1, 'Document name is required.'),
+    description: z.string().optional(),
 });
+

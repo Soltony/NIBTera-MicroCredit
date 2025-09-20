@@ -43,17 +43,47 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         };
     }, [searchParams, selectedProduct]);
 
-    const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments'>) => {
-        if (provider && selectedProduct && borrowerId) {
-            
-             const finalDetails: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'repaidAmount' | 'payments' > & { providerId: string; productId: string; borrowerId: string; } = {
-                ...details,
-                providerId: provider.id,
-                productId: selectedProduct.id,
-                borrowerId: borrowerId,
-            };
+    const handleLoanAccept = async (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments' >) => {
+        if (!selectedProduct || !borrowerId) {
+            toast({ title: 'Error', description: 'Missing required information.', variant: 'destructive'});
+            return;
+        }
 
-            try {
+        try {
+            // Check the product type to determine the next action
+            if (selectedProduct.productType === 'SME') {
+                // SME Flow: Create an application and redirect to upload page
+                const response = await fetch('/api/applications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        borrowerId,
+                        productId: selectedProduct.id,
+                        loanAmount: details.loanAmount, // Pass the amount from the calculator
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create loan application.');
+                }
+                
+                const application = await response.json();
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('applicationId', application.id);
+                params.delete('product'); // Clean up params for the next page
+                router.push(`/apply/upload?${params.toString()}`);
+                
+            } else {
+                // Personal Loan Flow: Disburse the loan directly
+                const finalDetails = {
+                    borrowerId,
+                    productId: selectedProduct.id,
+                    loanAmount: details.loanAmount,
+                    disbursedDate: details.disbursedDate,
+                    dueDate: details.dueDate,
+                };
+
                 const response = await fetch('/api/loans', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -77,30 +107,30 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
                 }
                 setLoanDetails(displayLoan);
                 setStep('details');
-                 toast({
+                    toast({
                     title: 'Success!',
                     description: 'Your loan has been successfully disbursed.',
                 });
-
-            } catch (error: any) {
-                toast({
-                    title: 'Error',
-                    description: error.message,
-                    variant: 'destructive',
-                });
             }
+
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message,
+                variant: 'destructive',
+            });
         }
     };
 
     const handleBack = () => {
-        const params = new URLSearchParams(searchParams);
+        const params = new URLSearchParams(searchParams.toString());
         params.delete('product');
         params.delete('step');
         router.push(`/loan?${params.toString()}`);
     };
 
     const handleReset = () => {
-        const params = new URLSearchParams(searchParams);
+        const params = new URLSearchParams(searchParams.toString());
         params.delete('product');
         params.delete('step');
         router.push(`/loan?${params.toString()}`);
@@ -113,7 +143,7 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
                     return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
                 }
                 if (productId && !selectedProduct) {
-                     return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;
+                        return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;
                 }
                 return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 

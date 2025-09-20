@@ -1,4 +1,5 @@
 
+
 import { SettingsClient } from '@/components/admin/settings-client';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import prisma from '@/lib/prisma';
@@ -66,3 +67,5 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} />;
 }
+
+

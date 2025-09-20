@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -53,8 +54,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
     
-    const isSuperAdminOrAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Reconciliation';
-    const isProviderUser = !isSuperAdminOrAdmin;
+    const isSuperAdminOrRecon = currentUser?.role === 'Super Admin' || currentUser?.role === 'Reconciliation';
 
 
     const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string, currentDateRange?: DateRange) => {
@@ -87,7 +87,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             const collectionsPromise = fetchDataForTab(buildUrl('/api/reports/collections'));
             const incomePromise = fetchDataForTab(buildUrl('/api/reports/income'));
             
-            const summaryProviders = (currentProviderId === 'all' && providers.length > 1 && isSuperAdminOrAdmin) 
+            const summaryProviders = (currentProviderId === 'all' && providers.length > 1 && isSuperAdminOrRecon) 
               ? providers 
               : [providers.find(p => p.id === currentProviderId)!].filter(Boolean);
 
@@ -120,36 +120,41 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         } finally {
             setIsLoading(false);
         }
-    }, [toast, providers, isSuperAdminOrAdmin]);
+    }, [toast, providers, isSuperAdminOrRecon]);
     
-    // Effect to set the initial providerId based on user role
+    // Effect to set the initial providerId and fetch data ONCE
     useEffect(() => {
-        if (isAuthLoading) return;
+        if (isAuthLoading) return; // Wait for user data to be available
 
-        if (isSuperAdminOrAdmin) {
-            setProviderId('all');
-        } else if (isProviderUser) {
-            // For provider users, they should only have one provider passed in props
-            if (providers.length > 0 && currentUser?.providerId) {
-                 setProviderId(currentUser.providerId);
-            } else {
-                 setProviderId('none');
-            }
+        let initialProviderId: string | null = null;
+        if (isSuperAdminOrRecon) {
+            initialProviderId = 'all';
+        } else if (currentUser?.providerId) {
+            initialProviderId = currentUser.providerId;
+        } else if (providers.length > 0) {
+            // This case might be for other roles that see reports but aren't super admin
+            initialProviderId = 'all';
+        } else {
+            initialProviderId = 'none'; // No providers available
         }
-    }, [isAuthLoading, isSuperAdminOrAdmin, isProviderUser, providers, currentUser?.providerId]);
-    
-    // Effect to refetch data when filters change
-    useEffect(() => {
-        if(providerId && providerId !== 'none') {
-            fetchAllReportData(providerId, timeframe, dateRange);
-        } else if (providerId === 'none' || providers.length === 0) {
+        
+        setProviderId(initialProviderId);
+
+        if (initialProviderId && initialProviderId !== 'none') {
+            fetchAllReportData(initialProviderId, 'overall', undefined);
+        } else {
             setIsLoading(false);
-            setLoansData([]);
-            setCollectionsData([]);
-            setIncomeData([]);
-            setProviderSummaryData({});
         }
-    }, [providerId, timeframe, dateRange, fetchAllReportData, providers.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthLoading, currentUser?.providerId, isSuperAdminOrRecon]);
+    
+    // Effect to refetch data when filters change, but not on initial load
+    useEffect(() => {
+        // This check prevents refetching on the initial render where providerId is still null
+        if (providerId !== null) { 
+            fetchAllReportData(providerId, timeframe, dateRange);
+        }
+    }, [providerId, timeframe, dateRange, fetchAllReportData]);
 
     
     const handleExcelExport = () => {
@@ -271,10 +276,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         saveAs(new Blob([wbout], { type: "application/octet-stream" }), `LoanFlow_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
     
-    if (isAuthLoading || providerId === null) {
+    if (isLoading || isAuthLoading || providerId === null) {
         return (
              <div className="flex-1 space-y-4 p-8 pt-6">
-                <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
+                    <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
+                </div>
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
@@ -347,7 +354,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             />
                         </PopoverContent>
                     </Popover>
-                     {isSuperAdminOrAdmin && (
+                     {isSuperAdminOrRecon && (
                         <Select onValueChange={setProviderId} value={providerId || ''}>
                             <SelectTrigger className="w-[180px]">
                                 <SelectValue placeholder="Select Provider" />

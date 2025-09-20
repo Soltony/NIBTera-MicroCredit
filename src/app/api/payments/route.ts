@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { startOfDay, isBefore, isEqual } from 'date-fns';
+import type { RepaymentBehavior } from '@prisma/client';
+import { createAuditLog } from '@/lib/audit-log';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -20,6 +23,7 @@ export async function POST(req: NextRequest) {
         const loanForBorrowerId = await prisma.loan.findUnique({ where: { id: loanId }, select: { borrowerId: true }});
         borrowerIdForLogging = loanForBorrowerId?.borrowerId || null;
 
+        await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
         console.log(JSON.stringify({
             timestamp: new Date().toISOString(),
             action: 'REPAYMENT_INITIATED',
@@ -89,7 +93,7 @@ export async function POST(req: NextRequest) {
                     providerId: provider.id,
                     loanId: loan.id,
                     date: paymentDate,
-                    description: `Repayment of ${formatCurrency(paymentAmount)} for loan ${loan.id}`
+                    description: `Repayment of ${paymentAmount} for loan ${loan.id}`
                 }
             });
 
@@ -149,13 +153,30 @@ export async function POST(req: NextRequest) {
             });
 
             const newRepaidAmount = alreadyRepaid + paymentAmount;
+            const isFullyPaid = newRepaidAmount >= total;
+            let repaymentBehavior: RepaymentBehavior | null = null;
             
+            // --- NEW: Set Repayment Behavior on final payment ---
+            if (isFullyPaid) {
+                const today = startOfDay(new Date());
+                const dueDate = startOfDay(loan.dueDate);
+                if (isBefore(today, dueDate)) {
+                    repaymentBehavior = 'EARLY';
+                } else if (isEqual(today, dueDate)) {
+                    repaymentBehavior = 'ON_TIME';
+                } else {
+                    repaymentBehavior = 'LATE';
+                }
+            }
+            // --- END NEW ---
+
             // Update loan status
             const finalLoan = await tx.loan.update({
                 where: { id: loanId },
                 data: {
                     repaidAmount: newRepaidAmount,
-                    repaymentStatus: newRepaidAmount >= total ? 'Paid' : 'Unpaid'
+                    repaymentStatus: isFullyPaid ? 'Paid' : 'Unpaid',
+                    ...(repaymentBehavior && { repaymentBehavior: repaymentBehavior }), // Only set if not null
                 },
                 include: {
                     payments: { orderBy: { date: 'asc' } },
@@ -163,17 +184,14 @@ export async function POST(req: NextRequest) {
                 }
             });
             
-             console.log(JSON.stringify({
-                timestamp: new Date().toISOString(),
-                action: 'REPAYMENT_SUCCESS',
-                actorId: loan.borrowerId,
-                details: {
-                    loanId: loan.id,
-                    paymentId: newPayment.id,
-                    amount: paymentAmount,
-                    repaymentStatus: finalLoan.repaymentStatus,
-                }
-            }));
+             const logDetails = {
+                loanId: loan.id,
+                paymentId: newPayment.id,
+                amount: paymentAmount,
+                repaymentStatus: finalLoan.repaymentStatus,
+             };
+             await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
+             console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_SUCCESS' }));
             
             return finalLoan;
         });
@@ -182,24 +200,16 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
-        console.error(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'REPAYMENT_FAILED',
-            actorId: borrowerIdForLogging,
-            details: {
-                ...paymentDetailsForLogging,
-                error: errorMessage,
-            }
-        }));
+        const failureLogDetails = {
+            ...paymentDetailsForLogging,
+            error: errorMessage,
+        };
+        await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_FAILED', entity: 'LOAN', entityId: paymentDetailsForLogging.loanId, details: failureLogDetails });
+        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_FAILED' }));
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
-}
-
-// Helper to format currency
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ETB' }).format(amount);
 }

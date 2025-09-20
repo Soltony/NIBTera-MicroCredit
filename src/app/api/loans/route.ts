@@ -5,43 +5,219 @@ import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
+import { createAuditLog } from '@/lib/audit-log';
+
+async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
+    const product = await prisma.loanProduct.findUnique({
+        where: { id: data.productId },
+        include: {
+            provider: {
+                include: {
+                    ledgerAccounts: true
+                }
+            }
+        }
+    });
+
+    if (!product) {
+        throw new Error('Loan product not found.');
+    }
+
+    const provider = product.provider;
+    
+    const tempLoanForCalc = {
+        id: 'temp',
+        loanAmount: data.loanAmount,
+        disbursedDate: new Date(data.disbursedDate),
+        dueDate: new Date(data.dueDate),
+        serviceFee: 0,
+        repaymentStatus: 'Unpaid' as 'Unpaid' | 'Paid',
+        payments: [],
+        productName: product.name,
+        providerName: product.provider.name,
+        repaidAmount: 0,
+        penaltyAmount: 0,
+        product: product as any,
+    };
+    const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+
+    // Ledger Account Checks
+    const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
+    const serviceFeeReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Receivable');
+    const serviceFeeIncomeAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Income');
+    if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
+    if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
+
+    return await prisma.$transaction(async (tx) => {
+        // Step 1: Create the LoanApplication record.
+        const loanApplication = await tx.loanApplication.create({
+            data: {
+                borrowerId: data.borrowerId,
+                productId: data.productId,
+                loanAmount: data.loanAmount,
+                status: 'DISBURSED', // Personal loans are disbursed immediately
+            }
+        });
+
+        // Step 2: Create the Loan record and connect it to the application.
+        const createdLoan = await tx.loan.create({
+            data: {
+                borrowerId: data.borrowerId,
+                productId: data.productId,
+                loanApplicationId: loanApplication.id, // Link to the created application
+                loanAmount: data.loanAmount,
+                disbursedDate: data.disbursedDate,
+                dueDate: data.dueDate,
+                serviceFee: calculatedServiceFee,
+                penaltyAmount: 0,
+                repaymentStatus: 'Unpaid',
+                repaidAmount: 0,
+            }
+        });
+        
+        const journalEntry = await tx.journalEntry.create({
+            data: {
+                providerId: provider.id,
+                loanId: createdLoan.id,
+                date: new Date(data.disbursedDate),
+                description: `Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
+            }
+        });
+        
+        await tx.ledgerEntry.createMany({
+            data: [{
+                journalEntryId: journalEntry.id,
+                ledgerAccountId: principalReceivableAccount.id,
+                type: 'Debit',
+                amount: data.loanAmount
+            }]
+        });
+        
+        if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
+            await tx.ledgerEntry.createMany({
+                data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivableAccount.id, type: 'Debit', amount: calculatedServiceFee },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeIncomeAccount.id, type: 'Credit', amount: calculatedServiceFee }
+                ]
+            });
+            await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
+            await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
+        }
+
+        await tx.ledgerAccount.update({ where: { id: principalReceivableAccount.id }, data: { balance: { increment: data.loanAmount } } });
+        await tx.loanProvider.update({ where: { id: provider.id }, data: { initialBalance: { decrement: data.loanAmount } } });
+        
+        return createdLoan;
+    });
+}
+
+
+export async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>) {
+    if (!data.loanApplicationId) {
+        throw new Error('SME loan disbursement requires a valid Loan Application ID.');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+        // Find the application within the transaction
+        const application = await tx.loanApplication.findUnique({
+             where: { id: data.loanApplicationId },
+             include: { product: { include: { provider: { include: { ledgerAccounts: true }}}}}
+        });
+
+        if (!application) {
+            throw new Error('Loan Application not found.');
+        }
+
+        const product = application.product;
+        const provider = product.provider;
+
+        // Update the application to APPROVED first
+        await tx.loanApplication.update({
+            where: { id: data.loanApplicationId },
+            data: { status: 'APPROVED' },
+        });
+
+        const tempLoanForCalc = {
+            id: 'temp',
+            loanAmount: data.loanAmount,
+            disbursedDate: new Date(data.disbursedDate),
+            dueDate: new Date(data.dueDate),
+            serviceFee: 0,
+            repaymentStatus: 'Unpaid' as const,
+            payments: [],
+            productName: product.name,
+            providerName: provider.name,
+            repaidAmount: 0,
+            penaltyAmount: 0,
+            product: product as any,
+        };
+        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+
+        // Ledger Account Checks
+        const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
+        if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
+        
+        const createdLoan = await tx.loan.create({
+            data: {
+                borrowerId: data.borrowerId,
+                productId: data.productId,
+                loanAmount: data.loanAmount,
+                disbursedDate: data.disbursedDate,
+                dueDate: data.dueDate,
+                serviceFee: calculatedServiceFee,
+                penaltyAmount: 0,
+                repaymentStatus: 'Unpaid',
+                repaidAmount: 0,
+                loanApplicationId: data.loanApplicationId!,
+            }
+        });
+        
+        // Update the application status to DISBURSED
+        await tx.loanApplication.update({
+            where: { id: data.loanApplicationId },
+            data: {
+                status: 'DISBURSED',
+            }
+        });
+
+        // Journal Entry and Ledger updates...
+        const journalEntry = await tx.journalEntry.create({
+            data: {
+                providerId: provider.id,
+                loanId: createdLoan.id,
+                date: new Date(data.disbursedDate),
+                description: `SME Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
+            }
+        });
+        await tx.ledgerEntry.create({ data: { journalEntryId: journalEntry.id, ledgerAccountId: principalReceivableAccount.id, type: 'Debit', amount: data.loanAmount }});
+        await tx.ledgerAccount.update({ where: { id: principalReceivableAccount.id }, data: { balance: { increment: data.loanAmount } } });
+        await tx.loanProvider.update({ where: { id: provider.id }, data: { initialBalance: { decrement: data.loanAmount } } });
+
+        return createdLoan;
+    });
+}
+
 
 export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();
-        // Use the new schema without serviceFee
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
 
-        console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'LOAN_DISBURSEMENT_INITIATED',
-            actorId: 'system',
-            details: {
-                borrowerId: data.borrowerId,
-                productId: data.productId,
-                amount: data.loanAmount,
-            }
-        }));
-
         const product = await prisma.loanProduct.findUnique({
             where: { id: data.productId },
-            include: { 
-                provider: {
-                    include: {
-                        ledgerAccounts: true
-                    }
-                }
-            }
         });
-
+        
         if (!product) {
-            throw new Error('Product not found');
+            throw new Error('Loan product not found.');
         }
 
+        const logDetails = { borrowerId: data.borrowerId, productId: data.productId, amount: data.loanAmount };
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
+
         // --- SERVER-SIDE VALIDATION ---
-        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, data.productId);
+        const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, product.id);
 
         if (!isEligible) {
             throw new Error(`Loan denied: ${reason}`);
@@ -51,153 +227,37 @@ export async function POST(req: NextRequest) {
             throw new Error(`Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`);
         }
         // --- END OF VALIDATION ---
-        
-        // --- CALCULATION LOGIC MOVED TO BACKEND ---
-        // Create a temporary loan object to calculate the service fee
-        const tempLoanForCalc = {
-            id: 'temp',
-            loanAmount: data.loanAmount,
-            disbursedDate: new Date(data.disbursedDate),
-            dueDate: new Date(data.dueDate),
-            serviceFee: 0, // This will be calculated
-            repaymentStatus: 'Unpaid' as 'Unpaid' | 'Paid',
-            payments: [],
-            productName: product.name,
-            providerName: product.provider.name,
-            repaidAmount: 0,
-            penaltyAmount: 0,
-            product: product as any, // Attach product for context, though it's passed separately now
+
+        let newLoan;
+        if (product.productType === 'SME') {
+            throw new Error('SME loans must be disbursed through the admin approval workflow.');
+        } else {
+            newLoan = await handlePersonalLoan(data);
+        }
+
+        const successLogDetails = {
+            loanId: newLoan.id,
+            borrowerId: newLoan.borrowerId,
+            productId: newLoan.productId,
+            amount: newLoan.loanAmount,
+            serviceFee: newLoan.serviceFee,
         };
-        
-        // Use the centralized calculator to get the correct service fee
-        // Pass the original `product` object directly to ensure all flags are read correctly.
-        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
-        // --- END OF NEW CALCULATION LOGIC ---
-
-        const provider = product.provider;
-
-        const principalReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'Principal' && acc.type === 'Receivable');
-        const serviceFeeReceivableAccount = provider.ledgerAccounts.find(acc => acc.category === 'ServiceFee' && acc.type === 'Receivable');
-        const serviceFeeIncomeAccount = provider.ledgerAccounts.find(acc => acc.category === 'ServiceFee' && acc.type === 'Income');
-
-        if (!principalReceivableAccount) {
-            throw new Error('Principal Receivable ledger account not found for this provider.');
-        }
-        if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) {
-            throw new Error('Service Fee ledger accounts not configured for this provider.');
-        }
-
-
-        const newLoan = await prisma.$transaction(async (tx) => {
-            // Create the loan with the server-calculated service fee
-            const createdLoan = await tx.loan.create({
-                data: {
-                    borrowerId: data.borrowerId,
-                    productId: data.productId,
-                    loanAmount: data.loanAmount,
-                    serviceFee: calculatedServiceFee,
-                    penaltyAmount: 0, // Penalty is always 0 at disbursement
-                    disbursedDate: data.disbursedDate,
-                    dueDate: data.dueDate,
-                    repaymentStatus: 'Unpaid',
-                    repaidAmount: 0,
-                }
-            });
-            
-            // Create Journal Entry for the disbursement
-            const journalEntry = await tx.journalEntry.create({
-                data: {
-                    providerId: provider.id,
-                    loanId: createdLoan.id,
-                    date: new Date(data.disbursedDate),
-                    description: `Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
-                }
-            });
-            
-            // Ledger Entry for Principal: Debit Receivable, Credit Provider Fund
-            await tx.ledgerEntry.createMany({
-                data: [
-                    // Debit: Loan Principal Receivable (Asset ↑)
-                    {
-                        journalEntryId: journalEntry.id,
-                        ledgerAccountId: principalReceivableAccount.id,
-                        type: 'Debit',
-                        amount: data.loanAmount
-                    }
-                ]
-            });
-            
-            // Ledger Entry for Service Fee if applicable
-            if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
-                await tx.ledgerEntry.createMany({
-                    data: [
-                         // Debit: Service Fee Receivable (Asset ↑)
-                        {
-                            journalEntryId: journalEntry.id,
-                            ledgerAccountId: serviceFeeReceivableAccount.id,
-                            type: 'Debit',
-                            amount: calculatedServiceFee
-                        },
-                        // Credit: Service Fee Income (Income ↑)
-                        {
-                            journalEntryId: journalEntry.id,
-                            ledgerAccountId: serviceFeeIncomeAccount.id,
-                            type: 'Credit',
-                            amount: calculatedServiceFee
-                        }
-                    ]
-                });
-            }
-
-            // Update Balances
-            await tx.ledgerAccount.update({
-                where: { id: principalReceivableAccount.id },
-                data: { balance: { increment: data.loanAmount } }
-            });
-            if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
-                await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
-                await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
-            }
-
-            // Credit: Provider Fund (Asset ↓)
-            await tx.loanProvider.update({
-                where: { id: provider.id },
-                data: { initialBalance: { decrement: data.loanAmount } }
-            });
-            
-            return createdLoan;
-        });
-
-        console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'LOAN_DISBURSEMENT_SUCCESS',
-            actorId: 'system',
-            details: {
-                loanId: newLoan.id,
-                borrowerId: newLoan.borrowerId,
-                productId: newLoan.productId,
-                amount: newLoan.loanAmount,
-                serviceFee: newLoan.serviceFee,
-            }
-        }));
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_SUCCESS', entity: 'LOAN', entityId: newLoan.id, details: successLogDetails });
 
         return NextResponse.json(newLoan, { status: 201 });
 
     } catch (error) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
-        console.error(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'LOAN_DISBURSEMENT_FAILED',
-            actorId: 'system',
-            details: {
-                ...loanDetailsForLogging,
-                error: errorMessage,
-            }
-        }));
+        const failureLogDetails = {
+            ...loanDetailsForLogging,
+            error: errorMessage,
+        };
+        await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_FAILED', entity: 'LOAN', details: failureLogDetails });
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
+        console.error("Error in POST /api/loans:", error);
         return NextResponse.json({ error: (error as Error).message || 'Internal Server Error' }, { status: 500 });
     }
 }

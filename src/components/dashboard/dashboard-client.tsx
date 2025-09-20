@@ -63,7 +63,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
   
   const [agreementState, setAgreementState] = useState<AgreementState>({});
   const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
-  const [productToApply, setProductToApply] = useState<string | null>(null);
+  const [productToApply, setProductToApply] = useState<LoanProduct | null>(null);
   const [agreementChecked, setAgreementChecked] = useState(false);
 
   
@@ -192,30 +192,55 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
   }, [selectedProviderId, providers]);
 
-  const handleApply = (productId: string) => {
-    if (!borrowerId) {
-        toast({ title: 'Error', description: 'Borrower ID not found.', variant: 'destructive'});
-        return;
-    }
+    const handleApply = async (product: LoanProduct) => {
+        if (agreementState.terms && !agreementState.hasAgreed) {
+            setProductToApply(product);
+            setIsAgreementDialogOpen(true);
+            return;
+        }
 
-    if (agreementState.terms && !agreementState.hasAgreed) {
-        setProductToApply(productId);
-        setIsAgreementDialogOpen(true);
-        return;
-    }
-    
-    const productLimit = eligibility.limits[productId] ?? 0;
-    
-    // The true max loan is the lesser of the product's individual limit and the overall available limit.
-    const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+        const params = new URLSearchParams(searchParams.toString());
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('providerId', selectedProviderId);
-    params.set('product', productId);
-    params.set('max', String(trueMaxLoan));
-    params.set('step', 'calculator');
-    router.push(`/apply?${params.toString()}`);
-  }
+        if (product.productType === 'SME') {
+            try {
+                const response = await fetch('/api/applications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ borrowerId, productId: product.id }),
+                });
+
+                if (!response.ok) {
+                    let errorText;
+                    try {
+                        const errorJson = await response.json();
+                        errorText = errorJson.error || 'Failed to create loan application.';
+                    } catch (e) {
+                        errorText = await response.text();
+                    }
+                    throw new Error(errorText);
+                }
+
+                const application = await response.json();
+                params.set('applicationId', application.id);
+                router.push(`/apply/upload?${params.toString()}`);
+
+            } catch (error: any) {
+                toast({
+                    title: 'Application Error',
+                    description: error.message,
+                    variant: 'destructive'
+                });
+            }
+        } else {
+            // Personal Loan Flow
+            params.set('providerId', selectedProviderId);
+            params.set('product', product.id);
+            const productLimit = eligibility.limits[product.id] ?? 0;
+            const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+            params.set('max', String(trueMaxLoan));
+            router.push(`/apply?${params.toString()}`);
+        }
+    }
   
    const handleProviderSelect = (providerId: string) => {
     setSelectedProviderId(providerId);
@@ -377,7 +402,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                                     }}
                                                     providerColor={selectedProvider.colorHex}
                                                     activeLoan={activeLoansByProduct[product.id]}
-                                                    onApply={() => handleApply(product.id)}
+                                                    onApply={() => handleApply(product)}
                                                     onRepay={handleRepay}
                                                     IconDisplayComponent={IconDisplay}
                                                     isEligible={isEligible}
@@ -444,3 +469,5 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
+
+    

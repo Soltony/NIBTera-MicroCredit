@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { allMenuItems } from '@/lib/menu-items';
 
 
-const PERMISSION_MODULES = allMenuItems.map(item => item.label.toLowerCase().replace(' ', '-')).concat(['products']);
+const PERMISSION_MODULES = allMenuItems.map(item => item.label.toLowerCase().replace(/\s+/g, '-')).concat(['products']);
 
 
 function UsersTab() {
@@ -363,7 +363,7 @@ function RolesTab() {
                             <TableRow>
                                 <TableHead className="w-[150px]">Role Name</TableHead>
                                 {PERMISSION_MODULES.map(module => (
-                                    <TableHead key={module} className="text-center capitalize">{module.replace('-', ' ')}</TableHead>
+                                    <TableHead key={module} className="text-center capitalize">{module.replace(/-/g, ' ')}</TableHead>
                                 ))}
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>

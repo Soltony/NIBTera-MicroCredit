@@ -29,7 +29,7 @@ interface AddRoleDialogProps {
   primaryColor?: string;
 }
 
-const PERMISSION_MODULES: (keyof Permissions)[] = allMenuItems.map(item => item.label.toLowerCase().replace(' ', '-') as keyof Permissions).concat(['products']);
+const PERMISSION_MODULES: (keyof Permissions)[] = allMenuItems.map(item => item.label.toLowerCase().replace(/\s+/g, '-') as keyof Permissions).concat(['products']);
 const PERMISSION_ACTIONS: (keyof Permissions[keyof Permissions])[] = ['create', 'read', 'update', 'delete'];
 
 const initialPermissions = PERMISSION_MODULES.reduce((acc, module) => {
