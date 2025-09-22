@@ -1,4 +1,6 @@
 
+'use server';
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
@@ -8,46 +10,6 @@ import { checkLoanEligibility } from '@/actions/eligibility';
 import { createAuditLog } from '@/lib/audit-log';
 
 async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
-    const product = await prisma.loanProduct.findUnique({
-        where: { id: data.productId },
-        include: {
-            provider: {
-                include: {
-                    ledgerAccounts: true
-                }
-            }
-        }
-    });
-
-    if (!product) {
-        throw new Error('Loan product not found.');
-    }
-
-    const provider = product.provider;
-    
-    const tempLoanForCalc = {
-        id: 'temp',
-        loanAmount: data.loanAmount,
-        disbursedDate: new Date(data.disbursedDate),
-        dueDate: new Date(data.dueDate),
-        serviceFee: 0,
-        repaymentStatus: 'Unpaid' as 'Unpaid' | 'Paid',
-        payments: [],
-        productName: product.name,
-        providerName: product.provider.name,
-        repaidAmount: 0,
-        penaltyAmount: 0,
-        product: product as any,
-    };
-    const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
-
-    // Ledger Account Checks
-    const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
-    const serviceFeeReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Receivable');
-    const serviceFeeIncomeAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Income');
-    if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
-    if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
-
     return await prisma.$transaction(async (tx) => {
         // Step 1: Create the LoanApplication record.
         const loanApplication = await tx.loanApplication.create({
@@ -58,6 +20,53 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
                 status: 'DISBURSED', // Personal loans are disbursed immediately
             }
         });
+
+        const product = await tx.loanProduct.findUnique({
+            where: { id: data.productId },
+            include: {
+                provider: {
+                    include: {
+                        ledgerAccounts: true
+                    }
+                }
+            }
+        });
+
+        if (!product) {
+            throw new Error('Loan product not found.');
+        }
+        
+        // --- NEW: Check provider balance before disbursement ---
+        if (product.provider.initialBalance < data.loanAmount) {
+            throw new Error(`Insufficient provider funds. Available: ${product.provider.initialBalance}, Requested: ${data.loanAmount}`);
+        }
+        // --- END NEW ---
+
+        const provider = product.provider;
+        
+        const tempLoanForCalc = {
+            id: 'temp',
+            loanAmount: data.loanAmount,
+            disbursedDate: new Date(data.disbursedDate),
+            dueDate: new Date(data.dueDate),
+            serviceFee: 0,
+            repaymentStatus: 'Unpaid' as 'Unpaid' | 'Paid',
+            payments: [],
+            productName: product.name,
+            providerName: product.provider.name,
+            repaidAmount: 0,
+            penaltyAmount: 0,
+            product: product as any,
+        };
+        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+
+        // Ledger Account Checks
+        const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
+        const serviceFeeReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Receivable');
+        const serviceFeeIncomeAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Income');
+        if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
+        if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
+
 
         // Step 2: Create the Loan record and connect it to the application.
         const createdLoan = await tx.loan.create({
@@ -130,6 +139,12 @@ export async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>) {
 
         const product = application.product;
         const provider = product.provider;
+
+        // --- NEW: Check provider balance before disbursement ---
+        if (provider.initialBalance < data.loanAmount) {
+            throw new Error(`Insufficient provider funds. Available: ${provider.initialBalance}, Requested: ${data.loanAmount}`);
+        }
+        // --- END NEW ---
 
         // Update the application to APPROVED first
         await tx.loanApplication.update({
