@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -67,7 +68,7 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { providerId: string; product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void }) => {
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete, allProviderConfigs }: { providerId: string; product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, allProviderConfigs: DataProvisioningConfig[] }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
@@ -93,6 +94,10 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
         } else {
             setFormData(prev => ({...prev, [name]: checked }));
         }
+    }
+    
+     const handleSelectChange = (name: keyof LoanProduct, value: string) => {
+        setFormData(prev => ({...prev, [name]: value }));
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -192,6 +197,35 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                                 placeholder="e.g., 30"
                             />
                         </div>
+                    </div>
+                    
+                    <div className="space-y-4 border-t pt-6">
+                         <div className="flex items-center space-x-2">
+                            <Switch
+                                id={`dataProvisioningEnabled-${product.id}`}
+                                checked={!!formData.dataProvisioningEnabled}
+                                onCheckedChange={(checked) => handleSwitchChange('dataProvisioningEnabled', checked)}
+                                className="data-[state=checked]:bg-[--provider-color]"
+                                style={{'--provider-color': providerColor} as React.CSSProperties}
+                            />
+                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Use Product-Specific Data</Label>
+                        </div>
+                        {formData.dataProvisioningEnabled && (
+                            <div className="space-y-2 pl-8">
+                                <Label htmlFor={`dataProvisioningConfigId-${product.id}`}>Data Source</Label>
+                                <Select onValueChange={(value) => handleSelectChange('dataProvisioningConfigId', value)} value={formData.dataProvisioningConfigId || ''}>
+                                    <SelectTrigger id={`dataProvisioningConfigId-${product.id}`}>
+                                        <SelectValue placeholder="Select data source" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {allProviderConfigs.map(config => (
+                                            <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                 <p className="text-xs text-muted-foreground">Select a data type from the Scoring Engine page.</p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
@@ -426,6 +460,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     providerColor={provider.colorHex} 
                     onSave={handleSaveProduct}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
+                    allProviderConfigs={provider.dataProvisioningConfigs || []}
                   />
                 ))}
                 <Button 
@@ -672,7 +707,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
                     const prevToScore = Number(tiers[i-1].toScore);
                     if (fromScore <= prevToScore) {
                         toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
-                        throw new Error("Invalid tier data");
+                        throw new Error("Overlapping Tiers");
                     }
                 }
                 return {
