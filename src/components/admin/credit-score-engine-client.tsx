@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
@@ -20,8 +21,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical, Upload, Edit, FileClock } from 'lucide-react';
-import type { Rule, ScoringParameter, DataProvisioningConfig, DataColumn } from '@/lib/types';
+import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical, Upload, Edit, FileClock, ChevronRight, ChevronLeft } from 'lucide-react';
+import type { Rule, ScoringParameter, DataProvisioningConfig, DataColumn, DataProvisioningUpload } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -700,6 +701,8 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
     const [deletingConfigId, setDeletingConfigId] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
+    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+
 
     useEffect(() => {
         setConfigs(initialConfigs);
@@ -899,7 +902,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                                            <TableBody>
                                                {config.uploads && config.uploads.length > 0 ? (
                                                    config.uploads.map(upload => (
-                                                        <TableRow key={upload.id}>
+                                                        <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
                                                             <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
                                                             <TableCell>{upload.rowCount}</TableCell>
                                                             <TableCell>{upload.uploadedBy}</TableCell>
@@ -945,6 +948,10 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <UploadDataViewerDialog
+                upload={viewingUpload}
+                onClose={() => setViewingUpload(null)}
+            />
         </>
     );
 }
@@ -1109,4 +1116,88 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     )
 }
 
+function UploadDataViewerDialog({ upload, onClose }: {
+    upload: DataProvisioningUpload | null;
+    onClose: () => void;
+}) {
+    const [data, setData] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRows, setTotalRows] = useState(0);
+    const rowsPerPage = 100;
+
+    useEffect(() => {
+        if (upload) {
+            const fetchData = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await fetch(`/api/settings/data-provisioning-uploads/view?uploadId=${upload.id}&page=${page}&limit=${rowsPerPage}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch uploaded data');
+                    }
+                    const result = await response.json();
+                    setData(result.data);
+                    setTotalPages(result.totalPages);
+                    setTotalRows(result.totalRows);
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchData();
+        }
+    }, [upload, page]);
+
+    if (!upload) return null;
+
+    const headers = data.length > 0 ? Object.keys(data[0]) : [];
+
+    return (
+        <Dialog open={!!upload} onOpenChange={onClose}>
+            <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                <DialogHeader>
+                    <DialogTitle>Viewing Upload: {upload.fileName}</DialogTitle>
+                    <DialogDescription>
+                        Displaying {data.length} of {totalRows} rows from the uploaded file.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="flex-grow overflow-auto border rounded-md">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader className="h-8 w-8 animate-spin" />
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headers.map(header => <TableHead key={header} className="capitalize">{header.replace(/([A-Z])/g, ' $1')}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {data.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {headers.map(header => <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>)}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </div>
+                <DialogFooter className="justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                            <ChevronLeft className="h-4 w-4 mr-2" /> Previous
+                        </Button>
+                        <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                            Next <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
     

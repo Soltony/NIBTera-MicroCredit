@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -60,6 +61,15 @@ export async function POST(req: NextRequest) {
         
         const idColumnCamelCase = toCamelCase(idColumnConfig.name);
         
+        const newUpload = await prisma.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: file.name,
+                rowCount: rows.length,
+                uploadedBy: user.fullName || user.email,
+            }
+        });
+
         // Use transaction to perform all upserts
         await prisma.$transaction(async (tx) => {
             for (const row of rows) {
@@ -88,25 +98,18 @@ export async function POST(req: NextRequest) {
                     },
                     update: {
                         data: JSON.stringify(rowData),
+                        uploadId: newUpload.id, // Link to the new upload record
                     },
                     create: {
                         borrowerId: borrowerId,
                         configId: configId,
-                        data: JSON.stringify(rowData)
+                        data: JSON.stringify(rowData),
+                        uploadId: newUpload.id, // Link to the new upload record
                     }
                 });
             }
         });
 
-
-        const newUpload = await prisma.dataProvisioningUpload.create({
-            data: {
-                configId: configId,
-                fileName: file.name,
-                rowCount: rows.length,
-                uploadedBy: user.fullName || user.email,
-            }
-        });
 
         return NextResponse.json(newUpload, { status: 201 });
 
