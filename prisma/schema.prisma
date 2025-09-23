@@ -50,6 +50,7 @@ model LoanProvider {
   startingCapital             Float
   initialBalance              Float
   allowCrossProviderLoans     Boolean                       @default(false)
+  nplThresholdDays            Int                           @default(60)
   products                    LoanProduct[]
   scoringParameters           ScoringParameter[]
   scoringHistory              ScoringConfigurationHistory[]
