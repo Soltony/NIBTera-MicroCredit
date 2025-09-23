@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { LoanDetails, LoanProduct, PenaltyRule } from '@/lib/types';
@@ -65,7 +64,7 @@ export function LoanDetailsView({ details, product, onReset, providerColor = 'hs
         <CardContent className="space-y-4">
           <div className="flex justify-between items-baseline p-4 bg-secondary rounded-lg">
             <span className="text-muted-foreground">Loan Amount</span>
-            <span className="text-5xl font-bold" style={{color: providerColor}}>{formatCurrency(details.loanAmount)}</span>
+            <span className="text-4xl font-bold" style={{color: providerColor}}>{formatCurrency(details.loanAmount)}</span>
           </div>
 
           <Separator />
