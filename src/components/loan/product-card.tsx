@@ -174,12 +174,6 @@ export function ProductCard({
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             ) : null}
-                             {product.availableLimit ? (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatCurrency(trueAvailableLimit)}</p>
-                                    <p className="text-xs text-muted-foreground">Available Limit</p>
-                                </div>
-                             ) : null}
                         </div>
                     </div>
                 )}
