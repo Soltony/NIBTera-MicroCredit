@@ -95,6 +95,7 @@ export interface LoanProduct {
   dataProvisioningEnabled?: boolean;
   dataProvisioningConfigId?: string | null;
   dataProvisioningConfig?: DataProvisioningConfig;
+  requiredDocuments: RequiredDocument[];
 }
 
 export interface LoanApplication {
@@ -104,9 +105,26 @@ export interface LoanApplication {
     productId: string;
     product: LoanProduct;
     loanAmount: number | null;
-    status: 'APPROVED' | 'DISBURSED';
+    status: 'APPROVED' | 'DISBURSED' | 'PENDING_REVIEW' | 'NEEDS_REVISION';
+    rejectionReason?: string | null;
     createdAt: Date;
     updatedAt: Date;
+    uploadedDocuments: UploadedDocument[];
+}
+
+export interface RequiredDocument {
+    id: string;
+    name: string;
+    description: string | null;
+}
+
+export interface UploadedDocument {
+    id: string;
+    requiredDocumentId: string;
+    requiredDocument?: RequiredDocument;
+    fileName: string;
+    fileType: string;
+    fileContent: string;
 }
 
 
@@ -241,7 +259,7 @@ export interface LedgerAccount {
     providerId: string;
     name: string;
     type: 'Receivable' | 'Received' | 'Income';
-    category: 'Principal' | 'Interest' | 'Penalty' | 'ServiceFee';
+    category: 'Principal' | 'Interest' | 'Penalty' | 'ServiceFee' | 'Tax';
     balance: number;
 }
 
@@ -364,3 +382,9 @@ export type IncomeReportData = {
     accruedPenalty: number;
     collectedPenalty: number;
 };
+
+export interface Tax {
+    id: string;
+    rate: number;
+    appliedTo: string; // JSON array
+}

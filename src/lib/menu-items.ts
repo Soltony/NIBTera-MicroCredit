@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   FileCog,
   BadgeAlert,
+  Landmark,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -36,6 +37,12 @@ export const allMenuItems = [
     path: '/admin/credit-score-engine',
     label: 'Scoring Engine',
     icon: FileCog,
+    roles: ['Super Admin', 'Loan Manager'],
+  },
+  {
+    path: '/admin/tax',
+    label: 'Tax',
+    icon: Landmark,
     roles: ['Super Admin', 'Loan Manager'],
   },
   {

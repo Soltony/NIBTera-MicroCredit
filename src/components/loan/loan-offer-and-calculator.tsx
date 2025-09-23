@@ -69,54 +69,65 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
   const [isPenaltyDetailsOpen, setIsPenaltyDetailsOpen] = useState(false);
+  const [calculationResult, setCalculationResult] = useState<any>(null);
 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
   
   const minLoan = Math.max(product.minLoan ?? 0, suggestedLoanAmountMin);
-  // The true max loan is the lesser of the product's limit and the user's available credit.
   const maxLoan = Math.min(product.maxLoan ?? Infinity, suggestedLoanAmountMax);
 
   useEffect(() => {
-    // Set the initial amount to the product's min, but not exceeding the true max loan.
     const initialAmount = Math.min(product.availableLimit ?? maxLoan, maxLoan);
     setLoanAmount(initialAmount);
   }, [product.id, product.availableLimit, maxLoan]);
-  
-  const calculatedTerms = useMemo(() => {
-    const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
-    if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) return null;
-    
-    const disbursedDate = new Date();
-    const duration = product.duration ?? 30;
-    const dueDate = duration === 0 ? endOfDay(disbursedDate) : addDays(disbursedDate, duration);
-    
-    let serviceFee = 0;
-    if (product.serviceFeeEnabled && product.serviceFee && product.serviceFee.value) {
-        const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : (product.serviceFee.value || 0);
-        serviceFee = product.serviceFee.type === 'fixed' 
-            ? feeValue
-            : numericLoanAmount * (feeValue / 100);
-    }
-    
-    // Create a temporary loan object to pass to the calculation function.
-    const tempLoan: LoanDetails = {
-        id: 'temp',
-        loanAmount: numericLoanAmount,
-        serviceFee: serviceFee,
-        disbursedDate,
-        dueDate,
-        repaymentStatus: 'Unpaid',
-        payments: [],
-        productName: product.name,
-        providerName: '',
-        repaidAmount: 0,
-        penaltyAmount: 0,
-    };
-    
-    const { total: totalRepayable } = calculateTotalRepayable(tempLoan, product, dueDate);
 
-    return { serviceFee, disbursedDate, dueDate, totalRepayable, penaltyAmount: 0 };
-  }, [loanAmount, eligibilityResult, product]);
+  useEffect(() => {
+    const calculate = async () => {
+        const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
+        if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) {
+            setCalculationResult(null);
+            return;
+        };
+
+        const disbursedDate = new Date();
+        const duration = product.duration ?? 30;
+        const dueDate = duration === 0 ? endOfDay(disbursedDate) : addDays(disbursedDate, duration);
+        
+        let serviceFee = 0;
+        if (product.serviceFeeEnabled && product.serviceFee && product.serviceFee.value) {
+            const feeValue = typeof product.serviceFee.value === 'string' ? parseFloat(product.serviceFee.value) : (product.serviceFee.value || 0);
+            serviceFee = product.serviceFee.type === 'fixed' 
+                ? feeValue
+                : numericLoanAmount * (feeValue / 100);
+        }
+        
+        const tempLoan: LoanDetails = {
+            id: 'temp',
+            loanAmount: numericLoanAmount,
+            serviceFee: serviceFee,
+            disbursedDate,
+            dueDate,
+            repaymentStatus: 'Unpaid',
+            payments: [],
+            productName: product.name,
+            providerName: '',
+            repaidAmount: 0,
+            penaltyAmount: 0,
+            product: product,
+        };
+        
+        const result = await calculateTotalRepayable(tempLoan, product, dueDate);
+
+        setCalculationResult({
+            ...result,
+            disbursedDate,
+            dueDate,
+            penaltyAmount: 0,
+        });
+    };
+
+    calculate();
+}, [loanAmount, eligibilityResult, product]);
 
   const validateAmount = (amount: number | string) => {
     const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -141,7 +152,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   
   const handleAccept = () => {
     const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
-    if (calculatedTerms && !isNaN(numericLoanAmount)) {
+    if (calculationResult && !isNaN(numericLoanAmount)) {
       if (!validateAmount(numericLoanAmount)) {
         return;
       }
@@ -149,7 +160,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
         loanAmount: numericLoanAmount,
         repaymentStatus: 'Unpaid',
         repaidAmount: 0,
-        ...calculatedTerms,
+        ...calculationResult,
       });
     }
   };
@@ -227,22 +238,29 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
             )}
           </div>
 
-          {calculatedTerms && (
+          {calculationResult && (
              <div className="space-y-2">
                 <div className="space-y-4 text-sm bg-secondary p-4 rounded-lg">
-                    {Number(product.serviceFee?.value) ? (
+                    {Number(product.serviceFee?.value) > 0 && (
                         <div className="flex justify-between items-center">
                           <div className="font-medium">Service Fee</div>
                           <div className="text-right">{formatFee(product.serviceFee)}</div>
                         </div>
-                    ) : null}
+                    )}
                     
-                    {Number(product.dailyFee?.value) ? (
+                    {Number(product.dailyFee?.value) > 0 && (
                          <div className="flex justify-between items-center">
                             <div className="font-medium">Daily Fee</div>
                             <div className="text-right">{formatFee(product.dailyFee)}</div>
                         </div>
-                    ) : null}
+                    )}
+
+                    {calculationResult.tax > 0 && (
+                        <div className="flex justify-between items-center">
+                           <div className="font-medium">Tax</div>
+                           <div className="text-right">{formatCurrency(calculationResult.tax)}</div>
+                       </div>
+                    )}
                     
                     <Collapsible open={isPenaltyDetailsOpen} onOpenChange={setIsPenaltyDetailsOpen}>
                          {product.penaltyRules && product.penaltyRules.length > 0 && (
@@ -268,7 +286,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
                     <span className="text-base font-semibold">Total Repayable Amount on due date</span>
                     <span className="text-2xl font-bold" style={{color: providerColor}}>
-                        {formatCurrency(calculatedTerms.totalRepayable)}
+                        {formatCurrency(calculationResult.total)}
                     </span>
                 </div>
             </div>
