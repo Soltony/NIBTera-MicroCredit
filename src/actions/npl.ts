@@ -9,54 +9,79 @@
 import prisma from '@/lib/prisma';
 import { subDays } from 'date-fns';
 
-const NPL_THRESHOLD_DAYS = 60;
-
 export async function updateNplStatus(): Promise<{ success: boolean; message: string; updatedCount: number }> {
     console.log('Starting NPL status update process...');
     
-    const nplThresholdDate = subDays(new Date(), NPL_THRESHOLD_DAYS);
-
-    // Find all unpaid loans where the due date has passed the NPL threshold
-    const overdueLoans = await prisma.loan.findMany({
-        where: {
-            repaymentStatus: 'Unpaid',
-            disbursedDate: {
-                lt: nplThresholdDate,
-            },
-        },
+    // Get all providers and their NPL thresholds
+    const providers = await prisma.loanProvider.findMany({
         select: {
-            borrowerId: true,
-        },
+            id: true,
+            nplThresholdDays: true,
+            products: {
+                select: {
+                    id: true
+                }
+            }
+        }
     });
 
-    if (overdueLoans.length === 0) {
-        console.log('No new NPL loans found.');
-        return { success: true, message: 'No new NPL loans to process.', updatedCount: 0 };
+    if (providers.length === 0) {
+        console.log('No providers found to process for NPL.');
+        return { success: true, message: 'No providers to process.', updatedCount: 0 };
     }
+
+    let totalUpdatedCount = 0;
     
-    const borrowerIdsToFlag = [...new Set(overdueLoans.map(loan => loan.borrowerId))];
-    
-    try {
-        const { count } = await prisma.borrower.updateMany({
+    for (const provider of providers) {
+        const nplThresholdDate = subDays(new Date(), provider.nplThresholdDays);
+        const productIds = provider.products.map(p => p.id);
+
+        if (productIds.length === 0) continue;
+
+        // Find all unpaid loans for this provider where the due date has passed the NPL threshold
+        const overdueLoans = await prisma.loan.findMany({
             where: {
-                id: {
-                    in: borrowerIdsToFlag,
-                },
-                // Only update those who are not already flagged
-                status: {
-                    not: 'NPL',
+                productId: { in: productIds },
+                repaymentStatus: 'Unpaid',
+                disbursedDate: {
+                    lt: nplThresholdDate,
                 },
             },
-            data: {
-                status: 'NPL',
+            select: {
+                borrowerId: true,
             },
         });
-        
-        console.log(`NPL status update process finished. Updated ${count} borrowers.`);
-        return { success: true, message: `Successfully updated ${count} borrowers to NPL status.`, updatedCount: count };
 
-    } catch (error) {
-        console.error('Failed to update NPL statuses:', error);
-        return { success: false, message: 'An error occurred during the NPL update process.', updatedCount: 0 };
+        if (overdueLoans.length === 0) {
+            continue; // No NPL loans for this provider
+        }
+        
+        const borrowerIdsToFlag = [...new Set(overdueLoans.map(loan => loan.borrowerId))];
+        
+        try {
+            const { count } = await prisma.borrower.updateMany({
+                where: {
+                    id: {
+                        in: borrowerIdsToFlag,
+                    },
+                    status: {
+                        not: 'NPL',
+                    },
+                },
+                data: {
+                    status: 'NPL',
+                },
+            });
+            
+            totalUpdatedCount += count;
+            console.log(`For provider ${provider.id}, updated ${count} borrowers to NPL status.`);
+
+        } catch (error) {
+            console.error(`Failed to update NPL statuses for provider ${provider.id}:`, error);
+            // We continue to the next provider even if one fails
+        }
     }
+
+    console.log(`NPL status update process finished. Updated a total of ${totalUpdatedCount} borrowers.`);
+    return { success: true, message: `Successfully updated a total of ${totalUpdatedCount} borrowers to NPL status.`, updatedCount: totalUpdatedCount };
 }

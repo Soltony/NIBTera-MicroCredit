@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -67,6 +68,7 @@ export interface LoanProvider {
   startingCapital: number;
   initialBalance: number;
   allowCrossProviderLoans: boolean;
+  nplThresholdDays: number;
   ledgerAccounts?: LedgerAccount[];
   termsAndConditions?: TermsAndConditions[];
 }

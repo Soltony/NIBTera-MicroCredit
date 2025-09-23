@@ -121,6 +121,7 @@ async function main() {
       startingCapital: 1000000,
       initialBalance: 1000000,
       allowCrossProviderLoans: false,
+      nplThresholdDays: 60,
     },
   });
   
@@ -187,6 +188,7 @@ async function main() {
       startingCapital: 500000,
       initialBalance: 500000,
       allowCrossProviderLoans: true,
+      nplThresholdDays: 90,
     },
   });
 
