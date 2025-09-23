@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Card,
   CardContent,
@@ -21,8 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2 } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions } from '@/lib/types';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock } from 'lucide-react';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '../ui/textarea';
 import { Skeleton } from '../ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { Badge } from '../ui/badge';
+import { Separator } from '../ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { format } from 'date-fns';
 
 
 // Helper to safely parse JSON fields that might be strings
@@ -69,7 +74,7 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete, allProviderConfigs }: { providerId: string; product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, allProviderConfigs: DataProvisioningConfig[] }) => {
+const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, allProviderConfigs, onConfigChange, onProductConfigChange }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, allProviderConfigs: DataProvisioningConfig[], onConfigChange: (configs: DataProvisioningConfig[]) => void, onProductConfigChange: (productId: string, configId: string | null) => void }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
@@ -99,6 +104,9 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
     
      const handleSelectChange = (name: keyof LoanProduct, value: string) => {
         setFormData(prev => ({...prev, [name]: value }));
+        if (name === 'dataProvisioningConfigId') {
+            onProductConfigChange(product.id, value);
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -123,7 +131,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                  throw new Error(errorData.error || 'Failed to save product settings.');
             }
             const savedProduct = await response.json();
-            onSave(providerId, savedProduct);
+            onSave(provider.id, savedProduct);
             toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -201,7 +209,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                     </div>
                     
                     <div className="space-y-4 border-t pt-6">
-                         <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2">
                             <Switch
                                 id={`dataProvisioningEnabled-${product.id}`}
                                 checked={!!formData.dataProvisioningEnabled}
@@ -212,25 +220,25 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                             <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Use Product-Specific Data</Label>
                         </div>
                         {formData.dataProvisioningEnabled && (
-                            <div className="space-y-2 pl-8">
-                                <Label htmlFor={`dataProvisioningConfigId-${product.id}`}>Data Source</Label>
-                                 <p className="text-xs text-muted-foreground">Select a data type to use exclusively for this product. You can define new data types on the Scoring Engine page.</p>
-                                <Select onValueChange={(value) => handleSelectChange('dataProvisioningConfigId', value)} value={formData.dataProvisioningConfigId || ''}>
-                                    <SelectTrigger id={`dataProvisioningConfigId-${product.id}`}>
-                                        <SelectValue placeholder="Select data source" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {allProviderConfigs.map(config => (
-                                            <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                             <div className="pl-8 space-y-4">
+                                <p className="text-xs text-muted-foreground">Define a specific data schema and upload a borrower list exclusively for this product. This will override the provider-level data for scoring.</p>
+                                <DataProvisioningManager 
+                                    providerId={provider.id}
+                                    config={allProviderConfigs.find(c => c.id === formData.dataProvisioningConfigId)}
+                                    onConfigChange={(newConfig) => {
+                                        // Update the list of all configs for the provider
+                                        const otherConfigs = allProviderConfigs.filter(c => c.id !== newConfig.id);
+                                        onConfigChange([...otherConfigs, newConfig]);
+                                        // Associate the new/updated config with the product
+                                        handleSelectChange('dataProvisioningConfigId', newConfig.id);
+                                    }}
+                                />
                             </div>
                         )}
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
-                        <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                        <Button variant="destructive" type="button" onClick={() => onDelete(provider.id, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                         <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Save Changes
@@ -355,6 +363,18 @@ function ProvidersTab({ providers, onProvidersChange }: {
             }
         }));
     }
+
+    const handleProductConfigChange = (providerId: string, productId: string, configId: string | null) => {
+        onProvidersChange(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                 const productIndex = provider.products.findIndex(p => p.id === productId);
+                if (productIndex !== -1) {
+                    provider.products[productIndex].dataProvisioningConfigId = configId;
+                }
+            }
+        }))
+    }
     
     const confirmDelete = () => {
         if (!deletingId) return;
@@ -410,6 +430,15 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
         return providers.filter(p => p.id === currentUser.providerId);
     }, [providers, currentUser]);
+    
+    const handleConfigChange = useCallback((providerId: string, newConfigs: DataProvisioningConfig[]) => {
+        onProvidersChange(produce(draft => {
+             const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                provider.dataProvisioningConfigs = newConfigs;
+            }
+        }));
+    }, [onProvidersChange]);
 
 
     return (
@@ -456,12 +485,14 @@ function ProvidersTab({ providers, onProvidersChange }: {
                 {(provider.products || []).map(product => (
                   <ProductSettingsForm 
                     key={product.id}
-                    providerId={provider.id}
+                    provider={provider}
                     product={{...product, icon: product.icon || 'PersonStanding'}} 
                     providerColor={provider.colorHex} 
                     onSave={handleSaveProduct}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                     allProviderConfigs={provider.dataProvisioningConfigs || []}
+                    onConfigChange={(newConfigs) => handleConfigChange(provider.id, newConfigs)}
+                    onProductConfigChange={(productId, configId) => handleProductConfigChange(provider.id, productId, configId)}
                   />
                 ))}
                 <Button 
@@ -1189,4 +1220,347 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
             </Tabs>
         </div>
     );
+}
+
+// --------------------------------------------------
+// DATA PROVISIONING MANAGER (NEW COMPONENT)
+// --------------------------------------------------
+function DataProvisioningManager({ providerId, config, onConfigChange }: {
+    providerId: string;
+    config: DataProvisioningConfig | undefined;
+    onConfigChange: (newConfig: DataProvisioningConfig) => void;
+}) {
+    const { toast } = useToast();
+    const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleSaveConfig = async (newConfigData: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
+        const isEditing = !!newConfigData.id;
+        const method = isEditing ? 'PUT' : 'POST';
+        const endpoint = '/api/settings/data-provisioning';
+        const body = { ...newConfigData, providerId: providerId };
+
+        try {
+            const response = await fetch(endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save config.');
+            }
+            const savedConfig = await response.json();
+            
+            onConfigChange(savedConfig);
+            toast({ title: "Success", description: `Data type "${savedConfig.name}" saved successfully.` });
+        } catch(error: any) {
+            toast({ title: "Error", description: error.message, variant: 'destructive' });
+        }
+    };
+    
+    const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!config) return;
+
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('configId', config.id);
+
+            const response = await fetch('/api/settings/data-provisioning-uploads', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to upload file.');
+            }
+            
+            const newUpload = await response.json();
+            
+            const updatedConfig = produce(config, draft => {
+                if (!draft.uploads) draft.uploads = [];
+                draft.uploads.unshift(newUpload);
+            });
+            onConfigChange(updatedConfig);
+
+            toast({
+                title: 'Upload Successful',
+                description: `File "${file.name}" uploaded and recorded successfully.`,
+            });
+
+        } catch (error: any) {
+             toast({
+                title: 'Upload Failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        } finally {
+            setIsUploading(false);
+            if (event.target) event.target.value = '';
+        }
+    };
+
+    if (!config) {
+        return (
+            <>
+                <Button onClick={() => setIsConfigDialogOpen(true)}>
+                    <FilePlus2 className="h-4 w-4 mr-2" /> Create Data Source
+                </Button>
+                <DataProvisioningDialog
+                    isOpen={isConfigDialogOpen}
+                    onClose={() => setIsConfigDialogOpen(false)}
+                    onSave={handleSaveConfig}
+                    config={null}
+                />
+            </>
+        )
+    }
+
+    return (
+        <>
+            <Card className="bg-muted/50">
+                <CardHeader className="flex flex-row justify-between items-center">
+                     <div>
+                        <CardTitle className="text-lg">{config.name}</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsConfigDialogOpen(true)}><Edit className="h-4 w-4" /></Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                   <h4 className="font-medium mb-2">Columns</h4>
+                   <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
+                        {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
+                   </ul>
+                   <Separator />
+                   <div className="mt-4">
+                       <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-medium">Upload History</h4>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isUploading}
+                                onClick={() => fileInputRefs.current?.click()}
+                            >
+                                {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
+                                Upload File
+                            </Button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept=".xlsx, .xls"
+                                onChange={handleExcelUpload}
+                            />
+                       </div>
+                       <div className="border rounded-md">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>File Name</TableHead>
+                                       <TableHead>Rows</TableHead>
+                                       <TableHead>Uploaded By</TableHead>
+                                       <TableHead>Date</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                   {config.uploads && config.uploads.length > 0 ? (
+                                       config.uploads.map(upload => (
+                                            <TableRow key={upload.id}>
+                                                <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
+                                                <TableCell>{upload.rowCount}</TableCell>
+                                                <TableCell>{upload.uploadedBy}</TableCell>
+                                                <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                                            </TableRow>
+                                       ))
+                                   ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
+                                        </TableRow>
+                                   )}
+                               </TableBody>
+                           </Table>
+                       </div>
+                   </div>
+                </CardContent>
+            </Card>
+
+             <DataProvisioningDialog
+                isOpen={isConfigDialogOpen}
+                onClose={() => setIsConfigDialogOpen(false)}
+                onSave={handleSaveConfig}
+                config={config}
+            />
+        </>
+    );
+}
+
+// --------------------------------------------------
+// DATA PROVISIONING DIALOG (NEW COMPONENT)
+// --------------------------------------------------
+type EditableDataColumn = DataColumn & { optionsString?: string };
+
+function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => void;
+    config: DataProvisioningConfig | null;
+}) {
+    const { toast } = useToast();
+    const [name, setName] = useState('');
+    const [columns, setColumns] = useState<EditableDataColumn[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            if (config) {
+                setName(config.name);
+                setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
+            } else {
+                setName('');
+                setColumns([]);
+            }
+        }
+    }, [config, isOpen]);
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
+            
+            setColumns(headers.map((header, index) => ({
+                id: `col-${Date.now()}-${index}`,
+                name: header,
+                type: 'string', // default type
+                isIdentifier: index === 0, // default first column as identifier
+                options: [],
+                optionsString: '',
+            })));
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
+        setColumns(produce(draft => {
+            if (field === 'isIdentifier' && typeof value === 'boolean') {
+                // Ensure only one column can be the identifier
+                draft.forEach((col, i) => {
+                    col.isIdentifier = i === index ? value : false;
+                });
+            } else {
+                 (draft[index] as any)[field] = value;
+            }
+        }));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!columns.some(c => c.isIdentifier)) {
+            toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
+            return;
+        }
+
+        // Process the final columns array before saving
+        const finalColumns = columns.map(col => {
+            const { optionsString, ...rest } = col;
+            const finalOptions = optionsString ? optionsString.split(',').map(s => s.trim()).filter(Boolean) : [];
+            return { ...rest, options: finalOptions };
+        });
+
+        onSave({ id: config?.id, name, columns: finalColumns });
+        onClose();
+    };
+
+    return (
+         <UIDialog open={isOpen} onOpenChange={onClose}>
+            <UIDialogContent className="sm:max-w-2xl">
+                <UIDialogHeader>
+                    <UIDialogTitle>{config ? 'Edit' : 'Create'} Data Type</UIDialogTitle>
+                     <UIDialogDescription>Define a new data schema by uploading a sample file.</UIDialogDescription>
+                </UIDialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    <div>
+                        <Label htmlFor="data-type-name">Data Type Name</Label>
+                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="file-upload">Upload Sample File (.xlsx, .xls)</Label>
+                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                         <p className="text-xs text-muted-foreground mt-1">Upload a file to automatically detect columns.</p>
+                    </div>
+
+                    {columns.length > 0 && (
+                        <div>
+                            <Label>Configure Columns</Label>
+                            <div className="space-y-4 mt-2 border p-4 rounded-md max-h-[50vh] overflow-y-auto">
+                                {columns.map((col, index) => (
+                                    <div key={col.id} className="space-y-2 p-2 rounded-md bg-muted/50">
+                                        <div className="grid grid-cols-12 items-center gap-2">
+                                            <Input
+                                                className="col-span-5"
+                                                value={col.name}
+                                                onChange={e => handleColumnChange(index, 'name', e.target.value)}
+                                                required
+                                            />
+                                            <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="string">Text</SelectItem>
+                                                    <SelectItem value="number">Number</SelectItem>
+                                                    <SelectItem value="date">Date</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                             <div className="col-span-4 flex items-center justify-end space-x-2">
+                                                <Checkbox
+                                                    id={`is-identifier-${col.id}`}
+                                                    checked={col.isIdentifier}
+                                                    onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                                />
+                                                <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                            </div>
+                                        </div>
+                                         {col.type === 'string' && (
+                                            <div className="space-y-1">
+                                                <Label htmlFor={`options-${col.id}`} className="text-xs text-muted-foreground">Dropdown Options (optional)</Label>
+                                                <Textarea
+                                                    id={`options-${col.id}`}
+                                                    placeholder="e.g., Male, Female, Other"
+                                                    className="text-xs"
+                                                    value={col.optionsString || ''}
+                                                    onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
+                                                />
+                                                <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <UIDialogFooter>
+                        <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
+                        <Button type="submit">Save</Button>
+                    </UIDialogFooter>
+                </form>
+            </UIDialogContent>
+        </UIDialog>
+    )
 }
