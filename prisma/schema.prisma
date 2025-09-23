@@ -143,39 +143,10 @@ model LoanApplication {
     productId           String
     product             LoanProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     loanAmount          Float?
-    status              String      @default("APPROVED") // APPROVED, DISBURSED, PENDING_REVIEW, NEEDS_REVISION
-    rejectionReason     String?     @db.Text
+    status              String      @default("APPROVED") // APPROVED, DISBURSED
     loan                Loan?
-    uploadedDocuments   UploadedDocument[]
     createdAt           DateTime    @default(now())
     updatedAt           DateTime    @updatedAt
-}
-
-model RequiredDocument {
-    id                  String      @id @default(cuid())
-    productId           String
-    product             LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-    name                String
-    description         String?
-    uploadedDocuments   UploadedDocument[]
-
-    @@unique([productId, name])
-}
-
-model UploadedDocument {
-    id                  String      @id @default(cuid())
-    loanApplicationId   String
-    loanApplication     LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
-    requiredDocumentId  String
-    requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id], onDelete: Cascade)
-    fileName            String
-    fileType            String
-    fileContent         String      @db.Text // In a real app, this would be a URL to S3/GCS
-    status              String      @default("PENDING") // PENDING, APPROVED, REJECTED
-    createdAt           DateTime    @default(now())
-    updatedAt           DateTime    @updatedAt
-
-    @@unique([loanApplicationId, requiredDocumentId])
 }
 
 
@@ -278,7 +249,7 @@ model LedgerAccount {
     provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
     name        String
     type        String // Receivable, Received, Income
-    category    String // Principal, Interest, ServiceFee, Penalty, Tax
+    category    String // Principal, Interest, ServiceFee, Penalty
     balance     Float @default(0)
     entries     LedgerEntry[]
 
@@ -340,11 +311,9 @@ model BorrowerAgreement {
 // --------------------------------------
 
 model Tax {
-  id          String   @id @default(cuid())
-  rate        Float    @default(0)
-  // JSON array of strings: "serviceFee", "interest", "penalty"
-  appliedTo   String   @default("[]")
-  updatedAt   DateTime @updatedAt
+  id        String  @id @default(cuid())
+  rate      Float   @default(0)
+  appliedTo String  // JSON string: e.g., ["serviceFee", "interest", "penalty"]
 }
 
 

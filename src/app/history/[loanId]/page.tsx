@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import type { LoanDetails } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { LoanDetailClient } from './client';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,16 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
         });
 
         if (!loan) return null;
+        
+        const parsedProduct = {
+            ...loan.product,
+            serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
+            dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
+            penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
+        };
+
+        // Here we perform the calculation on the server side
+        const calculated = await calculateTotalRepayable(loan as any, parsedProduct, new Date());
 
         return {
             id: loan.id,
@@ -51,21 +62,16 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
             repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
             repaidAmount: loan.repaidAmount || 0,
             penaltyAmount: loan.penaltyAmount,
-            product: {
-              ...loan.product,
-              id: loan.product.id,
-              providerId: loan.product.providerId,
-              serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
-              dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
-              penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
-            },
+            product: parsedProduct,
             payments: loan.payments.map(p => ({
                 id: p.id,
                 amount: p.amount,
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
-            }))
-        } as LoanDetails;
+            })),
+            // Pass the calculated values to the client
+            calculatedRepayment: calculated
+        } as unknown as LoanDetails;
 
     } catch(e) {
         console.error(e);
