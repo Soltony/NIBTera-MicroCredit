@@ -1185,7 +1185,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
                         </Table>
                     )}
                 </div>
-                <DialogFooter className="justify-between items-center">
+                <DialogFooter className="justify-between items-center pt-4">
                     <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
