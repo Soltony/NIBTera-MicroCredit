@@ -1,7 +1,7 @@
 
 import { Suspense } from 'react';
 import prisma from '@/lib/prisma';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import type { LoanDetails } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { LoanDetailClient } from './client';
