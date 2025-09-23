@@ -45,6 +45,11 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
   const handleBack = () => {
     router.push(`/loan?${searchParams.toString()}`)
   }
+  
+  const handleViewDetails = (loanId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    router.push(`/history/${loanId}?${params.toString()}`);
+  }
 
   const { activeLoans, closedLoans } = useMemo(() => {
     const active = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
@@ -156,19 +161,10 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
               <p className="text-xs text-muted-foreground">{loan.id}</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleToggleExpand(loan.id)}>View</Button>
+              <Button variant="outline" size="sm" onClick={() => handleViewDetails(loan.id)}>View</Button>
               {loan.repaymentStatus === 'Unpaid' && <Button size="sm" style={{backgroundColor: color}} className="text-white" onClick={() => handleRepay(loan)}>Repay</Button>}
             </div>
           </div>
-          {expandedLoan === loan.id && (
-             <div className="mt-4 pt-4 border-t space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Original Amount:</span> <span className="font-medium">{formatCurrency(loan.loanAmount)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Disbursed Date:</span> <span className="font-medium">{format(new Date(loan.disbursedDate), 'PPP')}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Due Date:</span> <span className="font-medium">{format(new Date(loan.dueDate), 'PPP')}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Total Repaid:</span> <span className="font-medium">{formatCurrency(loan.repaidAmount)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Current Balance:</span> <span className="font-medium">{formatCurrency(balanceDue)}</span></div>
-             </div>
-          )}
         </CardContent>
       </Card>
     );
@@ -252,3 +248,5 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
     </div>
   );
 }
+
+    
