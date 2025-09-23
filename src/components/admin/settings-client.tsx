@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -22,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2 } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, RequiredDocument } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -69,7 +67,7 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete, onUpdateRequiredDocs }: { providerId: string; product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, onUpdateRequiredDocs: (productId: string, docs: RequiredDocument[]) => void; }) => {
+const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDelete }: { providerId: string; product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
@@ -134,7 +132,6 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
                         <h4 className="text-sm font-semibold">{product.name}</h4>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{product.productType}</span>
                     </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                 </button>
@@ -196,14 +193,6 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                             />
                         </div>
                     </div>
-
-                    {product.productType === 'SME' && (
-                        <RequiredDocumentsForm 
-                            product={product} 
-                            onUpdate={onUpdateRequiredDocs}
-                            providerColor={providerColor}
-                        />
-                    )}
 
                     <div className="flex items-center space-x-2 justify-end">
                         <Button variant="destructive" type="button" onClick={() => onDelete(providerId, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
@@ -379,19 +368,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
     }
-    
-    const handleUpdateRequiredDocs = (productId: string, docs: RequiredDocument[]) => {
-        onProvidersChange(produce(draft => {
-            for (const provider of draft) {
-                const product = provider.products.find(p => p.id === productId);
-                if (product) {
-                    product.requiredDocuments = docs;
-                    break;
-                }
-            }
-        }));
-    }
-
 
     const visibleProviders = useMemo(() => {
         if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
@@ -450,7 +426,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     providerColor={provider.colorHex} 
                     onSave={handleSaveProduct}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                    onUpdateRequiredDocs={handleUpdateRequiredDocs}
                   />
                 ))}
                 <Button 
@@ -496,6 +471,8 @@ function ProvidersTab({ providers, onProvidersChange }: {
     </>
     );
 }
+
+type DailyFeeRule = FeeRule & { calculationBase?: 'principal' | 'compound' };
 
 const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
     return (
@@ -1108,197 +1085,6 @@ function ConfigurationTab({ providers, onProductUpdate }: {
     );
 }
 
-function RequiredDocumentsForm({ product, onUpdate, providerColor }: { 
-    product: LoanProduct, 
-    onUpdate: (productId: string, docs: RequiredDocument[]) => void, 
-    providerColor?: string 
-}) {
-    const docs = product.requiredDocuments || [];
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingDoc, setEditingDoc] = useState<Partial<RequiredDocument> | null>(null);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        const fetchDocs = async () => {
-            setIsLoading(true);
-            try {
-                const response = await fetch(`/api/settings/required-documents?productId=${product.id}`);
-                if (!response.ok) throw new Error("Failed to load documents.");
-                const data = await response.json();
-                onUpdate(product.id, data);
-            } catch (error: any) {
-                toast({ title: "Error", description: error.message, variant: "destructive" });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        
-        // Only fetch if docs are not already populated
-        if (!product.requiredDocuments) {
-            fetchDocs();
-        } else {
-            setIsLoading(false);
-        }
-    }, [product.id, product.requiredDocuments, onUpdate, toast]);
-    
-    const handleSave = async (docData: Partial<RequiredDocument>) => {
-        setIsSaving(true);
-        try {
-            const isEditing = !!docData.id;
-            const method = isEditing ? 'PUT' : 'POST';
-            const body = JSON.stringify({ ...docData, productId: product.id });
-            
-            const response = await fetch('/api/settings/required-documents', {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body,
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to save document.`);
-            }
-            const savedDoc = await response.json();
-            
-            const newDocs = isEditing 
-                ? docs.map(d => d.id === savedDoc.id ? savedDoc : d)
-                : [...docs, savedDoc];
-                
-            onUpdate(product.id, newDocs);
-            toast({ title: "Success", description: "Document requirement saved." });
-
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
-        } finally {
-            setIsSaving(false);
-            setIsDialogOpen(false);
-            setEditingDoc(null);
-        }
-    };
-    
-    const handleDelete = async (docId: string) => {
-        try {
-            const response = await fetch(`/api/settings/required-documents?id=${docId}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to delete document.`);
-            }
-            const newDocs = docs.filter(d => d.id !== docId);
-            onUpdate(product.id, newDocs);
-            toast({ title: "Success", description: "Document requirement deleted." });
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
-        }
-    };
-
-    return (
-        <Card className="bg-muted/50">
-            <CardHeader>
-                <CardTitle className="text-base">Required Documents</CardTitle>
-                <CardDescription className="text-xs">Manage the documents borrowers must upload for this SME loan.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? <p>Loading...</p> : (
-                    <div className="space-y-2">
-                        {docs.map(doc => (
-                            <div key={doc.id} className="flex items-center justify-between p-2 bg-background rounded-md border">
-                                <div>
-                                    <p className="font-medium">{doc.name}</p>
-                                    <p className="text-sm text-muted-foreground">{doc.description}</p>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingDoc(doc); setIsDialogOpen(true); }}>
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(doc.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                         {docs.length === 0 && (
-                            <p className="text-center text-sm text-muted-foreground py-4">No documents required for this product yet.</p>
-                        )}
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter>
-                <Button variant="outline" size="sm" onClick={() => { setEditingDoc(null); setIsDialogOpen(true); }}>
-                    <FilePlus2 className="h-4 w-4 mr-2" /> Add Document
-                </Button>
-            </CardFooter>
-            
-            <RequiredDocumentDialog
-                isOpen={isDialogOpen}
-                onClose={() => setIsDialogOpen(false)}
-                onSave={handleSave}
-                doc={editingDoc}
-                isSaving={isSaving}
-                primaryColor={providerColor}
-            />
-        </Card>
-    );
-}
-
-function RequiredDocumentDialog({isOpen, onClose, onSave, doc, isSaving, primaryColor}: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: Partial<RequiredDocument>) => void;
-    doc: Partial<RequiredDocument> | null;
-    isSaving: boolean;
-    primaryColor?: string;
-}) {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    
-    useEffect(() => {
-        if (doc) {
-            setName(doc.name || '');
-            setDescription(doc.description || '');
-        } else {
-            setName('');
-            setDescription('');
-        }
-    }, [doc, isOpen]);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSave({ ...doc, name, description });
-    };
-
-    return (
-        <UIDialog open={isOpen} onOpenChange={onClose}>
-            <UIDialogContent>
-                <UIDialogHeader>
-                    <UIDialogTitle>{doc ? 'Edit' : 'Add'} Required Document</UIDialogTitle>
-                    <UIDialogDescription>Define a document that borrowers must upload.</UIDialogDescription>
-                </UIDialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="doc-name">Document Name</Label>
-                        <Input id="doc-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Business Registration" required />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="doc-desc">Description (Optional)</Label>
-                        <Textarea id="doc-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., Must be a valid, up-to-date certificate." />
-                    </div>
-                    <UIDialogFooter>
-                        <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
-                        <Button type="submit" disabled={isSaving} style={{ backgroundColor: primaryColor }} className="text-white">
-                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                            Save
-                        </Button>
-                    </UIDialogFooter>
-                </form>
-            </UIDialogContent>
-        </UIDialog>
-    )
-}
-
 export function SettingsClient({ initialProviders }: { initialProviders: LoanProvider[]}) {
     const [providers, setProviders] = useState(initialProviders);
 
@@ -1368,15 +1154,3 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
         </div>
     );
 }
-
-    
-
-
-
-
-
-
-
-
-
-

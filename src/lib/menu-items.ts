@@ -1,4 +1,3 @@
-
 import {
   LayoutDashboard,
   Settings,
@@ -6,7 +5,6 @@ import {
   ShieldCheck,
   FileCog,
   BadgeAlert,
-  FileCheck,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -15,12 +13,6 @@ export const allMenuItems = [
     label: 'Dashboard',
     icon: LayoutDashboard,
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
-  },
-  {
-    path: '/admin/applications',
-    label: 'Applications',
-    icon: FileCheck,
-    roles: ['Super Admin', 'Loan Manager', 'Application Reviewer'],
   },
   {
     path: '/admin/reports',

@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
@@ -32,36 +31,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Borrower not found' }, { status: 404 });
         }
 
-        // --- FIX: Check for an existing pending or revision-needed application FOR THIS BORROWER ---
-        const existingApplication = await prisma.loanApplication.findFirst({
-            where: {
-                borrowerId,
-                productId,
-                status: { in: ['PENDING_DOCUMENTS', 'NEEDS_REVISION'] },
-            }
-        });
-        
-        if (existingApplication) {
-            // If an application already exists, update it and return it.
-            // This is useful if they go back and change the loan amount.
-            const updatedApplication = await prisma.loanApplication.update({
-                where: { id: existingApplication.id },
-                data: {
-                    loanAmount: loanAmount, // Update the amount from the calculator
-                }
-            });
-             return NextResponse.json(updatedApplication, { status: 200 });
-        }
-        // --- END FIX ---
-
-
         // If no reusable application is found, create a new one.
         const newApplication = await prisma.loanApplication.create({
             data: {
                 borrower: { connect: { id: borrowerId } },
                 product: { connect: { id: productId } },
                 loanAmount: loanAmount, // Save the requested loan amount
-                status: product.productType === 'SME' ? 'PENDING_DOCUMENTS' : 'APPROVED',
+                status: 'APPROVED',
             }
         });
 

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React from 'react';
@@ -200,46 +198,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         }
 
         const params = new URLSearchParams(searchParams.toString());
-
-        if (product.productType === 'SME') {
-            try {
-                const response = await fetch('/api/applications', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ borrowerId, productId: product.id }),
-                });
-
-                if (!response.ok) {
-                    let errorText;
-                    try {
-                        const errorJson = await response.json();
-                        errorText = errorJson.error || 'Failed to create loan application.';
-                    } catch (e) {
-                        errorText = await response.text();
-                    }
-                    throw new Error(errorText);
-                }
-
-                const application = await response.json();
-                params.set('applicationId', application.id);
-                router.push(`/apply/upload?${params.toString()}`);
-
-            } catch (error: any) {
-                toast({
-                    title: 'Application Error',
-                    description: error.message,
-                    variant: 'destructive'
-                });
-            }
-        } else {
-            // Personal Loan Flow
-            params.set('providerId', selectedProviderId);
-            params.set('product', product.id);
-            const productLimit = eligibility.limits[product.id] ?? 0;
-            const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-            params.set('max', String(trueMaxLoan));
-            router.push(`/apply?${params.toString()}`);
-        }
+        // Personal Loan Flow
+        params.set('providerId', selectedProviderId);
+        params.set('product', product.id);
+        const productLimit = eligibility.limits[product.id] ?? 0;
+        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+        params.set('max', String(trueMaxLoan));
+        router.push(`/apply?${params.toString()}`);
     }
   
    const handleProviderSelect = (providerId: string) => {
@@ -469,5 +434,3 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
-
-    

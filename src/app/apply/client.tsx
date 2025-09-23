@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -50,68 +49,42 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         }
 
         try {
-            // Check the product type to determine the next action
-            if (selectedProduct.productType === 'SME') {
-                // SME Flow: Create an application and redirect to upload page
-                const response = await fetch('/api/applications', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        borrowerId,
-                        productId: selectedProduct.id,
-                        loanAmount: details.loanAmount, // Pass the amount from the calculator
-                    }),
-                });
+            // Personal Loan Flow: Disburse the loan directly
+            const finalDetails = {
+                borrowerId,
+                productId: selectedProduct.id,
+                loanAmount: details.loanAmount,
+                disbursedDate: details.disbursedDate,
+                dueDate: details.dueDate,
+            };
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to create loan application.');
-                }
-                
-                const application = await response.json();
-                const params = new URLSearchParams(searchParams.toString());
-                params.set('applicationId', application.id);
-                params.delete('product'); // Clean up params for the next page
-                router.push(`/apply/upload?${params.toString()}`);
-                
-            } else {
-                // Personal Loan Flow: Disburse the loan directly
-                const finalDetails = {
-                    borrowerId,
-                    productId: selectedProduct.id,
-                    loanAmount: details.loanAmount,
-                    disbursedDate: details.disbursedDate,
-                    dueDate: details.dueDate,
-                };
+            const response = await fetch('/api/loans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(finalDetails),
+            });
 
-                const response = await fetch('/api/loans', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finalDetails),
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to save the loan.');
-                }
-                
-                const savedLoan = await response.json();
-
-                const displayLoan: LoanDetails = {
-                    ...savedLoan,
-                    providerName: provider.name,
-                    productName: selectedProduct.name,
-                    disbursedDate: new Date(savedLoan.disbursedDate),
-                    dueDate: new Date(savedLoan.dueDate),
-                    payments: [],
-                }
-                setLoanDetails(displayLoan);
-                setStep('details');
-                    toast({
-                    title: 'Success!',
-                    description: 'Your loan has been successfully disbursed.',
-                });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save the loan.');
             }
+            
+            const savedLoan = await response.json();
+
+            const displayLoan: LoanDetails = {
+                ...savedLoan,
+                providerName: provider.name,
+                productName: selectedProduct.name,
+                disbursedDate: new Date(savedLoan.disbursedDate),
+                dueDate: new Date(savedLoan.dueDate),
+                payments: [],
+            }
+            setLoanDetails(displayLoan);
+            setStep('details');
+                toast({
+                title: 'Success!',
+                description: 'Your loan has been successfully disbursed.',
+            });
 
         } catch (error: any) {
             toast({

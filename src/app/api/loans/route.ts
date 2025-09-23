@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -120,99 +119,6 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
     });
 }
 
-
-export async function handleSmeLoan(data: z.infer<typeof loanCreationSchema>) {
-    if (!data.loanApplicationId) {
-        throw new Error('SME loan disbursement requires a valid Loan Application ID.');
-    }
-
-    return await prisma.$transaction(async (tx) => {
-        // Find the application within the transaction
-        const application = await tx.loanApplication.findUnique({
-             where: { id: data.loanApplicationId },
-             include: { product: { include: { provider: { include: { ledgerAccounts: true }}}}}
-        });
-
-        if (!application) {
-            throw new Error('Loan Application not found.');
-        }
-
-        const product = application.product;
-        const provider = product.provider;
-
-        // --- NEW: Check provider balance before disbursement ---
-        if (provider.initialBalance < data.loanAmount) {
-            throw new Error(`Insufficient provider funds. Available: ${provider.initialBalance}, Requested: ${data.loanAmount}`);
-        }
-        // --- END NEW ---
-
-        // Update the application to APPROVED first
-        await tx.loanApplication.update({
-            where: { id: data.loanApplicationId },
-            data: { status: 'APPROVED' },
-        });
-
-        const tempLoanForCalc = {
-            id: 'temp',
-            loanAmount: data.loanAmount,
-            disbursedDate: new Date(data.disbursedDate),
-            dueDate: new Date(data.dueDate),
-            serviceFee: 0,
-            repaymentStatus: 'Unpaid' as const,
-            payments: [],
-            productName: product.name,
-            providerName: provider.name,
-            repaidAmount: 0,
-            penaltyAmount: 0,
-            product: product as any,
-        };
-        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
-
-        // Ledger Account Checks
-        const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
-        if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
-        
-        const createdLoan = await tx.loan.create({
-            data: {
-                borrowerId: data.borrowerId,
-                productId: data.productId,
-                loanAmount: data.loanAmount,
-                disbursedDate: data.disbursedDate,
-                dueDate: data.dueDate,
-                serviceFee: calculatedServiceFee,
-                penaltyAmount: 0,
-                repaymentStatus: 'Unpaid',
-                repaidAmount: 0,
-                loanApplicationId: data.loanApplicationId!,
-            }
-        });
-        
-        // Update the application status to DISBURSED
-        await tx.loanApplication.update({
-            where: { id: data.loanApplicationId },
-            data: {
-                status: 'DISBURSED',
-            }
-        });
-
-        // Journal Entry and Ledger updates...
-        const journalEntry = await tx.journalEntry.create({
-            data: {
-                providerId: provider.id,
-                loanId: createdLoan.id,
-                date: new Date(data.disbursedDate),
-                description: `SME Loan disbursement for ${product.name} to borrower ${data.borrowerId}`,
-            }
-        });
-        await tx.ledgerEntry.create({ data: { journalEntryId: journalEntry.id, ledgerAccountId: principalReceivableAccount.id, type: 'Debit', amount: data.loanAmount }});
-        await tx.ledgerAccount.update({ where: { id: principalReceivableAccount.id }, data: { balance: { increment: data.loanAmount } } });
-        await tx.loanProvider.update({ where: { id: provider.id }, data: { initialBalance: { decrement: data.loanAmount } } });
-
-        return createdLoan;
-    });
-}
-
-
 export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
     try {
@@ -243,12 +149,7 @@ export async function POST(req: NextRequest) {
         }
         // --- END OF VALIDATION ---
 
-        let newLoan;
-        if (product.productType === 'SME') {
-            throw new Error('SME loans must be disbursed through the admin approval workflow.');
-        } else {
-            newLoan = await handlePersonalLoan(data);
-        }
+        const newLoan = await handlePersonalLoan(data);
 
         const successLogDetails = {
             loanId: newLoan.id,
