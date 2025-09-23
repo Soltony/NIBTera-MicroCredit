@@ -59,6 +59,7 @@ import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { format } from 'date-fns';
+import { Checkbox } from '../ui/checkbox';
 
 
 // Helper to safely parse JSON fields that might be strings
@@ -1348,7 +1349,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
                                 variant="outline"
                                 size="sm"
                                 disabled={isUploading}
-                                onClick={() => fileInputRefs.current?.click()}
+                                onClick={() => fileInputRef.current?.click()}
                             >
                                 {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
                                 Upload File
@@ -1564,3 +1565,4 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
         </UIDialog>
     )
 }
+
