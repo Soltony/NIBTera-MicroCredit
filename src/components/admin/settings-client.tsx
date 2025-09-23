@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -213,6 +214,7 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                         {formData.dataProvisioningEnabled && (
                             <div className="space-y-2 pl-8">
                                 <Label htmlFor={`dataProvisioningConfigId-${product.id}`}>Data Source</Label>
+                                 <p className="text-xs text-muted-foreground">Select a data type to use exclusively for this product. You can define new data types on the Scoring Engine page.</p>
                                 <Select onValueChange={(value) => handleSelectChange('dataProvisioningConfigId', value)} value={formData.dataProvisioningConfigId || ''}>
                                     <SelectTrigger id={`dataProvisioningConfigId-${product.id}`}>
                                         <SelectValue placeholder="Select data source" />
@@ -223,7 +225,6 @@ const ProductSettingsForm = ({ providerId, product, providerColor, onSave, onDel
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                 <p className="text-xs text-muted-foreground">Select a data type from the Scoring Engine page.</p>
                             </div>
                         )}
                     </div>
