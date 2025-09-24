@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -270,6 +271,7 @@ interface LedgerData {
     interest: number;
     serviceFee: number;
     penalty: number;
+    tax: number;
 }
 
 interface IncomeData {

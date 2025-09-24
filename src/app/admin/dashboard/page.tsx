@@ -1,4 +1,5 @@
 
+
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import prisma from '@/lib/prisma';
 import type { LoanProvider, LedgerAccount, DashboardData } from '@/lib/types';
@@ -53,6 +54,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         interest: aggregateLedgerBalance('Receivable', 'Interest'),
         serviceFee: aggregateLedgerBalance('Receivable', 'ServiceFee'),
         penalty: aggregateLedgerBalance('Receivable', 'Penalty'),
+        tax: aggregateLedgerBalance('Receivable', 'Tax'),
     };
     
     const collections = {
@@ -60,6 +62,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         interest: aggregateLedgerBalance('Received', 'Interest'),
         serviceFee: aggregateLedgerBalance('Received', 'ServiceFee'),
         penalty: aggregateLedgerBalance('Received', 'Penalty'),
+        tax: aggregateLedgerBalance('Received', 'Tax'),
     };
 
     const income = {

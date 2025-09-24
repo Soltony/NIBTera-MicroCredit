@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useMemo } from 'react';
@@ -46,6 +47,7 @@ interface LedgerData {
     interest: number;
     serviceFee: number;
     penalty: number;
+    tax: number;
 }
 
 interface IncomeData {
@@ -271,12 +273,14 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
                             <LedgerDetailRow title="Interest Receivable" value={receivables.interest} />
                             <LedgerDetailRow title="Service Fee Receivable" value={receivables.serviceFee} />
                             <LedgerDetailRow title="Penalty Receivable" value={receivables.penalty} />
+                            <LedgerDetailRow title="Tax Receivable" value={receivables.tax} />
                         </TabsContent>
                          <TabsContent value="collections" className="mt-4">
                             <LedgerDetailRow title="Principal Received" value={collections.principal} />
                             <LedgerDetailRow title="Interest Received" value={collections.interest} />
                             <LedgerDetailRow title="Service Fee Received" value={collections.serviceFee} />
                             <LedgerDetailRow title="Penalty Received" value={collections.penalty} />
+                            <LedgerDetailRow title="Tax Received" value={collections.tax} />
                         </TabsContent>
                     </Tabs>
                 </CardContent>
