@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider } from '@/lib/types';
+import type { LoanDetails, LoanProvider, Tax } from '@/lib/types';
 import { format } from 'date-fns';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,9 +24,10 @@ const formatCurrency = (amount: number | null | undefined) => {
 interface HistoryClientProps {
   initialLoanHistory: LoanDetails[];
   providers: LoanProvider[];
+  taxConfig: Tax | null;
 }
 
-export function HistoryClient({ initialLoanHistory, providers }: HistoryClientProps) {
+export function HistoryClient({ initialLoanHistory, providers, taxConfig }: HistoryClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -45,6 +46,11 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
   const handleBack = () => {
     router.push(`/loan?${searchParams.toString()}`)
   }
+  
+  const handleViewDetails = (loanId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    router.push(`/history/${loanId}?${params.toString()}`);
+  }
 
   const { activeLoans, closedLoans } = useMemo(() => {
     const active = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
@@ -54,10 +60,10 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
 
   const totalOutstanding = useMemo(() => {
     return activeLoans.reduce((acc, loan) => {
-      const balance = calculateTotalRepayable(loan, loan.product, new Date());
+      const balance = calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
       return acc + Math.max(0, balance.total - (loan.repaidAmount || 0));
     }, 0);
-  }, [activeLoans]);
+  }, [activeLoans, taxConfig]);
   
   const totalCreditAmount = useMemo(() => {
     return loanHistory.reduce((acc, loan) => acc + loan.loanAmount, 0);
@@ -83,7 +89,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
 
 
   const handleRepay = (loan: LoanDetails) => {
-    const balanceDue = calculateTotalRepayable(loan, loan.product, new Date()).total - (loan.repaidAmount || 0);
+    const balanceDue = calculateTotalRepayable(loan, loan.product, taxConfig, new Date()).total - (loan.repaidAmount || 0);
     setRepayingLoanInfo({ loan, balanceDue: Math.max(0, balanceDue) });
     setIsRepayDialogOpen(true);
   }
@@ -138,7 +144,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
 
 
   const renderLoanCard = (loan: LoanDetails) => {
-    const balanceDue = calculateTotalRepayable(loan, loan.product, new Date()).total - (loan.repaidAmount || 0);
+    const balanceDue = calculateTotalRepayable(loan, loan.product, taxConfig, new Date()).total - (loan.repaidAmount || 0);
     const provider = providers.find(p => p.id === loan.product.providerId);
     const color = provider?.colorHex || '#fdb913';
 
@@ -156,19 +162,10 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
               <p className="text-xs text-muted-foreground">{loan.id}</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleToggleExpand(loan.id)}>View</Button>
+              <Button variant="outline" size="sm" onClick={() => handleViewDetails(loan.id)}>View</Button>
               {loan.repaymentStatus === 'Unpaid' && <Button size="sm" style={{backgroundColor: color}} className="text-white" onClick={() => handleRepay(loan)}>Repay</Button>}
             </div>
           </div>
-          {expandedLoan === loan.id && (
-             <div className="mt-4 pt-4 border-t space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Original Amount:</span> <span className="font-medium">{formatCurrency(loan.loanAmount)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Disbursed Date:</span> <span className="font-medium">{format(new Date(loan.disbursedDate), 'PPP')}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Due Date:</span> <span className="font-medium">{format(new Date(loan.dueDate), 'PPP')}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Total Repaid:</span> <span className="font-medium">{formatCurrency(loan.repaidAmount)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Current Balance:</span> <span className="font-medium">{formatCurrency(balanceDue)}</span></div>
-             </div>
-          )}
         </CardContent>
       </Card>
     );
@@ -247,6 +244,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                 loan={repayingLoanInfo.loan}
                 totalBalanceDue={repayingLoanInfo.balanceDue}
                 providerColor={providers.find(p => p.id === repayingLoanInfo.loan.product.providerId)?.colorHex}
+                taxConfig={taxConfig}
             />
         )}
     </div>

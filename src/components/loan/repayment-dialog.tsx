@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { LoanDetails, LoanProduct } from '@/lib/types';
+import type { LoanDetails, LoanProduct, Tax } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Delete } from 'lucide-react';
@@ -21,9 +21,10 @@ interface RepaymentDialogProps {
     loan: LoanDetails;
     totalBalanceDue: number;
     providerColor?: string;
+    taxConfig: Tax | null;
 }
 
-export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913' }: RepaymentDialogProps) {
+export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913', taxConfig }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
 
@@ -77,8 +78,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     
     const breakdown = useMemo(() => {
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0 };
-        return calculateTotalRepayable(loan, loan.product, new Date());
-    }, [loan]);
+        return calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
+    }, [loan, taxConfig]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

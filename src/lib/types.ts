@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -55,28 +56,6 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
-export interface RequiredDocument {
-    id: string;
-    productId: string;
-    name: string;
-    description: string | null;
-}
-
-export interface UploadedDocument {
-    id: string;
-    loanApplicationId: string;
-    requiredDocumentId: string;
-    fileName: string;
-    fileType: string;
-    fileContent?: string; // Not always needed on client
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    reviewComment: string | null;
-    uploadedAt: Date;
-    // For client-side display
-    requiredDocument?: RequiredDocument;
-}
-
-
 export interface LoanProvider {
   id: string;
   name: string;
@@ -90,6 +69,7 @@ export interface LoanProvider {
   startingCapital: number;
   initialBalance: number;
   allowCrossProviderLoans: boolean;
+  nplThresholdDays: number;
   ledgerAccounts?: LedgerAccount[];
   termsAndConditions?: TermsAndConditions[];
 }
@@ -98,7 +78,6 @@ export interface LoanProduct {
   id:string;
   providerId: string;
   name: string;
-  productType: 'PERSONAL' | 'SME';
   description: string;
   icon: string;
   minLoan?: number;
@@ -117,7 +96,8 @@ export interface LoanProduct {
   dataProvisioningEnabled?: boolean;
   dataProvisioningConfigId?: string | null;
   dataProvisioningConfig?: DataProvisioningConfig;
-  requiredDocuments?: RequiredDocument[];
+  requiredDocuments: RequiredDocument[];
+  tax?: number;
 }
 
 export interface LoanApplication {
@@ -127,11 +107,26 @@ export interface LoanApplication {
     productId: string;
     product: LoanProduct;
     loanAmount: number | null;
-    status: 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED' | 'DISBURSED';
-    uploadedDocuments: UploadedDocument[];
+    status: 'APPROVED' | 'DISBURSED' | 'PENDING_REVIEW' | 'NEEDS_REVISION';
     rejectionReason?: string | null;
     createdAt: Date;
     updatedAt: Date;
+    uploadedDocuments: UploadedDocument[];
+}
+
+export interface RequiredDocument {
+    id: string;
+    name: string;
+    description: string | null;
+}
+
+export interface UploadedDocument {
+    id: string;
+    requiredDocumentId: string;
+    requiredDocument?: RequiredDocument;
+    fileName: string;
+    fileType: string;
+    fileContent: string;
 }
 
 
@@ -266,7 +261,7 @@ export interface LedgerAccount {
     providerId: string;
     name: string;
     type: 'Receivable' | 'Received' | 'Income';
-    category: 'Principal' | 'Interest' | 'Penalty' | 'ServiceFee';
+    category: 'Principal' | 'Interest' | 'Penalty' | 'ServiceFee' | 'Tax';
     balance: number;
 }
 
@@ -276,6 +271,7 @@ interface LedgerData {
     interest: number;
     serviceFee: number;
     penalty: number;
+    tax: number;
 }
 
 interface IncomeData {
@@ -377,6 +373,7 @@ export type CollectionsReportData = {
     interest: number;
     serviceFee: number;
     penalty: number;
+    tax: number;
     total: number;
 };
 
@@ -389,3 +386,10 @@ export type IncomeReportData = {
     accruedPenalty: number;
     collectedPenalty: number;
 };
+
+export interface Tax {
+    id: string;
+    name: string | null;
+    rate: number;
+    appliedTo: string; // JSON array
+}

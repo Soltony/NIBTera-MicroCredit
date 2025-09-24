@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, format, isValid } from 'date-fns';
@@ -76,6 +77,7 @@ export async function GET(req: NextRequest) {
             interest: number;
             serviceFee: number;
             penalty: number;
+            tax: number;
         }> = {};
         
         for (const entry of ledgerEntries) {
@@ -90,6 +92,7 @@ export async function GET(req: NextRequest) {
                     interest: 0,
                     serviceFee: 0,
                     penalty: 0,
+                    tax: 0,
                 };
             }
 
@@ -98,6 +101,7 @@ export async function GET(req: NextRequest) {
             else if (category === 'interest') aggregatedData[key].interest += entry.amount;
             else if (category === 'servicefee') aggregatedData[key].serviceFee += entry.amount;
             else if (category === 'penalty') aggregatedData[key].penalty += entry.amount;
+            else if (category === 'tax') aggregatedData[key].tax += entry.amount;
         }
         
         const reportData = Object.entries(aggregatedData).map(([key, value]) => {
@@ -106,7 +110,7 @@ export async function GET(req: NextRequest) {
                 provider,
                 date,
                 ...value,
-                total: value.principal + value.interest + value.serviceFee + value.penalty
+                total: value.principal + value.interest + value.serviceFee + value.penalty + value.tax,
             }
         });
         

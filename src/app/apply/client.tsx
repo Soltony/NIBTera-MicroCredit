@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
+import type { LoanProvider, LoanProduct, LoanDetails, Tax } from '@/lib/types';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
@@ -13,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type Step = 'calculator' | 'details';
 
-export function ApplyClient({ provider }: { provider: LoanProvider }) {
+export function ApplyClient({ provider, taxConfig }: { provider: LoanProvider, taxConfig: Tax | null }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
@@ -50,68 +49,42 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         }
 
         try {
-            // Check the product type to determine the next action
-            if (selectedProduct.productType === 'SME') {
-                // SME Flow: Create an application and redirect to upload page
-                const response = await fetch('/api/applications', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        borrowerId,
-                        productId: selectedProduct.id,
-                        loanAmount: details.loanAmount, // Pass the amount from the calculator
-                    }),
-                });
+            // Personal Loan Flow: Disburse the loan directly
+            const finalDetails = {
+                borrowerId,
+                productId: selectedProduct.id,
+                loanAmount: details.loanAmount,
+                disbursedDate: details.disbursedDate,
+                dueDate: details.dueDate,
+            };
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to create loan application.');
-                }
-                
-                const application = await response.json();
-                const params = new URLSearchParams(searchParams.toString());
-                params.set('applicationId', application.id);
-                params.delete('product'); // Clean up params for the next page
-                router.push(`/apply/upload?${params.toString()}`);
-                
-            } else {
-                // Personal Loan Flow: Disburse the loan directly
-                const finalDetails = {
-                    borrowerId,
-                    productId: selectedProduct.id,
-                    loanAmount: details.loanAmount,
-                    disbursedDate: details.disbursedDate,
-                    dueDate: details.dueDate,
-                };
+            const response = await fetch('/api/loans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(finalDetails),
+            });
 
-                const response = await fetch('/api/loans', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finalDetails),
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to save the loan.');
-                }
-                
-                const savedLoan = await response.json();
-
-                const displayLoan: LoanDetails = {
-                    ...savedLoan,
-                    providerName: provider.name,
-                    productName: selectedProduct.name,
-                    disbursedDate: new Date(savedLoan.disbursedDate),
-                    dueDate: new Date(savedLoan.dueDate),
-                    payments: [],
-                }
-                setLoanDetails(displayLoan);
-                setStep('details');
-                    toast({
-                    title: 'Success!',
-                    description: 'Your loan has been successfully disbursed.',
-                });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save the loan.');
             }
+            
+            const savedLoan = await response.json();
+
+            const displayLoan: LoanDetails = {
+                ...savedLoan,
+                providerName: provider.name,
+                productName: selectedProduct.name,
+                disbursedDate: new Date(savedLoan.disbursedDate),
+                dueDate: new Date(savedLoan.dueDate),
+                payments: [],
+            }
+            setLoanDetails(displayLoan);
+            setStep('details');
+                toast({
+                title: 'Success!',
+                description: 'Your loan has been successfully disbursed.',
+            });
 
         } catch (error: any) {
             toast({
@@ -140,7 +113,7 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         switch (step) {
             case 'calculator':
                 if (selectedProduct) {
-                    return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
+                    return <LoanOfferAndCalculator product={selectedProduct} taxConfig={taxConfig} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
                 }
                 if (productId && !selectedProduct) {
                         return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;

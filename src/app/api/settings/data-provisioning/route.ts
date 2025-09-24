@@ -117,13 +117,37 @@ export async function DELETE(req: NextRequest) {
     }
     
     try {
-        // You might want to add a check here to ensure no products are using this config before deleting
+        // Check if any product is using this config
+        const productCount = await prisma.loanProduct.count({
+            where: { dataProvisioningConfigId: id }
+        });
+
+        if (productCount > 0) {
+            return NextResponse.json({ error: `Cannot delete. This data source is currently used by ${productCount} product(s).` }, { status: 409 });
+        }
+
+        // Check if any provisioned data is linked to this config
+        const dataCount = await prisma.provisionedData.count({
+            where: { configId: id }
+        });
+        
+        if (dataCount > 0) {
+            return NextResponse.json({ error: `Cannot delete. This data source has ${dataCount} borrower records associated with it.` }, { status: 409 });
+        }
+
+        // If no dependencies, proceed with deletion
         await prisma.dataProvisioningConfig.delete({
             where: { id },
         });
+
         return NextResponse.json({ message: 'Config deleted successfully' });
-    } catch (error) {
+
+    } catch (error: any) {
         console.error('Error deleting data provisioning config:', error);
+        // Fallback for any other errors, though the checks above should handle P2003
+        if (error.code === 'P2003') {
+             return NextResponse.json({ error: 'This configuration is in use and cannot be deleted.' }, { status: 409 });
+        }
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

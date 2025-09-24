@@ -1,7 +1,7 @@
 
 
 import { differenceInDays, startOfDay } from 'date-fns';
-import type { LoanDetails, LoanProduct, PenaltyRule } from './types';
+import type { LoanDetails, LoanProduct, PenaltyRule, Tax } from './types';
 
 interface CalculatedRepayment {
     total: number;
@@ -9,10 +9,11 @@ interface CalculatedRepayment {
     interest: number;
     penalty: number;
     serviceFee: number;
+    tax: number;
 }
 
 
-export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, asOfDate: Date = new Date()): CalculatedRepayment => {
+export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, taxConfig: Tax | null, asOfDate: Date = new Date()): CalculatedRepayment => {
     const loanStartDate = startOfDay(new Date(loanDetails.disbursedDate));
     const finalDate = startOfDay(asOfDate);
     const dueDate = startOfDay(new Date(loanDetails.dueDate));
@@ -21,6 +22,11 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     let serviceFee = 0;
     let interestComponent = 0;
     let penaltyComponent = 0;
+    let taxComponent = 0;
+
+    // Fetch tax configuration
+    const taxRate = taxConfig?.rate ?? 0;
+    const taxAppliedTo: string[] = taxConfig && typeof taxConfig.appliedTo === 'string' ? JSON.parse(taxConfig.appliedTo) : [];
 
     // Safely parse JSON fields from the product, as they might be strings from the DB
     const safeParse = (field: any, defaultValue: any) => {
@@ -40,7 +46,6 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
 
 
     // 1. Service Fee (One-time charge)
-    // Always calculate from the product rules to ensure consistency.
     if (loanProduct.serviceFeeEnabled && serviceFeeRule && serviceFeeRule.value > 0) {
         const feeValue = typeof serviceFeeRule.value === 'string' ? parseFloat(serviceFeeRule.value) : serviceFeeRule.value;
         if (serviceFeeRule.type === 'fixed') {
@@ -78,7 +83,6 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
 
     // 3. Penalty - Calculated only if overdue.
     if (loanProduct.penaltyRulesEnabled && penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
-        // For same-day loans (duration=0), penalties start the day after.
         const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
         const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
         
@@ -101,13 +105,11 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                     } else if (rule.type === 'percentageOfPrincipal') {
                         penaltyForThisRule = principal * (value / 100) * daysToCalculate;
                     } else if (rule.type === 'percentageOfCompound') {
-                        // This applies the penalty daily on the "running balance"
-                        // which includes principal + interest + service fees + previously accrued penalties
                         let compoundPenaltyBase = runningBalanceForPenalty + penaltyComponent;
                         for (let i = 0; i < daysToCalculate; i++) {
                              const dailyPenalty = compoundPenaltyBase * (value / 100);
                              penaltyForThisRule += dailyPenalty;
-                             if (!isOneTime) { // Only update base if penalty is compounding daily
+                             if (!isOneTime) {
                                 compoundPenaltyBase += dailyPenalty;
                              }
                         }
@@ -118,7 +120,22 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         });
     }
 
-    const totalDebt = principal + serviceFee + interestComponent + penaltyComponent;
+    // 4. Tax Calculation
+    if (taxRate > 0) {
+        let taxableAmount = 0;
+        if (taxAppliedTo.includes('serviceFee')) {
+            taxableAmount += serviceFee;
+        }
+        if (taxAppliedTo.includes('interest')) {
+            taxableAmount += interestComponent;
+        }
+        if (taxAppliedTo.includes('penalty')) {
+            taxableAmount += penaltyComponent;
+        }
+        taxComponent = taxableAmount * (taxRate / 100);
+    }
+
+    const totalDebt = principal + serviceFee + interestComponent + penaltyComponent + taxComponent;
 
     return {
         total: totalDebt,
@@ -126,6 +143,6 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         serviceFee: serviceFee,
         interest: interestComponent,
         penalty: penaltyComponent,
+        tax: taxComponent,
     };
 };
-

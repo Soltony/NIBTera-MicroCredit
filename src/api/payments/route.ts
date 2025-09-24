@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         const provider = loan.product.provider;
         const paymentDate = new Date();
         
-        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
+        const { total, principal, interest, penalty, serviceFee, tax } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
         const alreadyRepaid = loan.repaidAmount || 0;
         
         const totalDue = total - alreadyRepaid;
@@ -66,6 +66,11 @@ export async function POST(req: NextRequest) {
         const serviceFeeDue = Math.max(0, serviceFee - Math.max(0, (loan.repaidAmount || 0) - penalty));
         const interestDue = Math.max(0, interest - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee));
         const principalDue = Math.max(0, principal - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest));
+        
+        // Calculate tax for each component
+        const taxAppliedTo = taxConfig?.appliedTo ? JSON.parse(taxConfig.appliedTo) : [];
+        
+        const taxDue = Math.max(0, tax - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest - principal));
 
 
         if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
@@ -80,15 +85,17 @@ export async function POST(req: NextRequest) {
             const interestReceivable = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Receivable');
             const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
             const serviceFeeReceivable = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Receivable');
+            const taxReceivable = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Receivable');
 
             const principalReceived = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
             const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
             const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
             const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
+            const taxReceived = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Received');
             
             
-            if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable ||
-                !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived) {
+            if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable || !taxReceivable ||
+                !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived || !taxReceived) {
                 throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
             }
 
@@ -101,7 +108,7 @@ export async function POST(req: NextRequest) {
                 }
             });
 
-            // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Principal
+            // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Tax -> Principal
             const penaltyToPay = Math.min(amountToApply, penaltyDue);
             if (penaltyToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
@@ -133,6 +140,17 @@ export async function POST(req: NextRequest) {
                     { journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay }
                 ]});
                 amountToApply -= interestToPay;
+            }
+
+            const taxToPay = Math.min(amountToApply, taxDue);
+            if (taxToPay > 0) {
+                await tx.ledgerAccount.update({ where: { id: taxReceivable.id }, data: { balance: { decrement: taxToPay } } });
+                await tx.ledgerAccount.update({ where: { id: taxReceived.id }, data: { balance: { increment: taxToPay } } });
+                 await tx.ledgerEntry.createMany({ data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivable.id, type: 'Credit', amount: taxToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceived.id, type: 'Debit', amount: taxToPay }
+                ]});
+                amountToApply -= taxToPay;
             }
             
             const principalToPay = Math.min(amountToApply, principalDue);

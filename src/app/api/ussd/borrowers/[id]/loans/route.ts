@@ -16,15 +16,18 @@ export async function GET(
   }
 
   try {
-    const loans = await prisma.loan.findMany({
-      where: { borrowerId: borrowerId },
-      include: {
-        product: true,
-      },
-      orderBy: {
-        disbursedDate: 'desc',
-      },
-    });
+    const [loans, taxConfig] = await Promise.all([
+        prisma.loan.findMany({
+            where: { borrowerId: borrowerId },
+            include: {
+                product: true,
+            },
+            orderBy: {
+                disbursedDate: 'desc',
+            },
+        }),
+        prisma.tax.findFirst()
+    ]);
 
     const formattedLoans = loans.map(loan => {
       // The loan.product from prisma might have fee/penalty rules as JSON strings.
@@ -38,7 +41,7 @@ export async function GET(
       };
 
       // Use the centralized calculator with the fully parsed product data
-      const { total } = calculateTotalRepayable(loan as any, parsedProduct, new Date());
+      const { total } = calculateTotalRepayable(loan as any, parsedProduct, taxConfig, new Date());
       const totalRepayable = total;
 
       return {

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React from 'react';
@@ -9,7 +7,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement } from '@/lib/types';
+import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement, Tax } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
 import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
@@ -27,6 +25,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
 import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
+import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
@@ -35,6 +34,7 @@ const formatCurrency = (amount: number) => {
 interface DashboardClientProps {
   providers: LoanProvider[];
   initialLoanHistory: LoanDetails[];
+  taxConfig: Tax | null;
 }
 
 interface EligibilityState {
@@ -47,7 +47,7 @@ interface AgreementState {
     hasAgreed?: boolean;
 }
 
-export function DashboardClient({ providers, initialLoanHistory }: DashboardClientProps) {
+export function DashboardClient({ providers, initialLoanHistory, taxConfig }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId');
@@ -200,46 +200,13 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
         }
 
         const params = new URLSearchParams(searchParams.toString());
-
-        if (product.productType === 'SME') {
-            try {
-                const response = await fetch('/api/applications', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ borrowerId, productId: product.id }),
-                });
-
-                if (!response.ok) {
-                    let errorText;
-                    try {
-                        const errorJson = await response.json();
-                        errorText = errorJson.error || 'Failed to create loan application.';
-                    } catch (e) {
-                        errorText = await response.text();
-                    }
-                    throw new Error(errorText);
-                }
-
-                const application = await response.json();
-                params.set('applicationId', application.id);
-                router.push(`/apply/upload?${params.toString()}`);
-
-            } catch (error: any) {
-                toast({
-                    title: 'Application Error',
-                    description: error.message,
-                    variant: 'destructive'
-                });
-            }
-        } else {
-            // Personal Loan Flow
-            params.set('providerId', selectedProviderId);
-            params.set('product', product.id);
-            const productLimit = eligibility.limits[product.id] ?? 0;
-            const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-            params.set('max', String(trueMaxLoan));
-            router.push(`/apply?${params.toString()}`);
-        }
+        // Personal Loan Flow
+        params.set('providerId', selectedProviderId);
+        params.set('product', product.id);
+        const productLimit = eligibility.limits[product.id] ?? 0;
+        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
+        params.set('max', String(trueMaxLoan));
+        router.push(`/apply?${params.toString()}`);
     }
   
    const handleProviderSelect = (providerId: string) => {
@@ -400,6 +367,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
                                                         ...product,
                                                         availableLimit: productLimit,
                                                     }}
+                                                    taxConfig={taxConfig}
                                                     providerColor={selectedProvider.colorHex}
                                                     activeLoan={activeLoansByProduct[product.id]}
                                                     onApply={() => handleApply(product)}
@@ -431,6 +399,7 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
             loan={repayingLoanInfo.loan}
             totalBalanceDue={repayingLoanInfo.balanceDue}
             providerColor={selectedProvider?.colorHex}
+            taxConfig={taxConfig}
         />
       )}
        <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
@@ -469,5 +438,3 @@ export function DashboardClient({ providers, initialLoanHistory }: DashboardClie
     </>
   );
 }
-
-    

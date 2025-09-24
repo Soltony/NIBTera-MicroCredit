@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,6 +10,8 @@ import { checkLoanEligibility } from '@/actions/eligibility';
 import { createAuditLog } from '@/lib/audit-log';
 
 async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
+    const taxConfig = await prisma.tax.findFirst();
+
     return await prisma.$transaction(async (tx) => {
         // Step 1: Create the LoanApplication record.
         const loanApplication = await tx.loanApplication.create({
@@ -57,14 +60,17 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             penaltyAmount: 0,
             product: product as any,
         };
-        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+        const { serviceFee: calculatedServiceFee, tax: calculatedTax } = calculateTotalRepayable(tempLoanForCalc, product, taxConfig, new Date(data.disbursedDate));
 
         // Ledger Account Checks
         const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
         const serviceFeeReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Receivable');
         const serviceFeeIncomeAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Income');
+        const taxReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Tax' && acc.type === 'Receivable');
+        const taxReceivedAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Tax' && acc.type === 'Received');
         if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
         if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
+        if (calculatedTax > 0 && (!taxReceivableAccount || !taxReceivedAccount)) throw new Error('Tax ledger accounts not configured.');
 
 
         // Step 2: Create the Loan record and connect it to the application.
@@ -77,6 +83,7 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
                 disbursedDate: data.disbursedDate,
                 dueDate: data.dueDate,
                 serviceFee: calculatedServiceFee,
+                tax: calculatedTax,
                 penaltyAmount: 0,
                 repaymentStatus: 'Unpaid',
                 repaidAmount: 0,
@@ -111,6 +118,20 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
             await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
         }
+        
+        // Journal entry for tax on service fee
+        if (calculatedTax > 0 && taxReceivableAccount && taxReceivedAccount) {
+            // Tax on service fee is both receivable and considered "paid" by the provider initially
+            await tx.ledgerEntry.createMany({
+                data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivableAccount.id, type: 'Debit', amount: calculatedTax },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivedAccount.id, type: 'Credit', amount: calculatedTax },
+                ]
+            });
+            await tx.ledgerAccount.update({ where: { id: taxReceivableAccount.id }, data: { balance: { increment: calculatedTax } } });
+             await tx.ledgerAccount.update({ where: { id: taxReceivedAccount.id }, data: { balance: { increment: calculatedTax } } });
+        }
+
 
         await tx.ledgerAccount.update({ where: { id: principalReceivableAccount.id }, data: { balance: { increment: data.loanAmount } } });
         await tx.loanProvider.update({ where: { id: provider.id }, data: { initialBalance: { decrement: data.loanAmount } } });

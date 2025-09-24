@@ -42,6 +42,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         displayOrder: 0,
         accountNumber: '' as string | null,
         startingCapital: 0,
+        nplThresholdDays: 60,
     });
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -55,6 +56,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
             startingCapital: provider.startingCapital || 0,
+            nplThresholdDays: provider.nplThresholdDays || 60,
         });
     } else {
         setFormData({
@@ -64,6 +66,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             displayOrder: 0,
             accountNumber: null,
             startingCapital: 0,
+            nplThresholdDays: 60,
         });
     }
   }, [provider, isOpen]);
@@ -98,7 +101,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
     const dataToSave: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string } = {
       id: provider?.id,
       ...formData,
-      startingCapital: Number(formData.startingCapital)
+      startingCapital: Number(formData.startingCapital),
+      nplThresholdDays: Number(formData.nplThresholdDays)
     };
     
     onSave(dataToSave as any);
@@ -162,6 +166,20 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               id="displayOrder"
               type="number"
               value={formData.displayOrder}
+              onChange={handleChange}
+              required
+              className="col-span-3"
+              style={{'--ring': primaryColor} as React.CSSProperties}
+            />
+          </div>
+           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="nplThresholdDays" className="text-right">
+              NPL Threshold (Days)
+            </Label>
+            <Input
+              id="nplThresholdDays"
+              type="number"
+              value={formData.nplThresholdDays}
               onChange={handleChange}
               required
               className="col-span-3"

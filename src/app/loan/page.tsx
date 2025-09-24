@@ -1,6 +1,6 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule, Tax } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
@@ -121,11 +121,19 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     }
 }
 
+async function getTaxConfig(): Promise<Tax | null> {
+    return await prisma.tax.findFirst();
+}
+
 
 export default async function LoanPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
     const borrowerId = searchParams['borrowerId'] as string;
-    const providers = await getProviders();
-    const loanHistory = await getLoanHistory(borrowerId);
+    
+    const [providers, loanHistory, taxConfig] = await Promise.all([
+        getProviders(),
+        getLoanHistory(borrowerId),
+        getTaxConfig(),
+    ]);
     
     return (
         <Suspense fallback={
@@ -133,7 +141,7 @@ export default async function LoanPage({ searchParams }: { searchParams: { [key:
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <DashboardClient providers={providers} initialLoanHistory={loanHistory} />
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} taxConfig={taxConfig} />
         </Suspense>
     );
 }

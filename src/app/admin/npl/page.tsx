@@ -130,7 +130,7 @@ export default function NplManagementPage() {
                  <Card>
                     <CardHeader>
                         <CardTitle>NPL Borrowers</CardTitle>
-                        <CardDescription>This list contains all borrowers who have been flagged due to overdue loans (over 60 days).</CardDescription>
+                        <CardDescription>This list contains all borrowers who have been flagged due to overdue loans based on their provider's NPL threshold.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>

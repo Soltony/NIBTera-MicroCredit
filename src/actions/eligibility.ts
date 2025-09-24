@@ -20,11 +20,38 @@ const toCamelCase = (str: string) => {
     return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
 };
 
-async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<string, any>> {
-    const provisionedDataEntries = await prisma.provisionedData.findMany({
-        where: { borrowerId },
-        orderBy: { createdAt: 'desc' }, // newest first
-    });
+async function getBorrowerDataForScoring(
+    borrowerId: string, 
+    providerId: string, 
+    product?: LoanProduct & { dataProvisioningConfig?: { id: string } | null }
+): Promise<Record<string, any>> {
+
+    let provisionedDataEntries;
+
+    // --- NEW LOGIC ---
+    // If the product has its own data config, use it exclusively.
+    if (product?.dataProvisioningEnabled && product.dataProvisioningConfigId) {
+        provisionedDataEntries = await prisma.provisionedData.findMany({
+            where: { 
+                borrowerId,
+                configId: product.dataProvisioningConfigId
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    } else {
+        // Otherwise, fall back to all data from the provider.
+        provisionedDataEntries = await prisma.provisionedData.findMany({
+            where: { 
+                borrowerId,
+                config: {
+                    providerId: providerId,
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+     // --- END NEW LOGIC ---
+
 
     const combinedData: Record<string, any> = { id: borrowerId };
     
@@ -65,9 +92,13 @@ async function getBorrowerDataForScoring(borrowerId: string): Promise<Record<str
 }
 
 
-async function calculateScoreForProvider(borrowerId: string, providerId: string): Promise<number> {
+async function calculateScoreForProvider(
+    borrowerId: string,
+    providerId: string,
+    product?: LoanProduct & { dataProvisioningConfig?: { id: string } | null }
+): Promise<number> {
     
-    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId);
+    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId, product);
     
     const parameters: ScoringParameterType[] = await prisma.scoringParameter.findMany({
         where: { providerId },
@@ -159,7 +190,7 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    const score = await calculateScoreForProvider(borrowerId, providerId);
+    const score = await calculateScoreForProvider(borrowerId, providerId, product as any);
 
     const applicableTier = await prisma.loanAmountTier.findFirst({
         where: {
