@@ -1,7 +1,7 @@
 
 import { Logo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import type { LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanProvider, FeeRule, PenaltyRule, Tax } from '@/lib/types';
 import { ApplyClient } from './client';
 import prisma from '@/lib/prisma';
 import { notFound } from 'next/navigation';
@@ -51,6 +51,10 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
     } as LoanProvider;
 }
 
+async function getTaxConfig(): Promise<Tax | null> {
+    return await prisma.tax.findFirst();
+}
+
 
 export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
     const providerId = searchParams['providerId'] as string;
@@ -59,7 +63,11 @@ export default async function ApplyPage({ searchParams }: { searchParams: { [key
         notFound();
     }
     
-    const selectedProvider = await getProvider(providerId);
+    const [selectedProvider, taxConfig] = await Promise.all([
+        getProvider(providerId),
+        getTaxConfig()
+    ]);
+
 
     if (!selectedProvider) {
         return (
@@ -76,5 +84,5 @@ export default async function ApplyPage({ searchParams }: { searchParams: { [key
         )
     }
 
-    return <ApplyClient provider={selectedProvider} />;
+    return <ApplyClient provider={selectedProvider} taxConfig={taxConfig} />;
 }

@@ -80,34 +80,37 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const loans: LoanWithRelations[] = await prisma.loan.findMany({
-            where: whereClause,
-            include: {
-                product: {
-                    include: {
-                        provider: true,
+        const [loans, taxConfig] = await Promise.all([
+            prisma.loan.findMany({
+                where: whereClause,
+                include: {
+                    product: {
+                        include: {
+                            provider: true,
+                        },
                     },
-                },
-                payments: true,
-                borrower: {
-                   include: {
-                        // Include all provisioned data and sort by latest, we'll find the name in code.
-                        provisionedData: {
-                            orderBy: {
-                                createdAt: 'desc'
+                    payments: true,
+                    borrower: {
+                       include: {
+                            // Include all provisioned data and sort by latest, we'll find the name in code.
+                            provisionedData: {
+                                orderBy: {
+                                    createdAt: 'desc'
+                                }
                             }
                         }
                     }
-                }
-            },
-            orderBy: {
-                disbursedDate: 'desc',
-            },
-        });
+                },
+                orderBy: {
+                    disbursedDate: 'desc',
+                },
+            }),
+            prisma.tax.findFirst()
+        ]);
         
         const today = new Date();
         const reportData = loans.map(loan => {
-            const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, today);
+            const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfig, today);
             
             const totalRepaid = (loan.repaidAmount || 0);
 

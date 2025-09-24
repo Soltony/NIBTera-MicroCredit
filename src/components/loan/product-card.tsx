@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import type { LoanProduct, LoanDetails, FeeRule } from '@/lib/types';
+import type { LoanProduct, LoanDetails, FeeRule, Tax } from '@/lib/types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
 
 interface ProductCardProps {
     product: LoanProduct;
+    taxConfig: Tax | null;
     providerColor?: string;
     activeLoan?: LoanDetails;
     onApply: () => void;
@@ -39,6 +40,7 @@ interface ProductCardProps {
 
 export function ProductCard({ 
     product, 
+    taxConfig,
     providerColor = '#fdb913', 
     activeLoan, 
     onApply, 
@@ -59,11 +61,11 @@ export function ProductCard({
             ...product,
             ...activeLoan.product
         };
-        const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, new Date());
+        const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, taxConfig, new Date());
         const remainingBalance = totalDebt.total - (activeLoan.repaidAmount || 0);
         // Return 0 if the balance is negative (overpayment)
         return Math.max(0, remainingBalance);
-    }, [activeLoan, product]);
+    }, [activeLoan, product, taxConfig]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general

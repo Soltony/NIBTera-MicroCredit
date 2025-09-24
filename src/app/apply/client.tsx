@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { LoanProvider, LoanProduct, LoanDetails } from '@/lib/types';
+import type { LoanProvider, LoanProduct, LoanDetails, Tax } from '@/lib/types';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calculator';
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type Step = 'calculator' | 'details';
 
-export function ApplyClient({ provider }: { provider: LoanProvider }) {
+export function ApplyClient({ provider, taxConfig }: { provider: LoanProvider, taxConfig: Tax | null }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
@@ -113,7 +113,7 @@ export function ApplyClient({ provider }: { provider: LoanProvider }) {
         switch (step) {
             case 'calculator':
                 if (selectedProduct) {
-                    return <LoanOfferAndCalculator product={selectedProduct} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
+                    return <LoanOfferAndCalculator product={selectedProduct} taxConfig={taxConfig} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
                 }
                 if (productId && !selectedProduct) {
                         return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;

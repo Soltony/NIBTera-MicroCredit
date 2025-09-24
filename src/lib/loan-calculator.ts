@@ -1,8 +1,7 @@
 
 
 import { differenceInDays, startOfDay } from 'date-fns';
-import type { LoanDetails, LoanProduct, PenaltyRule } from './types';
-import prisma from './prisma';
+import type { LoanDetails, LoanProduct, PenaltyRule, Tax } from './types';
 
 interface CalculatedRepayment {
     total: number;
@@ -14,7 +13,7 @@ interface CalculatedRepayment {
 }
 
 
-export const calculateTotalRepayable = async (loanDetails: LoanDetails, loanProduct: LoanProduct, asOfDate: Date = new Date()): Promise<CalculatedRepayment> => {
+export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, taxConfig: Tax | null, asOfDate: Date = new Date()): CalculatedRepayment => {
     const loanStartDate = startOfDay(new Date(loanDetails.disbursedDate));
     const finalDate = startOfDay(asOfDate);
     const dueDate = startOfDay(new Date(loanDetails.dueDate));
@@ -26,9 +25,8 @@ export const calculateTotalRepayable = async (loanDetails: LoanDetails, loanProd
     let taxComponent = 0;
 
     // Fetch tax configuration
-    const taxConfig = await prisma.tax.findFirst();
     const taxRate = taxConfig?.rate ?? 0;
-    const taxAppliedTo: string[] = taxConfig ? JSON.parse(taxConfig.appliedTo) : [];
+    const taxAppliedTo: string[] = taxConfig && typeof taxConfig.appliedTo === 'string' ? JSON.parse(taxConfig.appliedTo) : [];
 
     // Safely parse JSON fields from the product, as they might be strings from the DB
     const safeParse = (field: any, defaultValue: any) => {

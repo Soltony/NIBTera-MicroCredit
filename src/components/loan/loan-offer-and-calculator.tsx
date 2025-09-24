@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanProduct, LoanDetails, CheckLoanEligibilityOutput, FeeRule, PenaltyRule, Tax } from '@/lib/types';
 import { addDays, format, endOfDay } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
+  taxConfig: Tax | null;
   isLoading: boolean;
   eligibilityResult: CheckLoanEligibilityOutput | null;
   onAccept: (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments' >) => void;
@@ -28,13 +29,13 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
 };
 
-const formatFee = (feeRule: FeeRule | undefined): string => {
+const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
     if (!feeRule || feeRule.value === '' || feeRule.value === null) return 'N/A';
     const numericValue = Number(feeRule.value);
     if (isNaN(numericValue)) return 'N/A';
 
     if (feeRule.type === 'percentage') {
-        return `${numericValue}%`;
+        return `${numericValue}%${suffix || ''}`;
     }
     return formatCurrency(numericValue);
 };
@@ -65,7 +66,7 @@ const formatPenaltyRule = (rule: PenaltyRule): string => {
 }
 
 
-export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
+export function LoanOfferAndCalculator({ product, taxConfig, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
   const [isPenaltyDetailsOpen, setIsPenaltyDetailsOpen] = useState(false);
@@ -82,7 +83,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
   }, [product.id, product.availableLimit, maxLoan]);
 
   useEffect(() => {
-    const calculate = async () => {
+    const calculate = () => {
         const numericLoanAmount = typeof loanAmount === 'string' ? parseFloat(loanAmount) : loanAmount;
         if (!eligibilityResult?.isEligible || isNaN(numericLoanAmount) || numericLoanAmount <= 0) {
             setCalculationResult(null);
@@ -116,7 +117,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
             product: product,
         };
         
-        const result = await calculateTotalRepayable(tempLoan, product, dueDate);
+        const result = calculateTotalRepayable(tempLoan, product, taxConfig, dueDate);
 
         setCalculationResult({
             ...result,
@@ -127,7 +128,7 @@ export function LoanOfferAndCalculator({ product, isLoading, eligibilityResult, 
     };
 
     calculate();
-}, [loanAmount, eligibilityResult, product]);
+}, [loanAmount, eligibilityResult, product, taxConfig]);
 
   const validateAmount = (amount: number | string) => {
     const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;

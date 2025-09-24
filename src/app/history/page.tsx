@@ -1,5 +1,5 @@
 
-import type { LoanDetails, LoanProvider } from '@/lib/types';
+import type { LoanDetails, LoanProvider, Tax } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { HistoryClient } from '@/components/history/history-client';
@@ -67,11 +67,19 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     }
 }
 
+async function getTaxConfig(): Promise<Tax | null> {
+    return await prisma.tax.findFirst();
+}
+
 
 export default async function HistoryPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
     const borrowerId = searchParams['borrowerId'] as string;
-    const loanHistory = await getLoanHistory(borrowerId);
-    const providers = await getProviders();
+    
+    const [loanHistory, providers, taxConfig] = await Promise.all([
+        getLoanHistory(borrowerId),
+        getProviders(),
+        getTaxConfig()
+    ]);
     
     return (
         <Suspense fallback={
@@ -79,7 +87,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: { [k
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <HistoryClient initialLoanHistory={loanHistory} providers={providers} />
+            <HistoryClient initialLoanHistory={loanHistory} providers={providers} taxConfig={taxConfig} />
         </Suspense>
     );
 }

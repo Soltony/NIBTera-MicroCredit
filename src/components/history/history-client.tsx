@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { LoanDetails, LoanProvider } from '@/lib/types';
+import type { LoanDetails, LoanProvider, Tax } from '@/lib/types';
 import { format } from 'date-fns';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,9 +24,10 @@ const formatCurrency = (amount: number | null | undefined) => {
 interface HistoryClientProps {
   initialLoanHistory: LoanDetails[];
   providers: LoanProvider[];
+  taxConfig: Tax | null;
 }
 
-export function HistoryClient({ initialLoanHistory, providers }: HistoryClientProps) {
+export function HistoryClient({ initialLoanHistory, providers, taxConfig }: HistoryClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -59,10 +60,10 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
 
   const totalOutstanding = useMemo(() => {
     return activeLoans.reduce((acc, loan) => {
-      const balance = calculateTotalRepayable(loan, loan.product, new Date());
+      const balance = calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
       return acc + Math.max(0, balance.total - (loan.repaidAmount || 0));
     }, 0);
-  }, [activeLoans]);
+  }, [activeLoans, taxConfig]);
   
   const totalCreditAmount = useMemo(() => {
     return loanHistory.reduce((acc, loan) => acc + loan.loanAmount, 0);
@@ -88,7 +89,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
 
 
   const handleRepay = (loan: LoanDetails) => {
-    const balanceDue = calculateTotalRepayable(loan, loan.product, new Date()).total - (loan.repaidAmount || 0);
+    const balanceDue = calculateTotalRepayable(loan, loan.product, taxConfig, new Date()).total - (loan.repaidAmount || 0);
     setRepayingLoanInfo({ loan, balanceDue: Math.max(0, balanceDue) });
     setIsRepayDialogOpen(true);
   }
@@ -143,7 +144,7 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
 
 
   const renderLoanCard = (loan: LoanDetails) => {
-    const balanceDue = calculateTotalRepayable(loan, loan.product, new Date()).total - (loan.repaidAmount || 0);
+    const balanceDue = calculateTotalRepayable(loan, loan.product, taxConfig, new Date()).total - (loan.repaidAmount || 0);
     const provider = providers.find(p => p.id === loan.product.providerId);
     const color = provider?.colorHex || '#fdb913';
 
@@ -243,10 +244,9 @@ export function HistoryClient({ initialLoanHistory, providers }: HistoryClientPr
                 loan={repayingLoanInfo.loan}
                 totalBalanceDue={repayingLoanInfo.balanceDue}
                 providerColor={providers.find(p => p.id === repayingLoanInfo.loan.product.providerId)?.colorHex}
+                taxConfig={taxConfig}
             />
         )}
     </div>
   );
 }
-
-    

@@ -2,7 +2,7 @@
 import { Suspense } from 'react';
 import prisma from '@/lib/prisma';
 import { notFound } from 'next/navigation';
-import type { LoanDetails } from '@/lib/types';
+import type { LoanDetails, Tax } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { LoanDetailClient } from './client';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
@@ -22,21 +22,25 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
     try {
         if (!loanId) return null;
 
-        const loan = await prisma.loan.findUnique({
-            where: { id: loanId },
-            include: {
-                product: {
-                    include: {
-                        provider: true
-                    }
-                },
-                payments: {
-                    orderBy: {
-                        date: 'desc'
+        const [loan, taxConfig] = await Promise.all([
+            prisma.loan.findUnique({
+                where: { id: loanId },
+                include: {
+                    product: {
+                        include: {
+                            provider: true
+                        }
+                    },
+                    payments: {
+                        orderBy: {
+                            date: 'desc'
+                        }
                     }
                 }
-            }
-        });
+            }),
+            prisma.tax.findFirst()
+        ]);
+        
 
         if (!loan) return null;
         
@@ -48,7 +52,7 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
         };
 
         // Here we perform the calculation on the server side
-        const calculated = await calculateTotalRepayable(loan as any, parsedProduct, new Date());
+        const calculated = calculateTotalRepayable(loan as any, parsedProduct, taxConfig, new Date());
 
         return {
             id: loan.id,
