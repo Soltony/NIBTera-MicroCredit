@@ -22,8 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload } from '@/lib/types';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil } from 'lucide-react';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -60,6 +60,7 @@ import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { format } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
+import Link from 'next/link';
 
 
 // Helper to safely parse JSON fields that might be strings
@@ -1153,7 +1154,65 @@ function ConfigurationTab({ providers, onProductUpdate }: {
     );
 }
 
-export function SettingsClient({ initialProviders }: { initialProviders: LoanProvider[]}) {
+const TAX_COMPONENTS = [
+    { id: 'serviceFee', label: 'Service Fee' },
+    { id: 'interest', label: 'Daily Fee (Interest)' },
+    { id: 'penalty', label: 'Penalty' },
+];
+
+function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
+    const [taxConfig, setTaxConfig] = useState(initialTaxConfig);
+
+    useEffect(() => {
+        setTaxConfig(initialTaxConfig);
+    }, [initialTaxConfig]);
+    
+    const appliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+
+    return (
+        <Card>
+            <CardHeader className='flex-row items-start justify-between'>
+                <div>
+                    <CardTitle>Global Tax Configuration</CardTitle>
+                    <CardDescription>This is a read-only view of the current system-wide tax settings.</CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                    <Link href="/admin/tax">
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit Configuration
+                    </Link>
+                </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label>Tax Rate (%)</Label>
+                    <Input 
+                        value={`${taxConfig.rate}%`}
+                        readOnly
+                        className="max-w-xs bg-muted"
+                    />
+                </div>
+                <div className="space-y-4">
+                    <Label>Tax is Applied On</Label>
+                    <div className="space-y-2 rounded-md border p-4 bg-muted">
+                        {TAX_COMPONENTS.map(component => (
+                            <div key={component.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`tax-on-${component.id}-readonly`}
+                                    checked={appliedTo.includes(component.id)}
+                                    disabled
+                                />
+                                <Label htmlFor={`tax-on-${component.id}-readonly`} className="font-normal">{component.label}</Label>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
 
     const onProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
@@ -1194,6 +1253,7 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
                     <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
                     <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
+                    <TabsTrigger value="tax">Tax</TabsTrigger>
                 </TabsList>
                 <TabsContent value="providers">
                     <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
@@ -1218,6 +1278,9 @@ export function SettingsClient({ initialProviders }: { initialProviders: LoanPro
                         ))}
                     </Accordion>
                 </TabsContent>
+                <TabsContent value="tax">
+                    <TaxTab initialTaxConfig={initialTaxConfig} />
+                </TabsContent>
             </Tabs>
         </div>
     );
@@ -1235,6 +1298,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
     const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
 
     const handleSaveConfig = async (newConfigData: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
         const isEditing = !!newConfigData.id;
@@ -1375,7 +1439,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
                                <TableBody>
                                    {config.uploads && config.uploads.length > 0 ? (
                                        config.uploads.map(upload => (
-                                            <TableRow key={upload.id}>
+                                            <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
                                                 <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
                                                 <TableCell>{upload.rowCount}</TableCell>
                                                 <TableCell>{upload.uploadedBy}</TableCell>
@@ -1399,6 +1463,10 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
                 onClose={() => setIsConfigDialogOpen(false)}
                 onSave={handleSaveConfig}
                 config={config}
+            />
+            <UploadDataViewerDialog
+                upload={viewingUpload}
+                onClose={() => setViewingUpload(null)}
             />
         </>
     );
@@ -1564,5 +1632,90 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
             </UIDialogContent>
         </UIDialog>
     )
+}
+
+function UploadDataViewerDialog({ upload, onClose }: {
+    upload: DataProvisioningUpload | null;
+    onClose: () => void;
+}) {
+    const [data, setData] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRows, setTotalRows] = useState(0);
+    const rowsPerPage = 100;
+
+    useEffect(() => {
+        if (upload) {
+            const fetchData = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await fetch(`/api/settings/data-provisioning-uploads/view?uploadId=${upload.id}&page=${page}&limit=${rowsPerPage}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch uploaded data');
+                    }
+                    const result = await response.json();
+                    setData(result.data);
+                    setTotalPages(result.totalPages);
+                    setTotalRows(result.totalRows);
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchData();
+        }
+    }, [upload, page]);
+
+    if (!upload) return null;
+
+    const headers = data.length > 0 ? Object.keys(data[0]) : [];
+
+    return (
+        <UIDialog open={!!upload} onOpenChange={onClose}>
+            <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                <UIDialogHeader>
+                    <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
+                    <UIDialogDescription>
+                        Displaying {data.length} of {totalRows} rows from the uploaded file.
+                    </UIDialogDescription>
+                </UIDialogHeader>
+                <div className="flex-grow overflow-auto border rounded-md">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headers.map(header => <TableHead key={header} className="capitalize">{header.replace(/([A-Z])/g, ' $1')}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {data.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {headers.map(header => <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>)}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </div>
+                <UIDialogFooter className="justify-between items-center pt-4">
+                    <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                            <ChevronDown className="h-4 w-4 mr-2 rotate-90" /> Previous
+                        </Button>
+                        <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                            Next <ChevronDown className="h-4 w-4 ml-2 -rotate-90" />
+                        </Button>
+                    </div>
+                </UIDialogFooter>
+            </UIDialogContent>
+        </UIDialog>
+    );
 }
 
