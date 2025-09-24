@@ -96,6 +96,7 @@ export interface LoanProduct {
   dataProvisioningConfigId?: string | null;
   dataProvisioningConfig?: DataProvisioningConfig;
   requiredDocuments: RequiredDocument[];
+  tax?: number;
 }
 
 export interface LoanApplication {
@@ -385,6 +386,7 @@ export type IncomeReportData = {
 
 export interface Tax {
     id: string;
+    name: string | null;
     rate: number;
     appliedTo: string; // JSON array
 }

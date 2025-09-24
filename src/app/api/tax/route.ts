@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
         if (!config) {
             config = await prisma.tax.create({
                 data: {
+                    name: 'VAT',
                     rate: 0,
                     appliedTo: '[]'
                 }
@@ -36,11 +37,12 @@ export async function POST(req: NextRequest) {
     
     try {
         const body = await req.json();
-        const { rate, appliedTo } = body;
+        const { name, rate, appliedTo } = body;
         
         const existingConfig = await prisma.tax.findFirst();
         
         const dataToSave = {
+            name: name,
             rate: parseFloat(rate),
             appliedTo: appliedTo // expecting JSON string
         };

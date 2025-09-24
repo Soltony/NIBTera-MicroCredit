@@ -79,7 +79,6 @@ model LoanProduct {
   dailyFeeEnabled             Boolean?
   penaltyRules                String // JSON array of PenaltyRule
   penaltyRulesEnabled         Boolean?
-  tax                         Float?
   dataProvisioningEnabled     Boolean?
   dataProvisioningConfigId    String?
   dataProvisioningConfig      DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -87,7 +86,7 @@ model LoanProduct {
   loanAmountTiers             LoanAmountTier[]
   scoringConfiguration        ScoringConfigurationProduct[]
   loanApplications            LoanApplication[]
-  requiredDocuments           RequiredDocument[]
+  tax                         Float?
 
   @@unique([name, providerId])
 }
@@ -146,34 +145,34 @@ model LoanApplication {
     product             LoanProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     loanAmount          Float?
     status              String      @default("APPROVED") // APPROVED, DISBURSED
-    loan                Loan?
     rejectionReason     String?
+    loan                Loan?
+    uploadedDocuments   UploadedDocument[]
     createdAt           DateTime    @default(now())
     updatedAt           DateTime    @updatedAt
-    uploadedDocuments   UploadedDocument[]
 }
 
 model RequiredDocument {
-  id                  String       @id @default(cuid())
-  productId           String
-  product             LoanProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name                String
-  description         String?
-  uploadedDocuments   UploadedDocument[]
+    id                  String      @id @default(cuid())
+    productId           String
+    product             LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+    name                String
+    description         String?
+    uploadedDocuments   UploadedDocument[]
 }
 
 model UploadedDocument {
-  id                    String            @id @default(cuid())
-  loanApplicationId     String
-  loanApplication       LoanApplication   @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
-  requiredDocumentId    String
-  requiredDocument      RequiredDocument  @relation(fields: [requiredDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  fileName              String
-  fileType              String
-  fileContent           String            @db.Text
-  status                String            @default("PENDING") // PENDING, APPROVED, REJECTED
-  
-  @@unique([loanApplicationId, requiredDocumentId])
+    id                  String          @id @default(cuid())
+    loanApplicationId   String
+    application         LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+    requiredDocumentId  String
+    requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    fileName            String
+    fileType            String
+    fileContent         String          @db.Text
+    status              String          @default("PENDING") // PENDING, APPROVED, REJECTED
+    
+    @@unique([loanApplicationId, requiredDocumentId])
 }
 
 
@@ -200,7 +199,7 @@ model DataProvisioningUpload {
     rowCount    Int
     uploadedBy  String
     uploadedAt  DateTime    @default(now())
-    data        ProvisionedData[]
+    provisionedData ProvisionedData[]
 }
 
 model ProvisionedData {
@@ -208,7 +207,7 @@ model ProvisionedData {
     borrowerId  String
     borrower    Borrower    @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
     configId    String
-    config      DataProvisioningConfig @relation(fields: [configId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+    config      DataProvisioningConfig @relation(fields: [configId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     uploadId    String?
     upload      DataProvisioningUpload? @relation(fields: [uploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
     data        String // JSON string of the uploaded data for this borrower
@@ -342,6 +341,7 @@ model BorrowerAgreement {
 
 model Tax {
   id        String  @id @default(cuid())
+  name      String?
   rate      Float   @default(0)
   appliedTo String  // JSON string: e.g., ["serviceFee", "interest", "penalty"]
 }

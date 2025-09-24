@@ -17,6 +17,7 @@ const TAX_COMPONENTS = [
 ];
 
 export default function TaxSettingsPage() {
+    const [name, setName] = useState<string>('');
     const [rate, setRate] = useState<number | string>('');
     const [appliedTo, setAppliedTo] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +31,7 @@ export default function TaxSettingsPage() {
                 const response = await fetch('/api/tax');
                 if (response.ok) {
                     const config: TaxConfig = await response.json();
+                    setName(config.name || '');
                     setRate(config.rate);
                     setAppliedTo(JSON.parse(config.appliedTo));
                 }
@@ -64,7 +66,7 @@ export default function TaxSettingsPage() {
             const response = await fetch('/api/tax', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rate: numericRate, appliedTo: JSON.stringify(appliedTo) }),
+                body: JSON.stringify({ name, rate: numericRate, appliedTo: JSON.stringify(appliedTo) }),
             });
 
             if (!response.ok) {
@@ -93,6 +95,17 @@ export default function TaxSettingsPage() {
                         <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
                     ) : (
                         <>
+                            <div className="space-y-2">
+                                <Label htmlFor="tax-name">Tax Name</Label>
+                                <Input 
+                                    id="tax-name"
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="e.g., VAT"
+                                    className="max-w-xs"
+                                />
+                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="tax-rate">Tax Rate (%)</Label>
                                 <Input 
