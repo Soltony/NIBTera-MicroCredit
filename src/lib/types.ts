@@ -373,6 +373,7 @@ export type CollectionsReportData = {
     interest: number;
     serviceFee: number;
     penalty: number;
+    tax: number;
     total: number;
 };
 

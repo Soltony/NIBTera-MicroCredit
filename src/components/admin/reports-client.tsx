@@ -188,6 +188,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 'Interest Received': d.interest,
                 'Service Fee Received': d.serviceFee,
                 'Penalty Received': d.penalty,
+                'Tax Received': d.tax,
                 'Total Collected': d.total,
             }));
             const ws = XLSX.utils.json_to_sheet(collectionsExportData);
@@ -446,12 +447,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                     <TableHead className="text-right">Interest Received</TableHead>
                                     <TableHead className="text-right">Service Fee Received</TableHead>
                                     <TableHead className="text-right">Penalty Received</TableHead>
+                                    <TableHead className="text-right">Tax Received</TableHead>
                                     <TableHead className="text-right font-bold">Total Collected</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={8} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
                                 ) : collectionsData.length > 0 ? (
                                     collectionsData.map((row) => (
                                         <TableRow key={`${row.provider}-${row.date}`}>
@@ -461,12 +463,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                             <TableCell className="text-right font-mono">{formatCurrency(row.interest)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.serviceFee)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.penalty)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.tax)}</TableCell>
                                             <TableCell className="text-right font-mono font-bold">{formatCurrency(row.total)}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell>
+                                        <TableCell colSpan={8} className="h-24 text-center">No results found.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
