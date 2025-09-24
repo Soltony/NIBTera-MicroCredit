@@ -12,11 +12,13 @@ const defaultLedgerAccounts = [
     { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
     { name: 'Service Fee Receivable', type: 'Receivable', category: 'ServiceFee' },
     { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    { name: 'Tax Receivable', type: 'Receivable', category: 'Tax' },
     // Cash / Received
     { name: 'Principal Received', type: 'Received', category: 'Principal' },
     { name: 'Interest Received', type: 'Received', category: 'Interest' },
     { name: 'Service Fee Received', type: 'Received', category: 'ServiceFee' },
     { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+    { name: 'Tax Received', type: 'Received', category: 'Tax' },
     // Income
     { name: 'Interest Income', type: 'Income', category: 'Interest' },
     { name: 'Service Fee Income', type: 'Income', category: 'ServiceFee' },

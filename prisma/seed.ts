@@ -13,6 +13,7 @@ const permissions = {
     'scoring-engine': { create: true, read: true, update: true, delete: true },
     settings: { create: true, read: true, update: true, delete: true },
     products: { create: true, read: true, update: true, delete: true },
+    tax: { create: true, read: true, update: true, delete: true },
   },
   loanProvider: {
     dashboard: { create: false, read: true, update: false, delete: false },
@@ -21,6 +22,7 @@ const permissions = {
     'scoring-engine': { create: false, read: true, update: true, delete: false },
     settings: { create: false, read: true, update: true, delete: false },
     products: { create: true, read: true, update: true, delete: true },
+    tax: { create: false, read: true, update: false, delete: false },
   },
    reconciliation: {
     dashboard: { create: false, read: true, update: false, delete: false },
@@ -29,6 +31,7 @@ const permissions = {
     'scoring-engine': { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     products: { create: false, read: false, update: false, delete: false },
+    tax: { create: false, read: true, update: false, delete: false },
   }
 };
 
@@ -38,11 +41,13 @@ const defaultLedgerAccounts = [
     { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
     { name: 'Service Fee Receivable', type: 'Receivable', category: 'ServiceFee' },
     { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    { name: 'Tax Receivable', type: 'Receivable', category: 'Tax' },
     // Cash / Received
     { name: 'Principal Received', type: 'Received', category: 'Principal' },
     { name: 'Interest Received', type: 'Received', category: 'Interest' },
     { name: 'Service Fee Received', type: 'Received', category: 'ServiceFee' },
     { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+    { name: 'Tax Received', type: 'Received', category: 'Tax' },
     // Income
     { name: 'Interest Income', type: 'Income', category: 'Interest' },
     { name: 'Service Fee Income', type: 'Income', category: 'ServiceFee' },
