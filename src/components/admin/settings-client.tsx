@@ -928,7 +928,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                         <div className="flex items-center justify-between border-b pb-4">
                             <div className="flex items-center gap-2">
                                 <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
-                                {taxAppliedTo.includes('serviceFee') && <Badge variant="outline" className="text-xs">Taxable</Badge>}
+                                {taxAppliedTo.includes('serviceFee') && <Badge variant="outline" className="text-xs">Taxable ({taxConfig.rate}%)</Badge>}
                             </div>
                             <Switch
                                 id={`serviceFeeEnabled-${config.id}`}
@@ -948,7 +948,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
                              <div className="flex items-center gap-2">
                                 <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
-                                {taxAppliedTo.includes('interest') && <Badge variant="outline" className="text-xs">Taxable</Badge>}
+                                {taxAppliedTo.includes('interest') && <Badge variant="outline" className="text-xs">Taxable ({taxConfig.rate}%)</Badge>}
                             </div>
                             <Switch
                                 id={`dailyFeeEnabled-${config.id}`}
@@ -968,7 +968,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
                              <div className="flex items-center gap-2">
                                 <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
-                                 {taxAppliedTo.includes('penalty') && <Badge variant="outline" className="text-xs">Taxable</Badge>}
+                                 {taxAppliedTo.includes('penalty') && <Badge variant="outline" className="text-xs">Taxable ({taxConfig.rate}%)</Badge>}
                             </div>
                             <Switch
                                 id={`penaltyRulesEnabled-${config.id}`}
@@ -1732,5 +1732,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
