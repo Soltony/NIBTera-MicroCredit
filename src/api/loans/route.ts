@@ -60,7 +60,7 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             penaltyAmount: 0,
             product: product as any,
         };
-        const { serviceFee: calculatedServiceFee, tax } = calculateTotalRepayable(tempLoanForCalc, product, taxConfig, new Date(data.disbursedDate));
+        const { serviceFee: calculatedServiceFee, tax: calculatedTax } = calculateTotalRepayable(tempLoanForCalc, product, taxConfig, new Date(data.disbursedDate));
 
         // Ledger Account Checks
         const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
@@ -70,7 +70,7 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
         const taxReceivedAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Tax' && acc.type === 'Received');
         if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
         if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
-        if (tax > 0 && (!taxReceivableAccount || !taxReceivedAccount)) throw new Error('Tax ledger accounts not configured.');
+        if (calculatedTax > 0 && (!taxReceivableAccount || !taxReceivedAccount)) throw new Error('Tax ledger accounts not configured.');
 
 
         // Step 2: Create the Loan record and connect it to the application.
@@ -83,6 +83,7 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
                 disbursedDate: data.disbursedDate,
                 dueDate: data.dueDate,
                 serviceFee: calculatedServiceFee,
+                tax: calculatedTax,
                 penaltyAmount: 0,
                 repaymentStatus: 'Unpaid',
                 repaidAmount: 0,
@@ -119,15 +120,16 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
         }
         
         // Journal entry for tax on service fee
-        if (tax > 0 && taxReceivableAccount && taxReceivedAccount) {
+        if (calculatedTax > 0 && taxReceivableAccount && taxReceivedAccount) {
+            // Tax on service fee is both receivable and considered "paid" by the provider initially
             await tx.ledgerEntry.createMany({
                 data: [
-                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivableAccount.id, type: 'Debit', amount: tax },
-                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivedAccount.id, type: 'Credit', amount: tax },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivableAccount.id, type: 'Debit', amount: calculatedTax },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivedAccount.id, type: 'Credit', amount: calculatedTax },
                 ]
             });
-            await tx.ledgerAccount.update({ where: { id: taxReceivableAccount.id }, data: { balance: { increment: tax } } });
-            await tx.ledgerAccount.update({ where: { id: taxReceivedAccount.id }, data: { balance: { increment: tax } } });
+            await tx.ledgerAccount.update({ where: { id: taxReceivableAccount.id }, data: { balance: { increment: calculatedTax } } });
+             await tx.ledgerAccount.update({ where: { id: taxReceivedAccount.id }, data: { balance: { increment: calculatedTax } } });
         }
 
 

@@ -68,12 +68,8 @@ export async function POST(req: NextRequest) {
         const principalDue = Math.max(0, principal - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest));
         
         // Calculate tax for each component
-        const taxRate = taxConfig?.rate ?? 0;
         const taxAppliedTo = taxConfig?.appliedTo ? JSON.parse(taxConfig.appliedTo) : [];
-        const serviceFeeTax = taxAppliedTo.includes('serviceFee') ? serviceFee * (taxRate / 100) : 0;
-        const interestTax = taxAppliedTo.includes('interest') ? interest * (taxRate / 100) : 0;
-        const penaltyTax = taxAppliedTo.includes('penalty') ? penalty * (taxRate / 100) : 0;
-
+        
         const taxDue = Math.max(0, tax - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest - principal));
 
 
