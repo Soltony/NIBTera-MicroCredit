@@ -86,7 +86,7 @@ model LoanProduct {
   loanAmountTiers             LoanAmountTier[]
   scoringConfiguration        ScoringConfigurationProduct[]
   loanApplications            LoanApplication[]
-  tax                         Float?
+  requiredDocuments           RequiredDocument[]
 
   @@unique([name, providerId])
 }
@@ -144,8 +144,8 @@ model LoanApplication {
     productId           String
     product             LoanProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     loanAmount          Float?
-    status              String      @default("APPROVED") // APPROVED, DISBURSED
-    rejectionReason     String?
+    status              String      @default("PENDING_DOCUMENTS") // PENDING_DOCUMENTS, PENDING_REVIEW, NEEDS_REVISION, APPROVED, DISBURSED
+    rejectionReason     String?     @db.Text
     loan                Loan?
     uploadedDocuments   UploadedDocument[]
     createdAt           DateTime    @default(now())
@@ -169,8 +169,10 @@ model UploadedDocument {
     requiredDocument    RequiredDocument @relation(fields: [requiredDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     fileName            String
     fileType            String
-    fileContent         String          @db.Text
+    fileContent         String          @db.Text // Should be a URL in production, Base64 for simplicity
     status              String          @default("PENDING") // PENDING, APPROVED, REJECTED
+    reviewedBy          String?
+    reviewedAt          DateTime?
     
     @@unique([loanApplicationId, requiredDocumentId])
 }
