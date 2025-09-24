@@ -576,7 +576,7 @@ const DailyFeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee
         <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
                 <Label className={cn("w-28", !isEnabled && "text-muted-foreground/50")}>{label}</Label>
-                <Select value={fee.type} onValue-change={(type: 'fixed' | 'percentage') => onChange({ ...fee, type, calculationBase: type === 'fixed' ? undefined : fee.calculationBase || 'principal' })} disabled={!isEnabled}>
+                <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type, calculationBase: type === 'fixed' ? undefined : fee.calculationBase || 'principal' })} disabled={!isEnabled}>
                     <SelectTrigger className="w-32" disabled={!isEnabled}>
                         <SelectValue />
                     </SelectTrigger>
@@ -838,13 +838,16 @@ function LoanTiersForm({ product, onUpdate, color }: {
     );
 }
 
-function ProductConfiguration({ product, providerColor, onProductUpdate }: { 
+function ProductConfiguration({ product, providerColor, onProductUpdate, taxConfig }: { 
     product: LoanProduct; 
     providerColor?: string;
     onProductUpdate: (updatedProduct: LoanProduct) => void;
+    taxConfig: Tax;
 }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
+    
+    const taxAppliedTo = useMemo(() => safeParseJson(taxConfig, 'appliedTo', []), [taxConfig]);
 
     // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
@@ -923,7 +926,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
                  <Card className="border-t-0 rounded-t-none">
                     <CardContent className="space-y-4 pt-6">
                         <div className="flex items-center justify-between border-b pb-4">
-                            <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor={`serviceFeeEnabled-${config.id}`} className="font-medium">Service Fee</Label>
+                                {taxAppliedTo.includes('serviceFee') && <Badge variant="outline" className="text-xs">Taxable</Badge>}
+                            </div>
                             <Switch
                                 id={`serviceFeeEnabled-${config.id}`}
                                 checked={config.serviceFeeEnabled}
@@ -940,7 +946,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
                         />
                         
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
-                            <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
+                             <div className="flex items-center gap-2">
+                                <Label htmlFor={`dailyFeeEnabled-${config.id}`} className="font-medium">Daily Fee</Label>
+                                {taxAppliedTo.includes('interest') && <Badge variant="outline" className="text-xs">Taxable</Badge>}
+                            </div>
                             <Switch
                                 id={`dailyFeeEnabled-${config.id}`}
                                 checked={config.dailyFeeEnabled}
@@ -957,7 +966,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate }: {
                         />
                         
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
-                            <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
+                             <div className="flex items-center gap-2">
+                                <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
+                                 {taxAppliedTo.includes('penalty') && <Badge variant="outline" className="text-xs">Taxable</Badge>}
+                            </div>
                             <Switch
                                 id={`penaltyRulesEnabled-${config.id}`}
                                 checked={config.penaltyRulesEnabled}
@@ -1099,9 +1111,10 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
     );
 }
 
-function ConfigurationTab({ providers, onProductUpdate }: { 
+function ConfigurationTab({ providers, onProductUpdate, taxConfig }: { 
     providers: LoanProvider[],
     onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
+    taxConfig: Tax;
 }) {
     const { currentUser } = useAuth();
     
@@ -1145,6 +1158,7 @@ function ConfigurationTab({ providers, onProductUpdate }: {
                                 product={product}
                                 providerColor={provider.colorHex}
                                 onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
+                                taxConfig={taxConfig}
                             />
                        ))}
                     </AccordionContent>
@@ -1259,7 +1273,7 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
                     <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} />
+                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} taxConfig={initialTaxConfig} />
                 </TabsContent>
                  <TabsContent value="agreement">
                     <Accordion type="multiple" className="w-full space-y-4">
@@ -1718,4 +1732,5 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
