@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
 
         await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
         console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
             action: 'REPAYMENT_INITIATED',
             actorId: borrowerIdForLogging,
             details: paymentDetailsForLogging
@@ -213,7 +212,7 @@ export async function POST(req: NextRequest) {
                 repaymentStatus: finalLoan.repaymentStatus,
              };
              await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
-             console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_SUCCESS' }));
+             console.log(JSON.stringify({ ...logDetails, action: 'REPAYMENT_SUCCESS' }));
             
             return finalLoan;
         });
@@ -227,7 +226,7 @@ export async function POST(req: NextRequest) {
             error: errorMessage,
         };
         await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_FAILED', entity: 'LOAN', entityId: paymentDetailsForLogging.loanId, details: failureLogDetails });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_FAILED' }));
+        console.error(JSON.stringify({ ...failureLogDetails, action: 'REPAYMENT_FAILED' }));
 
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });

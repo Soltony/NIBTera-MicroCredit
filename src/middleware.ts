@@ -23,7 +23,6 @@ export default async function middleware(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
       console.log(JSON.stringify({
-        timestamp: new Date().toISOString(),
         action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
         reason: 'No valid session',
         path: path,

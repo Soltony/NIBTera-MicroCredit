@@ -182,7 +182,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 };
                 await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
                 console.log(JSON.stringify({
-                    timestamp: new Date().toISOString(),
                     action: 'AUTOMATED_REPAYMENT_SUCCESS',
                     actorId: 'system',
                     details: logDetails
@@ -196,7 +195,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 };
                 await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_FAILURE', entity: 'LOAN', entityId: loan.id, details: failureDetails });
                  console.error(JSON.stringify({
-                    timestamp: new Date().toISOString(),
                     action: 'AUTOMATED_REPAYMENT_FAILURE',
                     actorId: 'system',
                     details: failureDetails
@@ -211,7 +209,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
             };
             await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SKIPPED', entity: 'LOAN', entityId: loan.id, details: { reason: 'Insufficient funds', ...skipDetails } });
              console.log(JSON.stringify({
-                timestamp: new Date().toISOString(),
                 action: 'AUTOMATED_REPAYMENT_SKIPPED',
                 actorId: 'system',
                 reason: 'Insufficient funds',
