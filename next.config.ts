@@ -52,6 +52,10 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: contentSecurityPolicy,
           },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
         ],
       },
       {
