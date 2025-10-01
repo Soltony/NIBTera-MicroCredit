@@ -1,10 +1,12 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
+    if (req.method !== 'POST') {
+        return new NextResponse(null, { status: 405, statusText: "Method Not Allowed" });
+    }
     const session = await getSession();
     if (!session?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });

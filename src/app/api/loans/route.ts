@@ -120,6 +120,9 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
 }
 
 export async function POST(req: NextRequest) {
+    if (req.method !== 'POST') {
+        return new NextResponse(null, { status: 405, statusText: "Method Not Allowed" });
+    }
     let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();
