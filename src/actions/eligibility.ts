@@ -28,8 +28,6 @@ async function getBorrowerDataForScoring(
 
     let provisionedDataEntries;
 
-    // --- NEW LOGIC ---
-    // If the product has its own data config, use it exclusively.
     if (product?.dataProvisioningEnabled && product.dataProvisioningConfigId) {
         provisionedDataEntries = await prisma.provisionedData.findMany({
             where: { 
@@ -39,7 +37,6 @@ async function getBorrowerDataForScoring(
             orderBy: { createdAt: 'desc' },
         });
     } else {
-        // Otherwise, fall back to all data from the provider.
         provisionedDataEntries = await prisma.provisionedData.findMany({
             where: { 
                 borrowerId,
@@ -50,13 +47,10 @@ async function getBorrowerDataForScoring(
             orderBy: { createdAt: 'desc' },
         });
     }
-     // --- END NEW LOGIC ---
 
 
     const combinedData: Record<string, any> = { id: borrowerId };
     
-    // Iterate from newest to oldest. If a key already exists, we don't overwrite it,
-    // ensuring we keep the value from the most recent entry.
     for (const entry of provisionedDataEntries) {
         try {
             const data = JSON.parse(entry.data as string);
@@ -66,7 +60,6 @@ async function getBorrowerDataForScoring(
             }
 
             for (const key in standardizedData) {
-                // Only add the key if it hasn't been added from a more recent entry
                 if (!Object.prototype.hasOwnProperty.call(combinedData, key)) {
                     combinedData[key] = standardizedData[key];
                 }
@@ -76,7 +69,6 @@ async function getBorrowerDataForScoring(
         }
     }
     
-    // --- NEW: Add repayment behavior metrics ---
     const previousLoans = await prisma.loan.findMany({
         where: { borrowerId },
         select: { repaymentBehavior: true },
@@ -86,7 +78,6 @@ async function getBorrowerDataForScoring(
     combinedData['loansOnTime'] = previousLoans.filter(l => l.repaymentBehavior === 'ON_TIME').length;
     combinedData['loansLate'] = previousLoans.filter(l => l.repaymentBehavior === 'LATE').length;
     combinedData['loansEarly'] = previousLoans.filter(l => l.repaymentBehavior === 'EARLY').length;
-    // --- END NEW ---
     
     return combinedData;
 }
@@ -146,7 +137,6 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
       return { isEligible: false, reason: 'Borrower profile not found.', score: 0, maxLoanAmount: 0 };
     }
 
-    // Rule: Check if borrower is on NPL list
     if (borrower.status === 'NPL') {
         return { isEligible: false, reason: 'Your account is currently restricted due to a non-performing loan. Please contact support.', score: 0, maxLoanAmount: 0 };
     }
@@ -169,24 +159,18 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         include: { product: true }
     });
 
-    // Rule: A borrower cannot take the same product twice at the same time.
     const hasActiveLoanOfSameType = allActiveLoans.some((loan: LoanWithProduct) => loan.productId === productId);
     if (hasActiveLoanOfSameType) {
         return { isEligible: false, reason: `You already have an active loan for the "${product.name}" product.`, score: 0, maxLoanAmount: 0 };
     }
     
-    // Rule: If "Combinable with Other Loans" is OFF, block if ANY other loan is active.
     if (!product.allowConcurrentLoans && allActiveLoans.length > 0) {
         const otherProductNames = allActiveLoans.map(l => `"${l.product.name}"`).join(', ');
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
     
-    // If we reach here, the loan is either combinable, or the user has no other active loans.
-    // Now, we can proceed with scoring.
-
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
-        // If no scoring is set up, maybe we allow a default loan amount? For now, let's say no.
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
@@ -206,11 +190,8 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
     }
     
-    // ** NEW GLOBAL LIMIT CHECK **
-    // Calculate the total outstanding principal from all active loans.
     const totalOutstandingPrincipal = allActiveLoans.reduce((sum, loan) => sum + loan.loanAmount - (loan.repaidAmount || 0), 0);
     
-    // The true available amount is the product's limit minus what's already borrowed.
     const maxLoanAmount = Math.max(0, productMaxLoan - totalOutstandingPrincipal);
     
     if (maxLoanAmount <= 0) {
