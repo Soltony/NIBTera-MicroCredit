@@ -8,7 +8,7 @@ const contentSecurityPolicy = `
   font-src 'self' https://fonts.gstatic.com;
   img-src 'self' data: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
   connect-src 'self';
-  frame-src 'self';
+  frame-ancestors 'self';
 `.replace(/\s{2,}/g, ' ').trim();
 
 
