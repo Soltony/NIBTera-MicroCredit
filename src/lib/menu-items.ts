@@ -6,6 +6,7 @@ import {
   FileCog,
   BadgeAlert,
   Landmark,
+  Download,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -50,5 +51,11 @@ export const allMenuItems = [
     label: 'Settings',
     icon: Settings,
     roles: ['Super Admin', 'Loan Manager', 'Loan Provider'],
+  },
+  {
+    path: '/admin/data-export',
+    label: 'Data Export',
+    icon: Download,
+    roles: ['Super Admin'],
   },
 ];
