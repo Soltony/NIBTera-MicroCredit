@@ -11,20 +11,24 @@ export default async function middleware(req: NextRequest) {
   const userAgent = req.headers.get('user-agent') || 'N/A';
   
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
-  const cspHeader = `
-    default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' https://fonts.gstatic.com;
-    img-src 'self' data: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
-    connect-src 'self';
-    frame-ancestors 'self';
-    frame-src 'self';
-    media-src 'self';
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-  `.replace(/\s{2,}/g, ' ').trim();
+ const cspHeader = `
+  default-src 'self';
+  script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src 'self' https://fonts.gstatic.com;
+  img-src 'self' data: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
+  connect-src 'self';
+  frame-ancestors 'self';
+  frame-src 'self';
+  child-src 'self';
+  media-src 'self';
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+  worker-src 'self';
+  manifest-src 'self';
+`.replace(/\s{2,}/g, ' ').trim();
+
 
 
   const requestHeaders = new Headers(req.headers);
