@@ -10,6 +10,7 @@ export const config = {
 };
 
 export default async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
   // ✅ Edge-safe nonce using Web Crypto
   const nonce = btoa(self.crypto.randomUUID()); // base64 encode UUID
 
@@ -46,7 +47,6 @@ export default async function middleware(req: NextRequest) {
   response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 
   // Admin authentication
-  const path = req.nextUrl.pathname;
   if (!publicRoutes.includes(path)) {
     const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
     if (isProtected) {
