@@ -36,13 +36,6 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
     }
 
     const { total, principal, interest, penalty, serviceFee, tax } = useMemo(() => {
-        // Since we are on the client, we can't call the async calculate function.
-        // For now, we'll estimate or just show the basic info. A better approach
-        // would be to have the calculation done on the server and passed as a prop.
-        // For this implementation, we will mock a simple calculation.
-        
-        // This is a temporary fix. For a real app, this should be a server call
-        // or the result should be passed from the server page component.
         const estimate = {
             total: loanDetails.loanAmount + loanDetails.serviceFee,
             principal: loanDetails.loanAmount,
@@ -51,7 +44,6 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
             serviceFee: loanDetails.serviceFee,
             tax: 0,
         };
-        // A full recalculation would need an async effect, which we will add if needed.
         return estimate;
     }, [loanDetails]);
 
@@ -153,5 +145,3 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
         </div>
     );
 }
-
-    

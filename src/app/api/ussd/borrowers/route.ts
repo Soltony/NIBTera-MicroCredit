@@ -13,8 +13,6 @@ async function getBorrowerDataByPhoneNumber(phoneNumber: string): Promise<Record
         return user;
     }
 
-    // 2. If not a user, search through provisioned data.
-    // This is less direct and depends on a "phoneNumber" field existing in the uploaded data.
     const provisionedDataEntries = await prisma.provisionedData.findMany({
         orderBy: { createdAt: 'desc' },
     });
@@ -27,8 +25,6 @@ async function getBorrowerDataByPhoneNumber(phoneNumber: string): Promise<Record
                 standardizedData[toCamelCase(key)] = data[key];
             }
 
-            // Check if the standardized data has a phoneNumber field that matches.
-            // This assumes a field like 'phoneNumber', 'phone_number', 'Phone Number', etc. exists.
             if (standardizedData.phoneNumber && String(standardizedData.phoneNumber).includes(phoneNumber)) {
                  const allDataForBorrower = await prisma.provisionedData.findMany({
                      where: { borrowerId: entry.borrowerId },

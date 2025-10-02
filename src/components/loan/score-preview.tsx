@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -60,7 +61,6 @@ export function ScorePreview({ parameters, availableFields, providerColor = '#fd
             }
         });
 
-        // The score for a parameter is capped by its weight.
         const scoreForThisParam = Math.min(maxScoreForParam, param.weight);
         totalScore += scoreForThisParam;
     });
