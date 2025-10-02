@@ -10,8 +10,6 @@ export const config = {
 };
 
 export default async function middleware(req: NextRequest) {
-  const path = req.nextUrl.pathname;
-
   // ✅ Edge-safe nonce using Web Crypto
   const nonce = btoa(self.crypto.randomUUID()); // base64 encode UUID
 
@@ -22,8 +20,8 @@ export default async function middleware(req: NextRequest) {
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' data: blob: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
-    connect-src 'self' https://your-api-domain.com;
-    frame-ancestors 'none';
+    connect-src 'self';
+    frame-ancestors 'self';
     media-src 'self';
     object-src 'none';
     base-uri 'self';
@@ -48,6 +46,7 @@ export default async function middleware(req: NextRequest) {
   response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 
   // Admin authentication
+  const path = req.nextUrl.pathname;
   if (!publicRoutes.includes(path)) {
     const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
     if (isProtected) {
