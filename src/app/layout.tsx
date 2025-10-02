@@ -26,7 +26,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased h-full bg-background">
         <AuthProvider>
-            {children}
+            {children}  
             <Toaster />
         </AuthProvider>
       </body>
