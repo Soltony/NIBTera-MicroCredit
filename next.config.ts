@@ -1,23 +1,6 @@
 
 import type {NextConfig} from 'next';
 
-const contentSecurityPolicy = `
-  default-src 'self';
-  script-src 'self' ;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  font-src 'self' https://fonts.gstatic.com;
-  img-src 'self' data: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
-  connect-src 'self';
-  frame-ancestors 'self';
-  frame-src 'self';
-  media-src 'self';
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self';
-`.replace(/\s{2,}/g, ' ').trim();
-
-
-
 const nextConfig: NextConfig = {
   /* config options here */
   poweredByHeader: false,
@@ -51,19 +34,6 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
-       {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: contentSecurityPolicy,
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-        ],
-      },
       {
         // matching all API routes
         source: "/api/:path*",

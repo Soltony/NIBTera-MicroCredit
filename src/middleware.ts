@@ -9,11 +9,45 @@ export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
   const userAgent = req.headers.get('user-agent') || 'N/A';
+  
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    img-src 'self' data: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
+    connect-src 'self';
+    frame-ancestors 'self';
+    frame-src 'self';
+    media-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  `.replace(/\s{2,}/g, ' ').trim();
+
+
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set(
+    'Content-Security-Policy',
+    cspHeader
+  )
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  // These headers are still required for full protection.
+  response.headers.set('Content-Security-Policy', cspHeader);
+  response.headers.set('X-Content-Type-Options', 'nosniff');
 
 
   // Do not run middleware on public admin routes like login
   if (publicRoutes.includes(path)) {
-    return NextResponse.next();
+    return response;
   }
 
   // Check if the route is a protected admin route
@@ -30,14 +64,17 @@ export default async function middleware(req: NextRequest) {
         userAgent,
       }));
       // If no session, redirect to the login page
-      return NextResponse.redirect(new URL('/admin/login', req.nextUrl));
+      const loginUrl = new URL('/admin/login', req.nextUrl.origin);
+      return NextResponse.redirect(loginUrl.toString());
     }
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 // Configure the matcher to run on all admin routes
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 };

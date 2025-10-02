@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/hooks/use-auth';
+import { headers } from 'next/headers';
 
 export const metadata: Metadata = {
   title: 'LoanFlow',
@@ -16,8 +17,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = headers().get('x-nonce') || '';
+  
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
+      <head>
+        <meta http-equiv="Content-Security-Policy" content={`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`} />
+      </head>
       <body className="font-body antialiased h-full bg-background">
         <AuthProvider>
             {children}
