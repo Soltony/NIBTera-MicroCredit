@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
@@ -18,7 +19,7 @@ export default async function middleware(req: NextRequest) {
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
-    style-src 'self' https://fonts.googleapis.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' data: blob: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
     connect-src 'self' https://your-api-domain.com;

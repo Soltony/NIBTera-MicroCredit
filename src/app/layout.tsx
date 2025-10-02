@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
       <head>
-        <meta http-equiv="Content-Security-Policy" content={`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`} />
+        <meta httpEquiv="Content-Security-Policy" content={`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`} />
       </head>
       <body className="font-body antialiased h-full bg-background">
         <AuthProvider>
