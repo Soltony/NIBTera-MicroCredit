@@ -9,6 +9,7 @@ const contentSecurityPolicy = `
   img-src 'self' data: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
   connect-src 'self';
   frame-ancestors 'self';
+  object-src 'none';
 `.replace(/\s{2,}/g, ' ').trim();
 
 
