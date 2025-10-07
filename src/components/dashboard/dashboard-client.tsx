@@ -171,15 +171,15 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
       const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
       // totalBorrowed is the sum of outstanding principals.
       const totalBorrowed = unpaidLoans.reduce((acc, loan) => {
-        const { principal } = calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
-        return acc + principal - (loan.repaidAmount || 0);
+        const balance = loan.totalRepayableAmount ?? 0;
+        return acc + Math.max(0, balance - (loan.repaidAmount || 0));
       }, 0);
       
       // The overallMaxLimit is the user's credit ceiling, which is their current available credit plus what they've already borrowed.
       const overallMaxLimit = availableToBorrow + totalBorrowed;
 
       return { overallMaxLimit, totalBorrowed, availableToBorrow };
-  }, [eligibility.limits, loanHistory, taxConfig]);
+  }, [eligibility.limits, loanHistory]);
 
 
   const activeLoansByProduct = useMemo(() => {
