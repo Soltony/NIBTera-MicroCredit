@@ -702,6 +702,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRefs = React.useRef<Record<string, React.RefObject<HTMLInputElement>>>({});
     const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+    const [deletingUpload, setDeletingUpload] = useState<DataProvisioningUpload | null>(null);
 
 
     useEffect(() => {
@@ -713,7 +714,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
         setIsConfigDialogOpen(true);
     };
 
-    const handleDelete = async (configId: string) => {
+    const handleDeleteConfig = async (configId: string) => {
         try {
             const response = await fetch(`/api/settings/data-provisioning?id=${configId}`, {
                 method: 'DELETE',
@@ -833,6 +834,36 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
             if (event.target) event.target.value = '';
         }
     };
+    
+     const handleDeleteUpload = async () => {
+        if (!deletingUpload) return;
+        
+        try {
+            const response = await fetch(`/api/settings/data-provisioning-uploads?uploadId=${deletingUpload.id}`, {
+                method: 'DELETE',
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete upload.');
+            }
+            
+            const newConfigs = produce(configs, draft => {
+                const config = draft.find(c => c.id === deletingUpload.configId);
+                if (config && config.uploads) {
+                    config.uploads = config.uploads.filter(u => u.id !== deletingUpload.id);
+                }
+            });
+
+            setConfigs(newConfigs);
+            onConfigChange(newConfigs);
+            toast({ title: 'Success', description: `Upload "${deletingUpload.fileName}" has been deleted.` });
+
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setDeletingUpload(null);
+        }
+    };
 
     return (
         <>
@@ -897,21 +928,27 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                                                    <TableHead>Rows</TableHead>
                                                    <TableHead>Uploaded By</TableHead>
                                                    <TableHead>Date</TableHead>
+                                                   <TableHead className="text-right">Actions</TableHead>
                                                </TableRow>
                                            </TableHeader>
                                            <TableBody>
                                                {config.uploads && config.uploads.length > 0 ? (
                                                    config.uploads.map(upload => (
-                                                        <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
-                                                            <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
+                                                        <TableRow key={upload.id}>
+                                                            <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => setViewingUpload(upload)}><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
                                                             <TableCell>{upload.rowCount}</TableCell>
                                                             <TableCell>{upload.uploadedBy}</TableCell>
                                                             <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                                                            <TableCell className="text-right">
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)}>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </TableCell>
                                                         </TableRow>
                                                    ))
                                                ) : (
                                                     <TableRow>
-                                                        <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
+                                                        <TableCell colSpan={5} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
                                                     </TableRow>
                                                )}
                                            </TableBody>
@@ -944,10 +981,26 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={() => handleDeleteConfig(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            
+            <AlertDialog open={!!deletingUpload} onOpenChange={() => setDeletingUpload(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this upload?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the file record and all {deletingUpload?.rowCount} associated borrower data rows from the database. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteUpload} className="bg-destructive hover:bg-destructive/90">Delete Upload</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <UploadDataViewerDialog
                 upload={viewingUpload}
                 onClose={() => setViewingUpload(null)}
