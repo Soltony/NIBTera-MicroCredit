@@ -35,9 +35,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-const formatCurrency = (amount: number | null) => {
+const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined) return 'N/A';
-    return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 const DocumentViewerDialog = ({ application, isOpen, onClose }: { application: LoanApplication | null; isOpen: boolean; onClose: () => void }) => {

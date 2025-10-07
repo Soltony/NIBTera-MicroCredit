@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -17,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined) return '0.00';
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount);
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 };
 
 
