@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -126,26 +127,25 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: `Cannot delete. This data source is currently used by ${productCount} product(s).` }, { status: 409 });
         }
 
-        // Check if any provisioned data is linked to this config
-        const dataCount = await prisma.provisionedData.count({
-            where: { configId: id }
-        });
-        
-        if (dataCount > 0) {
-            return NextResponse.json({ error: `Cannot delete. This data source has ${dataCount} borrower records associated with it.` }, { status: 409 });
-        }
+        await prisma.$transaction(async (tx) => {
+            // Delete all provisioned data associated with this config
+            await tx.provisionedData.deleteMany({
+                where: { configId: id }
+            });
 
-        // If no dependencies, proceed with deletion
-        await prisma.dataProvisioningConfig.delete({
-            where: { id },
+            // Now delete the config
+            await tx.dataProvisioningConfig.delete({
+                where: { id },
+            });
         });
+
 
         return NextResponse.json({ message: 'Config deleted successfully' });
 
     } catch (error: any) {
         console.error('Error deleting data provisioning config:', error);
-        // Fallback for any other errors, though the checks above should handle P2003
-        if (error.code === 'P2003') {
+        // Fallback for any other errors
+        if (error.code === 'P2003') { // This is a general foreign key constraint, though we try to check above.
              return NextResponse.json({ error: 'This configuration is in use and cannot be deleted.' }, { status: 409 });
         }
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
