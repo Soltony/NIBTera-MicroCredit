@@ -124,3 +124,42 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const uploadId = searchParams.get('uploadId');
+
+    if (!uploadId) {
+        return NextResponse.json({ error: 'Upload ID is required' }, { status: 400 });
+    }
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // Delete all provisioned data associated with this upload
+            await tx.provisionedData.deleteMany({
+                where: { uploadId: uploadId }
+            });
+
+            // Delete the upload record itself
+            await tx.dataProvisioningUpload.delete({
+                where: { id: uploadId }
+            });
+        });
+
+        return NextResponse.json({ message: 'Upload and all associated data have been deleted successfully.' }, { status: 200 });
+
+    } catch (error: any) {
+        console.error(`Error deleting upload ${uploadId}:`, error);
+        if (error.code === 'P2025') {
+            // This happens if the record was already deleted
+            return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+    
