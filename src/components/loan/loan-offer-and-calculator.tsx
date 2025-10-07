@@ -59,9 +59,9 @@ const formatPenaltyRule = (rule: PenaltyRule): string => {
     const toDay = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
 
     if (toDay === Infinity) {
-        conditionString = `from day ${fromDay} onwards`;
+        conditionString = `from day ${fromDay} onwards after due date`;
     } else {
-        conditionString = `from day ${fromDay} to day ${toDay}`;
+        conditionString = `from day ${fromDay} to day ${toDay} after due date`;
     }
 
     return `${valueString} ${conditionString}`;
