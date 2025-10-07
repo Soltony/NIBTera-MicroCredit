@@ -11,8 +11,9 @@ import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
+const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
@@ -57,10 +58,10 @@ export function ProductCard({
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        const totalDebt = activeLoan.totalRepayableAmount ?? 0;
-        const remainingBalance = totalDebt - (activeLoan.repaidAmount || 0);
+        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfig, new Date());
+        const remainingBalance = total - (activeLoan.repaidAmount || 0);
         return Math.max(0, remainingBalance);
-    }, [activeLoan]);
+    }, [activeLoan, taxConfig]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general

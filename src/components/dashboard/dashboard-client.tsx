@@ -28,8 +28,9 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
+const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 interface DashboardClientProps {
@@ -169,13 +170,16 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
       
       const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
       // totalBorrowed is the sum of outstanding principals.
-      const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount - (loan.repaidAmount || 0), 0);
+      const totalBorrowed = unpaidLoans.reduce((acc, loan) => {
+        const { principal } = calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
+        return acc + principal - (loan.repaidAmount || 0);
+      }, 0);
       
       // The overallMaxLimit is the user's credit ceiling, which is their current available credit plus what they've already borrowed.
       const overallMaxLimit = availableToBorrow + totalBorrowed;
 
       return { overallMaxLimit, totalBorrowed, availableToBorrow };
-  }, [eligibility.limits, loanHistory]);
+  }, [eligibility.limits, loanHistory, taxConfig]);
 
 
   const activeLoansByProduct = useMemo(() => {
