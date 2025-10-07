@@ -27,6 +27,7 @@ interface LoanOfferAndCalculatorProps {
 }
 
 const formatCurrency = (amount: number) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
@@ -286,7 +287,10 @@ export function LoanOfferAndCalculator({ product, taxConfig, isLoading, eligibil
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
-                    <span className="text-base font-semibold">Total Repayable Amount on due date</span>
+                    <div>
+                        <span className="text-base font-semibold">Total Repayable Amount</span>
+                        <p className="text-xs text-muted-foreground">on {format(calculationResult.dueDate, 'PPP')}</p>
+                    </div>
                     <span className="text-2xl font-bold" style={{color: providerColor}}>
                         {formatCurrency(calculationResult.total)}
                     </span>
