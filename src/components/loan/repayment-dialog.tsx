@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 const formatCurrency = (amount: number) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00';
     return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
@@ -46,7 +47,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
             setError('Please enter a valid amount.');
             return false;
         }
-        if (numericAmount > totalBalanceDue + 0.01) { // Add tolerance
+        if (numericAmount > totalBalanceDue + 1e-9) { // Use a small epsilon for float comparison
             setError(`Amount cannot be more than the balance due of ${formatCurrency(totalBalanceDue)}.`);
             return false;
         }

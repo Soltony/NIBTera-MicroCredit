@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         const principalDue = Math.max(0, principal - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest));
 
 
-        if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
+        if (paymentAmount > totalDue + 1e-9) { // Add machine epsilon for float comparison
              throw new Error('Payment amount exceeds balance due.');
         }
         
