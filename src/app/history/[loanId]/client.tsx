@@ -36,6 +36,10 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
     }
 
     const { total, principal, interest, penalty, serviceFee, tax } = useMemo(() => {
+        if (loanDetails.calculatedRepayment) {
+            return loanDetails.calculatedRepayment;
+        }
+        // Fallback for older data that might not have the pre-calculated value
         const estimate = {
             total: loanDetails.loanAmount + loanDetails.serviceFee,
             principal: loanDetails.loanAmount,

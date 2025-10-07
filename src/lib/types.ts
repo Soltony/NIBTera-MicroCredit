@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -150,10 +149,19 @@ export interface LoanDetails {
   repaidAmount?: number;
   payments: Payment[];
   penaltyAmount: number;
+  totalRepayableAmount?: number;
   // For calculation purposes, not stored in DB
   product: LoanProduct;
   provider?: LoanProvider;
   loanApplicationId?: string;
+  calculatedRepayment?: {
+    total: number;
+    principal: number;
+    interest: number;
+    penalty: number;
+    serviceFee: number;
+    tax: number;
+  }
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({

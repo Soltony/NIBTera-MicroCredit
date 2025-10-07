@@ -57,16 +57,10 @@ export function ProductCard({
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        // The product passed to activeLoan from parent might have JSON strings, need to parse them
-        const parsedProduct = {
-            ...product,
-            ...activeLoan.product
-        };
-        const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, taxConfig, new Date());
-        const remainingBalance = totalDebt.total - (activeLoan.repaidAmount || 0);
-        // Return 0 if the balance is negative (overpayment)
+        const totalDebt = activeLoan.totalRepayableAmount ?? 0;
+        const remainingBalance = totalDebt - (activeLoan.repaidAmount || 0);
         return Math.max(0, remainingBalance);
-    }, [activeLoan, product, taxConfig]);
+    }, [activeLoan]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general
