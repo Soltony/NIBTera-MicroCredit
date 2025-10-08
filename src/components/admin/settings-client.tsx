@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -124,8 +123,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 const worksheet = workbook.Sheets[sheetName];
                 const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
-                if (json.length < 2) {
-                    throw new Error("File must contain a header row and at least one data row.");
+                if (json.length < 1) {
+                    throw new Error("File must contain at least a header row.");
                 }
 
                 const headers = json[0] as string[];
@@ -1782,6 +1781,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
-
 
