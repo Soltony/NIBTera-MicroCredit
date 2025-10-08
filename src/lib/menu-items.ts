@@ -7,6 +7,8 @@ import {
   BadgeAlert,
   Landmark,
   Download,
+  FolderArchive,
+  BookUser,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -15,6 +17,12 @@ export const allMenuItems = [
     label: 'Dashboard',
     icon: LayoutDashboard,
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
+  },
+  {
+    path: '/admin/applications',
+    label: 'Applications',
+    icon: FolderArchive,
+    roles: ['Super Admin', 'Application Reviewer'],
   },
   {
     path: '/admin/reports',
@@ -53,9 +61,9 @@ export const allMenuItems = [
     roles: ['Super Admin', 'Loan Manager', 'Loan Provider'],
   },
   {
-    path: '/admin/data-export',
-    label: 'Data Export',
-    icon: Download,
-    roles: ['Super Admin'],
+    path: '/admin/audit-logs',
+    label: 'Audit Logs',
+    icon: BookUser,
+    roles: ['Super Admin', 'Auditor'],
   },
 ];
