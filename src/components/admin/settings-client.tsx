@@ -1211,11 +1211,27 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
     onClose: () => void;
 }) {
     const headers = filter ? Object.keys(filter) : [];
-    const values = filter ? Object.values(filter) : [];
+    
+    const dataRows = useMemo(() => {
+        if (!filter) return [];
+
+        const columns = headers.map(header => filter[header].split(',').map(v => v.trim()));
+        const maxRows = Math.max(...columns.map(col => col.length));
+        
+        const rows: (string | null)[][] = [];
+        for (let i = 0; i < maxRows; i++) {
+            const row: (string | null)[] = [];
+            for (let j = 0; j < headers.length; j++) {
+                row.push(columns[j][i] || null);
+            }
+            rows.push(row);
+        }
+        return rows;
+    }, [filter, headers]);
 
     return (
         <UIDialog open={isOpen} onOpenChange={onClose}>
-            <UIDialogContent className="sm:max-w-2xl">
+            <UIDialogContent className="sm:max-w-4xl">
                 <UIDialogHeader>
                     <UIDialogTitle>Current Filter Criteria</UIDialogTitle>
                     <UIDialogDescription>
@@ -1232,12 +1248,14 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {headers.length > 0 ? (
-                                <TableRow>
-                                    {values.map((value, index) => (
-                                        <TableCell key={index}>{value}</TableCell>
-                                    ))}
-                                </TableRow>
+                            {dataRows.length > 0 ? (
+                                dataRows.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {row.map((cell, cellIndex) => (
+                                            <TableCell key={cellIndex}>{cell}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
                             ) : (
                                 <TableRow>
                                     <TableCell colSpan={headers.length || 1} className="text-center text-muted-foreground h-24">
@@ -1851,6 +1869,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
