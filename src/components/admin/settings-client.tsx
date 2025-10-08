@@ -74,18 +74,22 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
     return data?.[field] ?? defaultValue;
 };
 
-const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate }: {
+const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate, allDataConfigs }: {
     provider: LoanProvider;
     product: LoanProduct;
     providerColor?: string;
     onSave: () => void;
     onDelete: () => void;
     onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
+    allDataConfigs: DataProvisioningConfig[];
 }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
     const [isFilterViewerOpen, setIsFilterViewerOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const formData = useMemo(() => {
         return {
@@ -109,38 +113,41 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             onUpdate({ [name]: checked });
         }
     }
-
-    const handleFilterFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    
+    const handleFilterFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file) return;
+        if (!file || !product.dataProvisioningConfigId) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = e.target?.result;
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
-                if (json.length < 1) {
-                    throw new Error("File must contain at least a header row.");
-                }
+        setIsUploading(true);
+        try {
+            // New logic: Read headers, create JSON, and update the filter
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
 
-                const headers = json[0] as string[];
-                const filterObject = headers.reduce((acc, header) => {
-                    acc[header] = '';
-                    return acc;
-                }, {} as Record<string, string>);
-
-                onUpdate({ eligibilityFilter: JSON.stringify(filterObject, null, 2) });
-                toast({ title: "Filter Generated", description: "A filter template has been generated from your file headers." });
-
-            } catch (error: any) {
-                toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
+            if (json.length === 0) {
+                throw new Error("File is empty.");
             }
-        };
-        reader.readAsArrayBuffer(file);
+
+            const headers = Object.keys(json[0] as object);
+            const filterObject = headers.reduce((acc, header) => {
+                const values = json.map(row => (row as any)[header]).filter(Boolean);
+                acc[header] = values.join(', ');
+                return acc;
+            }, {} as Record<string, string>);
+
+            onUpdate({ eligibilityFilter: JSON.stringify(filterObject, null, 2) });
+            setIsFilterViewerOpen(true); // Open the viewer after successful processing
+            toast({ title: "Filter Generated", description: "The eligibility list has been generated from your file." });
+
+        } catch (error: any) {
+            toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
+        } finally {
+            setIsUploading(false);
+            if (event.target) event.target.value = '';
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -266,24 +273,44 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         </div>
                         {formData.dataProvisioningEnabled && (
                             <div className="pl-8 space-y-4">
+                               <div className="space-y-2">
+                                    <Label>Link Data Source</Label>
+                                    <Select 
+                                        value={product.dataProvisioningConfigId || ''}
+                                        onValueChange={(value) => onUpdate({ dataProvisioningConfigId: value })}
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Select a data source to link..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {allDataConfigs.map(config => (
+                                                <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">Select the data source this product's eligibility list will be based on.</p>
+                                </div>
                                 <div className="space-y-2">
                                     <Label>Upload List</Label>
                                     <div className="flex items-center gap-4">
                                         <Button asChild variant="outline" size="sm">
-                                             <label htmlFor={`filter-upload-${product.id}`} className="cursor-pointer">
+                                             <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
                                                 <Upload className="h-4 w-4 mr-2"/>
-                                                Upload Excel File
+                                                {isUploading ? "Uploading..." : "Upload Excel File"}
                                                 <input
+                                                    ref={fileInputRef}
                                                     id={`filter-upload-${product.id}`}
                                                     type="file"
                                                     accept=".xlsx, .xls"
                                                     onChange={handleFilterFileUpload}
                                                     className="hidden"
+                                                    disabled={isUploading || !product.dataProvisioningConfigId}
                                                 />
                                             </label>
                                         </Button>
-                                         <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers will be used as keys.</p>
+                                         <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers must match the linked data source.</p>
                                     </div>
+                                    {!product.dataProvisioningConfigId && <p className="text-xs text-destructive">A data source must be linked before uploading.</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>View Uploaded List</Label>
@@ -297,10 +324,17 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                         <CollapsibleContent>
                                             <Textarea
                                                 value={formData.eligibilityFilter ? JSON.stringify(JSON.parse(formData.eligibilityFilter), null, 2) : ''}
-                                                onChange={(e) => onUpdate({ eligibilityFilter: e.target.value })}
+                                                onChange={(e) => {
+                                                    try {
+                                                        const parsed = JSON.parse(e.target.value);
+                                                        onUpdate({ eligibilityFilter: JSON.stringify(parsed, null, 2) });
+                                                    } catch (err) {
+                                                        onUpdate({ eligibilityFilter: e.target.value });
+                                                    }
+                                                }}
                                                 rows={10}
                                                 className="mt-2 font-mono text-xs"
-                                                placeholder='{ "criteria": "value" }'
+                                                placeholder='{ "criteria": "value1, value2" }'
                                             />
                                         </CollapsibleContent>
                                     </Collapsible>
@@ -549,6 +583,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     onSave={() => {}}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                     onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
+                    allDataConfigs={dataConfigs}
                   />
                 ))}
                 <Button 
@@ -1781,4 +1816,5 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
