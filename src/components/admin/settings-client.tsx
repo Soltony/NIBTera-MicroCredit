@@ -76,7 +76,7 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, allProviderConfigs, onConfigChange, onProductConfigChange }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, allProviderConfigs: DataProvisioningConfig[], onConfigChange: (configs: DataProvisioningConfig[]) => void, onProductConfigChange: (productId: string, configId: string | null) => void }) => {
+const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onProductConfigChange }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, onProductConfigChange: (productId: string, configId: string | null) => void }) => {
     const [formData, setFormData] = useState(product);
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
@@ -88,12 +88,18 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
             dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: safeParseJson(product, 'penaltyRules', []),
+            eligibilityFilter: safeParseJson(product, 'eligibilityFilter', null)
         });
     }, [product]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value === '' ? null : parseFloat(value) }));
+        setFormData(prev => ({ ...prev, [name]: value === '' ? null : value }));
+    };
+    
+    const handleJsonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
@@ -103,25 +109,33 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             setFormData(prev => ({...prev, [name]: checked }));
         }
     }
-    
-     const handleSelectChange = (name: keyof LoanProduct, value: string) => {
-        setFormData(prev => ({...prev, [name]: value }));
-        if (name === 'dataProvisioningConfigId') {
-            onProductConfigChange(product.id, value);
-        }
-    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
         try {
             const parsedDuration = parseInt(String(formData.duration));
-            const payload = {
+            const payload: any = {
                 ...formData,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: isNaN(parsedDuration) ? 30 : parsedDuration,
             };
+            
+            // Validate and stringify eligibilityFilter if it's an object
+            if (payload.eligibilityFilter && typeof payload.eligibilityFilter !== 'string') {
+                 payload.eligibilityFilter = JSON.stringify(payload.eligibilityFilter);
+            }
+            if(payload.eligibilityFilter) {
+                 try {
+                    JSON.parse(payload.eligibilityFilter);
+                } catch (jsonError) {
+                    toast({ title: "Invalid Filter", description: "The eligibility filter is not a valid JSON object.", variant: 'destructive'});
+                    setIsSaving(false);
+                    return;
+                }
+            }
+
 
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
@@ -220,7 +234,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     className="data-[state=checked]:bg-[--provider-color]"
                                     style={{'--provider-color': providerColor} as React.CSSProperties}
                                 />
-                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Use Product-Specific Data</Label>
+                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Product-Specific Eligibility</Label>
                             </div>
                              <Button asChild variant="link" size="sm" style={{color: providerColor}}>
                                 <Link href={`/admin/credit-score-engine?provider=${provider.id}`}>
@@ -230,19 +244,19 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                             </Button>
                         </div>
                         {formData.dataProvisioningEnabled && (
-                             <div className="pl-8 space-y-4">
-                                <p className="text-xs text-muted-foreground">Define a specific data schema and upload a borrower list exclusively for this product. This will override the provider-level data for scoring.</p>
-                                <DataProvisioningManager 
-                                    providerId={provider.id}
-                                    config={allProviderConfigs.find(c => c.id === formData.dataProvisioningConfigId)}
-                                    onConfigChange={(newConfig) => {
-                                        // Update the list of all configs for the provider
-                                        const otherConfigs = allProviderConfigs.filter(c => c.id !== newConfig.id);
-                                        onConfigChange([...otherConfigs, newConfig]);
-                                        // Associate the new/updated config with the product
-                                        handleSelectChange('dataProvisioningConfigId', newConfig.id);
-                                    }}
+                            <div className="pl-8 space-y-4">
+                                <Label htmlFor={`eligibilityFilter-${product.id}`}>Eligibility Allow-List (JSON)</Label>
+                                <Textarea
+                                    id={`eligibilityFilter-${product.id}`}
+                                    name="eligibilityFilter"
+                                    placeholder='e.g., { "Employment Status": "Employed,Self-employed", "Credit History": "Good" }'
+                                    value={typeof formData.eligibilityFilter === 'string' ? formData.eligibilityFilter : JSON.stringify(formData.eligibilityFilter, null, 2)}
+                                    onChange={handleJsonChange}
+                                    rows={4}
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Define a JSON object where keys are column names from the provider data, and values are comma-separated strings of allowed values. A borrower must match all criteria to be eligible.
+                                </p>
                             </div>
                         )}
                     </div>
@@ -380,7 +394,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
             if (provider) {
                  const productIndex = provider.products.findIndex(p => p.id === productId);
                 if (productIndex !== -1) {
-                    provider.products[productIndex].dataProvisioningConfigId = configId;
+                    // This field no longer exists, but the function signature remains for now
                 }
             }
         }))
@@ -440,15 +454,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
         return providers.filter(p => p.id === currentUser.providerId);
     }, [providers, currentUser]);
-    
-    const handleConfigChange = useCallback((providerId: string, newConfigs: DataProvisioningConfig[]) => {
-        onProvidersChange(produce(draft => {
-             const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                provider.dataProvisioningConfigs = newConfigs;
-            }
-        }));
-    }, [onProvidersChange]);
 
 
     return (
@@ -500,8 +505,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     providerColor={provider.colorHex} 
                     onSave={handleSaveProduct}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                    allProviderConfigs={provider.dataProvisioningConfigs || []}
-                    onConfigChange={(newConfigs) => handleConfigChange(provider.id, newConfigs)}
                     onProductConfigChange={(productId, configId) => handleProductConfigChange(provider.id, productId, configId)}
                   />
                 ))}
@@ -1740,6 +1743,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
