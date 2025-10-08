@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
+import { createAuditLog } from '@/lib/audit-log';
+
 
 // Helper to convert strings to camelCase
 const toCamelCase = (str: string) => {
@@ -22,6 +24,8 @@ export async function POST(req: NextRequest) {
     if (!session?.userId || !user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
 
     try {
         const formData = await req.formData();
@@ -109,6 +113,16 @@ export async function POST(req: NextRequest) {
                 });
             }
         });
+        
+        await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_UPLOAD',
+            entity: 'PROVIDER',
+            entityId: config.providerId,
+            details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+            ipAddress,
+            userAgent
+        });
 
 
         return NextResponse.json(newUpload, { status: 201 });
@@ -130,6 +144,8 @@ export async function DELETE(req: NextRequest) {
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
 
     const { searchParams } = new URL(req.url);
     const uploadId = searchParams.get('uploadId');
@@ -139,6 +155,14 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
+        const uploadToDelete = await prisma.dataProvisioningUpload.findUnique({
+            where: { id: uploadId },
+        });
+
+        if (!uploadToDelete) {
+             return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+
         await prisma.$transaction(async (tx) => {
             // Delete all provisioned data associated with this upload
             await tx.provisionedData.deleteMany({
@@ -150,6 +174,17 @@ export async function DELETE(req: NextRequest) {
                 where: { id: uploadId }
             });
         });
+        
+         await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_DELETE',
+            entity: 'PROVIDER',
+            entityId: uploadToDelete.configId,
+            details: { uploadId: uploadId, fileName: uploadToDelete.fileName },
+            ipAddress,
+            userAgent
+        });
+
 
         return NextResponse.json({ message: 'Upload and all associated data have been deleted successfully.' }, { status: 200 });
 

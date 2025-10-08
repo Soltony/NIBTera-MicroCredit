@@ -76,12 +76,30 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: () => void, onDelete: () => void, onUpdate: (updatedProduct: Partial<LoanProduct>) => void }) => {
+const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate, allDataConfigs, onDataConfigUpdate }: {
+    provider: LoanProvider;
+    product: LoanProduct;
+    providerColor?: string;
+    onSave: () => void;
+    onDelete: () => void;
+    onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
+    allDataConfigs: DataProvisioningConfig[];
+    onDataConfigUpdate: (config: DataProvisioningConfig) => void;
+}) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
     const [isFilterViewerOpen, setIsFilterViewerOpen] = useState(false);
     const [deletingUpload, setDeletingUpload] = useState<DataProvisioningUpload | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const { currentUser } = useAuth();
+    
+    // Find the data provisioning config that is linked to this product.
+    const productDataConfig = useMemo(() => {
+        return allDataConfigs.find(c => c.id === product.dataProvisioningConfigId);
+    }, [allDataConfigs, product.dataProvisioningConfigId]);
+
 
     const formData = useMemo(() => {
         return {
@@ -106,46 +124,53 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
     }
     
-    const handleFilterFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFilterFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!productDataConfig) {
+            toast({ title: 'Error', description: 'A data provisioning source must be linked before uploading.', variant: 'destructive'});
+            return;
+        }
+        
         const file = event.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = e.target?.result;
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('configId', productDataConfig.id);
 
-                if (jsonData.length === 0) {
-                    toast({ title: "Empty File", description: "The uploaded Excel file is empty.", variant: "destructive" });
-                    return;
-                }
+            const response = await fetch('/api/settings/data-provisioning-uploads', {
+                method: 'POST',
+                body: formData,
+            });
 
-                const filterObject: { [key: string]: string } = {};
-                const headers = Object.keys(jsonData[0]);
-                
-                headers.forEach(header => {
-                    const values = new Set<string>();
-                    jsonData.forEach(row => {
-                        if (row[header] !== undefined && row[header] !== null) {
-                            values.add(String(row[header]));
-                        }
-                    });
-                    if (values.size > 0) {
-                        filterObject[header] = Array.from(values).join(',');
-                    }
-                });
-
-                onUpdate({ eligibilityFilter: JSON.stringify(filterObject, null, 2) });
-                toast({ title: "Filter Loaded", description: "Excel file parsed and loaded as eligibility filter. Please save your changes." });
-            } catch (error) {
-                toast({ title: "File Error", description: "Could not parse the uploaded Excel file.", variant: "destructive" });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to upload file.');
             }
-        };
-        reader.readAsArrayBuffer(file);
+            
+            const newUpload = await response.json();
+            
+            // Update the state of the parent component
+            onDataConfigUpdate(produce(productDataConfig, draft => {
+                if (!draft.uploads) draft.uploads = [];
+                draft.uploads.unshift(newUpload);
+            }));
+
+            toast({
+                title: 'Upload Successful',
+                description: `File "${file.name}" uploaded and recorded successfully.`,
+            });
+        } catch (error: any) {
+             toast({
+                title: 'Upload Failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        } finally {
+            setIsUploading(false);
+            if (event.target) event.target.value = '';
+        }
     };
 
 
@@ -160,17 +185,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: isNaN(parsedDuration) ? 30 : parsedDuration,
             };
-            
-            if (payload.eligibilityFilter && typeof payload.eligibilityFilter === 'string') {
-                 try {
-                    JSON.parse(payload.eligibilityFilter);
-                } catch (jsonError) {
-                    toast({ title: "Invalid Filter", description: "The eligibility filter is not a valid JSON object. Please upload a valid file or correct it manually.", variant: 'destructive'});
-                    setIsSaving(false);
-                    return;
-                }
-            }
-
 
             const response = await fetch('/api/settings/products', {
                 method: 'PUT',
@@ -191,6 +205,27 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
     }
     
+    const handleDeleteUpload = async () => {
+        if (!deletingUpload || !productDataConfig) return;
+        
+        try {
+            const response = await fetch(`/api/settings/data-provisioning-uploads?uploadId=${deletingUpload.id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error((await response.json()).error || 'Failed to delete upload.');
+            
+            onDataConfigUpdate(produce(productDataConfig, draft => {
+                if (draft.uploads) {
+                    draft.uploads = draft.uploads.filter(u => u.id !== deletingUpload.id);
+                }
+            }));
+
+            toast({ title: 'Success', description: `Upload "${deletingUpload.fileName}" has been deleted.` });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setDeletingUpload(null);
+        }
+    };
+    
     const parsedFilter = useMemo(() => {
         const filter = formData.eligibilityFilter;
         if (!filter || typeof filter !== 'string') return null;
@@ -200,10 +235,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             return null;
         }
     }, [formData.eligibilityFilter]);
-
-    // This is a placeholder. The actual upload history is on the DataProvisioningConfig.
-    // For now, this will be an empty array.
-    const uploads: DataProvisioningUpload[] = [];
 
     return (
        <>
@@ -292,17 +323,23 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 <div>
                                     <Label>Upload List</Label>
                                     <div className="flex items-center gap-4 mt-2">
-                                        <Input
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={isUploading}
+                                            onClick={() => fileInputRef.current?.click()}
+                                        >
+                                            {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
+                                            Upload Excel File
+                                        </Button>
+                                        <input
+                                            ref={fileInputRef}
                                             id={`file-upload-${product.id}`}
                                             type="file"
                                             accept=".xlsx, .xls"
                                             onChange={handleFilterFileUpload}
                                             className="hidden"
                                         />
-                                        <Label htmlFor={`file-upload-${product.id}`} className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
-                                            <Upload className="h-4 w-4 mr-2" />
-                                            Upload Excel File
-                                        </Label>
                                         <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers will be used as keys.</p>
                                     </div>
                                 </div>
@@ -320,14 +357,14 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                </TableRow>
                                            </TableHeader>
                                            <TableBody>
-                                               {uploads && uploads.length > 0 ? (
-                                                   uploads.map(upload => (
+                                               {productDataConfig?.uploads && productDataConfig.uploads.length > 0 ? (
+                                                   productDataConfig.uploads.map(upload => (
                                                         <TableRow key={upload.id}>
-                                                            <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => { /* Logic to view upload data */ }}>
+                                                            <TableCell className="font-medium flex items-center gap-2">
                                                                 <FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}
                                                             </TableCell>
                                                             <TableCell>{upload.rowCount}</TableCell>
-                                                            <TableCell>{upload.uploadedBy}</TableCell>
+                                                            <TableCell>{upload.uploadedBy || 'N/A'}</TableCell>
                                                             <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
                                                             <TableCell className="text-right">
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)}>
@@ -365,6 +402,21 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             onClose={() => setIsFilterViewerOpen(false)}
             isOpen={isFilterViewerOpen}
         />
+        
+        <AlertDialog open={!!deletingUpload} onOpenChange={() => setDeletingUpload(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this upload?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently delete the file record and all {deletingUpload?.rowCount} associated borrower data rows from the database. This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteUpload} className="bg-destructive hover:bg-destructive/90">Delete Upload</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         </>
     )
 }
@@ -379,8 +431,13 @@ function ProvidersTab({ providers, onProvidersChange }: {
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<{ type: 'provider' | 'product'; providerId: string; productId?: string } | null>(null);
+    const [dataConfigs, setDataConfigs] = useState<DataProvisioningConfig[]>(providers.flatMap(p => p.dataProvisioningConfigs || []));
 
     const { toast } = useToast();
+    
+    useEffect(() => {
+        setDataConfigs(providers.flatMap(p => p.dataProvisioningConfigs || []));
+    }, [providers]);
     
     const themeColor = useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -538,6 +595,17 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
         return providers.filter(p => p.id === currentUser.providerId);
     }, [providers, currentUser]);
+    
+    const handleDataConfigUpdate = (updatedConfig: DataProvisioningConfig) => {
+        setDataConfigs(produce(draft => {
+            const index = draft.findIndex(c => c.id === updatedConfig.id);
+            if (index !== -1) {
+                draft[index] = updatedConfig;
+            } else {
+                draft.push(updatedConfig);
+            }
+        }));
+    };
 
 
     return (
@@ -590,6 +658,8 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     onSave={() => {}}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                     onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
+                    allDataConfigs={dataConfigs}
+                    onDataConfigUpdate={handleDataConfigUpdate}
                   />
                 ))}
                 <Button 
@@ -1889,6 +1959,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
