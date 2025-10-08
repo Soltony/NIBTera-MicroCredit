@@ -321,12 +321,31 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         {formData.dataProvisioningEnabled && (
                             <div className="pl-8 space-y-4">
                                 <div>
+                                    <Label>Link Data Source</Label>
+                                     <Select 
+                                        value={formData.dataProvisioningConfigId || ''}
+                                        onValueChange={(value) => onUpdate({ dataProvisioningConfigId: value })}
+                                    >
+                                        <SelectTrigger className="mt-2">
+                                            <SelectValue placeholder="Select a data source" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none" disabled>Select a data source</SelectItem>
+                                            {allDataConfigs.filter(c => c.providerId === provider.id).map(config => (
+                                                <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground mt-1">Select the data schema this product's eligibility list will use.</p>
+                                </div>
+
+                                <div className="space-y-2">
                                     <Label>Upload List</Label>
                                     <div className="flex items-center gap-4 mt-2">
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            disabled={isUploading}
+                                            disabled={isUploading || !formData.dataProvisioningConfigId}
                                             onClick={() => fileInputRef.current?.click()}
                                         >
                                             {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
@@ -340,7 +359,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                             onChange={handleFilterFileUpload}
                                             className="hidden"
                                         />
-                                        <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers will be used as keys.</p>
+                                        <p className="text-xs text-muted-foreground">Upload a file with a list of eligible customers based on the linked data source schema.</p>
                                     </div>
                                 </div>
                                  <div className="space-y-2">
@@ -1959,10 +1978,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
-
-
-
-
-
 
