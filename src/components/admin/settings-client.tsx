@@ -286,7 +286,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         {formData.dataProvisioningEnabled && (
                             <div className="pl-8 space-y-4">
                                 <div>
-                                    <Label>Upload Criteria</Label>
+                                    <Label>Upload List</Label>
                                     <div className="flex items-center gap-4 mt-2">
                                         <Input
                                             id={`file-upload-${product.id}`}
@@ -303,7 +303,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     </div>
                                 </div>
                                  <div className="space-y-2">
-                                    <Label>Current Filter Criteria:</Label>
+                                    <Label>View Uploaded List</Label>
                                     {parsedFilter && Object.keys(parsedFilter).length > 0 ? (
                                         <button
                                             type="button"
@@ -1210,25 +1210,19 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
     isOpen: boolean;
     onClose: () => void;
 }) {
-    const headers = filter ? Object.keys(filter) : [];
+    if (!filter) return null;
+
+    const headers = Object.keys(filter);
+    const dataRows = Object.values(filter).map(value => value.split(',').map(v => v.trim()));
+
+    // Transpose the data
+    const maxRows = Math.max(...dataRows.map(col => col.length), 0);
+    const tableData = [];
+    for (let i = 0; i < maxRows; i++) {
+        const row = headers.map((_, colIndex) => dataRows[colIndex][i] || '');
+        tableData.push(row);
+    }
     
-    const dataRows = useMemo(() => {
-        if (!filter) return [];
-
-        const columns = headers.map(header => filter[header].split(',').map(v => v.trim()));
-        const maxRows = Math.max(...columns.map(col => col.length));
-        
-        const rows: (string | null)[][] = [];
-        for (let i = 0; i < maxRows; i++) {
-            const row: (string | null)[] = [];
-            for (let j = 0; j < headers.length; j++) {
-                row.push(columns[j][i] || null);
-            }
-            rows.push(row);
-        }
-        return rows;
-    }, [filter, headers]);
-
     return (
         <UIDialog open={isOpen} onOpenChange={onClose}>
             <UIDialogContent className="sm:max-w-4xl">
@@ -1248,8 +1242,8 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {dataRows.length > 0 ? (
-                                dataRows.map((row, rowIndex) => (
+                            {tableData.length > 0 ? (
+                                tableData.map((row, rowIndex) => (
                                     <TableRow key={rowIndex}>
                                         {row.map((cell, cellIndex) => (
                                             <TableCell key={cellIndex}>{cell}</TableCell>
@@ -1869,6 +1863,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
