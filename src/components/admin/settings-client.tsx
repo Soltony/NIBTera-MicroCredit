@@ -80,6 +80,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
+    const [isFilterViewerOpen, setIsFilterViewerOpen] = useState(false);
 
     const formData = useMemo(() => {
         return {
@@ -189,33 +190,19 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
     }
     
-    const eligibilityFilterValue = useMemo(() => {
-        const filter = formData.eligibilityFilter;
-        if (filter === null || filter === undefined) return '';
-        if (typeof filter === 'string') {
-             try {
-                // This will format the JSON string nicely
-                return JSON.stringify(JSON.parse(filter), null, 2);
-            } catch (e) {
-                // If it's not valid JSON, return it as is.
-                return filter;
-            }
-        }
-        // If it's already an object
-        return JSON.stringify(filter, null, 2);
-    }, [formData.eligibilityFilter]);
-
     const parsedFilter = useMemo(() => {
-        if (!eligibilityFilterValue) return null;
+        const filter = formData.eligibilityFilter;
+        if (!filter || typeof filter !== 'string') return null;
         try {
-            return JSON.parse(eligibilityFilterValue);
+            return JSON.parse(filter);
         } catch (e) {
             return null;
         }
-    }, [eligibilityFilterValue]);
+    }, [formData.eligibilityFilter]);
 
 
     return (
+       <>
        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
@@ -316,26 +303,18 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     </div>
                                 </div>
                                  <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">Current Filter Criteria:</p>
+                                    <Label>Current Filter Criteria:</Label>
                                     {parsedFilter && Object.keys(parsedFilter).length > 0 ? (
-                                        <Collapsible>
-                                            <CollapsibleTrigger asChild>
-                                                <div className="flex cursor-pointer items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
-                                                    <span className="text-sm font-medium">
-                                                        {Object.keys(parsedFilter).length} criteria applied. Click to view.
-                                                    </span>
-                                                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
-                                                </div>
-                                            </CollapsibleTrigger>
-                                            <CollapsibleContent className="mt-2 p-3 rounded-md border bg-muted/50 space-y-1">
-                                                {Object.entries(parsedFilter).map(([key, value]) => (
-                                                    <div key={key} className="flex items-baseline text-sm">
-                                                        <span className="font-semibold w-1/3 truncate">{key}:</span>
-                                                        <span className="text-muted-foreground ml-2">{String(value)}</span>
-                                                    </div>
-                                                ))}
-                                            </CollapsibleContent>
-                                        </Collapsible>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsFilterViewerOpen(true)}
+                                            className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors text-left"
+                                        >
+                                            <span className="text-sm font-medium">
+                                                {Object.keys(parsedFilter).length} criteria applied. Click to view.
+                                            </span>
+                                            <ChevronDown className="h-4 w-4 shrink-0" />
+                                        </button>
                                     ) : (
                                         <p className="text-sm text-center text-muted-foreground p-4 border rounded-md">No filter criteria uploaded.</p>
                                     )}
@@ -354,6 +333,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 </form>
             </CollapsibleContent>
         </Collapsible>
+
+        <FilterCriteriaViewerDialog
+            filter={parsedFilter}
+            onClose={() => setIsFilterViewerOpen(false)}
+            isOpen={isFilterViewerOpen}
+        />
+        </>
     )
 }
 
@@ -1219,6 +1205,59 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
     )
 }
 
+function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
+    filter: Record<string, string> | null;
+    isOpen: boolean;
+    onClose: () => void;
+}) {
+    const criteria = filter ? Object.entries(filter) : [];
+
+    return (
+        <UIDialog open={isOpen} onOpenChange={onClose}>
+            <UIDialogContent className="sm:max-w-lg">
+                <UIDialogHeader>
+                    <UIDialogTitle>Current Filter Criteria</UIDialogTitle>
+                    <UIDialogDescription>
+                        The following criteria are used to determine eligibility for this product.
+                    </UIDialogDescription>
+                </UIDialogHeader>
+                <div className="mt-4 border rounded-md max-h-96 overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Criteria</TableHead>
+                                <TableHead>Allowed Values</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {criteria.length > 0 ? (
+                                criteria.map(([key, value]) => (
+                                    <TableRow key={key}>
+                                        <TableCell className="font-medium">{key}</TableCell>
+                                        <TableCell>{value}</TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-center text-muted-foreground h-24">
+                                        No filter criteria applied.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <UIDialogFooter>
+                    <UIDialogClose asChild>
+                        <Button variant="outline">Close</Button>
+                    </UIDialogClose>
+                </UIDialogFooter>
+            </UIDialogContent>
+        </UIDialog>
+    );
+}
+
+
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
 
@@ -1810,10 +1849,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
-
-
-
-
-
 
