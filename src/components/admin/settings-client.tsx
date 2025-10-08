@@ -109,6 +109,49 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             setFormData(prev => ({...prev, [name]: checked }));
         }
     }
+    
+    const handleFilterFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+                if (jsonData.length === 0) {
+                    toast({ title: "Empty File", description: "The uploaded Excel file is empty.", variant: "destructive" });
+                    return;
+                }
+
+                const filterObject: { [key: string]: string } = {};
+                const headers = Object.keys(jsonData[0]);
+                
+                headers.forEach(header => {
+                    const values = new Set<string>();
+                    jsonData.forEach(row => {
+                        if (row[header] !== undefined && row[header] !== null) {
+                            values.add(String(row[header]));
+                        }
+                    });
+                    if (values.size > 0) {
+                        filterObject[header] = Array.from(values).join(',');
+                    }
+                });
+
+                setFormData(prev => ({...prev, eligibilityFilter: JSON.stringify(filterObject, null, 2) }));
+                toast({ title: "Filter Loaded", description: "Excel file parsed and loaded as eligibility filter." });
+            } catch (error) {
+                toast({ title: "File Error", description: "Could not parse the uploaded Excel file.", variant: "destructive" });
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -122,15 +165,12 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 duration: isNaN(parsedDuration) ? 30 : parsedDuration,
             };
             
-            // Validate and stringify eligibilityFilter if it's an object
-            if (payload.eligibilityFilter && typeof payload.eligibilityFilter !== 'string') {
-                 payload.eligibilityFilter = JSON.stringify(payload.eligibilityFilter);
-            }
-            if(payload.eligibilityFilter) {
+            if (payload.eligibilityFilter) {
                  try {
+                    // This ensures the filter is valid JSON before sending
                     JSON.parse(payload.eligibilityFilter);
                 } catch (jsonError) {
-                    toast({ title: "Invalid Filter", description: "The eligibility filter is not a valid JSON object.", variant: 'destructive'});
+                    toast({ title: "Invalid Filter", description: "The eligibility filter is not a valid JSON object. Please upload a valid file or correct it manually.", variant: 'destructive'});
                     setIsSaving(false);
                     return;
                 }
@@ -245,18 +285,31 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         </div>
                         {formData.dataProvisioningEnabled && (
                             <div className="pl-8 space-y-4">
-                                <Label htmlFor={`eligibilityFilter-${product.id}`}>Eligibility Allow-List (JSON)</Label>
+                                <div>
+                                    <Label>Eligibility Allow-List</Label>
+                                    <div className="flex items-center gap-4 mt-2">
+                                        <Input
+                                            id="file-upload"
+                                            type="file"
+                                            accept=".xlsx, .xls"
+                                            onChange={handleFilterFileUpload}
+                                            className="hidden"
+                                        />
+                                        <Label htmlFor="file-upload" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
+                                            <Upload className="h-4 w-4 mr-2" />
+                                            Upload Excel File
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">Upload an Excel file to generate the filter. The headers will be used as keys.</p>
+                                    </div>
+                                </div>
                                 <Textarea
                                     id={`eligibilityFilter-${product.id}`}
                                     name="eligibilityFilter"
-                                    placeholder='e.g., { "Employment Status": "Employed,Self-employed", "Credit History": "Good" }'
+                                    placeholder='Upload an Excel file or paste JSON here... e.g., { "Employment Status": "Employed,Self-employed", "Credit History": "Good" }'
                                     value={typeof formData.eligibilityFilter === 'string' ? formData.eligibilityFilter : JSON.stringify(formData.eligibilityFilter, null, 2)}
                                     onChange={handleJsonChange}
                                     rows={4}
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                    Define a JSON object where keys are column names from the provider data, and values are comma-separated strings of allowed values. A borrower must match all criteria to be eligible.
-                                </p>
                             </div>
                         )}
                     </div>
@@ -1743,6 +1796,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
