@@ -18,7 +18,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -1085,96 +1085,6 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     );
 }
 
-function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    const [content, setContent] = useState('');
-    const [activeVersion, setActiveVersion] = useState<TermsAndConditions | null>(null);
-
-    useEffect(() => {
-        setIsLoading(true);
-        fetch(`/api/settings/terms?providerId=${provider.id}`)
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to fetch terms')))
-            .then(data => {
-                if (data) {
-                    setContent(data.content);
-                    setActiveVersion(data);
-                } else {
-                    setContent('');
-                    setActiveVersion(null);
-                }
-            })
-            .catch(() => toast({ title: "Error", description: "Could not load agreement.", variant: "destructive" }))
-            .finally(() => setIsLoading(false));
-    }, [provider.id, toast]);
-
-    const handleSave = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/settings/terms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ providerId: provider.id, content })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save agreement.');
-            }
-            
-            const newVersion = await response.json();
-            setActiveVersion(newVersion);
-            
-            toast({ title: 'Success', description: `New agreement (Version ${newVersion.version}) has been published.` });
-        } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    return (
-         <Card>
-            <CardHeader>
-                <CardTitle>Borrower Agreement</CardTitle>
-                <CardDescription>
-                    Manage the Terms & Conditions for {provider.name}. Saving will publish a new version.
-                </CardDescription>
-                {activeVersion && (
-                     <p className="text-xs text-muted-foreground pt-2">
-                        Current active version: <span className="font-semibold">{activeVersion.version}</span> (Published on {new Date(activeVersion.publishedAt).toLocaleDateString()})
-                    </p>
-                )}
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                     <div className="space-y-2">
-                        <Skeleton className="h-6 w-1/4" />
-                        <Skeleton className="h-40 w-full" />
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <Label htmlFor="agreement-content">Agreement Content</Label>
-                        <Textarea 
-                            id="agreement-content"
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            rows={15}
-                            placeholder="Enter your terms and conditions here..."
-                        />
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter>
-                 <Button onClick={handleSave} style={{ backgroundColor: provider.colorHex }} className="text-white ml-auto" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save & Publish New Version
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
 function ConfigurationTab({ providers, onProductUpdate, taxConfig }: { 
     providers: LoanProvider[],
     onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
@@ -1796,6 +1706,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
