@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon } from 'lucide-react';
 import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -211,15 +211,23 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                     </div>
                     
                     <div className="space-y-4 border-t pt-6">
-                        <div className="flex items-center space-x-2">
-                            <Switch
-                                id={`dataProvisioningEnabled-${product.id}`}
-                                checked={!!formData.dataProvisioningEnabled}
-                                onCheckedChange={(checked) => handleSwitchChange('dataProvisioningEnabled', checked)}
-                                className="data-[state=checked]:bg-[--provider-color]"
-                                style={{'--provider-color': providerColor} as React.CSSProperties}
-                            />
-                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Use Product-Specific Data</Label>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id={`dataProvisioningEnabled-${product.id}`}
+                                    checked={!!formData.dataProvisioningEnabled}
+                                    onCheckedChange={(checked) => handleSwitchChange('dataProvisioningEnabled', checked)}
+                                    className="data-[state=checked]:bg-[--provider-color]"
+                                    style={{'--provider-color': providerColor} as React.CSSProperties}
+                                />
+                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Use Product-Specific Data</Label>
+                            </div>
+                             <Button asChild variant="link" size="sm" style={{color: providerColor}}>
+                                <Link href={`/admin/credit-score-engine?provider=${provider.id}`}>
+                                    <LinkIcon className="h-4 w-4 mr-2"/>
+                                    Go to Scoring Engine
+                                </Link>
+                            </Button>
                         </div>
                         {formData.dataProvisioningEnabled && (
                              <div className="pl-8 space-y-4">
@@ -847,7 +855,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     
-    const taxAppliedTo = useMemo(() => safeParseJson(taxConfig, 'appliedTo', []), [taxConfig]);
+    const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
@@ -1732,6 +1740,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
