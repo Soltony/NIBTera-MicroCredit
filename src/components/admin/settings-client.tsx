@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -356,7 +357,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                     configId: product.dataProvisioningConfigId || ''
                                                 });
                                             } else {
-                                                toast({ description: "No filter criteria has been uploaded or generated yet.", variant: "destructive" });
+                                                toast({ description: "No criteria applied. Please upload a list.", variant: "default" });
                                             }
                                         }}
                                         className="w-full text-left border rounded-md px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 flex justify-between items-center"
@@ -1900,4 +1901,5 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 

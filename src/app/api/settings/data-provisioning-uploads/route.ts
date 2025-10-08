@@ -6,6 +6,7 @@ import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
 
+
 // Helper to convert strings to camelCase
 const toCamelCase = (str: string) => {
     if (!str) return '';
@@ -27,10 +28,27 @@ export async function POST(req: NextRequest) {
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
         const configId = formData.get('configId') as string | null;
+        const isProductFilter = formData.get('productFilter') === 'true';
+
 
         if (!file || !configId) {
             return NextResponse.json({ error: 'File and configId are required' }, { status: 400 });
         }
+        
+        // If this is just for a product filter, we don't save the upload record to the DB.
+        // We just return a temporary object for the client to use.
+        if (isProductFilter) {
+             const tempUpload = {
+                id: `temp-${Date.now()}`,
+                configId: configId,
+                fileName: file.name,
+                rowCount: 0, // Not calculated for temp
+                uploadedBy: user.fullName || user.email,
+                uploadedAt: new Date().toISOString(),
+            };
+            return NextResponse.json(tempUpload, { status: 201 });
+        }
+
 
         const config = await prisma.dataProvisioningConfig.findUnique({
             where: { id: configId }
