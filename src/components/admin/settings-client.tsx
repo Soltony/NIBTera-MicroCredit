@@ -274,7 +274,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     className="data-[state=checked]:bg-[--provider-color]"
                                     style={{'--provider-color': providerColor} as React.CSSProperties}
                                 />
-                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Product-Specific Eligibility</Label>
+                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
                             </div>
                              <Button asChild variant="link" size="sm" style={{color: providerColor}}>
                                 <Link href={`/admin/credit-score-engine?provider=${provider.id}`}>
@@ -289,13 +289,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     <Label>Eligibility Allow-List</Label>
                                     <div className="flex items-center gap-4 mt-2">
                                         <Input
-                                            id="file-upload"
+                                            id={`file-upload-${product.id}`}
                                             type="file"
                                             accept=".xlsx, .xls"
                                             onChange={handleFilterFileUpload}
                                             className="hidden"
                                         />
-                                        <Label htmlFor="file-upload" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
+                                        <Label htmlFor={`file-upload-${product.id}`} className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
                                             <Upload className="h-4 w-4 mr-2" />
                                             Upload Excel File
                                         </Label>
@@ -305,7 +305,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 <Textarea
                                     id={`eligibilityFilter-${product.id}`}
                                     name="eligibilityFilter"
-                                    placeholder='Upload an Excel file or paste JSON here... e.g., { "Employment Status": "Employed,Self-employed", "Credit History": "Good" }'
+                                    placeholder='Upload an Excel file to generate the allow-list, or paste JSON here... e.g., { "Employment Status": "Employed,Self-employed" }'
                                     value={typeof formData.eligibilityFilter === 'string' ? formData.eligibilityFilter : JSON.stringify(formData.eligibilityFilter, null, 2)}
                                     onChange={handleJsonChange}
                                     rows={4}
@@ -1274,6 +1274,91 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
     );
 }
 
+function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
+    const { toast } = useToast();
+    const [terms, setTerms] = useState<TermsAndConditions | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    
+    useEffect(() => {
+        const fetchTerms = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`/api/settings/terms?providerId=${provider.id}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setTerms(data);
+                }
+            } catch (error) {
+                 toast({ title: "Error", description: "Failed to load terms and conditions.", variant: "destructive"});
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchTerms();
+    }, [provider.id, toast]);
+    
+    const handleSave = async () => {
+        if (!terms || !terms.content.trim()) {
+            toast({ title: "Error", description: "Terms and conditions content cannot be empty.", variant: "destructive" });
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/settings/terms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ providerId: provider.id, content: terms.content })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to save new terms.");
+            }
+            
+            const newTerms = await response.json();
+            setTerms(newTerms);
+            onProviderUpdate({ id: provider.id, termsAndConditions: [newTerms] });
+            toast({ title: "Published", description: `Version ${newTerms.version} of the terms has been published.` });
+
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
+    if (isLoading) {
+        return <div className="space-y-4">
+            <Skeleton className="h-8 w-1/4" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-10 w-32" />
+        </div>
+    }
+
+    return (
+        <div className="space-y-4">
+            <Label htmlFor={`terms-content-${provider.id}`}>Terms and Conditions Content</Label>
+             <Textarea
+                id={`terms-content-${provider.id}`}
+                value={terms?.content || ''}
+                onChange={(e) => setTerms(prev => ({ ...(prev || { version: 0, content: '' }), content: e.target.value }) as TermsAndConditions)}
+                placeholder="Enter the terms and conditions for your loan products here."
+                rows={15}
+            />
+            <div className="flex justify-between items-center">
+                <p className="text-sm text-muted-foreground">
+                    Current Version: {terms?.version || 0}
+                </p>
+                <Button onClick={handleSave} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
+                    Save & Publish New Version
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 // --------------------------------------------------
 // DATA PROVISIONING MANAGER (NEW COMPONENT)
 // --------------------------------------------------
@@ -1706,10 +1791,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
-
-
-
-
-
 
