@@ -198,9 +198,26 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const eligibilityFilterValue = useMemo(() => {
         const filter = formData.eligibilityFilter;
         if (filter === null || filter === undefined) return '';
-        if (typeof filter === 'string') return filter;
+        if (typeof filter === 'string') {
+            try {
+                // Try to parse and re-stringify for consistent formatting
+                return JSON.stringify(JSON.parse(filter), null, 2);
+            } catch (e) {
+                // If it's not valid JSON, just return the string as is
+                return filter;
+            }
+        }
         return JSON.stringify(filter, null, 2);
     }, [formData.eligibilityFilter]);
+
+    const parsedFilter = useMemo(() => {
+        try {
+            return JSON.parse(eligibilityFilterValue);
+        } catch (e) {
+            return null;
+        }
+    }, [eligibilityFilterValue]);
+
 
     return (
        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
@@ -282,12 +299,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 />
                                 <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
                             </div>
-                             <Button asChild variant="link" size="sm" style={{color: providerColor}}>
-                                <Link href={`/admin/credit-score-engine`}>
-                                    <LinkIcon className="h-4 w-4 mr-2"/>
-                                    Go to Scoring Engine
-                                </Link>
-                            </Button>
                         </div>
                         {formData.dataProvisioningEnabled && (
                             <div className="pl-8 space-y-4">
@@ -305,17 +316,24 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                             <Upload className="h-4 w-4 mr-2" />
                                             Upload Excel File
                                         </Label>
-                                        <p className="text-xs text-muted-foreground">Upload an Excel file to generate the filter. The headers will be used as keys.</p>
+                                        <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers will be used as keys.</p>
                                     </div>
                                 </div>
-                                <Textarea
-                                    id={`eligibilityFilter-${product.id}`}
-                                    name="eligibilityFilter"
-                                    placeholder='Upload an Excel file to generate the allow-list, or paste JSON here... e.g., { "Employment Status": "Employed,Self-employed" }'
-                                    value={eligibilityFilterValue}
-                                    onChange={handleJsonChange}
-                                    rows={4}
-                                />
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">Current Filter Criteria:</p>
+                                    {parsedFilter && Object.keys(parsedFilter).length > 0 ? (
+                                        <div className="p-3 rounded-md border bg-muted/50 space-y-1">
+                                            {Object.entries(parsedFilter).map(([key, value]) => (
+                                                <div key={key} className="flex items-baseline text-sm">
+                                                    <span className="font-semibold w-1/3 truncate">{key}:</span>
+                                                    <span className="text-muted-foreground ml-2">{String(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-center text-muted-foreground p-4 border rounded-md">No filter criteria uploaded.</p>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1786,6 +1804,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
