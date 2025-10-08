@@ -23,30 +23,17 @@ const toCamelCase = (str: string) => {
 async function getBorrowerDataForScoring(
     borrowerId: string, 
     providerId: string, 
-    product?: LoanProduct & { dataProvisioningConfig?: { id: string } | null }
 ): Promise<Record<string, any>> {
 
-    let provisionedDataEntries;
-
-    if (product?.dataProvisioningEnabled && product.dataProvisioningConfigId) {
-        provisionedDataEntries = await prisma.provisionedData.findMany({
-            where: { 
-                borrowerId,
-                configId: product.dataProvisioningConfigId
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-    } else {
-        provisionedDataEntries = await prisma.provisionedData.findMany({
-            where: { 
-                borrowerId,
-                config: {
-                    providerId: providerId,
-                }
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-    }
+    const provisionedDataEntries = await prisma.provisionedData.findMany({
+        where: { 
+            borrowerId,
+            config: {
+                providerId: providerId,
+            }
+        },
+        orderBy: { createdAt: 'desc' },
+    });
 
 
     const combinedData: Record<string, any> = { id: borrowerId };
@@ -86,10 +73,9 @@ async function getBorrowerDataForScoring(
 async function calculateScoreForProvider(
     borrowerId: string,
     providerId: string,
-    product?: LoanProduct & { dataProvisioningConfig?: { id: string } | null }
 ): Promise<number> {
     
-    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId, product);
+    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId);
     
     const parameters: ScoringParameterType[] = await prisma.scoringParameter.findMany({
         where: { providerId },
@@ -169,12 +155,31 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
     
+    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId);
+    
+    // NEW: Product-specific eligibility filter
+    if (product.dataProvisioningEnabled && product.eligibilityFilter) {
+        const filter = JSON.parse(product.eligibilityFilter as string);
+        const filterKeys = Object.keys(filter);
+
+        const isMatch = filterKeys.every(key => {
+            const filterValue = String(filter[key]).toLowerCase();
+            const borrowerValue = String(borrowerDataForScoring[toCamelCase(key)] || '').toLowerCase();
+            return filterValue.split(',').map(s => s.trim()).includes(borrowerValue);
+        });
+
+        if (!isMatch) {
+            return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
+        }
+    }
+
+
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
     
-    const score = await calculateScoreForProvider(borrowerId, providerId, product as any);
+    const score = await calculateScoreForProvider(borrowerId, providerId);
 
     const applicableTier = await prisma.loanAmountTier.findFirst({
         where: {

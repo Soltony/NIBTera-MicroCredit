@@ -93,8 +93,7 @@ export interface LoanProduct {
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
   dataProvisioningEnabled?: boolean;
-  dataProvisioningConfigId?: string | null;
-  dataProvisioningConfig?: DataProvisioningConfig;
+  eligibilityFilter?: string | null; // NEW: For storing the eligibility list
   requiredDocuments: RequiredDocument[];
   tax?: number;
 }
