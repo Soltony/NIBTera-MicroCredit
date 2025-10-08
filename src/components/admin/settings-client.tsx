@@ -194,11 +194,14 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         if (filter === null || filter === undefined) return '';
         if (typeof filter === 'string') {
              try {
+                // This will format the JSON string nicely
                 return JSON.stringify(JSON.parse(filter), null, 2);
             } catch (e) {
+                // If it's not valid JSON, return it as is.
                 return filter;
             }
         }
+        // If it's already an object
         return JSON.stringify(filter, null, 2);
     }, [formData.eligibilityFilter]);
 
@@ -319,7 +322,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                             <CollapsibleTrigger asChild>
                                                 <div className="flex cursor-pointer items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
                                                     <span className="text-sm font-medium">
-                                                        {Object.keys(parsedFilter).length} criteria applied.
+                                                        {Object.keys(parsedFilter).length} criteria applied. Click to view.
                                                     </span>
                                                      <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                                                 </div>
@@ -379,7 +382,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
         setIsProviderDialogOpen(true);
     };
 
-    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => {
+    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>>) => {
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
@@ -1807,6 +1810,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
