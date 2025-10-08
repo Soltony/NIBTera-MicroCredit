@@ -76,37 +76,36 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
 };
 
 
-const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onProductConfigChange }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, onProductConfigChange: (productId: string, configId: string | null) => void }) => {
-    const [formData, setFormData] = useState(product);
+const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: () => void, onDelete: () => void, onUpdate: (updatedProduct: Partial<LoanProduct>) => void }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
 
-    useEffect(() => {
-         setFormData({
+    const formData = useMemo(() => {
+        return {
             ...product,
             serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
             dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: safeParseJson(product, 'penaltyRules', []),
-            eligibilityFilter: safeParseJson(product, 'eligibilityFilter', null)
-        });
+            eligibilityFilter: product.eligibilityFilter
+        };
     }, [product]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value === '' ? null : value }));
+        onUpdate({ [name]: value === '' ? null : value });
     };
     
     const handleJsonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        onUpdate({ [name]: value });
     };
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
         if (name === 'status') {
-            setFormData(prev => ({ ...prev, status: checked ? 'Active' : 'Disabled' }));
+            onUpdate({ status: checked ? 'Active' : 'Disabled' });
         } else {
-            setFormData(prev => ({...prev, [name]: checked }));
+            onUpdate({ [name]: checked });
         }
     }
     
@@ -143,8 +142,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                     }
                 });
 
-                setFormData(prev => ({...prev, eligibilityFilter: JSON.stringify(filterObject, null, 2) }));
-                toast({ title: "Filter Loaded", description: "Excel file parsed and loaded as eligibility filter." });
+                onUpdate({ eligibilityFilter: JSON.stringify(filterObject, null, 2) });
+                toast({ title: "Filter Loaded", description: "Excel file parsed and loaded as eligibility filter. Please save your changes." });
             } catch (error) {
                 toast({ title: "File Error", description: "Could not parse the uploaded Excel file.", variant: "destructive" });
             }
@@ -187,7 +186,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                  throw new Error(errorData.error || 'Failed to save product settings.');
             }
             const savedProduct = await response.json();
-            onSave(provider.id, savedProduct);
+            onUpdate(savedProduct); // This will update the parent state with the full saved product
             toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -322,7 +321,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
-                        <Button variant="destructive" type="button" onClick={() => onDelete(provider.id, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                        <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                         <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Save Changes
@@ -436,29 +435,18 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
     };
 
-    const handleSaveProduct = (providerId: string, updatedProduct: LoanProduct) => {
+    const handleUpdateProduct = (providerId: string, updatedProduct: Partial<LoanProduct>) => {
         onProvidersChange(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
                 if (productIndex !== -1) {
-                    provider.products[productIndex] = updatedProduct;
+                     provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
                 }
             }
         }));
     }
 
-    const handleProductConfigChange = (providerId: string, productId: string, configId: string | null) => {
-        onProvidersChange(produce(draft => {
-            const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                 const productIndex = provider.products.findIndex(p => p.id === productId);
-                if (productIndex !== -1) {
-                    // This field no longer exists, but the function signature remains for now
-                }
-            }
-        }))
-    }
     
     const confirmDelete = () => {
         if (!deletingId) return;
@@ -563,9 +551,9 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     provider={provider}
                     product={{...product, icon: product.icon || 'PersonStanding'}} 
                     providerColor={provider.colorHex} 
-                    onSave={handleSaveProduct}
+                    onSave={() => {}}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                    onProductConfigChange={(productId, configId) => handleProductConfigChange(provider.id, productId, configId)}
+                    onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
                   />
                 ))}
                 <Button 
@@ -1798,5 +1786,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
