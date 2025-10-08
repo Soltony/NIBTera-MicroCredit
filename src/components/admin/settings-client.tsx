@@ -81,6 +81,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
     const [isFilterViewerOpen, setIsFilterViewerOpen] = useState(false);
+    const [deletingUpload, setDeletingUpload] = useState<DataProvisioningUpload | null>(null);
 
     const formData = useMemo(() => {
         return {
@@ -200,6 +201,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
     }, [formData.eligibilityFilter]);
 
+    // This is a placeholder. The actual upload history is on the DataProvisioningConfig.
+    // For now, this will be an empty array.
+    const uploads: DataProvisioningUpload[] = [];
 
     return (
        <>
@@ -304,20 +308,42 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 </div>
                                  <div className="space-y-2">
                                     <Label>View Uploaded List</Label>
-                                    {parsedFilter && Object.keys(parsedFilter).length > 0 ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsFilterViewerOpen(true)}
-                                            className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors text-left"
-                                        >
-                                            <span className="text-sm font-medium">
-                                                {Object.keys(parsedFilter).length} criteria applied. Click to view.
-                                            </span>
-                                            <ChevronDown className="h-4 w-4 shrink-0" />
-                                        </button>
-                                    ) : (
-                                        <p className="text-sm text-center text-muted-foreground p-4 border rounded-md">No filter criteria uploaded.</p>
-                                    )}
+                                    <div className="border rounded-md">
+                                       <Table>
+                                           <TableHeader>
+                                               <TableRow>
+                                                   <TableHead>File Name</TableHead>
+                                                   <TableHead>Rows</TableHead>
+                                                   <TableHead>Uploaded By</TableHead>
+                                                   <TableHead>Date</TableHead>
+                                                   <TableHead className="text-right">Actions</TableHead>
+                                               </TableRow>
+                                           </TableHeader>
+                                           <TableBody>
+                                               {uploads && uploads.length > 0 ? (
+                                                   uploads.map(upload => (
+                                                        <TableRow key={upload.id}>
+                                                            <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => { /* Logic to view upload data */ }}>
+                                                                <FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}
+                                                            </TableCell>
+                                                            <TableCell>{upload.rowCount}</TableCell>
+                                                            <TableCell>{upload.uploadedBy}</TableCell>
+                                                            <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                                                            <TableCell className="text-right">
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)}>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                   ))
+                                               ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center text-muted-foreground h-24">No eligibility list uploaded for this product.</TableCell>
+                                                    </TableRow>
+                                               )}
+                                           </TableBody>
+                                       </Table>
+                                   </div>
                                 </div>
                             </div>
                         )}
@@ -1863,6 +1889,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
