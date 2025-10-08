@@ -359,7 +359,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                             onChange={handleFilterFileUpload}
                                             className="hidden"
                                         />
-                                        <p className="text-xs text-muted-foreground">Upload a file with a list of eligible customers based on the linked data source schema.</p>
                                     </div>
                                 </div>
                                  <div className="space-y-2">
