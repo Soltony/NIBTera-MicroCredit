@@ -1210,11 +1210,12 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
     isOpen: boolean;
     onClose: () => void;
 }) {
-    const criteria = filter ? Object.entries(filter) : [];
+    const headers = filter ? Object.keys(filter) : [];
+    const values = filter ? Object.values(filter) : [];
 
     return (
         <UIDialog open={isOpen} onOpenChange={onClose}>
-            <UIDialogContent className="sm:max-w-lg">
+            <UIDialogContent className="sm:max-w-2xl">
                 <UIDialogHeader>
                     <UIDialogTitle>Current Filter Criteria</UIDialogTitle>
                     <UIDialogDescription>
@@ -1225,21 +1226,21 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Criteria</TableHead>
-                                <TableHead>Allowed Values</TableHead>
+                                {headers.map(header => (
+                                    <TableHead key={header}>{header}</TableHead>
+                                ))}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {criteria.length > 0 ? (
-                                criteria.map(([key, value]) => (
-                                    <TableRow key={key}>
-                                        <TableCell className="font-medium">{key}</TableCell>
-                                        <TableCell>{value}</TableCell>
-                                    </TableRow>
-                                ))
+                            {headers.length > 0 ? (
+                                <TableRow>
+                                    {values.map((value, index) => (
+                                        <TableCell key={index}>{value}</TableCell>
+                                    ))}
+                                </TableRow>
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={2} className="text-center text-muted-foreground h-24">
+                                    <TableCell colSpan={headers.length || 1} className="text-center text-muted-foreground h-24">
                                         No filter criteria applied.
                                     </TableCell>
                                 </TableRow>
@@ -1256,6 +1257,7 @@ function FilterCriteriaViewerDialog({ filter, isOpen, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
@@ -1849,5 +1851,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
