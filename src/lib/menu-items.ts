@@ -19,12 +19,6 @@ export const allMenuItems = [
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider'],
   },
   {
-    path: '/admin/applications',
-    label: 'Applications',
-    icon: FolderArchive,
-    roles: ['Super Admin', 'Application Reviewer'],
-  },
-  {
     path: '/admin/reports',
     label: 'Reports',
     icon: FileText,
