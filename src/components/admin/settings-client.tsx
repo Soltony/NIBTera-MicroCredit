@@ -95,11 +95,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         const { name, value } = e.target;
         onUpdate({ [name]: value === '' ? null : value });
     };
-    
-    const handleJsonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        onUpdate({ [name]: value });
-    };
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
         if (name === 'status') {
@@ -164,9 +159,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 duration: isNaN(parsedDuration) ? 30 : parsedDuration,
             };
             
-            if (payload.eligibilityFilter) {
+            if (payload.eligibilityFilter && typeof payload.eligibilityFilter === 'string') {
                  try {
-                    // This ensures the filter is valid JSON before sending
                     JSON.parse(payload.eligibilityFilter);
                 } catch (jsonError) {
                     toast({ title: "Invalid Filter", description: "The eligibility filter is not a valid JSON object. Please upload a valid file or correct it manually.", variant: 'destructive'});
@@ -199,11 +193,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         const filter = formData.eligibilityFilter;
         if (filter === null || filter === undefined) return '';
         if (typeof filter === 'string') {
-            try {
-                // Try to parse and re-stringify for consistent formatting
+             try {
                 return JSON.stringify(JSON.parse(filter), null, 2);
             } catch (e) {
-                // If it's not valid JSON, just return the string as is
                 return filter;
             }
         }
@@ -211,6 +203,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     }, [formData.eligibilityFilter]);
 
     const parsedFilter = useMemo(() => {
+        if (!eligibilityFilterValue) return null;
         try {
             return JSON.parse(eligibilityFilterValue);
         } catch (e) {
@@ -297,13 +290,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     className="data-[state=checked]:bg-[--provider-color]"
                                     style={{'--provider-color': providerColor} as React.CSSProperties}
                                 />
-                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
+                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Eligibility Allow-List</Label>
                             </div>
                         </div>
                         {formData.dataProvisioningEnabled && (
                             <div className="pl-8 space-y-4">
                                 <div>
-                                    <Label>Eligibility Allow-List</Label>
+                                    <Label>Upload Criteria</Label>
                                     <div className="flex items-center gap-4 mt-2">
                                         <Input
                                             id={`file-upload-${product.id}`}
@@ -319,17 +312,27 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                         <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers will be used as keys.</p>
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                 <div className="space-y-2">
                                     <p className="text-sm text-muted-foreground">Current Filter Criteria:</p>
                                     {parsedFilter && Object.keys(parsedFilter).length > 0 ? (
-                                        <div className="p-3 rounded-md border bg-muted/50 space-y-1">
-                                            {Object.entries(parsedFilter).map(([key, value]) => (
-                                                <div key={key} className="flex items-baseline text-sm">
-                                                    <span className="font-semibold w-1/3 truncate">{key}:</span>
-                                                    <span className="text-muted-foreground ml-2">{String(value)}</span>
+                                        <Collapsible>
+                                            <CollapsibleTrigger asChild>
+                                                <div className="flex cursor-pointer items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                                                    <span className="text-sm font-medium">
+                                                        {Object.keys(parsedFilter).length} criteria applied.
+                                                    </span>
+                                                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent className="mt-2 p-3 rounded-md border bg-muted/50 space-y-1">
+                                                {Object.entries(parsedFilter).map(([key, value]) => (
+                                                    <div key={key} className="flex items-baseline text-sm">
+                                                        <span className="font-semibold w-1/3 truncate">{key}:</span>
+                                                        <span className="text-muted-foreground ml-2">{String(value)}</span>
+                                                    </div>
+                                                ))}
+                                            </CollapsibleContent>
+                                        </Collapsible>
                                     ) : (
                                         <p className="text-sm text-center text-muted-foreground p-4 border rounded-md">No filter criteria uploaded.</p>
                                     )}
@@ -1804,6 +1807,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
