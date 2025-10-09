@@ -118,13 +118,17 @@ export async function DELETE(req: NextRequest) {
     }
     
     try {
-        // Check if any product is using this config
+        // Check if any product is using this config via an uploaded eligibility list
         const productCount = await prisma.loanProduct.count({
-            where: { dataProvisioningConfigId: id }
+            where: { 
+                eligibilityUpload: {
+                    configId: id,
+                }
+            }
         });
 
         if (productCount > 0) {
-            return NextResponse.json({ error: `Cannot delete. This data source is currently used by ${productCount} product(s).` }, { status: 409 });
+            return NextResponse.json({ error: `Cannot delete. This data source is currently used by ${productCount} product(s) via an eligibility list.` }, { status: 409 });
         }
 
         await prisma.$transaction(async (tx) => {
@@ -148,7 +152,7 @@ export async function DELETE(req: NextRequest) {
                 where: { configId: id }
             });
 
-            // Now delete the config
+            // Now delete the config and its associated uploads
             await tx.dataProvisioningConfig.delete({
                 where: { id },
             });
