@@ -492,6 +492,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 providerId={selectedProviderId}
                 initialConfigs={currentDataConfigs}
                 onConfigChange={onConfigChange}
+                allProviderProducts={currentProvider?.products || []}
             />
 
             <Card>
@@ -689,10 +690,11 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     );
 }
 
-function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
+function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allProviderProducts }: {
     providerId: string;
     initialConfigs: DataProvisioningConfig[];
     onConfigChange: (newConfigs: DataProvisioningConfig[]) => void;
+    allProviderProducts: LoanProduct[];
 }) {
     const { toast } = useToast();
     const [configs, setConfigs] = useState(initialConfigs);
@@ -865,6 +867,10 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
         }
     };
 
+    const eligibilityUploadIds = useMemo(() => {
+        return new Set(allProviderProducts.map(p => p.eligibilityUploadId).filter(Boolean));
+    }, [allProviderProducts]);
+
     return (
         <>
             <Card>
@@ -882,82 +888,85 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange }: {
                     </div>
                 </CardHeader>
                 <CardContent>
-                     {configs?.map((config) => (
-                        <Card key={config.id} className="mb-4">
-                            <CardHeader className="flex flex-row justify-between items-center">
-                                 <div>
-                                    <CardTitle className="text-lg">{config.name}</CardTitle>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)}><Edit className="h-4 w-4" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)}><Trash2 className="h-4 w-4" /></Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                               <h4 className="font-medium mb-2">Columns</h4>
-                               <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                                    {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
-                               </ul>
-                               <Separator />
-                               <div className="mt-4">
-                                   <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-medium">Upload History</h4>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={isUploading}
-                                            onClick={() => fileInputRefs.current[config.id]?.current?.click()}
-                                        >
-                                            {isUploading ? <Loader className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
-                                            Upload File
-                                        </Button>
-                                        <input
-                                            type="file"
-                                            ref={fileInputRefs.current[config.id]}
-                                            className="hidden"
-                                            accept=".xlsx, .xls"
-                                            onChange={(e) => handleExcelUpload(e, config)}
-                                        />
-                                   </div>
-                                   <div className="border rounded-md">
-                                       <Table>
-                                           <TableHeader>
-                                               <TableRow>
-                                                   <TableHead>File Name</TableHead>
-                                                   <TableHead>Rows</TableHead>
-                                                   <TableHead>Uploaded By</TableHead>
-                                                   <TableHead>Date</TableHead>
-                                                   <TableHead className="text-right">Actions</TableHead>
-                                               </TableRow>
-                                           </TableHeader>
-                                           <TableBody>
-                                               {config.uploads && config.uploads.length > 0 ? (
-                                                   config.uploads.map(upload => (
-                                                        <TableRow key={upload.id}>
-                                                            <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => setViewingUpload(upload)}><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
-                                                            <TableCell>{upload.rowCount}</TableCell>
-                                                            <TableCell>{upload.uploadedBy}</TableCell>
-                                                            <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
-                                                            <TableCell className="text-right">
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)}>
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </TableCell>
+                     {configs?.map((config) => {
+                        const generalUploads = (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
+                        return (
+                            <Card key={config.id} className="mb-4">
+                                <CardHeader className="flex flex-row justify-between items-center">
+                                     <div>
+                                        <CardTitle className="text-lg">{config.name}</CardTitle>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)}><Edit className="h-4 w-4" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)}><Trash2 className="h-4 w-4" /></Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                   <h4 className="font-medium mb-2">Columns</h4>
+                                   <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
+                                        {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
+                                   </ul>
+                                   <Separator />
+                                   <div className="mt-4">
+                                       <div className="flex justify-between items-center mb-2">
+                                            <h4 className="font-medium">Upload History</h4>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={isUploading}
+                                                onClick={() => fileInputRefs.current[config.id]?.current?.click()}
+                                            >
+                                                {isUploading ? <Loader className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
+                                                Upload File
+                                            </Button>
+                                            <input
+                                                type="file"
+                                                ref={fileInputRefs.current[config.id]}
+                                                className="hidden"
+                                                accept=".xlsx, .xls"
+                                                onChange={(e) => handleExcelUpload(e, config)}
+                                            />
+                                       </div>
+                                       <div className="border rounded-md">
+                                           <Table>
+                                               <TableHeader>
+                                                   <TableRow>
+                                                       <TableHead>File Name</TableHead>
+                                                       <TableHead>Rows</TableHead>
+                                                       <TableHead>Uploaded By</TableHead>
+                                                       <TableHead>Date</TableHead>
+                                                       <TableHead className="text-right">Actions</TableHead>
+                                                   </TableRow>
+                                               </TableHeader>
+                                               <TableBody>
+                                                   {generalUploads && generalUploads.length > 0 ? (
+                                                       generalUploads.map(upload => (
+                                                            <TableRow key={upload.id}>
+                                                                <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => setViewingUpload(upload)}><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
+                                                                <TableCell>{upload.rowCount}</TableCell>
+                                                                <TableCell>{upload.uploadedBy}</TableCell>
+                                                                <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                                                                <TableCell className="text-right">
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)}>
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                       ))
+                                                   ) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
                                                         </TableRow>
-                                                   ))
-                                               ) : (
-                                                    <TableRow>
-                                                        <TableCell colSpan={5} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
-                                                    </TableRow>
-                                               )}
-                                           </TableBody>
-                                       </Table>
+                                                   )}
+                                               </TableBody>
+                                           </Table>
+                                       </div>
                                    </div>
-                               </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
                     {!configs?.length && (
                         <div className="text-center text-muted-foreground py-8">No data types defined for this provider.</div>
                     )}
@@ -1256,3 +1265,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
