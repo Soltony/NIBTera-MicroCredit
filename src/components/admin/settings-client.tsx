@@ -625,7 +625,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     onSave={(savedProduct) => handleUpdateProduct(provider.id, savedProduct)}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                     onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
-                    allDataConfigs={dataConfigs}
+                    allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
                   />
                 ))}
                 <Button 
@@ -1429,10 +1429,11 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
 // --------------------------------------------------
 // DATA PROVISIONING MANAGER (NEW COMPONENT)
 // --------------------------------------------------
-function DataProvisioningManager({ providerId, config, onConfigChange }: {
+function DataProvisioningManager({ providerId, config, onConfigChange, allProviderProducts }: {
     providerId: string;
     config: DataProvisioningConfig | undefined;
     onConfigChange: (newConfig: DataProvisioningConfig) => void;
+    allProviderProducts: LoanProduct[];
 }) {
     const { toast } = useToast();
     const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
@@ -1528,6 +1529,12 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
         )
     }
 
+    const generalUploads = useMemo(() => {
+        const eligibilityUploadIds = new Set(allProviderProducts.map(p => p.eligibilityUploadId).filter(Boolean));
+        return (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
+    }, [config.uploads, allProviderProducts]);
+
+
     return (
         <>
             <Card className="bg-muted/50">
@@ -1577,8 +1584,8 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
                                    </TableRow>
                                </TableHeader>
                                <TableBody>
-                                   {config.uploads && config.uploads.length > 0 ? (
-                                       config.uploads.map(upload => (
+                                   {generalUploads.length > 0 ? (
+                                       generalUploads.map(upload => (
                                             <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
                                                 <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
                                                 <TableCell>{upload.rowCount}</TableCell>
