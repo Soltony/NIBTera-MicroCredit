@@ -199,8 +199,8 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     
     const maxLoanAmount = Math.max(0, productMaxLoan - totalOutstandingPrincipal);
     
-    if (maxLoanAmount <= 0) {
-         return { isEligible: false, reason: `You have reached your credit limit with this provider. Your current outstanding balance is ${totalOutstandingPrincipal}. Please repay your active loans to be eligible for more.`, score, maxLoanAmount: 0 };
+    if (maxLoanAmount <= 0 && allActiveLoans.length > 0) {
+         return { isEligible: true, reason: `You have reached your credit limit with this provider. Your current outstanding balance is ${totalOutstandingPrincipal}. Please repay your active loans to be eligible for more.`, score, maxLoanAmount: 0 };
     }
         
     return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score, maxLoanAmount };
