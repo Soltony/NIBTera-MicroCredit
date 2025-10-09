@@ -157,7 +157,6 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     
     const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId);
     
-    // NEW: Product-specific eligibility filter
     if (product.dataProvisioningEnabled && product.eligibilityFilter) {
         const filter = JSON.parse(product.eligibilityFilter as string);
         const filterKeys = Object.keys(filter);
@@ -197,13 +196,15 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     
     const totalOutstandingPrincipal = allActiveLoans.reduce((sum, loan) => sum + loan.loanAmount - (loan.repaidAmount || 0), 0);
     
-    const maxLoanAmount = Math.max(0, productMaxLoan - totalOutstandingPrincipal);
+    const maxLoanAmount = productMaxLoan;
     
-    if (maxLoanAmount <= 0 && allActiveLoans.length > 0) {
+    const availableToBorrow = Math.max(0, maxLoanAmount - totalOutstandingPrincipal);
+    
+    if (availableToBorrow <= 0 && allActiveLoans.length > 0) {
          return { isEligible: true, reason: `You have reached your credit limit with this provider. Your current outstanding balance is ${totalOutstandingPrincipal}. Please repay your active loans to be eligible for more.`, score, maxLoanAmount: 0 };
     }
         
-    return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score, maxLoanAmount };
+    return { isEligible: true, reason: 'Congratulations! You are eligible for a loan.', score, maxLoanAmount: availableToBorrow };
 
   } catch (error) {
     console.error('Error in checkLoanEligibility:', error);
