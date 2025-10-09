@@ -77,12 +77,12 @@ export async function POST(req: NextRequest) {
         // Use transaction to perform all upserts
         await prisma.$transaction(async (tx) => {
             for (const row of rows) {
-                const rowData: { [key: string]: any } = {};
+                const newRowData: { [key: string]: any } = {};
                 camelCaseHeaders.forEach((header, index) => {
-                    rowData[header] = row[index];
+                    newRowData[header] = row[index];
                 });
                 
-                const borrowerId = String(rowData[idColumnCamelCase]);
+                const borrowerId = String(newRowData[idColumnCamelCase]);
                 if (!borrowerId) continue;
 
                 // 1. Upsert the borrower record first to ensure it exists
@@ -92,7 +92,22 @@ export async function POST(req: NextRequest) {
                     create: { id: borrowerId }
                 });
 
-                // 2. Now upsert the provisioned data which has a relation to Borrower
+                // 2. Now upsert the provisioned data, merging if it exists
+                const existingData = await tx.provisionedData.findUnique({
+                     where: {
+                        borrowerId_configId: {
+                            borrowerId: borrowerId,
+                            configId: configId
+                        }
+                    },
+                });
+                
+                let mergedData = newRowData;
+                if (existingData?.data) {
+                    const oldData = JSON.parse(existingData.data as string);
+                    mergedData = { ...oldData, ...newRowData };
+                }
+
                 await tx.provisionedData.upsert({
                     where: {
                         borrowerId_configId: {
@@ -101,14 +116,14 @@ export async function POST(req: NextRequest) {
                         }
                     },
                     update: {
-                        data: JSON.stringify(rowData),
-                        uploadId: newUpload.id, // Link to the new upload record
+                        data: JSON.stringify(mergedData),
+                        uploadId: newUpload.id,
                     },
                     create: {
                         borrowerId: borrowerId,
                         configId: configId,
-                        data: JSON.stringify(rowData),
-                        uploadId: newUpload.id, // Link to the new upload record
+                        data: JSON.stringify(mergedData),
+                        uploadId: newUpload.id,
                     }
                 });
             }
