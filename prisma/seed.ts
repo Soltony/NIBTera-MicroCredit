@@ -142,31 +142,35 @@ async function main() {
       console.log('Ledger accounts for NIb Bank seeded.');
   }
 
-  const personalLoan = await prisma.loanProduct.upsert({
-    where: { name_providerId: { name: 'Personal Loan', providerId: nibBank.id } },
-    update: {},
-    create: {
-      providerId: nibBank.id,
-      name: 'Personal Loan',
-      description: 'A personal loan for your everyday needs.',
-      icon: 'PersonStanding',
-      minLoan: 500,
-      maxLoan: 50000,
-      duration: 30,
-      status: 'Active',
-      allowConcurrentLoans: false,
-      serviceFeeEnabled: true,
-      serviceFee: JSON.stringify({ type: 'percentage', value: 2 }), // 2% service fee
-      dailyFeeEnabled: true,
-      dailyFee: JSON.stringify({ type: 'percentage', value: 0.1, calculationBase: 'principal' }), // This enables daily fee
-      penaltyRulesEnabled: true,
-      penaltyRules: JSON.stringify([
-        { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50, frequency: 'daily' },
-        { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5, frequency: 'daily' },
-      ]),
-      dataProvisioningEnabled: false,
-    },
+  let personalLoan = await prisma.loanProduct.findFirst({
+      where: { name: 'Personal Loan', providerId: nibBank.id }
   });
+
+  if (!personalLoan) {
+      personalLoan = await prisma.loanProduct.create({
+          data: {
+              providerId: nibBank.id,
+              name: 'Personal Loan',
+              description: 'A personal loan for your everyday needs.',
+              icon: 'PersonStanding',
+              minLoan: 500,
+              maxLoan: 50000,
+              duration: 30,
+              status: 'Active',
+              allowConcurrentLoans: false,
+              serviceFeeEnabled: true,
+              serviceFee: JSON.stringify({ type: 'percentage', value: 2 }), // 2% service fee
+              dailyFeeEnabled: true,
+              dailyFee: JSON.stringify({ type: 'percentage', value: 0.1, calculationBase: 'principal' }), // This enables daily fee
+              penaltyRulesEnabled: true,
+              penaltyRules: JSON.stringify([
+                { id: 'p1', fromDay: 1, toDay: 15, type: 'fixed', value: 50, frequency: 'daily' },
+                { id: 'p2', fromDay: 16, toDay: null, type: 'percentageOfPrincipal', value: 0.5, frequency: 'daily' },
+              ]),
+              dataProvisioningEnabled: false,
+          }
+      });
+  }
   
   const nibLoanTiers = await prisma.loanAmountTier.count({ where: { productId: personalLoan.id } });
   if (nibLoanTiers === 0) {
@@ -208,28 +212,32 @@ async function main() {
       console.log('Ledger accounts for Abyssinia Bank seeded.');
   }
 
-  const mortgageLoan = await prisma.loanProduct.upsert({
-    where: { name_providerId: { name: 'Mortgage Loan', providerId: abyssiniaBank.id } },
-    update: {},
-    create: {
-      providerId: abyssiniaBank.id,
-      name: 'Mortgage Loan',
-      description: 'Loan for purchasing property.',
-      icon: 'Home',
-      minLoan: 100000,
-      maxLoan: 2000000,
-      duration: 365,
-      status: 'Active',
-      allowConcurrentLoans: false,
-      serviceFeeEnabled: true,
-      serviceFee: JSON.stringify({ type: 'fixed', value: 5000 }),
-      dailyFeeEnabled: true,
-      dailyFee: JSON.stringify({ type: 'percentage', value: 0.05, calculationBase: 'principal' }),
-      penaltyRulesEnabled: false,
-      penaltyRules: JSON.stringify([]),
-      dataProvisioningEnabled: false,
-    },
+  let mortgageLoan = await prisma.loanProduct.findFirst({
+      where: { name: 'Mortgage Loan', providerId: abyssiniaBank.id }
   });
+
+  if (!mortgageLoan) {
+      mortgageLoan = await prisma.loanProduct.create({
+          data: {
+              providerId: abyssiniaBank.id,
+              name: 'Mortgage Loan',
+              description: 'Loan for purchasing property.',
+              icon: 'Home',
+              minLoan: 100000,
+              maxLoan: 2000000,
+              duration: 365,
+              status: 'Active',
+              allowConcurrentLoans: false,
+              serviceFeeEnabled: true,
+              serviceFee: JSON.stringify({ type: 'fixed', value: 5000 }),
+              dailyFeeEnabled: true,
+              dailyFee: JSON.stringify({ type: 'percentage', value: 0.05, calculationBase: 'principal' }),
+              penaltyRulesEnabled: false,
+              penaltyRules: JSON.stringify([]),
+              dataProvisioningEnabled: false,
+          }
+      });
+  }
 
   console.log('Loan Providers and Products seeded.');
 
