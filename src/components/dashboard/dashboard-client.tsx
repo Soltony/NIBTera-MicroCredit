@@ -169,13 +169,14 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
 
     const maxLimitFromTiers = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
     
-    // The user's total credit ceiling (Max Limit) is the highest available loan amount PLUS what they've already borrowed.
-    const overallMaxLimit = maxLimitFromTiers + outstandingPrincipal;
-    
-    // The amount available to borrow now is simply the highest limit from the eligibility check.
-    const availableToBorrow = maxLimitFromTiers;
+    // Correct logic as per user's request
+    const availableToBorrow = maxLimitFromTiers - outstandingPrincipal;
 
-    return { overallMaxLimit, totalBorrowed: outstandingPrincipal, availableToBorrow };
+    return { 
+        overallMaxLimit: maxLimitFromTiers, 
+        totalBorrowed: outstandingPrincipal, 
+        availableToBorrow: Math.max(0, availableToBorrow) 
+    };
 }, [eligibility.limits, loanHistory]);
 
 
@@ -407,7 +408,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
        <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Terms & Conditions</DialogTitle>
+                    <DialogTitle>Terms &amp; Conditions</DialogTitle>
                     <DialogDescription>
                         Please read and accept the terms and conditions of {selectedProvider?.name} to proceed.
                     </DialogDescription>
@@ -440,3 +441,5 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
     </>
   );
 }
+
+    
