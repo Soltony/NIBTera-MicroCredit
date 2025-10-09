@@ -102,7 +102,7 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
                             <Card className="bg-muted/50">
                                 <CardContent className="p-4 space-y-3 text-sm">
                                     <div className="flex justify-between"><span>Principal (ETB)</span> <span className="font-medium">{formatCurrency(principal)}</span></div>
-                                    <div className="flex justify-between"><span>Facilitation Fee ({loanDetails.product.serviceFee.type === 'percentage' ? `${loanDetails.product.serviceFee.value}%` : 'Fixed'})</span> <span className="font-medium">{formatCurrency(serviceFee)}</span></div>
+                                    <div className="flex justify-between"><span>Service Fee ({loanDetails.product.serviceFee.type === 'percentage' ? `${loanDetails.product.serviceFee.value}%` : 'Fixed'})</span> <span className="font-medium">{formatCurrency(serviceFee)}</span></div>
                                     <div className="flex justify-between"><span>Daily Fee</span> <span className="font-medium">{formatCurrency(interest)}</span></div>
                                     <div className="flex justify-between"><span>Penalty Fee</span> <span className="font-medium">{formatCurrency(penalty)}</span></div>
                                     {tax > 0 && <div className="flex justify-between"><span>Tax</span> <span className="font-medium">{formatCurrency(tax)}</span></div>}
