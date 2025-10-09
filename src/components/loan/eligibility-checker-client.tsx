@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -37,7 +38,7 @@ interface EligibilityCheckerClientProps {
 
 const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined || isNaN(Number(amount))) return '0.00 ETB';
-    return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(Number(amount)) + ' ETB';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount)) + ' ETB';
 };
 
 const formatValue = (key: string, value: any) => {

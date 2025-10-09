@@ -18,11 +18,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon, ChevronRight, ChevronLeft } from 'lucide-react';
 import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -75,48 +75,117 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
     return data?.[field] ?? defaultValue;
 };
 
-
-const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, allProviderConfigs, onConfigChange, onProductConfigChange }: { provider: LoanProvider, product: LoanProduct; providerColor?: string; onSave: (providerId: string, product: LoanProduct) => void, onDelete: (providerId: string, productId: string) => void, allProviderConfigs: DataProvisioningConfig[], onConfigChange: (configs: DataProvisioningConfig[]) => void, onProductConfigChange: (productId: string, configId: string | null) => void }) => {
-    const [formData, setFormData] = useState(product);
+const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate, allDataConfigs }: {
+    provider: LoanProvider;
+    product: LoanProduct;
+    providerColor?: string;
+    onSave: (product: LoanProduct) => void;
+    onDelete: () => void;
+    onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
+    allDataConfigs: DataProvisioningConfig[];
+}) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
+    const [isUploading, setIsUploading] = useState(false);
+    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+    
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-         setFormData({
+    const formData = useMemo(() => {
+        return {
             ...product,
             serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
             dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: safeParseJson(product, 'penaltyRules', []),
-        });
+            eligibilityFilter: product.eligibilityFilter
+        };
     }, [product]);
+    
+    const linkedConfig = useMemo(() => {
+        if (!product.dataProvisioningConfigId) return null;
+        return allDataConfigs.find(c => c.id === product.dataProvisioningConfigId);
+    }, [product.dataProvisioningConfigId, allDataConfigs]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value === '' ? null : parseFloat(value) }));
+        onUpdate({ [name]: value === '' ? null : value });
     };
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
         if (name === 'status') {
-            setFormData(prev => ({ ...prev, status: checked ? 'Active' : 'Disabled' }));
+            onUpdate({ status: checked ? 'Active' : 'Disabled' });
         } else {
-            setFormData(prev => ({...prev, [name]: checked }));
+            onUpdate({ [name]: checked });
         }
     }
     
-     const handleSelectChange = (name: keyof LoanProduct, value: string) => {
-        setFormData(prev => ({...prev, [name]: value }));
-        if (name === 'dataProvisioningConfigId') {
-            onProductConfigChange(product.id, value);
+    const handleFilterFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !product.dataProvisioningConfigId) return;
+
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('configId', product.dataProvisioningConfigId);
+            formData.append('productFilter', 'true');
+            formData.append('productId', product.id);
+            
+            const response = await fetch('/api/settings/data-provisioning-uploads', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to upload file.');
+            }
+
+            const newUpload: DataProvisioningUpload = await response.json();
+            
+            // Create the filter object from the file headers
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+
+            if (json.length === 0) {
+                throw new Error("File is empty.");
+            }
+            
+            const headers = Object.keys(json[0] as object);
+            const filterObject = headers.reduce((acc, header) => {
+                const values = json.map(row => (row as any)[header]).filter(Boolean);
+                acc[header] = values.join(', ');
+                return acc;
+            }, {} as Record<string, string>);
+            
+            const updatedProductData: Partial<LoanProduct> = {
+                eligibilityFilter: JSON.stringify(filterObject, null, 2),
+                eligibilityUploadId: newUpload.id,
+                eligibilityUpload: newUpload,
+            };
+            onUpdate(updatedProductData);
+
+            toast({ title: "Filter Generated", description: `The eligibility list has been generated from ${file.name}. Remember to save changes.` });
+
+        } catch (error: any) {
+            toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
+        } finally {
+            setIsUploading(false);
+            if (event.target) event.target.value = '';
         }
-    }
+    };
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
         try {
             const parsedDuration = parseInt(String(formData.duration));
-            const payload = {
+            const payload: any = {
                 ...formData,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
@@ -133,7 +202,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                  throw new Error(errorData.error || 'Failed to save product settings.');
             }
             const savedProduct = await response.json();
-            onSave(provider.id, savedProduct);
+            onSave(savedProduct); // This will update the parent state with the full saved product
             toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -141,8 +210,31 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             setIsSaving(false);
         }
     }
+    
+    const handleDeleteFilter = async () => {
+        if (!product.eligibilityUploadId) return;
+        setIsSaving(true);
+        try {
+            // Call an API to delete the upload record and nullify the fields on the product
+            const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete filter.');
+            }
+            onUpdate({ eligibilityFilter: null, eligibilityUploadId: null, eligibilityUpload: undefined });
+            toast({ title: "Filter Deleted", description: "Eligibility list has been removed." });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
 
     return (
+       <>
        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
@@ -210,7 +302,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         </div>
                     </div>
                     
-                    <div className="space-y-4 border-t pt-6">
+                     <div className="space-y-4 border-t pt-6">
                         <div className="flex items-center space-x-2">
                             <Switch
                                 id={`dataProvisioningEnabled-${product.id}`}
@@ -219,28 +311,76 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
-                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Use Product-Specific Data</Label>
+                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Eligibility Allow-List</Label>
                         </div>
                         {formData.dataProvisioningEnabled && (
-                             <div className="pl-8 space-y-4">
-                                <p className="text-xs text-muted-foreground">Define a specific data schema and upload a borrower list exclusively for this product. This will override the provider-level data for scoring.</p>
-                                <DataProvisioningManager 
-                                    providerId={provider.id}
-                                    config={allProviderConfigs.find(c => c.id === formData.dataProvisioningConfigId)}
-                                    onConfigChange={(newConfig) => {
-                                        // Update the list of all configs for the provider
-                                        const otherConfigs = allProviderConfigs.filter(c => c.id !== newConfig.id);
-                                        onConfigChange([...otherConfigs, newConfig]);
-                                        // Associate the new/updated config with the product
-                                        handleSelectChange('dataProvisioningConfigId', newConfig.id);
-                                    }}
-                                />
+                            <div className="pl-8 space-y-4">
+                               <div className="space-y-2">
+                                    <Label>Link Data Source</Label>
+                                    <Select 
+                                        value={product.dataProvisioningConfigId || ''}
+                                        onValueChange={(value) => onUpdate({ dataProvisioningConfigId: value })}
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Select a data source to link..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {allDataConfigs.map(config => (
+                                                <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">Select the data source this product's eligibility list will be based on.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Upload List</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Button asChild variant="outline" size="sm">
+                                             <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
+                                                <Upload className="h-4 w-4 mr-2"/>
+                                                {isUploading ? "Uploading..." : "Upload Excel File"}
+                                                <input
+                                                    ref={fileInputRef}
+                                                    id={`filter-upload-${product.id}`}
+                                                    type="file"
+                                                    accept=".xlsx, .xls"
+                                                    onChange={handleFilterFileUpload}
+                                                    className="hidden"
+                                                    disabled={isUploading || !product.dataProvisioningConfigId}
+                                                />
+                                            </label>
+                                        </Button>
+                                         <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers must match the linked data source.</p>
+                                    </div>
+                                    {!product.dataProvisioningConfigId && <p className="text-xs text-destructive">A data source must be linked before uploading.</p>}
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Uploaded List</Label>
+                                    {product.eligibilityUpload ? (
+                                         <div className="border rounded-lg p-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-medium">{product.eligibilityUpload.fileName}</p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        By {product.eligibilityUpload.uploadedBy} on {format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
+                                                    </p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
+                                                    <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
-                        <Button variant="destructive" type="button" onClick={() => onDelete(provider.id, product.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                        <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                         <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Save Changes
@@ -249,6 +389,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 </form>
             </CollapsibleContent>
         </Collapsible>
+        {viewingUpload && (
+             <UploadDataViewerDialog
+                upload={viewingUpload}
+                onClose={() => setViewingUpload(null)}
+            />
+        )}
+       </>
     )
 }
 
@@ -262,8 +409,13 @@ function ProvidersTab({ providers, onProvidersChange }: {
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
     const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<{ type: 'provider' | 'product'; providerId: string; productId?: string } | null>(null);
+    const [dataConfigs, setDataConfigs] = useState<DataProvisioningConfig[]>(providers.flatMap(p => p.dataProvisioningConfigs || []));
 
     const { toast } = useToast();
+    
+    useEffect(() => {
+        setDataConfigs(providers.flatMap(p => p.dataProvisioningConfigs || []));
+    }, [providers]);
     
     const themeColor = useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -277,7 +429,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
         setIsProviderDialogOpen(true);
     };
 
-    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs'>>) => {
+    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>>) => {
         const isEditing = !!providerData.id;
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/providers';
@@ -354,29 +506,18 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
     };
 
-    const handleSaveProduct = (providerId: string, updatedProduct: LoanProduct) => {
+    const handleUpdateProduct = (providerId: string, updatedProduct: LoanProduct) => {
         onProvidersChange(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
                 if (productIndex !== -1) {
-                    provider.products[productIndex] = updatedProduct;
+                     provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
                 }
             }
         }));
     }
 
-    const handleProductConfigChange = (providerId: string, productId: string, configId: string | null) => {
-        onProvidersChange(produce(draft => {
-            const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                 const productIndex = provider.products.findIndex(p => p.id === productId);
-                if (productIndex !== -1) {
-                    provider.products[productIndex].dataProvisioningConfigId = configId;
-                }
-            }
-        }))
-    }
     
     const confirmDelete = () => {
         if (!deletingId) return;
@@ -432,15 +573,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
         return providers.filter(p => p.id === currentUser.providerId);
     }, [providers, currentUser]);
-    
-    const handleConfigChange = useCallback((providerId: string, newConfigs: DataProvisioningConfig[]) => {
-        onProvidersChange(produce(draft => {
-             const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                provider.dataProvisioningConfigs = newConfigs;
-            }
-        }));
-    }, [onProvidersChange]);
 
 
     return (
@@ -490,11 +622,10 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     provider={provider}
                     product={{...product, icon: product.icon || 'PersonStanding'}} 
                     providerColor={provider.colorHex} 
-                    onSave={handleSaveProduct}
+                    onSave={(savedProduct) => handleUpdateProduct(provider.id, savedProduct)}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                    allProviderConfigs={provider.dataProvisioningConfigs || []}
-                    onConfigChange={(newConfigs) => handleConfigChange(provider.id, newConfigs)}
-                    onProductConfigChange={(productId, configId) => handleProductConfigChange(provider.id, productId, configId)}
+                    onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
+                    allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
                   />
                 ))}
                 <Button 
@@ -847,7 +978,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     
-    const taxAppliedTo = useMemo(() => safeParseJson(taxConfig, 'appliedTo', []), [taxConfig]);
+    const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
@@ -1018,96 +1149,6 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
             </Card>
             </CollapsibleContent>
         </Collapsible>
-    );
-}
-
-function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    const [content, setContent] = useState('');
-    const [activeVersion, setActiveVersion] = useState<TermsAndConditions | null>(null);
-
-    useEffect(() => {
-        setIsLoading(true);
-        fetch(`/api/settings/terms?providerId=${provider.id}`)
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to fetch terms')))
-            .then(data => {
-                if (data) {
-                    setContent(data.content);
-                    setActiveVersion(data);
-                } else {
-                    setContent('');
-                    setActiveVersion(null);
-                }
-            })
-            .catch(() => toast({ title: "Error", description: "Could not load agreement.", variant: "destructive" }))
-            .finally(() => setIsLoading(false));
-    }, [provider.id, toast]);
-
-    const handleSave = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/settings/terms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ providerId: provider.id, content })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save agreement.');
-            }
-            
-            const newVersion = await response.json();
-            setActiveVersion(newVersion);
-            
-            toast({ title: 'Success', description: `New agreement (Version ${newVersion.version}) has been published.` });
-        } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    return (
-         <Card>
-            <CardHeader>
-                <CardTitle>Borrower Agreement</CardTitle>
-                <CardDescription>
-                    Manage the Terms & Conditions for {provider.name}. Saving will publish a new version.
-                </CardDescription>
-                {activeVersion && (
-                     <p className="text-xs text-muted-foreground pt-2">
-                        Current active version: <span className="font-semibold">{activeVersion.version}</span> (Published on {new Date(activeVersion.publishedAt).toLocaleDateString()})
-                    </p>
-                )}
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                     <div className="space-y-2">
-                        <Skeleton className="h-6 w-1/4" />
-                        <Skeleton className="h-40 w-full" />
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <Label htmlFor="agreement-content">Agreement Content</Label>
-                        <Textarea 
-                            id="agreement-content"
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            rows={15}
-                            placeholder="Enter your terms and conditions here..."
-                        />
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter>
-                 <Button onClick={handleSave} style={{ backgroundColor: provider.colorHex }} className="text-white ml-auto" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save & Publish New Version
-                </Button>
-            </CardFooter>
-        </Card>
     );
 }
 
@@ -1300,13 +1341,99 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
     );
 }
 
+function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
+    const { toast } = useToast();
+    const [terms, setTerms] = useState<TermsAndConditions | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    
+    useEffect(() => {
+        const fetchTerms = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`/api/settings/terms?providerId=${provider.id}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setTerms(data);
+                }
+            } catch (error) {
+                 toast({ title: "Error", description: "Failed to load terms and conditions.", variant: "destructive"});
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchTerms();
+    }, [provider.id, toast]);
+    
+    const handleSave = async () => {
+        if (!terms || !terms.content.trim()) {
+            toast({ title: "Error", description: "Terms and conditions content cannot be empty.", variant: "destructive" });
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/settings/terms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ providerId: provider.id, content: terms.content })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to save new terms.");
+            }
+            
+            const newTerms = await response.json();
+            setTerms(newTerms);
+            onProviderUpdate({ id: provider.id, termsAndConditions: [newTerms] });
+            toast({ title: "Published", description: `Version ${newTerms.version} of the terms has been published.` });
+
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
+    if (isLoading) {
+        return <div className="space-y-4">
+            <Skeleton className="h-8 w-1/4" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-10 w-32" />
+        </div>
+    }
+
+    return (
+        <div className="space-y-4">
+            <Label htmlFor={`terms-content-${provider.id}`}>Terms and Conditions Content</Label>
+             <Textarea
+                id={`terms-content-${provider.id}`}
+                value={terms?.content || ''}
+                onChange={(e) => setTerms(prev => ({ ...(prev || { version: 0, content: '' }), content: e.target.value }) as TermsAndConditions)}
+                placeholder="Enter the terms and conditions for your loan products here."
+                rows={15}
+            />
+            <div className="flex justify-between items-center">
+                <p className="text-sm text-muted-foreground">
+                    Current Version: {terms?.version || 0}
+                </p>
+                <Button onClick={handleSave} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
+                    Save & Publish New Version
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 // --------------------------------------------------
 // DATA PROVISIONING MANAGER (NEW COMPONENT)
 // --------------------------------------------------
-function DataProvisioningManager({ providerId, config, onConfigChange }: {
+function DataProvisioningManager({ providerId, config, onConfigChange, allProviderProducts }: {
     providerId: string;
     config: DataProvisioningConfig | undefined;
     onConfigChange: (newConfig: DataProvisioningConfig) => void;
+    allProviderProducts: LoanProduct[];
 }) {
     const { toast } = useToast();
     const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
@@ -1402,6 +1529,12 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
         )
     }
 
+    const generalUploads = useMemo(() => {
+        const eligibilityUploadIds = new Set(allProviderProducts.map(p => p.eligibilityUploadId).filter(Boolean));
+        return (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
+    }, [config.uploads, allProviderProducts]);
+
+
     return (
         <>
             <Card className="bg-muted/50">
@@ -1451,8 +1584,8 @@ function DataProvisioningManager({ providerId, config, onConfigChange }: {
                                    </TableRow>
                                </TableHeader>
                                <TableBody>
-                                   {config.uploads && config.uploads.length > 0 ? (
-                                       config.uploads.map(upload => (
+                                   {generalUploads.length > 0 ? (
+                                       generalUploads.map(upload => (
                                             <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
                                                 <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
                                                 <TableCell>{upload.rowCount}</TableCell>
@@ -1660,7 +1793,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     const rowsPerPage = 100;
 
     useEffect(() => {
-        if (upload) {
+        if (upload && !upload.id.startsWith('temp-')) {
             const fetchData = async () => {
                 setIsLoading(true);
                 try {
@@ -1683,6 +1816,54 @@ function UploadDataViewerDialog({ upload, onClose }: {
     }, [upload, page]);
 
     if (!upload) return null;
+    
+    // Special handling for temporary filter preview
+    if (upload.id.startsWith('temp-')) {
+        const filterData = JSON.parse(upload.fileName); // Storing JSON in fileName for temp
+        const headers = Object.keys(filterData);
+        const maxRows = Math.max(0, ...Object.values(filterData).map((v: any) => v.split(',').length));
+        const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
+            return headers.map(header => {
+                const values = filterData[header].split(',').map((s:string) => s.trim());
+                return values[rowIndex] || '';
+            });
+        });
+
+        return (
+             <UIDialog open={!!upload} onOpenChange={onClose}>
+                <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                    <UIDialogHeader>
+                        <UIDialogTitle>Viewing Eligibility Criteria</UIDialogTitle>
+                        <UIDialogDescription>
+                            This is the list of criteria generated from your uploaded file.
+                        </UIDialogDescription>
+                    </UIDialogHeader>
+                    <div className="flex-grow overflow-auto border rounded-md">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {rows.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {row.map((cell, cellIndex) => (
+                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                     <UIDialogFooter className="pt-4">
+                        <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
+                    </UIDialogFooter>
+                </UIDialogContent>
+            </UIDialog>
+        );
+    }
+
 
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
@@ -1721,10 +1902,10 @@ function UploadDataViewerDialog({ upload, onClose }: {
                     <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
-                            <ChevronDown className="h-4 w-4 mr-2 rotate-90" /> Previous
+                            <ChevronLeft className="h-4 w-4 mr-2" /> Previous
                         </Button>
                         <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
-                            Next <ChevronDown className="h-4 w-4 ml-2 -rotate-90" />
+                            Next <ChevronRight className="h-4 w-4 ml-2" />
                         </Button>
                     </div>
                 </UIDialogFooter>
@@ -1732,6 +1913,3 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
-
-

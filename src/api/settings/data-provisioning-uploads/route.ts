@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
+import { createAuditLog } from '@/lib/audit-log';
+
 
 // Helper to convert strings to camelCase
 const toCamelCase = (str: string) => {
@@ -22,6 +24,8 @@ export async function POST(req: NextRequest) {
     if (!session?.userId || !user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
 
     try {
         const formData = await req.formData();
@@ -109,6 +113,16 @@ export async function POST(req: NextRequest) {
                 });
             }
         });
+        
+        await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_UPLOAD',
+            entity: 'PROVIDER',
+            entityId: config.providerId,
+            details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+            ipAddress,
+            userAgent
+        });
 
 
         return NextResponse.json(newUpload, { status: 201 });
@@ -125,4 +139,62 @@ export async function POST(req: NextRequest) {
     }
 }
 
+export async function DELETE(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
+
+    const { searchParams } = new URL(req.url);
+    const uploadId = searchParams.get('uploadId');
+
+    if (!uploadId) {
+        return NextResponse.json({ error: 'Upload ID is required' }, { status: 400 });
+    }
+
+    try {
+        const uploadToDelete = await prisma.dataProvisioningUpload.findUnique({
+            where: { id: uploadId },
+        });
+
+        if (!uploadToDelete) {
+             return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Delete all provisioned data associated with this upload
+            await tx.provisionedData.deleteMany({
+                where: { uploadId: uploadId }
+            });
+
+            // Delete the upload record itself
+            await tx.dataProvisioningUpload.delete({
+                where: { id: uploadId }
+            });
+        });
+        
+         await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_DELETE',
+            entity: 'PROVIDER',
+            entityId: uploadToDelete.configId,
+            details: { uploadId: uploadId, fileName: uploadToDelete.fileName },
+            ipAddress,
+            userAgent
+        });
+
+
+        return NextResponse.json({ message: 'Upload and all associated data have been deleted successfully.' }, { status: 200 });
+
+    } catch (error: any) {
+        console.error(`Error deleting upload ${uploadId}:`, error);
+        if (error.code === 'P2025') {
+            // This happens if the record was already deleted
+            return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
     

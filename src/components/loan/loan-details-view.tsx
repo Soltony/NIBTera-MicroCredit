@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { LoanDetails, LoanProduct, PenaltyRule } from '@/lib/types';
@@ -19,7 +20,7 @@ interface LoanDetailsViewProps {
 }
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 const formatPenaltyRule = (rule: PenaltyRule): string => {

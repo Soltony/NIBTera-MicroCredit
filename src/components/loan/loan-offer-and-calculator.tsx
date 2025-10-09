@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -26,7 +27,8 @@ interface LoanOfferAndCalculatorProps {
 }
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
+  if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
@@ -57,9 +59,9 @@ const formatPenaltyRule = (rule: PenaltyRule): string => {
     const toDay = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
 
     if (toDay === Infinity) {
-        conditionString = `from day ${fromDay} onwards`;
+        conditionString = `from day ${fromDay} onwards after due date`;
     } else {
-        conditionString = `from day ${fromDay} to day ${toDay}`;
+        conditionString = `from day ${fromDay} to day ${toDay} after due date`;
     }
 
     return `${valueString} ${conditionString}`;
@@ -285,7 +287,10 @@ export function LoanOfferAndCalculator({ product, taxConfig, isLoading, eligibil
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-lg border">
-                    <span className="text-base font-semibold">Total Repayable Amount on due date</span>
+                    <div>
+                        <span className="text-base font-semibold">Total Repayable Amount</span>
+                        <p className="text-xs text-muted-foreground">on {format(calculationResult.dueDate, 'PPP')}</p>
+                    </div>
                     <span className="text-2xl font-bold" style={{color: providerColor}}>
                         {formatCurrency(calculationResult.total)}
                     </span>

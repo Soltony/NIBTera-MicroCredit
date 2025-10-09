@@ -18,7 +18,14 @@ async function getProviders(userId: string): Promise<LoanProvider[]> {
     const providers = await prisma.loanProvider.findMany({
         where: whereClause,
         include: {
-            products: true,
+            products: {
+                // We need eligibilityUploadId to filter these out of the general uploads list
+                select: {
+                    id: true,
+                    name: true,
+                    eligibilityUploadId: true,
+                }
+            },
             dataProvisioningConfigs: {
                  include: {
                     uploads: {
@@ -43,6 +50,8 @@ async function getProviders(userId: string): Promise<LoanProvider[]> {
         }
     };
     
+    // Casting here after ensuring the structure aligns.
+    // The product data is partial but sufficient for the client component's needs.
     return providers.map(p => ({
         ...p,
         dataProvisioningConfigs: (p.dataProvisioningConfigs || []).map(config => ({

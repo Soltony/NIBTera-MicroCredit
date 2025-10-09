@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -10,8 +11,9 @@ import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
+const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
@@ -56,16 +58,10 @@ export function ProductCard({
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        // The product passed to activeLoan from parent might have JSON strings, need to parse them
-        const parsedProduct = {
-            ...product,
-            ...activeLoan.product
-        };
-        const totalDebt = calculateTotalRepayable(activeLoan, parsedProduct, taxConfig, new Date());
-        const remainingBalance = totalDebt.total - (activeLoan.repaidAmount || 0);
-        // Return 0 if the balance is negative (overpayment)
+        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfig, new Date());
+        const remainingBalance = total - (activeLoan.repaidAmount || 0);
         return Math.max(0, remainingBalance);
-    }, [activeLoan, product, taxConfig]);
+    }, [activeLoan, taxConfig]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general

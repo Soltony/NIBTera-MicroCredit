@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -27,8 +28,9 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount) + ' ETB';
+const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
 };
 
 interface DashboardClientProps {
@@ -162,19 +164,20 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
   }, [providers, borrowerId, providerIdFromUrl]);
 
   const { overallMaxLimit, totalBorrowed, availableToBorrow } = useMemo(() => {
-      // The backend now returns the true available limit for each product,
-      // accounting for outstanding loans. The highest of these is the max available to borrow.
-      const availableToBorrow = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
-      
-      const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
-      // totalBorrowed is the sum of outstanding principals.
-      const totalBorrowed = unpaidLoans.reduce((acc, loan) => acc + loan.loanAmount - (loan.repaidAmount || 0), 0);
-      
-      // The overallMaxLimit is the user's credit ceiling, which is their current available credit plus what they've already borrowed.
-      const overallMaxLimit = availableToBorrow + totalBorrowed;
+    const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
+    const outstandingPrincipal = unpaidLoans.reduce((acc, loan) => acc + (loan.loanAmount - (loan.repaidAmount || 0)), 0);
 
-      return { overallMaxLimit, totalBorrowed, availableToBorrow };
-  }, [eligibility.limits, loanHistory]);
+    const maxLimitFromTiers = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
+    
+    // Correct logic as per user's request
+    const availableToBorrow = maxLimitFromTiers - outstandingPrincipal;
+
+    return { 
+        overallMaxLimit: maxLimitFromTiers, 
+        totalBorrowed: outstandingPrincipal, 
+        availableToBorrow: Math.max(0, availableToBorrow) 
+    };
+}, [eligibility.limits, loanHistory]);
 
 
   const activeLoansByProduct = useMemo(() => {
@@ -204,8 +207,8 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
         params.set('providerId', selectedProviderId);
         params.set('product', product.id);
         const productLimit = eligibility.limits[product.id] ?? 0;
-        const trueMaxLoan = Math.min(productLimit, availableToBorrow);
-        params.set('max', String(trueMaxLoan));
+        
+        params.set('max', String(productLimit));
         router.push(`/apply?${params.toString()}`);
     }
   
@@ -405,7 +408,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
        <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Terms & Conditions</DialogTitle>
+                    <DialogTitle>Terms &amp; Conditions</DialogTitle>
                     <DialogDescription>
                         Please read and accept the terms and conditions of {selectedProvider?.name} to proceed.
                     </DialogDescription>
@@ -438,3 +441,5 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
     </>
   );
 }
+
+    

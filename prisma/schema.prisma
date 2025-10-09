@@ -64,7 +64,7 @@ model LoanProvider {
 model LoanProduct {
   id                          String                        @id @default(cuid())
   providerId                  String
-  provider                    LoanProvider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider                    LoanProvider                  @relation(fields: [providerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   name                        String
   description                 String
   icon                        String                        @db.Text
@@ -80,8 +80,9 @@ model LoanProduct {
   penaltyRules                String // JSON array of PenaltyRule
   penaltyRulesEnabled         Boolean?
   dataProvisioningEnabled     Boolean?
-  dataProvisioningConfigId    String?
-  dataProvisioningConfig      DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  eligibilityFilter           String?                       @db.Text // JSON object for filtering borrowers
+  eligibilityUploadId         String?
+  eligibilityUpload           DataProvisioningUpload?       @relation(fields: [eligibilityUploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   loans                       Loan[]
   loanAmountTiers             LoanAmountTier[]
   scoringConfiguration        ScoringConfigurationProduct[]
@@ -173,7 +174,7 @@ model UploadedDocument {
     status              String          @default("PENDING") // PENDING, APPROVED, REJECTED
     reviewedBy          String?
     reviewedAt          DateTime?
-    
+
     @@unique([loanApplicationId, requiredDocumentId])
 }
 
@@ -188,7 +189,6 @@ model DataProvisioningConfig {
   provider           LoanProvider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name               String
   columns            String // JSON array of DataColumn
-  products           LoanProduct[]
   uploads            DataProvisioningUpload[]
   provisionedData    ProvisionedData[]
 }
@@ -202,6 +202,7 @@ model DataProvisioningUpload {
     uploadedBy  String
     uploadedAt  DateTime    @default(now())
     provisionedData ProvisionedData[]
+    LoanProduct       LoanProduct[]
 }
 
 model ProvisionedData {

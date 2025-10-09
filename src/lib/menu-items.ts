@@ -6,6 +6,9 @@ import {
   FileCog,
   BadgeAlert,
   Landmark,
+  Download,
+  FolderArchive,
+  BookUser,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -50,5 +53,11 @@ export const allMenuItems = [
     label: 'Settings',
     icon: Settings,
     roles: ['Super Admin', 'Loan Manager', 'Loan Provider'],
+  },
+  {
+    path: '/admin/audit-logs',
+    label: 'Audit Logs',
+    icon: BookUser,
+    roles: ['Super Admin', 'Auditor'],
   },
 ];

@@ -9,11 +9,36 @@ const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 async function getBorrowers() {
-    const provisionedDataEntries = await prisma.provisionedData.findMany({
-        orderBy: {
-            createdAt: 'desc' // Get the latest entries first
-        }
+    // 1. Find all upload IDs that are used for product eligibility filters.
+    const productEligibilityUploads = await prisma.loanProduct.findMany({
+        where: {
+            eligibilityUploadId: {
+                not: null,
+            },
+        },
+        select: {
+            eligibilityUploadId: true,
+        },
     });
+    
+    const eligibilityUploadIds = new Set(
+        productEligibilityUploads.map(p => p.eligibilityUploadId).filter((id): id is string => id !== null)
+    );
+
+    // 2. Fetch all provisioned data entries, EXCLUDING those from eligibility lists.
+    const provisionedDataEntries = await prisma.provisionedData.findMany({
+        where: {
+            // The uploadId should NOT be in the set of eligibility upload IDs.
+            // This also implicitly handles cases where uploadId is null.
+            uploadId: {
+                notIn: Array.from(eligibilityUploadIds),
+            },
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+
 
     // Group all data by borrowerId
     const borrowerDataMap = new Map<string, any>();
@@ -21,6 +46,8 @@ async function getBorrowers() {
     for (const entry of provisionedDataEntries) {
         const data = JSON.parse(entry.data as string);
         const borrowerId = data.id || entry.borrowerId; // Use id from data if available, fallback to borrowerId
+
+        if (!borrowerId) continue;
 
         if (!borrowerDataMap.has(borrowerId)) {
             borrowerDataMap.set(borrowerId, { id: borrowerId });

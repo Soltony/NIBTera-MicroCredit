@@ -11,8 +11,6 @@ import { startOfDay } from 'date-fns';
 import { createAuditLog } from '@/lib/audit-log';
 
 async function getBorrowerBalance(borrowerId: string): Promise<number> {
-    // In a real system, this would call a banking API.
-    // Here, we simulate it by checking the latest provisioned data for a balance field.
     const provisionedData = await prisma.provisionedData.findFirst({
         where: { borrowerId },
         orderBy: { createdAt: 'desc' },
@@ -21,14 +19,13 @@ async function getBorrowerBalance(borrowerId: string): Promise<number> {
     if (provisionedData) {
         try {
             const data = JSON.parse(provisionedData.data as string);
-            // Assuming the provisioned data has a field named 'accountBalance' in camelCase
             const balanceKey = Object.keys(data).find(k => k.toLowerCase() === 'accountbalance');
             if (balanceKey) {
                 return parseFloat(data[balanceKey]) || 0;
             }
         } catch (e) {
             console.error(`Could not parse provisioned data for borrower ${borrowerId}`, e);
-            return 0; // Return 0 if data is not valid JSON or balance is not a number
+            return 0;
         }
     }
     return 0;
@@ -191,7 +188,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 };
                 await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
                 console.log(JSON.stringify({
-                    timestamp: new Date().toISOString(),
                     action: 'AUTOMATED_REPAYMENT_SUCCESS',
                     actorId: 'system',
                     details: logDetails
@@ -205,7 +201,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 };
                 await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_FAILURE', entity: 'LOAN', entityId: loan.id, details: failureDetails });
                  console.error(JSON.stringify({
-                    timestamp: new Date().toISOString(),
                     action: 'AUTOMATED_REPAYMENT_FAILURE',
                     actorId: 'system',
                     details: failureDetails
@@ -220,7 +215,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
             };
             await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SKIPPED', entity: 'LOAN', entityId: loan.id, details: { reason: 'Insufficient funds', ...skipDetails } });
              console.log(JSON.stringify({
-                timestamp: new Date().toISOString(),
                 action: 'AUTOMATED_REPAYMENT_SKIPPED',
                 actorId: 'system',
                 reason: 'Insufficient funds',

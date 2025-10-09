@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
+import { createAuditLog } from '@/lib/audit-log';
+
 
 // Helper to convert strings to camelCase
 const toCamelCase = (str: string) => {
@@ -22,11 +24,15 @@ export async function POST(req: NextRequest) {
     if (!session?.userId || !user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
 
     try {
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
         const configId = formData.get('configId') as string | null;
+        const isProductFilter = formData.get('productFilter') === 'true';
+        const productId = formData.get('productId') as string | null;
 
         if (!file || !configId) {
             return NextResponse.json({ error: 'File and configId are required' }, { status: 400 });
@@ -48,18 +54,10 @@ export async function POST(req: NextRequest) {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
-        const originalHeaders = jsonData[0].map(h => String(h));
+        const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
         const camelCaseHeaders = originalHeaders.map(toCamelCase);
         
-        const rows = jsonData.slice(1);
-        const configColumns = JSON.parse(config.columns as string);
-        const idColumnConfig = configColumns.find((c: any) => c.isIdentifier);
-
-        if (!idColumnConfig) {
-            return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
-        }
-        
-        const idColumnCamelCase = toCamelCase(idColumnConfig.name);
+        const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
         
         const newUpload = await prisma.dataProvisioningUpload.create({
             data: {
@@ -70,15 +68,21 @@ export async function POST(req: NextRequest) {
             }
         });
 
+        const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
+        if (!idColumnConfig) {
+            return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
+        }
+        const idColumnCamelCase = toCamelCase(idColumnConfig.name);
+        
         // Use transaction to perform all upserts
         await prisma.$transaction(async (tx) => {
             for (const row of rows) {
-                const rowData: { [key: string]: any } = {};
+                const newRowData: { [key: string]: any } = {};
                 camelCaseHeaders.forEach((header, index) => {
-                    rowData[header] = row[index];
+                    newRowData[header] = row[index];
                 });
                 
-                const borrowerId = String(rowData[idColumnCamelCase]);
+                const borrowerId = String(newRowData[idColumnCamelCase]);
                 if (!borrowerId) continue;
 
                 // 1. Upsert the borrower record first to ensure it exists
@@ -88,7 +92,22 @@ export async function POST(req: NextRequest) {
                     create: { id: borrowerId }
                 });
 
-                // 2. Now upsert the provisioned data which has a relation to Borrower
+                // 2. Now upsert the provisioned data, merging if it exists
+                const existingData = await tx.provisionedData.findUnique({
+                     where: {
+                        borrowerId_configId: {
+                            borrowerId: borrowerId,
+                            configId: configId
+                        }
+                    },
+                });
+                
+                let mergedData = newRowData;
+                if (existingData?.data) {
+                    const oldData = JSON.parse(existingData.data as string);
+                    mergedData = { ...oldData, ...newRowData };
+                }
+
                 await tx.provisionedData.upsert({
                     where: {
                         borrowerId_configId: {
@@ -97,18 +116,46 @@ export async function POST(req: NextRequest) {
                         }
                     },
                     update: {
-                        data: JSON.stringify(rowData),
-                        uploadId: newUpload.id, // Link to the new upload record
+                        data: JSON.stringify(mergedData),
+                        uploadId: newUpload.id,
                     },
                     create: {
                         borrowerId: borrowerId,
                         configId: configId,
-                        data: JSON.stringify(rowData),
-                        uploadId: newUpload.id, // Link to the new upload record
+                        data: JSON.stringify(mergedData),
+                        uploadId: newUpload.id,
                     }
                 });
             }
         });
+        
+        if (isProductFilter && productId) {
+             await prisma.loanProduct.update({
+                where: { id: productId },
+                data: {
+                    eligibilityUploadId: newUpload.id,
+                },
+             });
+             await createAuditLog({
+                actorId: session.userId,
+                action: 'DATA_PROVISIONING_FILTER_UPLOAD',
+                entity: 'PRODUCT',
+                entityId: productId,
+                details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+                ipAddress,
+                userAgent
+            });
+        } else {
+             await createAuditLog({
+                actorId: session.userId,
+                action: 'DATA_PROVISIONING_UPLOAD',
+                entity: 'PROVIDER',
+                entityId: config.providerId,
+                details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+                ipAddress,
+                userAgent
+            });
+        }
 
 
         return NextResponse.json(newUpload, { status: 201 });
@@ -124,3 +171,63 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
+
+    const { searchParams } = new URL(req.url);
+    const uploadId = searchParams.get('uploadId');
+
+    if (!uploadId) {
+        return NextResponse.json({ error: 'Upload ID is required' }, { status: 400 });
+    }
+
+    try {
+        const uploadToDelete = await prisma.dataProvisioningUpload.findUnique({
+            where: { id: uploadId },
+        });
+
+        if (!uploadToDelete) {
+             return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Delete all provisioned data associated with this upload
+            await tx.provisionedData.deleteMany({
+                where: { uploadId: uploadId }
+            });
+
+            // Delete the upload record itself
+            await tx.dataProvisioningUpload.delete({
+                where: { id: uploadId }
+            });
+        });
+        
+         await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_DELETE',
+            entity: 'PROVIDER',
+            entityId: uploadToDelete.configId,
+            details: { uploadId: uploadId, fileName: uploadToDelete.fileName },
+            ipAddress,
+            userAgent
+        });
+
+
+        return NextResponse.json({ message: 'Upload and all associated data have been deleted successfully.' }, { status: 200 });
+
+    } catch (error: any) {
+        console.error(`Error deleting upload ${uploadId}:`, error);
+        if (error.code === 'P2025') {
+            // This happens if the record was already deleted
+            return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+    

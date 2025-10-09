@@ -36,13 +36,10 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
     }
 
     const { total, principal, interest, penalty, serviceFee, tax } = useMemo(() => {
-        // Since we are on the client, we can't call the async calculate function.
-        // For now, we'll estimate or just show the basic info. A better approach
-        // would be to have the calculation done on the server and passed as a prop.
-        // For this implementation, we will mock a simple calculation.
-        
-        // This is a temporary fix. For a real app, this should be a server call
-        // or the result should be passed from the server page component.
+        if (loanDetails.calculatedRepayment) {
+            return loanDetails.calculatedRepayment;
+        }
+        // Fallback for older data that might not have the pre-calculated value
         const estimate = {
             total: loanDetails.loanAmount + loanDetails.serviceFee,
             principal: loanDetails.loanAmount,
@@ -51,7 +48,6 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
             serviceFee: loanDetails.serviceFee,
             tax: 0,
         };
-        // A full recalculation would need an async effect, which we will add if needed.
         return estimate;
     }, [loanDetails]);
 
@@ -106,7 +102,7 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
                             <Card className="bg-muted/50">
                                 <CardContent className="p-4 space-y-3 text-sm">
                                     <div className="flex justify-between"><span>Principal (ETB)</span> <span className="font-medium">{formatCurrency(principal)}</span></div>
-                                    <div className="flex justify-between"><span>Facilitation Fee ({loanDetails.product.serviceFee.type === 'percentage' ? `${loanDetails.product.serviceFee.value}%` : 'Fixed'})</span> <span className="font-medium">{formatCurrency(serviceFee)}</span></div>
+                                    <div className="flex justify-between"><span>Service Fee ({loanDetails.product.serviceFee.type === 'percentage' ? `${loanDetails.product.serviceFee.value}%` : 'Fixed'})</span> <span className="font-medium">{formatCurrency(serviceFee)}</span></div>
                                     <div className="flex justify-between"><span>Daily Fee</span> <span className="font-medium">{formatCurrency(interest)}</span></div>
                                     <div className="flex justify-between"><span>Penalty Fee</span> <span className="font-medium">{formatCurrency(penalty)}</span></div>
                                     {tax > 0 && <div className="flex justify-between"><span>Tax</span> <span className="font-medium">{formatCurrency(tax)}</span></div>}
@@ -153,5 +149,3 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
         </div>
     );
 }
-
-    

@@ -94,10 +94,12 @@ export interface LoanProduct {
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
   dataProvisioningEnabled?: boolean;
-  dataProvisioningConfigId?: string | null;
-  dataProvisioningConfig?: DataProvisioningConfig;
+  eligibilityFilter?: string | null;
   requiredDocuments: RequiredDocument[];
   tax?: number;
+  dataProvisioningConfigId?: string | null;
+  eligibilityUploadId?: string | null;
+  eligibilityUpload?: DataProvisioningUpload;
 }
 
 export interface LoanApplication {
@@ -150,10 +152,19 @@ export interface LoanDetails {
   repaidAmount?: number;
   payments: Payment[];
   penaltyAmount: number;
+  totalRepayableAmount?: number;
   // For calculation purposes, not stored in DB
   product: LoanProduct;
   provider?: LoanProvider;
   loanApplicationId?: string;
+  calculatedRepayment?: {
+    total: number;
+    principal: number;
+    interest: number;
+    penalty: number;
+    serviceFee: number;
+    tax: number;
+  }
 }
 
 export const CheckLoanEligibilityInputSchema = z.object({

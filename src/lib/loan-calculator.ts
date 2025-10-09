@@ -12,6 +12,11 @@ interface CalculatedRepayment {
     tax: number;
 }
 
+// Helper to round to 2 decimal places for currency
+const roundCurrency = (amount: number): number => {
+    return Math.round((amount + Number.EPSILON) * 100) / 100;
+};
+
 
 export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, taxConfig: Tax | null, asOfDate: Date = new Date()): CalculatedRepayment => {
     const loanStartDate = startOfDay(new Date(loanDetails.disbursedDate));
@@ -54,6 +59,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
             serviceFee = principal * (feeValue / 100);
         }
     }
+    serviceFee = roundCurrency(serviceFee);
     
     // 2. Daily Fee (Interest) - Calculated only up to the due date.
     if (loanProduct.dailyFeeEnabled && dailyFeeRule && dailyFeeRule.value > 0) {
@@ -68,7 +74,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                 if (dailyFeeRule.calculationBase === 'compound') {
                      let compoundInterestBase = principal;
                     for (let i = 0; i < daysForInterest; i++) {
-                        const dailyInterest = compoundInterestBase * (feeValue / 100);
+                        const dailyInterest = roundCurrency(compoundInterestBase * (feeValue / 100));
                         interestComponent += dailyInterest;
                         compoundInterestBase += dailyInterest;
                     }
@@ -78,6 +84,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
             }
         }
     }
+    interestComponent = roundCurrency(interestComponent);
     
     const runningBalanceForPenalty = principal + interestComponent + serviceFee;
 
@@ -107,7 +114,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
                     } else if (rule.type === 'percentageOfCompound') {
                         let compoundPenaltyBase = runningBalanceForPenalty + penaltyComponent;
                         for (let i = 0; i < daysToCalculate; i++) {
-                             const dailyPenalty = compoundPenaltyBase * (value / 100);
+                             const dailyPenalty = roundCurrency(compoundPenaltyBase * (value / 100));
                              penaltyForThisRule += dailyPenalty;
                              if (!isOneTime) {
                                 compoundPenaltyBase += dailyPenalty;
@@ -119,6 +126,7 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
              }
         });
     }
+    penaltyComponent = roundCurrency(penaltyComponent);
 
     // 4. Tax Calculation
     if (taxRate > 0) {
@@ -134,8 +142,9 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
         }
         taxComponent = taxableAmount * (taxRate / 100);
     }
+    taxComponent = roundCurrency(taxComponent);
 
-    const totalDebt = principal + serviceFee + interestComponent + penaltyComponent + taxComponent;
+    const totalDebt = roundCurrency(principal + serviceFee + interestComponent + penaltyComponent + taxComponent);
 
     return {
         total: totalDebt,

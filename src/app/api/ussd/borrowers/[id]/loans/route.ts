@@ -32,7 +32,6 @@ export async function GET(
     const formattedLoans = loans.map(loan => {
       // The loan.product from prisma might have fee/penalty rules as JSON strings.
       // The calculator expects them to be parsed objects.
-      // This was the source of the bug. We must parse them correctly here.
       const parsedProduct: LoanProduct = {
           ...loan.product,
           serviceFee: typeof loan.product.serviceFee === 'string' ? JSON.parse(loan.product.serviceFee) : loan.product.serviceFee,

@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined) return '0.00';
-  return new Intl.NumberFormat('en-US', { style: 'decimal' }).format(amount);
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 };
 
 
@@ -60,10 +60,10 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfig }: Hist
 
   const totalOutstanding = useMemo(() => {
     return activeLoans.reduce((acc, loan) => {
-      const balance = calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
-      return acc + Math.max(0, balance.total - (loan.repaidAmount || 0));
+      const balance = loan.totalRepayableAmount ?? 0;
+      return acc + Math.max(0, balance - (loan.repaidAmount || 0));
     }, 0);
-  }, [activeLoans, taxConfig]);
+  }, [activeLoans]);
   
   const totalCreditAmount = useMemo(() => {
     return loanHistory.reduce((acc, loan) => acc + loan.loanAmount, 0);
@@ -89,7 +89,7 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfig }: Hist
 
 
   const handleRepay = (loan: LoanDetails) => {
-    const balanceDue = calculateTotalRepayable(loan, loan.product, taxConfig, new Date()).total - (loan.repaidAmount || 0);
+    const balanceDue = (loan.totalRepayableAmount ?? 0) - (loan.repaidAmount || 0);
     setRepayingLoanInfo({ loan, balanceDue: Math.max(0, balanceDue) });
     setIsRepayDialogOpen(true);
   }
@@ -144,7 +144,7 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfig }: Hist
 
 
   const renderLoanCard = (loan: LoanDetails) => {
-    const balanceDue = calculateTotalRepayable(loan, loan.product, taxConfig, new Date()).total - (loan.repaidAmount || 0);
+    const balanceDue = (loan.totalRepayableAmount ?? 0) - (loan.repaidAmount || 0);
     const provider = providers.find(p => p.id === loan.product.providerId);
     const color = provider?.colorHex || '#fdb913';
 
