@@ -37,15 +37,14 @@ export async function POST(req: NextRequest) {
         if (!file || !configId) {
             return NextResponse.json({ error: 'File and configId are required' }, { status: 400 });
         }
-        
-        const newUpload = await prisma.dataProvisioningUpload.create({
-            data: {
-                configId: configId,
-                fileName: file.name,
-                rowCount: 0, // We'll update this after parsing
-                uploadedBy: user.fullName || user.email,
-            }
+
+        const config = await prisma.dataProvisioningConfig.findUnique({
+            where: { id: configId }
         });
+
+        if (!config) {
+            return NextResponse.json({ error: 'Data Provisioning Config not found' }, { status: 404 });
+        }
 
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
@@ -53,54 +52,28 @@ export async function POST(req: NextRequest) {
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
-        if (isProductFilter && productId) {
-             const updatedProduct = await prisma.loanProduct.update({
-                where: { id: productId },
-                data: {
-                    eligibilityUploadId: newUpload.id,
-                },
-             });
-             // We don't process the rows, just link the upload record
-             await createAuditLog({
-                actorId: session.userId,
-                action: 'DATA_PROVISIONING_FILTER_UPLOAD',
-                entity: 'PRODUCT',
-                entityId: productId,
-                details: { uploadId: newUpload.id, fileName: file.name },
-                ipAddress,
-                userAgent
-            });
-
-             return NextResponse.json({ ...newUpload, rowCount: 0 }, { status: 201 });
-        }
-
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
-        const originalHeaders = jsonData[0].map(h => String(h));
+        const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
         const camelCaseHeaders = originalHeaders.map(toCamelCase);
         
-        const rows = jsonData.slice(1);
-        const config = await prisma.dataProvisioningConfig.findUnique({
-            where: { id: configId }
+        const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
+        
+        const newUpload = await prisma.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: file.name,
+                rowCount: rows.length,
+                uploadedBy: user.fullName || user.email,
+            }
         });
-        if (!config) {
-            return NextResponse.json({ error: 'Data Provisioning Config not found' }, { status: 404 });
-        }
-        const configColumns = JSON.parse(config.columns as string);
-        const idColumnConfig = configColumns.find((c: any) => c.isIdentifier);
 
+        const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
         if (!idColumnConfig) {
             return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
         }
-        
         const idColumnCamelCase = toCamelCase(idColumnConfig.name);
         
-        await prisma.dataProvisioningUpload.update({
-            where: { id: newUpload.id },
-            data: { rowCount: rows.length }
-        });
-
         // Use transaction to perform all upserts
         await prisma.$transaction(async (tx) => {
             for (const row of rows) {
@@ -141,15 +114,33 @@ export async function POST(req: NextRequest) {
             }
         });
         
-        await createAuditLog({
-            actorId: session.userId,
-            action: 'DATA_PROVISIONING_UPLOAD',
-            entity: 'PROVIDER',
-            entityId: config.providerId,
-            details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
-            ipAddress,
-            userAgent
-        });
+        if (isProductFilter && productId) {
+             await prisma.loanProduct.update({
+                where: { id: productId },
+                data: {
+                    eligibilityUploadId: newUpload.id,
+                },
+             });
+             await createAuditLog({
+                actorId: session.userId,
+                action: 'DATA_PROVISIONING_FILTER_UPLOAD',
+                entity: 'PRODUCT',
+                entityId: productId,
+                details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+                ipAddress,
+                userAgent
+            });
+        } else {
+             await createAuditLog({
+                actorId: session.userId,
+                action: 'DATA_PROVISIONING_UPLOAD',
+                entity: 'PROVIDER',
+                entityId: config.providerId,
+                details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+                ipAddress,
+                userAgent
+            });
+        }
 
 
         return NextResponse.json(newUpload, { status: 201 });
