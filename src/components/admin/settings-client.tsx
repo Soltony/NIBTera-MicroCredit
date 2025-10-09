@@ -79,7 +79,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     provider: LoanProvider;
     product: LoanProduct;
     providerColor?: string;
-    onSave: () => void;
+    onSave: (product: LoanProduct) => void;
     onDelete: () => void;
     onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
     allDataConfigs: DataProvisioningConfig[];
@@ -202,7 +202,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                  throw new Error(errorData.error || 'Failed to save product settings.');
             }
             const savedProduct = await response.json();
-            onUpdate(savedProduct); // This will update the parent state with the full saved product
+            onSave(savedProduct); // This will update the parent state with the full saved product
             toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -506,7 +506,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
     };
 
-    const handleUpdateProduct = (providerId: string, updatedProduct: Partial<LoanProduct>) => {
+    const handleUpdateProduct = (providerId: string, updatedProduct: LoanProduct) => {
         onProvidersChange(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
@@ -622,7 +622,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     provider={provider}
                     product={{...product, icon: product.icon || 'PersonStanding'}} 
                     providerColor={provider.colorHex} 
-                    onSave={() => {}}
+                    onSave={(savedProduct) => handleUpdateProduct(provider.id, savedProduct)}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                     onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
                     allDataConfigs={dataConfigs}
@@ -1906,5 +1906,3 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
-

@@ -92,6 +92,9 @@ export async function PUT(req: NextRequest) {
         const updatedProduct = await prisma.loanProduct.update({
             where: { id },
             data: dataToUpdate,
+            include: {
+                eligibilityUpload: true, // Include the linked upload data
+            }
         });
 
         const successLogDetails = { productId: updatedProduct.id, updatedFields: Object.keys(dataToUpdate) };
