@@ -493,6 +493,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                 initialConfigs={currentDataConfigs}
                 onConfigChange={onConfigChange}
                 allProviderProducts={currentProvider?.products || []}
+                onUploadSuccess={() => fetchCustomParams(selectedProviderId)}
             />
 
             <Card>
@@ -690,11 +691,12 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     );
 }
 
-function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allProviderProducts }: {
+function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allProviderProducts, onUploadSuccess }: {
     providerId: string;
     initialConfigs: DataProvisioningConfig[];
     onConfigChange: (newConfigs: DataProvisioningConfig[]) => void;
     allProviderProducts: LoanProduct[];
+    onUploadSuccess: () => void;
 }) {
     const { toast } = useToast();
     const [configs, setConfigs] = useState(initialConfigs);
@@ -819,6 +821,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             });
             setConfigs(newConfigs);
             onConfigChange(newConfigs);
+            onUploadSuccess();
 
             toast({
                 title: 'Upload Successful',
@@ -1265,4 +1268,5 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
