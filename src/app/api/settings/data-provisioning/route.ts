@@ -128,6 +128,21 @@ export async function DELETE(req: NextRequest) {
         }
 
         await prisma.$transaction(async (tx) => {
+             // Find any products that are linked to uploads from this config
+            const uploadsToDelete = await tx.dataProvisioningUpload.findMany({
+                where: { configId: id },
+                select: { id: true }
+            });
+            const uploadIds = uploadsToDelete.map(u => u.id);
+
+            // Unlink products before deleting uploads
+            if (uploadIds.length > 0) {
+                await tx.loanProduct.updateMany({
+                    where: { eligibilityUploadId: { in: uploadIds } },
+                    data: { eligibilityUploadId: null }
+                });
+            }
+
             // Delete all provisioned data associated with this config
             await tx.provisionedData.deleteMany({
                 where: { configId: id }
