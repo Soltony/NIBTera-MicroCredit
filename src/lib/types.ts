@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
 import type { LucideIcon } from 'lucide-react';
@@ -93,9 +94,12 @@ export interface LoanProduct {
   dailyFeeEnabled?: boolean;
   penaltyRulesEnabled?: boolean;
   dataProvisioningEnabled?: boolean;
-  eligibilityFilter?: string | null; // NEW: For storing the eligibility list
+  eligibilityFilter?: string | null;
   requiredDocuments: RequiredDocument[];
   tax?: number;
+  dataProvisioningConfigId?: string | null;
+  eligibilityUploadId?: string | null;
+  eligibilityUpload?: DataProvisioningUpload;
 }
 
 export interface LoanApplication {

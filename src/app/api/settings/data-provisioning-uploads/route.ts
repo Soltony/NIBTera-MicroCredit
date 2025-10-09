@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import * as XLSX from 'xlsx';
+import { createAuditLog } from '@/lib/audit-log';
 
 
 // Helper to convert strings to camelCase
@@ -23,40 +24,28 @@ export async function POST(req: NextRequest) {
     if (!session?.userId || !user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
 
     try {
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
         const configId = formData.get('configId') as string | null;
         const isProductFilter = formData.get('productFilter') === 'true';
-
+        const productId = formData.get('productId') as string | null;
 
         if (!file || !configId) {
             return NextResponse.json({ error: 'File and configId are required' }, { status: 400 });
         }
         
-        // If this is just for a product filter, we don't save the upload record to the DB.
-        // We just return a temporary object for the client to use.
-        if (isProductFilter) {
-             const tempUpload = {
-                id: `temp-${Date.now()}`,
+        const newUpload = await prisma.dataProvisioningUpload.create({
+            data: {
                 configId: configId,
                 fileName: file.name,
-                rowCount: 0, // Not calculated for temp
+                rowCount: 0, // We'll update this after parsing
                 uploadedBy: user.fullName || user.email,
-                uploadedAt: new Date().toISOString(),
-            };
-            return NextResponse.json(tempUpload, { status: 201 });
-        }
-
-
-        const config = await prisma.dataProvisioningConfig.findUnique({
-            where: { id: configId }
+            }
         });
-
-        if (!config) {
-            return NextResponse.json({ error: 'Data Provisioning Config not found' }, { status: 404 });
-        }
 
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
@@ -64,12 +53,40 @@ export async function POST(req: NextRequest) {
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
+        
+        if (isProductFilter && productId) {
+             const updatedProduct = await prisma.loanProduct.update({
+                where: { id: productId },
+                data: {
+                    eligibilityUploadId: newUpload.id,
+                },
+             });
+             // We don't process the rows, just link the upload record
+             await createAuditLog({
+                actorId: session.userId,
+                action: 'DATA_PROVISIONING_FILTER_UPLOAD',
+                entity: 'PRODUCT',
+                entityId: productId,
+                details: { uploadId: newUpload.id, fileName: file.name },
+                ipAddress,
+                userAgent
+            });
+
+             return NextResponse.json({ ...newUpload, rowCount: 0 }, { status: 201 });
+        }
+
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
         const originalHeaders = jsonData[0].map(h => String(h));
         const camelCaseHeaders = originalHeaders.map(toCamelCase);
         
         const rows = jsonData.slice(1);
+        const config = await prisma.dataProvisioningConfig.findUnique({
+            where: { id: configId }
+        });
+        if (!config) {
+            return NextResponse.json({ error: 'Data Provisioning Config not found' }, { status: 404 });
+        }
         const configColumns = JSON.parse(config.columns as string);
         const idColumnConfig = configColumns.find((c: any) => c.isIdentifier);
 
@@ -79,13 +96,9 @@ export async function POST(req: NextRequest) {
         
         const idColumnCamelCase = toCamelCase(idColumnConfig.name);
         
-        const newUpload = await prisma.dataProvisioningUpload.create({
-            data: {
-                configId: configId,
-                fileName: file.name,
-                rowCount: rows.length,
-                uploadedBy: user.fullName || user.email,
-            }
+        await prisma.dataProvisioningUpload.update({
+            where: { id: newUpload.id },
+            data: { rowCount: rows.length }
         });
 
         // Use transaction to perform all upserts
@@ -127,6 +140,16 @@ export async function POST(req: NextRequest) {
                 });
             }
         });
+        
+        await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_UPLOAD',
+            entity: 'PROVIDER',
+            entityId: config.providerId,
+            details: { uploadId: newUpload.id, fileName: file.name, rows: rows.length },
+            ipAddress,
+            userAgent
+        });
 
 
         return NextResponse.json(newUpload, { status: 201 });
@@ -148,6 +171,8 @@ export async function DELETE(req: NextRequest) {
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
 
     const { searchParams } = new URL(req.url);
     const uploadId = searchParams.get('uploadId');
@@ -157,6 +182,14 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
+        const uploadToDelete = await prisma.dataProvisioningUpload.findUnique({
+            where: { id: uploadId },
+        });
+
+        if (!uploadToDelete) {
+             return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
+
         await prisma.$transaction(async (tx) => {
             // Delete all provisioned data associated with this upload
             await tx.provisionedData.deleteMany({
@@ -168,6 +201,17 @@ export async function DELETE(req: NextRequest) {
                 where: { id: uploadId }
             });
         });
+        
+         await createAuditLog({
+            actorId: session.userId,
+            action: 'DATA_PROVISIONING_DELETE',
+            entity: 'PROVIDER',
+            entityId: uploadToDelete.configId,
+            details: { uploadId: uploadId, fileName: uploadToDelete.fileName },
+            ipAddress,
+            userAgent
+        });
+
 
         return NextResponse.json({ message: 'Upload and all associated data have been deleted successfully.' }, { status: 200 });
 

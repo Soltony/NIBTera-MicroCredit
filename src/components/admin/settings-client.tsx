@@ -130,6 +130,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             formData.append('file', file);
             formData.append('configId', product.dataProvisioningConfigId);
             formData.append('productFilter', 'true');
+            formData.append('productId', product.id);
             
             const response = await fetch('/api/settings/data-provisioning-uploads', {
                 method: 'POST',
@@ -163,8 +164,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             
             const updatedProductData: Partial<LoanProduct> = {
                 eligibilityFilter: JSON.stringify(filterObject, null, 2),
-                // Associate the upload with the product (if your schema supports it)
-                // This might require a schema change to link LoanProduct directly to a DataProvisioningUpload
+                eligibilityUploadId: newUpload.id,
+                eligibilityUpload: newUpload,
             };
             onUpdate(updatedProductData);
 
@@ -210,15 +211,27 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
     }
     
-    const parsedFilter = useMemo(() => {
-        const filter = formData.eligibilityFilter;
-        if (!filter || typeof filter !== 'string') return null;
+    const handleDeleteFilter = async () => {
+        if (!product.eligibilityUploadId) return;
+        setIsSaving(true);
         try {
-            return JSON.parse(filter);
-        } catch (e) {
-            return null;
+            // Call an API to delete the upload record and nullify the fields on the product
+            const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete filter.');
+            }
+            onUpdate({ eligibilityFilter: null, eligibilityUploadId: null, eligibilityUpload: undefined });
+            toast({ title: "Filter Deleted", description: "Eligibility list has been removed." });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
         }
-    }, [formData.eligibilityFilter]);
+    };
+
 
     return (
        <>
@@ -342,29 +355,25 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     {!product.dataProvisioningConfigId && <p className="text-xs text-destructive">A data source must be linked before uploading.</p>}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>View Uploaded List</Label>
-                                     <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (parsedFilter) {
-                                                // Create a fake upload object to use the existing viewer component
-                                                setViewingUpload({
-                                                    id: 'filter-preview',
-                                                    fileName: 'Current Eligibility List',
-                                                    rowCount: Object.values(parsedFilter).map(v => v.split(',').length).reduce((a, b) => Math.max(a, b), 0),
-                                                    uploadedAt: new Date().toISOString(),
-                                                    uploadedBy: 'System Generated',
-                                                    configId: product.dataProvisioningConfigId || ''
-                                                });
-                                            } else {
-                                                toast({ description: "No criteria applied. Please upload a list.", variant: "default" });
-                                            }
-                                        }}
-                                        className="w-full text-left border rounded-md px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 flex justify-between items-center"
-                                    >
-                                        <span>{parsedFilter ? `${Object.keys(parsedFilter).length} criteria applied.` : `No criteria applied.`} Click to view.</span>
-                                        <ChevronRight className="h-4 w-4" />
-                                    </button>
+                                    <Label>Uploaded List</Label>
+                                    {product.eligibilityUpload ? (
+                                         <div className="border rounded-lg p-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-medium">{product.eligibilityUpload.fileName}</p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        By {product.eligibilityUpload.uploadedBy} on {format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
+                                                    </p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
+                                                    <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -380,12 +389,10 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 </form>
             </CollapsibleContent>
         </Collapsible>
-        {parsedFilter && viewingUpload && (
-             <FilterCriteriaViewerDialog
-                isOpen={!!viewingUpload}
+        {viewingUpload && (
+             <UploadDataViewerDialog
+                upload={viewingUpload}
                 onClose={() => setViewingUpload(null)}
-                filterData={parsedFilter}
-                fileName={viewingUpload.fileName}
             />
         )}
        </>
@@ -1767,56 +1774,6 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     )
 }
 
-function FilterCriteriaViewerDialog({ isOpen, onClose, filterData, fileName }: {
-    isOpen: boolean;
-    onClose: () => void;
-    filterData: Record<string, string>;
-    fileName: string;
-}) {
-    const headers = Object.keys(filterData);
-    const maxRows = Math.max(0, ...Object.values(filterData).map(v => v.split(',').length));
-    const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
-        return headers.map(header => {
-            const values = filterData[header].split(',').map(s => s.trim());
-            return values[rowIndex] || '';
-        });
-    });
-
-    return (
-        <UIDialog open={isOpen} onOpenChange={onClose}>
-            <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                <UIDialogHeader>
-                    <UIDialogTitle>Viewing Upload: {fileName}</UIDialogTitle>
-                    <UIDialogDescription>
-                        Displaying {maxRows} rows from the eligibility list.
-                    </UIDialogDescription>
-                </UIDialogHeader>
-                <div className="flex-grow overflow-auto border rounded-md">
-                    <Table>
-                        <TableHeader className="sticky top-0 bg-background">
-                            <TableRow>
-                                {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {rows.map((row, rowIndex) => (
-                                <TableRow key={rowIndex}>
-                                    {row.map((cell, cellIndex) => (
-                                        <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
-                                    ))}
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                <UIDialogFooter className="pt-4">
-                    <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
-                </UIDialogFooter>
-            </UIDialogContent>
-        </UIDialog>
-    );
-}
-
 function UploadDataViewerDialog({ upload, onClose }: {
     upload: DataProvisioningUpload | null;
     onClose: () => void;
@@ -1829,7 +1786,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     const rowsPerPage = 100;
 
     useEffect(() => {
-        if (upload) {
+        if (upload && !upload.id.startsWith('temp-')) {
             const fetchData = async () => {
                 setIsLoading(true);
                 try {
@@ -1852,6 +1809,54 @@ function UploadDataViewerDialog({ upload, onClose }: {
     }, [upload, page]);
 
     if (!upload) return null;
+    
+    // Special handling for temporary filter preview
+    if (upload.id.startsWith('temp-')) {
+        const filterData = JSON.parse(upload.fileName); // Storing JSON in fileName for temp
+        const headers = Object.keys(filterData);
+        const maxRows = Math.max(0, ...Object.values(filterData).map((v: any) => v.split(',').length));
+        const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
+            return headers.map(header => {
+                const values = filterData[header].split(',').map((s:string) => s.trim());
+                return values[rowIndex] || '';
+            });
+        });
+
+        return (
+             <UIDialog open={!!upload} onOpenChange={onClose}>
+                <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                    <UIDialogHeader>
+                        <UIDialogTitle>Viewing Eligibility Criteria</UIDialogTitle>
+                        <UIDialogDescription>
+                            This is the list of criteria generated from your uploaded file.
+                        </UIDialogDescription>
+                    </UIDialogHeader>
+                    <div className="flex-grow overflow-auto border rounded-md">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {rows.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {row.map((cell, cellIndex) => (
+                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                     <UIDialogFooter className="pt-4">
+                        <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
+                    </UIDialogFooter>
+                </UIDialogContent>
+            </UIDialog>
+        );
+    }
+
 
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
@@ -1901,5 +1906,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
-
 
