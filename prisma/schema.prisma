@@ -81,7 +81,7 @@ model LoanProduct {
   penaltyRulesEnabled         Boolean?
   dataProvisioningEnabled     Boolean?
   eligibilityFilter           String?                       @db.Text // JSON object for filtering borrowers
-  eligibilityUploadId         String?                       @unique
+  eligibilityUploadId         String?
   eligibilityUpload           DataProvisioningUpload?       @relation(fields: [eligibilityUploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   loans                       Loan[]
   loanAmountTiers             LoanAmountTier[]
@@ -202,7 +202,7 @@ model DataProvisioningUpload {
     uploadedBy  String
     uploadedAt  DateTime    @default(now())
     provisionedData ProvisionedData[]
-    LoanProduct LoanProduct? // Relation for eligibility filter
+    LoanProduct       LoanProduct[]
 }
 
 model ProvisionedData {
