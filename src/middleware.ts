@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
 const protectedAdminRoutes = ['/admin'];
-const publicRoutes = ['/admin/login'];
+const publicRoutes = ['/admin/login', '/loan/connect'];
 
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
