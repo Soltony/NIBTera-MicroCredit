@@ -1,7 +1,16 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+
+const safeParseJson = (jsonString: string, defaultValue: any = []) => {
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+}
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -27,7 +36,13 @@ export async function GET(req: NextRequest) {
                 }
             }
         });
-        return NextResponse.json(history);
+        
+        const formattedHistory = history.map(item => ({
+            ...item,
+            parameters: safeParseJson(item.parameters, []),
+        }));
+
+        return NextResponse.json(formattedHistory);
     } catch (error) {
         console.error('Error fetching scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -80,8 +95,14 @@ export async function POST(req: NextRequest) {
                 }
             });
         });
+
+        // Format for consistency on the client
+        const formattedHistory = {
+            ...newHistory,
+            parameters: parameters, // Return the object, not the string
+        };
         
-        return NextResponse.json(newHistory, { status: 201 });
+        return NextResponse.json(formattedHistory, { status: 201 });
     } catch (error) {
         console.error('Error creating scoring history:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

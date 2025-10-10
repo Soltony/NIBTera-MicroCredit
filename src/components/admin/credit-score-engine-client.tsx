@@ -59,7 +59,7 @@ import { Textarea } from '../ui/textarea';
 export interface ScoringHistoryItem {
     id: string;
     savedAt: Date;
-    parameters: string; // is a JSON string
+    parameters: ScoringParameter[];
     appliedProducts: { product: { name: string } }[];
 }
 
@@ -429,7 +429,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
     const handleRestoreFromHistory = () => {
         if (!restoringHistoryItem) return;
         try {
-            const paramsFromHistory = JSON.parse(restoringHistoryItem.parameters);
+            const paramsFromHistory = restoringHistoryItem.parameters;
             if (Array.isArray(paramsFromHistory)) {
                 setCurrentParameters(paramsFromHistory);
                 toast({ title: 'Configuration Loaded', description: 'The historical configuration has been loaded into the editor.' });
@@ -1268,5 +1268,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
