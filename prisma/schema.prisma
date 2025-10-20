@@ -188,7 +188,7 @@ model DataProvisioningConfig {
   providerId         String
   provider           LoanProvider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name               String
-  columns            String // JSON array of DataColumn
+  columns            String                @db.NVarChar(Max) // JSON array of DataColumn
   uploads            DataProvisioningUpload[]
   provisionedData    ProvisionedData[]
 }
@@ -254,7 +254,7 @@ model ScoringConfigurationHistory {
     id              String @id @default(cuid())
     providerId      String
     provider        LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-    parameters      String // JSON string of ScoringParameter[]
+    parameters      String @db.NVarChar(Max) // JSON string of ScoringParameter[]
     savedAt         DateTime @default(now())
     appliedProducts ScoringConfigurationProduct[]
 }

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         // Parse the columns from JSON string to an array for each config
         const formattedConfigs = configs.map(config => ({
             ...config,
-            columns: safeJsonParse(config.columns as string, [])
+            columns: safeJsonParse(config.columns, [])
         }));
 
         return NextResponse.json(formattedConfigs);
