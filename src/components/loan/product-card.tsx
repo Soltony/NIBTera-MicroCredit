@@ -172,6 +172,12 @@ export function ProductCard({
                                     <p className="text-xs text-muted-foreground">Daily Fee</p>
                                 </div>
                             ) : null}
+                            {product.penaltyRules?.length > 0 && (
+                                <div>
+                                    <p className="text-lg font-semibold">{`${product.penaltyRules.length} rule(s)`}</p>
+                                    <p className="text-xs text-muted-foreground">Penalty Rules</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
