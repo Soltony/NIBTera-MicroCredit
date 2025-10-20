@@ -40,7 +40,7 @@ const formatPenaltyRule = (rule: PenaltyRule | undefined, type: 'summary' | 'ful
     }
 
     if (type === 'summary') {
-        return valueString;
+        return `${valueString} ${rule.frequency || 'daily'}`;
     }
 
     let conditionString = '';
