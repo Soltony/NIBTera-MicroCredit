@@ -12,8 +12,8 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
-    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ETB';
+    if (amount === null || amount === undefined || isNaN(amount)) return '0.00';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 };
 
 const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
@@ -24,7 +24,7 @@ const formatFee = (feeRule: FeeRule | undefined, suffix?: string): string => {
     if (feeRule.type === 'percentage') {
         return `${numericValue}%${suffix || ''}`;
     }
-    return formatCurrency(numericValue);
+    return formatCurrency(numericValue) + ' ETB';
 };
 
 const formatPenaltyRule = (rule: PenaltyRule | undefined, type: 'summary' | 'full' = 'full'): string => {
@@ -34,7 +34,7 @@ const formatPenaltyRule = (rule: PenaltyRule | undefined, type: 'summary' | 'ful
 
     let valueString = '';
     if (rule.type === 'fixed') {
-        valueString = formatCurrency(value);
+        valueString = formatCurrency(value) + ' ETB';
     } else {
         valueString = `${value}%`;
     }
@@ -117,119 +117,97 @@ export function ProductCard({
     const applyButton = (
         <Button 
             onClick={onApply} 
-            style={{ backgroundColor: providerColor }} 
-            className="text-white"
+            style={{ backgroundColor: `${providerColor}20`, color: providerColor, borderColor: providerColor }} 
+            className="text-white border"
+            size="sm"
+            variant="outline"
             disabled={!isEligible || availableToBorrow <= 0}
         >
             Apply
         </Button>
     );
 
-    return (
-        <Card className="hover:shadow-lg transition-all duration-300">
-            <CardHeader>
-                <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-full" style={{ backgroundColor: providerColor }}>
-                            <IconDisplayComponent iconName={product.icon} className="h-6 w-6 text-primary-foreground" />
-                        </div>
+    if (activeLoan) {
+        return (
+            <Card>
+                <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-lg">{product.name}</CardTitle>
-                             <div className="flex items-center text-sm text-muted-foreground mt-1">
-                                <span>Credit Limit: {formatCurrency(product.minLoan ?? 0)} - {formatCurrency(product.maxLoan ?? 0)}</span>
-                                {product.duration && <span className="mx-2">•</span>}
-                                {product.duration && <span>{product.duration} days</span>}
-                            </div>
+                            <p className="text-lg font-bold" style={{ color: providerColor }}>{product.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                                Due Date: {format(activeLoan.dueDate, 'yyyy-MM-dd')}
+                                {isOverdue && <span className="text-red-500 ml-2 font-semibold">Overdue</span>}
+                            </p>
+                        </div>
+                        <div className="text-right">
+                             <p className="text-xl font-bold">{formatCurrency(balanceDue)}</p>
+                             <p className="text-xs text-muted-foreground">Outstanding</p>
                         </div>
                     </div>
-                     <div className="flex items-center">
-                        {!activeLoan && (
-                             !isEligible ? (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <span tabIndex={0}>{applyButton}</span>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{eligibilityReason}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            ) : (
-                                applyButton
-                            )
+                     <div className="flex justify-end mt-2">
+                        <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+    
+
+    return (
+        <Card className="hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <IconDisplayComponent iconName={product.icon} className="h-6 w-6" style={{ color: providerColor }} />
+                        <div>
+                            <p className="font-semibold">{product.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                                Credit limit {formatCurrency(product.minLoan ?? 0)} to {formatCurrency(product.maxLoan ?? 0)}
+                            </p>
+                        </div>
+                    </div>
+                     {!isEligible ? (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span tabIndex={0}>{applyButton}</span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{eligibilityReason}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ) : (
+                        applyButton
+                    )}
+                </div>
+                 <div className="flex justify-end mt-2">
+                     <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center text-xs text-muted-foreground hover:text-primary">
+                        More
+                        {isExpanded ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
+                    </button>
+                </div>
+                {isExpanded && (
+                    <div className="bg-muted/50 p-3 rounded-lg mt-2 text-xs text-muted-foreground space-y-1">
+                        {Number(product.serviceFee?.value) > 0 && (
+                             <div className="flex justify-between items-center">
+                                <span>Service Fee:</span>
+                                <span>{formatFee(product.serviceFee)}</span>
+                            </div>
+                        )}
+                        {Number(product.dailyFee?.value) > 0 && (
+                            <div className="flex justify-between items-center">
+                                <span>Daily Fee:</span>
+                                <span>{formatFee(product.dailyFee, ' daily')}</span>
+                            </div>
+                        )}
+                        {product.penaltyRules.length > 0 && (
+                             <div className="flex justify-between items-center">
+                                <span>Penalty:</span>
+                                <span>{formatPenaltyRule(maxPenaltyRule, 'summary')}</span>
+                            </div>
                         )}
                     </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                 {activeLoan && (
-                    <div className="bg-muted/50 p-4 rounded-lg mt-2 mb-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-2xl font-bold">{formatCurrency(balanceDue)}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Due Date: {format(activeLoan.dueDate, 'yyyy-MM-dd')}
-                                    {isOverdue && <span className="text-red-500 ml-2">Overdue</span>}
-                                </p>
-                            </div>
-                            <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
-                            {Number(product.serviceFee?.value) > 0 && (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
-                                    <p className="text-xs text-muted-foreground">Service Fee</p>
-                                </div>
-                            )}
-                             {Number(product.dailyFee?.value) > 0 && (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
-                                    <p className="text-xs text-muted-foreground">Daily Fee</p>
-                                </div>
-                            )}
-                            {maxPenaltyRule && (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatPenaltyRule(maxPenaltyRule, 'summary')}</p>
-                                    <p className="text-xs text-muted-foreground">Max Penalty</p>
-                                </div>
-                            )}
-                             <div>
-                                <p className="text-lg font-semibold">{formatCurrency(activeLoan.loanAmount)}</p>
-                                <p className="text-xs text-muted-foreground">Loan Amount</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {isExpanded && !activeLoan && (
-                    <div className="bg-muted/50 p-4 rounded-lg mt-4">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                           {Number(product.serviceFee?.value) > 0 && (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatFee(product.serviceFee)}</p>
-                                    <p className="text-xs text-muted-foreground">Service Fee</p>
-                                </div>
-                           )}
-                            {Number(product.dailyFee?.value) > 0 && (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatFee(product.dailyFee, ' daily')}</p>
-                                    <p className="text-xs text-muted-foreground">Daily Fee</p>
-                                </div>
-                            )}
-                            {maxPenaltyRule && (
-                                <div>
-                                    <p className="text-lg font-semibold">{formatPenaltyRule(maxPenaltyRule, 'summary')}</p>
-                                    <p className="text-xs text-muted-foreground">Max Penalty</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-                {!activeLoan && (
-                 <button onClick={() => setIsExpanded(!isExpanded)} className="w-full flex justify-center items-center mt-4 text-sm text-muted-foreground hover:text-primary">
-                    {isExpanded ? 'Less' : 'More'}
-                    {isExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
-                </button>
                 )}
             </CardContent>
         </Card>
