@@ -136,16 +136,6 @@ export function UploadClient({ application: initialApplication }: UploadClientPr
     if (application.status === 'PENDING_REVIEW') {
         return (
              <div className="flex flex-col min-h-screen bg-background">
-                <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: providerColor }}>
-                    <div className="container flex h-16 items-center">
-                        <div className="flex items-center">
-                            <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">
-                                <ArrowLeft className="h-6 w-6" />
-                            </Button>
-                            <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Application Status</h1>
-                        </div>
-                    </div>
-                </header>
                 <main className="flex-1">
                     <div className="container py-8 md:py-12 max-w-3xl mx-auto">
                         <Card className="text-center">
@@ -172,16 +162,6 @@ export function UploadClient({ application: initialApplication }: UploadClientPr
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
-            <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: providerColor }}>
-                <div className="container flex h-16 items-center">
-                    <div className="flex items-center">
-                        <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">
-                            <ArrowLeft className="h-6 w-6" />
-                        </Button>
-                        <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">Upload Documents</h1>
-                    </div>
-                </div>
-            </header>
             <main className="flex-1">
                 <div className="container py-8 md:py-12 max-w-3xl mx-auto">
                     <Card>

@@ -173,18 +173,6 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfig }: Hist
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-        <header className="sticky top-0 z-40 w-full border-b bg-white">
-          <div className="container flex h-16 items-center">
-            <div className="flex items-center">
-                <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-gray-700 hover:bg-gray-100">
-                    <ArrowLeft className="h-6 w-6" />
-                </Button>
-               <h1 className="text-lg font-semibold tracking-tight text-gray-800">
-                  Loan History
-              </h1>
-            </div>
-          </div>
-        </header>
         <main className="flex-1">
             <div className="container py-6 md:py-10">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
