@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/icons';
+import { NextRequest } from 'next/server';
 
 const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
 
@@ -78,7 +79,24 @@ export default async function ConnectPage() {
              return <ErrorDisplay title="Authentication Error" message="Phone number not found in validation response." />;
         }
 
-        redirect(`/loan?borrowerId=${phoneNumber}`);
+        // Now, find the borrower ID using the phone number by calling our internal API
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+        const internalReqUrl = `${baseUrl}/api/ussd/borrowers?phoneNumber=${phoneNumber}`;
+
+        const internalResponse = await fetch(internalReqUrl, { cache: 'no-store' });
+        
+        if (!internalResponse.ok) {
+             return <ErrorDisplay title="Profile Error" message="Could not find a matching user profile in the system." />;
+        }
+
+        const borrowerData = await internalResponse.json();
+        const borrowerId = borrowerData.id;
+
+        if (!borrowerId) {
+            return <ErrorDisplay title="Profile Error" message="User profile is incomplete or missing a unique ID." />;
+        }
+
+        redirect(`/loan?borrowerId=${borrowerId}`);
 
     } catch (error: any) {
         return <ErrorDisplay title="Network Error" message={`Could not connect to the authentication service. Please try again later. Details: ${error.message}`} />;
