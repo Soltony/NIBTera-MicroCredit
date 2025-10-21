@@ -6,10 +6,13 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
 
-// This should be an environment variable in a real application
-const TOKEN_VALIDATION_API_URL = 'https://api.example.com/validate-token';
+const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
 
 async function validateTokenAndGetPhone(authHeader: string | null): Promise<{phone?: string, error?: string}> {
+  if (!TOKEN_VALIDATION_API_URL) {
+    return { error: 'The token validation URL is not configured in the environment.' };
+  }
+  
   if (!authHeader) {
     // For local development, if no header is present, we can simulate a successful login.
     if (process.env.NODE_ENV === 'development') {
