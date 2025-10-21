@@ -10,11 +10,6 @@ const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
 
 async function validateTokenAndGetPhone(authHeader: string | null): Promise<{phone?: string, error?: string}> {
   if (!TOKEN_VALIDATION_API_URL) {
-    // In development, if the URL is not set, we can simulate a successful login to allow local testing.
-    if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: TOKEN_VALIDATION_API_URL not set, using mock borrower ID.");
-        return { phone: 'borrower-123' };
-    }
     return { error: 'The token validation URL is not configured in the environment.' };
   }
   
@@ -52,11 +47,6 @@ async function validateTokenAndGetPhone(authHeader: string | null): Promise<{pho
 
   } catch (error: any) {
     console.error('Token validation fetch error:', error);
-    // If the external API call fails during development, simulate success to allow testing.
-     if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: Simulating successful login after failed API call.");
-        return { phone: 'borrower-123' };
-    }
     return { error: 'Could not connect to the authentication service.' };
   }
 }
@@ -93,3 +83,4 @@ export default async function ConnectPage() {
     </div>
   );
 }
+
