@@ -109,21 +109,16 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
 
             // Step 2: Post the payment token to the Super App via JS Channel
             if (typeof window !== 'undefined' && window.myJsChannel?.postMessage) {
-              window.myJsChannel.postMessage({ token: paymentToken });
-              
-              // You might want to start polling for payment status here
-              // For now, we will assume success and call the onConfirm callback
-              // which will update the UI optimistically.
+              window.myJsChannel.postMessage(JSON.stringify({ token: paymentToken }));
               
               toast({
-                  title: 'Payment Sent',
-                  description: 'Your payment request has been sent to the Super App for processing.',
+                  title: 'Processing Payment',
+                  description: 'Your payment request has been sent to the Super App for completion.',
               });
 
-              // NOTE: In a real-world scenario, you would poll a 'check-status' endpoint
-              // using the transactionId. Once confirmed, you would then call onConfirm.
-              // For this implementation, we optimistically call onConfirm right away.
-              onConfirm(numericAmount);
+              // NOTE: The actual loan update will happen when the callback is received.
+              // For a better UX, we optimistically close the dialog.
+              onClose();
 
             } else {
               console.error("NIB Super App channel (window.myJsChannel) not found.");
