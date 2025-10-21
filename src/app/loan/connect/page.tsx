@@ -10,17 +10,16 @@ const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
 
 async function validateTokenAndGetPhone(authHeader: string | null): Promise<{phone?: string, error?: string}> {
   if (!TOKEN_VALIDATION_API_URL) {
+    // In development, if the URL is not set, we can simulate a successful login to allow local testing.
+    if (process.env.NODE_ENV === 'development') {
+        console.log("Development mode: TOKEN_VALIDATION_API_URL not set, using mock borrower ID.");
+        return { phone: 'borrower-123' };
+    }
     return { error: 'The token validation URL is not configured in the environment.' };
   }
   
   if (!authHeader) {
-    // For local development, if no header is present, we can simulate a successful login.
-    if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: No auth header found, using mock borrower ID.");
-        // In development, we return a hardcoded phone number to simulate a successful login
-        return { phone: 'borrower-123' };
-    }
-    return { error: 'Authorization header is missing.' };
+    return { error: 'Authorization header is missing from the request.' };
   }
 
   if (!authHeader.startsWith('Bearer ')) {
