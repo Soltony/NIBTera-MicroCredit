@@ -279,19 +279,12 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
     }
   }
 
-  const handleBack = () => {
-    router.push('/check-eligibility/select-customer');
-  }
-  
   return (
     <>
       <div className="flex flex-col min-h-screen bg-background">
         <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || '#fdb913' }}>
           <div className="container flex h-16 items-center">
             <div className="flex items-center">
-                <Button variant="ghost" size="icon" onClick={handleBack} className="mr-2 text-primary-foreground hover:bg-white/20">
-                    <ArrowLeft className="h-6 w-6" />
-                </Button>
                <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
                   NIBTera Loan
               </h1>
