@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/icons';
 
-const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
-
 const ErrorDisplay = ({ title, message }: { title: string, message: string }) => (
     <div className="flex items-center justify-center min-h-screen bg-muted/40">
         <Card className="w-full max-w-sm">
@@ -33,22 +31,26 @@ const ErrorDisplay = ({ title, message }: { title: string, message: string }) =>
 
 
 export default async function ConnectPage() {
+    const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
+
     if (!TOKEN_VALIDATION_API_URL) {
         return <ErrorDisplay title="Configuration Error" message="The token validation URL is not configured on the server." />;
     }
 
-    const headersList = headers();
-    const authHeader = headersList.get('Authorization');
-
-    if (!authHeader) {
-        return <ErrorDisplay title="Authentication Error" message="Authorization header is missing from the request." />;
-    }
-
-    if (!authHeader.startsWith('Bearer ')) {
-        return <ErrorDisplay title="Authentication Error" message="Authorization header is malformed. It must start with Bearer." />;
-    }
-
+    let phoneNumber: string | null = null;
+    
     try {
+        const headersList = headers();
+        const authHeader = headersList.get('Authorization');
+
+        if (!authHeader) {
+            return <ErrorDisplay title="Authentication Error" message="Authorization header is missing from the request." />;
+        }
+
+        if (!authHeader.startsWith('Bearer ')) {
+            return <ErrorDisplay title="Authentication Error" message="Authorization header is malformed. It must start with Bearer." />;
+        }
+
         const externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
             method: 'GET',
             headers: {
@@ -70,16 +72,22 @@ export default async function ConnectPage() {
         }
 
         const responseData = await externalResponse.json();
-        const phoneNumber = responseData.phone;
+        const phone = responseData.phone;
 
-        if (!phoneNumber) {
+        if (!phone) {
              return <ErrorDisplay title="Authentication Error" message="Phone number not found in validation response." />;
         }
 
-        // The phone number IS the borrowerId. Redirect directly.
-        redirect(`/loan?borrowerId=${phoneNumber}`);
+        phoneNumber = phone;
 
     } catch (error: any) {
         return <ErrorDisplay title="Network Error" message={`Could not connect to the authentication service. Please try again later. Details: ${error.message}`} />;
     }
+
+    if (phoneNumber) {
+        redirect(`/loan?borrowerId=${phoneNumber}`);
+    }
+
+    // This part should technically not be reached if everything works.
+    return <ErrorDisplay title="Processing Error" message="An unexpected error occurred after authentication." />;
 }
