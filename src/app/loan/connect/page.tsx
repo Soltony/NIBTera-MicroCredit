@@ -38,10 +38,11 @@ export default async function ConnectPage() {
     }
 
     let phoneNumber: string | null = null;
+    let authHeader: string | null = null;
     
     try {
         const headersList = headers();
-        const authHeader = headersList.get('Authorization');
+        authHeader = headersList.get('Authorization');
 
         if (!authHeader) {
             return <ErrorDisplay title="Authentication Error" message="Authorization header is missing from the request." />;
@@ -50,7 +51,7 @@ export default async function ConnectPage() {
         if (!authHeader.startsWith('Bearer ')) {
             return <ErrorDisplay title="Authentication Error" message="Authorization header is malformed. It must start with Bearer." />;
         }
-
+        
         const externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
             method: 'GET',
             headers: {
@@ -73,6 +74,8 @@ export default async function ConnectPage() {
 
         const responseData = await externalResponse.json();
         const phone = responseData.phone;
+        
+        console.log(`Received phone number from validation API: ${phone}`);
 
         if (!phone) {
              return <ErrorDisplay title="Authentication Error" message="Phone number not found in validation response." />;
@@ -81,13 +84,18 @@ export default async function ConnectPage() {
         phoneNumber = phone;
 
     } catch (error: any) {
-        return <ErrorDisplay title="Network Error" message={`Could not connect to the authentication service. Please try again later. Details: ${error.message}`} />;
+        // A redirect call can throw an error, which we don't want to catch.
+        // We rethrow it to let Next.js handle it.
+        if (error.digest?.startsWith('NEXT_REDIRECT')) {
+            throw error;
+        }
+        return <ErrorDisplay title="Connection Error" message={`Could not connect to the authentication service. Details: ${error.message}`} />;
     }
 
     if (phoneNumber) {
         redirect(`/loan?borrowerId=${phoneNumber}`);
     }
-
+    
     // This part should technically not be reached if everything works.
     return <ErrorDisplay title="Processing Error" message="An unexpected error occurred after authentication." />;
 }
