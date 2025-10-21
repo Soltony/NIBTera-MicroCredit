@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/icons';
+import { createSession } from '@/lib/session';
 
 const ErrorDisplay = ({ title, message }: { title: string, message: string }) => (
     <div className="flex items-center justify-center min-h-screen bg-muted/40">
@@ -85,6 +86,8 @@ export default async function ConnectPage() {
         }
 
         phoneNumber = phone;
+        // Securely store the token in the session
+        await createSession(phoneNumber, authHeader);
 
     } catch (error: any) {
         // A redirect call can throw an error, which we don't want to catch.
