@@ -5,10 +5,13 @@ import { useState, useMemo, useEffect } from 'react';
 import type { LoanDetails, LoanProduct, Tax } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { X, Delete } from 'lucide-react';
+import { X, Delete, Loader2 } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
     if (amount === null || amount === undefined || isNaN(amount)) return '0.00';
@@ -25,14 +28,26 @@ interface RepaymentDialogProps {
     taxConfig: Tax | null;
 }
 
+// Extend the window type to include myJsChannel
+declare global {
+  interface Window {
+    myJsChannel?: {
+      postMessage: (message: any) => void;
+    };
+  }
+}
+
 export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913', taxConfig }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const { toast } = useToast();
 
     useEffect(() => {
         if (isOpen) {
             setAmount(totalBalanceDue.toFixed(2));
             setError('');
+            setIsProcessing(false);
         }
     }, [isOpen, totalBalanceDue]);
 
@@ -68,10 +83,57 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         validateAmount(newAmount);
     };
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         const numericAmount = parseFloat(amount);
-        if (validateAmount(amount) && !isNaN(numericAmount)) {
-            onConfirm(numericAmount);
+        if (!validateAmount(amount) || isNaN(numericAmount)) {
+            return;
+        }
+
+        setIsProcessing(true);
+        setError('');
+
+        try {
+            // Step 1: Call our backend to get the payment token
+            const initiateResponse = await fetch('/api/initiate-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: numericAmount, loanId: loan.id }),
+            });
+
+            if (!initiateResponse.ok) {
+                const errorData = await initiateResponse.json();
+                throw new Error(errorData.error || 'Failed to initiate payment.');
+            }
+
+            const { paymentToken, transactionId } = await initiateResponse.json();
+
+            // Step 2: Post the payment token to the Super App via JS Channel
+            if (typeof window !== 'undefined' && window.myJsChannel?.postMessage) {
+              window.myJsChannel.postMessage({ token: paymentToken });
+              
+              // You might want to start polling for payment status here
+              // For now, we will assume success and call the onConfirm callback
+              // which will update the UI optimistically.
+              
+              toast({
+                  title: 'Payment Sent',
+                  description: 'Your payment request has been sent to the Super App for processing.',
+              });
+
+              // NOTE: In a real-world scenario, you would poll a 'check-status' endpoint
+              // using the transactionId. Once confirmed, you would then call onConfirm.
+              // For this implementation, we optimistically call onConfirm right away.
+              onConfirm(numericAmount);
+
+            } else {
+              console.error("NIB Super App channel (window.myJsChannel) not found.");
+              throw new Error("Could not communicate with the payment app.");
+            }
+
+        } catch (err: any) {
+            setError(err.message || 'An unknown error occurred during payment.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -107,14 +169,17 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                             placeholder="0.00"
                             className={cn(
                                 "w-full text-center text-4xl font-bold border-b-2 py-2 bg-transparent outline-none",
-                                error ? "border-destructive ring-destructive ring-2" : ""
+                                error ? "border-destructive" : ""
                             )}
                             style={{ borderColor: error ? 'hsl(var(--destructive))' : providerColor }}
                         />
                          <span className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">ETB</span>
                     </div>
                      {error ? (
-                        <p className="text-sm text-destructive text-center">{error}</p>
+                         <Alert variant="destructive" className="p-2 text-center">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{error}</AlertDescription>
+                         </Alert>
                     ) : (
                         <div className="text-center text-sm text-muted-foreground space-y-1">
                             <div className="grid grid-cols-3 gap-2 text-xs text-left">
@@ -177,10 +242,10 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                         <Button
                             className="h-full text-2xl rounded-none text-primary-foreground row-span-3"
                             onClick={handleConfirm}
-                            disabled={!!error}
+                            disabled={!!error || isProcessing}
                             style={{ backgroundColor: providerColor }}
                         >
-                            OK
+                            {isProcessing ? <Loader2 className="h-8 w-8 animate-spin"/> : 'OK'}
                         </Button>
                     </div>
                 </div>
