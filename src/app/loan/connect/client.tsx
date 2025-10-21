@@ -47,19 +47,7 @@ export function ConnectClient({ token, validationApiUrl }: ConnectClientProps) {
           throw new Error('Phone number not found in validation response.');
         }
         
-        // Find borrower by phone number in our system
-        setStatus('Finding user profile...');
-        const borrowerResponse = await fetch(`/api/ussd/borrowers?phoneNumber=${phoneNumber}`);
-        if (!borrowerResponse.ok) {
-            throw new Error('Could not find a matching user profile in our system.');
-        }
-
-        const borrowerData = await borrowerResponse.json();
-        const borrowerId = borrowerData.id;
-
-        if (!borrowerId) {
-            throw new Error('User profile is incomplete.');
-        }
+        const borrowerId = phoneNumber;
 
         // Redirect to the main loan dashboard
         setStatus('Redirecting...');
