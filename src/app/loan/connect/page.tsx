@@ -32,14 +32,13 @@ const ErrorDisplay = ({ title, message }: { title: string, message: string }) =>
 
 export default async function ConnectPage() {
     const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
-
+    let phoneNumber: string | null = null;
+    let authHeader: string | null = null;
+    
     if (!TOKEN_VALIDATION_API_URL) {
         return <ErrorDisplay title="Configuration Error" message="The token validation URL is not configured on the server." />;
     }
 
-    let phoneNumber: string | null = null;
-    let authHeader: string | null = null;
-    
     try {
         const headersList = headers();
         authHeader = headersList.get('Authorization');
@@ -73,12 +72,16 @@ export default async function ConnectPage() {
         }
 
         const responseData = await externalResponse.json();
-        const phone = responseData.phone;
+        let phone = responseData.phone;
         
         console.log(`Received phone number from validation API: ${phone}`);
 
         if (!phone) {
              return <ErrorDisplay title="Authentication Error" message="Phone number not found in validation response." />;
+        }
+        
+        if (typeof phone === 'string' && phone.startsWith('251') && phone.length === 12) {
+            phone = phone.substring(3);
         }
 
         phoneNumber = phone;
@@ -91,7 +94,7 @@ export default async function ConnectPage() {
         }
         return <ErrorDisplay title="Connection Error" message={`Could not connect to the authentication service. Details: ${error.message}`} />;
     }
-
+    
     if (phoneNumber) {
         redirect(`/loan?borrowerId=${phoneNumber}`);
     }
