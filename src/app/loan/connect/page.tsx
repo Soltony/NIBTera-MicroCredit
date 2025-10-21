@@ -1,3 +1,4 @@
+
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,14 +8,13 @@ import { AlertCircle } from 'lucide-react';
 
 // This should be an environment variable in a real application
 const TOKEN_VALIDATION_API_URL = 'https://api.example.com/validate-token';
-const MOCK_TOKEN_FOR_DEV = 'dev-mode-token';
 
 async function validateTokenAndGetPhone(authHeader: string | null): Promise<{phone?: string, error?: string}> {
   if (!authHeader) {
+    // For local development, if no header is present, we can simulate a successful login.
     if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: Using mock token.");
-        // In dev, we can't easily get the phone, so we'll use a mock borrower ID.
-        // The superapp would provide a valid token that returns a real phone number.
+        console.log("Development mode: No auth header found, using mock borrower ID.");
+        // In development, we return a hardcoded phone number to simulate a successful login
         return { phone: 'borrower-123' };
     }
     return { error: 'Authorization header is missing.' };
@@ -35,7 +35,6 @@ async function validateTokenAndGetPhone(authHeader: string | null): Promise<{pho
     });
 
     if (!externalResponse.ok) {
-        // This will catch HTTP errors like 401 Unauthorized, 500 Internal Server Error, etc.
         const errorBody = await externalResponse.json().catch(() => ({ message: 'Invalid or expired token.' }));
         return { error: `Token validation failed: ${errorBody.message}` };
     }
@@ -51,8 +50,7 @@ async function validateTokenAndGetPhone(authHeader: string | null): Promise<{pho
 
   } catch (error: any) {
     console.error('Token validation fetch error:', error);
-    // This will catch network errors or if the external API is down.
-    // For development, we can simulate a successful login to allow testing.
+    // If the external API call fails during development, simulate success to allow testing.
      if (process.env.NODE_ENV === 'development') {
         console.log("Development mode: Simulating successful login after failed API call.");
         return { phone: 'borrower-123' };
@@ -68,7 +66,7 @@ export default async function ConnectPage() {
   const { phone, error } = await validateTokenAndGetPhone(authHeader);
 
   if (phone) {
-    // The phone number from the super app is the borrowerId
+    // The phone number from the super app is used as the borrowerId
     redirect(`/loan?borrowerId=${phone}`);
   }
 
