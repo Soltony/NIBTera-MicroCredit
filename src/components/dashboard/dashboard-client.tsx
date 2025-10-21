@@ -282,17 +282,6 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
   return (
     <>
       <div className="flex flex-col min-h-screen bg-background">
-        <header className="sticky top-0 z-40 w-full border-b" style={{ backgroundColor: selectedProvider?.colorHex || '#fdb913' }}>
-          <div className="container flex h-16 items-center">
-            <div className="flex items-center">
-               <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
-                  NIBTera Loan
-              </h1>
-            </div>
-             <div className="ml-auto">
-             </div>
-          </div>
-        </header>
         <main className="flex-1">
           <div className="container py-2 md:py-4">
               <div className="flex flex-col">
@@ -434,5 +423,3 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
     </>
   );
 }
-
-    
