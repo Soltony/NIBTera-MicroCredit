@@ -5,7 +5,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/icons';
-import { createSession } from '@/lib/session';
 
 const ErrorDisplay = ({ title, message }: { title: string, message: string }) => (
     <div className="flex items-center justify-center min-h-screen bg-muted/40">
@@ -30,78 +29,45 @@ const ErrorDisplay = ({ title, message }: { title: string, message: string }) =>
     </div>
 );
 
-
 export default async function ConnectPage() {
-    const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
-    let phoneNumber: string | null = null;
-    let authHeader: string | null = null;
-    
-    if (!TOKEN_VALIDATION_API_URL) {
-        return <ErrorDisplay title="Configuration Error" message="The token validation URL is not configured on the server." />;
+    const headersList = headers();
+    const authHeader = headersList.get('Authorization');
+
+    if (!authHeader) {
+        return <ErrorDisplay title="Authentication Error" message="Authorization header is missing from the request." />;
     }
-
+    
     try {
-        const headersList = headers();
-        authHeader = headersList.get('Authorization');
+        // We need to use the absolute URL for the API route when fetching from a Server Component
+        const host = headersList.get('host');
+        const protocol = host?.includes('localhost') ? 'http' : 'https';
+        const absoluteUrl = `${protocol}://${host}/api/auth/connect`;
 
-        if (!authHeader) {
-            return <ErrorDisplay title="Authentication Error" message="Authorization header is missing from the request." />;
-        }
-
-        if (!authHeader.startsWith('Bearer ')) {
-            return <ErrorDisplay title="Authentication Error" message="Authorization header is malformed. It must start with Bearer." />;
-        }
-        
-        const externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
-            method: 'GET',
+        const connectResponse = await fetch(absoluteUrl, {
+            method: 'POST',
             headers: {
-                Authorization: authHeader,
-                Accept: 'application/json',
+                'Authorization': authHeader,
             },
-            cache: 'no-store',
+            cache: 'no-store'
         });
 
-        if (!externalResponse.ok) {
-            let errorMessage = 'Token validation failed with an unknown error.';
-            try {
-                const errorData = await externalResponse.json();
-                errorMessage = errorData.message || `Token validation failed with status: ${externalResponse.status}`;
-            } catch (e) {
-                // Ignore if response is not JSON
-            }
-             return <ErrorDisplay title="Authentication Error" message={errorMessage} />;
+        if (!connectResponse.ok) {
+            const errorData = await connectResponse.json();
+            return <ErrorDisplay title="Authentication Error" message={errorData.error || 'Session creation failed.'} />;
         }
 
-        const responseData = await externalResponse.json();
-        let phone = responseData.phone;
+        const { borrowerId } = await connectResponse.json();
         
-        console.log(`Received phone number from validation API: ${phone}`);
-
-        if (!phone) {
-             return <ErrorDisplay title="Authentication Error" message="Phone number not found in validation response." />;
+        if (borrowerId) {
+            redirect(`/loan?borrowerId=${borrowerId}`);
+        } else {
+             return <ErrorDisplay title="Processing Error" message="Borrower ID not found after authentication." />;
         }
-        
-        if (typeof phone === 'string' && phone.startsWith('251') && phone.length === 12) {
-            phone = phone.substring(3);
-        }
-
-        phoneNumber = phone;
-        // Securely store the token in the session
-        await createSession(phoneNumber, authHeader);
 
     } catch (error: any) {
-        // A redirect call can throw an error, which we don't want to catch.
-        // We rethrow it to let Next.js handle it.
         if (error.digest?.startsWith('NEXT_REDIRECT')) {
             throw error;
         }
-        return <ErrorDisplay title="Connection Error" message={`Could not connect to the authentication service. Details: ${error.message}`} />;
+        return <ErrorDisplay title="Connection Error" message={`An internal error occurred. Details: ${error.message}`} />;
     }
-    
-    if (phoneNumber) {
-        redirect(`/loan?borrowerId=${phoneNumber}`);
-    }
-    
-    // This part should technically not be reached if everything works.
-    return <ErrorDisplay title="Processing Error" message="An unexpected error occurred after authentication." />;
 }
