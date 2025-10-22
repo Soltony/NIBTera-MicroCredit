@@ -28,15 +28,13 @@ export async function POST(req: NextRequest) {
         }
 
         const session = await getSession();
-        const superAppToken = session?.superAppToken;
+        const token = session?.superAppToken;
 
-        if (!superAppToken || !superAppToken.startsWith('Bearer ')) {
+        if (!token) {
             console.error("Super App authorization token is missing or malformed in the user session.");
             return NextResponse.json({ error: "Your session has expired or is invalid. Please reconnect from the main app." }, { status: 401 });
         }
         
-        const token = superAppToken.substring(7); // Extract token from "Bearer <token>"
-
         // Generate transaction details
         const transactionId = randomUUID();
         const transactionTime = format(new Date(), 'yyyyMMddHHmmss');
@@ -86,7 +84,7 @@ export async function POST(req: NextRequest) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': superAppToken,
+                'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify(payload),
         });
