@@ -1,3 +1,4 @@
+
 import { headers } from 'next/headers';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,7 +38,7 @@ export default async function ConnectPage() {
          return <ErrorDisplay title="Authentication Error" message="Authorization header is missing or malformed." />;
     }
 
-    const superAppToken = authHeader.substring(7);
+    const superAppToken = authHeader; // Pass the full "Bearer <token>" header
 
     return <ConnectClient superAppToken={superAppToken} />;
 }

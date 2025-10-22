@@ -12,11 +12,12 @@ export async function POST(req: NextRequest) {
     try {
         const { superAppToken } = await req.json();
 
-        if (!superAppToken) {
-            return NextResponse.json({ error: "Super App Token is missing." }, { status: 400 });
+        if (!superAppToken || !superAppToken.startsWith('Bearer ')) {
+            return NextResponse.json({ error: "Super App Token is missing or malformed." }, { status: 400 });
         }
         
-        const authHeader = `Bearer ${superAppToken}`;
+        const authHeader = superAppToken;
+        const token = authHeader.substring(7);
 
         const externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
             method: 'GET',
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Create the session and set the cookie
-        await createSession(phone, superAppToken);
+        await createSession(phone, token); // Pass raw token to session
         
         return NextResponse.json({ borrowerId: phone }, { status: 200 });
 
