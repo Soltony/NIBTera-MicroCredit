@@ -2,9 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash, randomUUID } from 'crypto';
 import { format } from 'date-fns';
-import { headers } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit-log';
+import { getSession } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
     // These should be in your .env file
@@ -27,21 +27,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
         }
 
+        const session = await getSession();
+        const superAppToken = session?.superAppToken;
 
-        // This token is required by the NIB payment gateway, passed from the super app.
-        // It's retrieved during the initial connection at /loan/connect and should be passed from the client.
-        // For this flow, we assume the SuperApp provides a fresh token or the client can fetch one.
-        // Since we cannot get it from the header here (it's a client API call),
-        // we'll rely on the one passed during connection for now. A more robust solution might
-        // involve a session store for this super-app token.
-        // A real implementation needs to clarify how this token is managed across sessions.
+        if (!superAppToken || !superAppToken.startsWith('Bearer ')) {
+            console.error("Super App authorization token is missing or malformed in the user session.");
+            return NextResponse.json({ error: "Your session has expired or is invalid. Please reconnect from the main app." }, { status: 401 });
+        }
         
-        // For now, let's assume we can't get it from the header and we proceed without it for the signature,
-        // as the final request might have it injected by a proxy or the super app's webview itself.
-        // We will log that the token is missing for the signature.
-        console.warn("Super App token is not available in this context for signature generation. The payment gateway may reject the request if it's required in the signature.");
-        const superAppToken = "TOKEN_NOT_AVAILABLE_IN_SIGNATURE"; // Placeholder
-
+        const token = superAppToken.substring(7); // Extract token from "Bearer <token>"
 
         // Generate transaction details
         const transactionId = randomUUID();
@@ -54,7 +48,7 @@ export async function POST(req: NextRequest) {
             `callBackURL=${CALLBACK_URL}`,
             `companyName=${COMPANY_NAME}`,
             `Key=${NIB_PAYMENT_KEY}`,
-            `token=${superAppToken}`,
+            `token=${token}`,
             `transactionId=${transactionId}`,
             `transactionTime=${transactionTime}`
         ].join('&');
@@ -68,7 +62,7 @@ export async function POST(req: NextRequest) {
             amount: String(amount),
             callBackURL: CALLBACK_URL,
             companyName: COMPANY_NAME,
-            token: superAppToken, // This might be overridden by the Super App webview
+            token: token,
             transactionId: transactionId,
             transactionTime: transactionTime,
             signature: signature
@@ -92,8 +86,7 @@ export async function POST(req: NextRequest) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // The actual Authorization bearer token is expected to be added by the SuperApp environment
-                // or a proxy. We cannot access it directly from the client's original request here.
+                'Authorization': superAppToken,
             },
             body: JSON.stringify(payload),
         });
