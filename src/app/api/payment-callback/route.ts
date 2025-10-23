@@ -9,186 +9,206 @@ import { createAuditLog } from '@/lib/audit-log';
 
 // Function to validate the token from the Authorization header
 async function validateAuthHeader(authHeader: string | null) {
-    const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
-    if (!TOKEN_VALIDATION_API_URL) {
-        throw new Error("Token validation URL is not configured.");
-    }
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new Error("Authorization header is malformed or missing.");
-    }
+  const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
+  if (!TOKEN_VALIDATION_API_URL) {
+    throw new Error("Token validation URL is not configured.");
+  }
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error("Authorization header is malformed or missing.");
+  }
 
-    const response = await fetch(TOKEN_VALIDATION_API_URL, {
-        method: 'GET',
-        headers: { 'Authorization': authHeader, 'Accept': 'application/json' },
-        cache: 'no-store',
-    });
+  const response = await fetch(TOKEN_VALIDATION_API_URL, {
+    method: 'GET',
+    headers: {
+      'Authorization': authHeader,
+      'Accept': 'application/json'
+    },
+    cache: 'no-store',
+  });
 
-    if (!response.ok) {
-        const errorData = await response.text();
-        console.error("Token validation failed:", errorData);
-        throw new Error("External token validation failed.");
-    }
-    return true;
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error("Token validation failed:", errorData);
+    throw new Error("External token validation failed.");
+  }
+
+  return true;
 }
 
 export async function POST(request: NextRequest) {
-    let requestBody;
-    try {
-        requestBody = await request.json();
-        console.log("Callback received:", JSON.stringify(requestBody, null, 2));
+  let requestBody;
+  try {
+    requestBody = await request.json();
+    console.log("Callback received:", JSON.stringify(requestBody, null, 2));
 
-        // Step 1: Validate Authorization Header
-        const authHeader = request.headers.get('Authorization');
-        await validateAuthHeader(authHeader);
-
-    } catch (e: any) {
-        console.error("Callback Error: Initial validation failed.", e);
-        return NextResponse.json({ message: e.message || "Authentication or parsing error." }, { status: 400 });
-    }
-
-    const {
-        paidAmount,
-        paidByNumber,
-        txnRef,
-        transactionId,
-        transactionTime,
-        accountNo,
-        token,
-        Signature: receivedSignature
-    } = requestBody;
+    // ✅ Extract and normalize Authorization header
+    const authHeader = request.headers.get('Authorization');
     
-    // --- Log the raw transaction ---
-     try {
-        await prisma.paymentTransaction.upsert({
-            where: { transactionId: txnRef },
-            update: {
-                status: 'RECEIVED',
-                payload: JSON.stringify(requestBody)
-            },
-            create: {
-                transactionId: txnRef,
-                status: 'RECEIVED',
-                payload: JSON.stringify(requestBody)
-            }
-        });
-    } catch(e) {
-        console.error("Failed to log payment transaction:", e);
-    }
-    // --- End of transaction logging ---
+    let fixedAuthHeader: string | null = authHeader;
 
-    // Step 2: Validate Signature
-    const NIB_PAYMENT_KEY = process.env.NIB_PAYMENT_KEY;
-    if (!NIB_PAYMENT_KEY) {
-        console.error("Callback Error: NIB_PAYMENT_KEY is not configured.");
-        return NextResponse.json({ message: "Server configuration error." }, { status: 500 });
+    if (!fixedAuthHeader) {
+      throw new Error('Invalid Authorization header format.');
     }
 
-    const signatureString = [
-        `accountNo=${accountNo}`,
-        `Key=${NIB_PAYMENT_KEY}`,
-        `paidAmount=${paidAmount}`,
-        `paidByNumber=${paidByNumber}`,
-        `token=${token}`,
-        `transactionId=${transactionId}`,
-        `transactionTime=${transactionTime}`,
-        `txnRef=${txnRef}`,
-    ].join('&');
+    // ✅ Validate fixed token
+    await validateAuthHeader(fixedAuthHeader);
 
-    const expectedSignature = createHash('sha256').update(signatureString, 'utf8').digest('hex');
+  } catch (e: any) {
+    console.error("Callback Error: Initial validation failed.", e);
+    return NextResponse.json(
+      { message: e.message || "Authentication or parsing error." },
+      { status: 400 }
+    );
+  }
 
-    if (expectedSignature !== receivedSignature) {
-        console.error("Callback Error: Signature mismatch.");
-        console.log("Expected:", expectedSignature);
-        console.log("Received:", receivedSignature);
-        return NextResponse.json({ message: "Signature validation failed." }, { status: 400 });
+  const {
+    paidAmount,
+    paidByNumber,
+    txnRef,
+    transactionId,
+    transactionTime,
+    accountNo,
+    token,
+    Signature: receivedSignature
+  } = requestBody;
+
+  // --- Log payment transaction ---
+  try {
+    await prisma.paymentTransaction.upsert({
+      where: { transactionId: txnRef }, // Use txnRef as the unique identifier
+      update: {
+        status: 'RECEIVED',
+        payload: JSON.stringify(requestBody)
+      },
+      create: {
+        transactionId: txnRef, // Use txnRef as the unique identifier
+        status: 'RECEIVED',
+        payload: JSON.stringify(requestBody)
+      }
+    });
+  } catch (e) {
+    console.error("Failed to log payment transaction:", e);
+  }
+
+  // Step 2: Validate Signature
+  const NIB_PAYMENT_KEY = process.env.NIB_PAYMENT_KEY;
+  if (!NIB_PAYMENT_KEY) {
+      console.error("Callback Error: NIB_PAYMENT_KEY is not configured.");
+      return NextResponse.json({ message: "Server configuration error." }, { status: 500 });
+  }
+
+  const signatureString = [
+      `accountNo=${accountNo}`,
+      `Key=${NIB_PAYMENT_KEY}`,
+      `paidAmount=${paidAmount}`,
+      `paidByNumber=${paidByNumber}`,
+      `token=${token}`,
+      `transactionId=${transactionId}`,
+      `transactionTime=${transactionTime}`,
+      `txnRef=${txnRef}`,
+  ].join('&');
+
+  const expectedSignature = createHash('sha256').update(signatureString, 'utf8').digest('hex');
+
+  if (expectedSignature !== receivedSignature) {
+      console.error("Callback Error: Signature mismatch.");
+      return NextResponse.json({ message: "Signature validation failed." }, { status: 400 });
+  }
+ 
+  // Step 3: Process payment
+  try {
+    const pendingPayment = await prisma.pendingPayment.findUnique({
+      where: { transactionId: txnRef },
+    });
+
+    if (!pendingPayment) {
+      console.error(`Callback Error: No pending payment found for txnRef: ${txnRef}`);
+      return NextResponse.json({ message: "Transaction reference not found or already processed." }, { status: 200 });
     }
 
-    // Step 3: Process the payment
-    try {
-        const pendingPayment = await prisma.pendingPayment.findUnique({
-            where: { txnRef },
-        });
+    const { loanId, amount: paymentAmount, borrowerId } = pendingPayment;
 
-        if (!pendingPayment) {
-            console.error(`Callback Error: No pending payment found for txnRef: ${txnRef}`);
-            return NextResponse.json({ message: "Transaction reference not found or already processed." }, { status: 200 });
-        }
+    const [loan, taxConfig] = await Promise.all([
+      prisma.loan.findUnique({
+        where: { id: loanId },
+        include: {
+          product: { include: { provider: { include: { ledgerAccounts: true } } } },
+        },
+      }),
+      prisma.tax.findFirst(),
+    ]);
 
-        const { loanId, amount: paymentAmount, borrowerId } = pendingPayment;
+    if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
-        const [loan, taxConfig] = await Promise.all([
-            prisma.loan.findUnique({
-                where: { id: loanId },
-                include: { 
-                    product: { include: { provider: { include: { ledgerAccounts: true } } } }
-                }
-            }),
-            prisma.tax.findFirst()
-        ]);
-        
-        if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
+    const provider = loan.product.provider;
+    const paymentDate = new Date();
+    const { total } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
+    const alreadyRepaid = loan.repaidAmount || 0;
+    const totalDue = total - alreadyRepaid;
 
-        const provider = loan.product.provider;
-        const paymentDate = new Date();
-        const { total } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
-        const alreadyRepaid = loan.repaidAmount || 0;
-        const totalDue = total - alreadyRepaid;
-        
-        const updatedLoan = await prisma.$transaction(async (tx) => {
-             const journalEntry = await tx.journalEntry.create({
-                data: {
-                    providerId: provider.id,
-                    loanId: loan.id,
-                    date: paymentDate,
-                    description: `SuperApp repayment for loan ${loan.id} via TxRef ${txnRef}`
-                }
-            });
+    const updatedLoan = await prisma.$transaction(async (tx) => {
+      const journalEntry = await tx.journalEntry.create({
+        data: {
+          providerId: provider.id,
+          loanId: loan.id,
+          date: paymentDate,
+          description: `SuperApp repayment for loan ${loan.id} via TxRef ${txnRef}`
+        },
+      });
 
-             const newPayment = await tx.payment.create({
-                data: {
-                    loanId,
-                    amount: paymentAmount,
-                    date: paymentDate,
-                    outstandingBalanceBeforePayment: totalDue,
-                    journalEntryId: journalEntry.id,
-                }
-            });
+      const newPayment = await tx.payment.create({
+        data: {
+          loanId,
+          amount: paymentAmount,
+          date: paymentDate,
+          outstandingBalanceBeforePayment: totalDue,
+          journalEntryId: journalEntry.id,
+        },
+      });
 
-            const newRepaidAmount = alreadyRepaid + paymentAmount;
-            const isFullyPaid = newRepaidAmount >= total;
-            let repaymentBehavior: RepaymentBehavior | null = null;
-            
-            if (isFullyPaid) {
-                const today = startOfDay(new Date());
-                const dueDate = startOfDay(loan.dueDate);
-                if (isBefore(today, dueDate)) repaymentBehavior = 'EARLY';
-                else if (isEqual(today, dueDate)) repaymentBehavior = 'ON_TIME';
-                else repaymentBehavior = 'LATE';
-            }
+      const newRepaidAmount = alreadyRepaid + paymentAmount;
+      const isFullyPaid = newRepaidAmount >= total;
+      let repaymentBehavior: RepaymentBehavior | null = null;
 
-            const finalLoan = await tx.loan.update({
-                where: { id: loanId },
-                data: {
-                    repaidAmount: newRepaidAmount,
-                    repaymentStatus: isFullyPaid ? 'Paid' : 'Unpaid',
-                    ...(repaymentBehavior && { repaymentBehavior: repaymentBehavior }),
-                },
-            });
-            
-             await createAuditLog({ actorId: borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: { txnRef, amount: paymentAmount, paidBy: paidByNumber } });
+      if (isFullyPaid) {
+        const today = startOfDay(new Date());
+        const dueDate = startOfDay(loan.dueDate);
+        if (isBefore(today, dueDate)) repaymentBehavior = 'EARLY';
+        else if (isEqual(today, dueDate)) repaymentBehavior = 'ON_TIME';
+        else repaymentBehavior = 'LATE';
+      }
 
-             await tx.pendingPayment.update({
-                 where: { txnRef },
-                 data: { status: 'COMPLETED' }
-             });
+      const finalLoan = await tx.loan.update({
+        where: { id: loanId },
+        data: {
+          repaidAmount: newRepaidAmount,
+          repaymentStatus: isFullyPaid ? 'Paid' : 'Unpaid',
+          ...(repaymentBehavior && { repaymentBehavior }),
+        },
+      });
 
-            return finalLoan;
-        });
+      await createAuditLog({
+        actorId: borrowerId,
+        action: 'REPAYMENT_SUCCESS',
+        entity: 'LOAN',
+        entityId: loan.id,
+        details: { transactionId: txnRef, amount: paymentAmount, paidBy: paidByNumber },
+      });
 
-        return NextResponse.json({ message: "Payment confirmed and updated." }, { status: 200 });
+      await tx.pendingPayment.update({
+        where: { transactionId: txnRef },
+        data: { status: 'COMPLETED' },
+      });
 
-    } catch (error: any) {
-        console.error("Callback Error: Failed to process payment update.", error);
-        return NextResponse.json({ message: error.message || "Internal server error during payment processing." }, { status: 400 });
-    }
+      return finalLoan;
+    });
+
+    return NextResponse.json({ message: "Payment confirmed and updated." }, { status: 200 });
+  } catch (error: any) {
+    console.error("Callback Error: Failed to process payment update.", error);
+    return NextResponse.json(
+      { message: error.message || "Internal server error during payment processing." },
+      { status: 400 }
+    );
+  }
 }
