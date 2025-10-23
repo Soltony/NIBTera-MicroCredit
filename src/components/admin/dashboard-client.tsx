@@ -1,8 +1,7 @@
 
-
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -40,7 +39,7 @@ import {
 import type { LoanProvider, DashboardData } from '@/lib/types';
 import { FileCheck2, Wallet, TrendingUp, DollarSign, Receipt, Banknote, AlertCircle, TrendingDown, Users, Landmark, ArrowUpNarrowWide, ArrowDownWideNarrow } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-
+import { useSignalR } from '@/hooks/use-signalr';
 
 interface LedgerData {
     principal: number;
@@ -356,8 +355,56 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
     );
 }
 
-export function DashboardClient({ dashboardData }: DashboardClientProps) {
+export function DashboardClient({ dashboardData: initialDashboardData }: DashboardClientProps) {
   const { currentUser } = useAuth();
+  const [dashboardData, setDashboardData] = useState(initialDashboardData);
+  
+  const { connection, startConnection } = useSignalR('/api/hub'); // Assuming hub is at /api/hub
+
+  useEffect(() => {
+    startConnection();
+  }, [startConnection]);
+
+  useEffect(() => {
+    if (connection) {
+        connection.on('ReceiveDashboardUpdate', (providerId: string, updatedData: DashboardData) => {
+            console.log('SignalR update received for provider:', providerId, updatedData);
+            setDashboardData(prevData => {
+                const newProviderSpecificData = {
+                    ...prevData.providerSpecificData,
+                    [providerId]: updatedData,
+                };
+
+                // Recalculate overall data if it's a super admin view
+                const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+                const newOverallData = isSuperAdmin 
+                    ? Object.values(newProviderSpecificData).reduce((acc, data) => {
+                        // This is a simplified merge, a real implementation would need deep merging logic
+                        Object.keys(data).forEach(key => {
+                            const typedKey = key as keyof DashboardData;
+                            if(typeof data[typedKey] === 'number') {
+                                (acc[typedKey] as number) = ((acc[typedKey] as number) || 0) + (data[typedKey] as number);
+                            }
+                        });
+                        return acc;
+                      }, {} as DashboardData)
+                    : updatedData;
+
+                return {
+                    ...prevData,
+                    overallData: newOverallData,
+                    providerSpecificData: newProviderSpecificData,
+                };
+            });
+        });
+
+        // Clean up the subscription when the component unmounts
+        return () => {
+            connection.off('ReceiveDashboardUpdate');
+        };
+    }
+  }, [connection, currentUser]);
+
   const { providers, overallData, providerSpecificData } = dashboardData;
 
   const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
@@ -379,10 +426,11 @@ export function DashboardClient({ dashboardData }: DashboardClientProps) {
   }
 
   if (!isSuperAdmin) {
+    const providerData = overallData;
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <DashboardView data={overallData} color={themeColor} />
+          <DashboardView data={providerData} color={themeColor} />
       </div>
     );
   }
