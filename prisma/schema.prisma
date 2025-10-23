@@ -38,7 +38,7 @@ model Role {
 
 // --------------------------------------
 // LOAN MANAGEMENT
-// --------------------------------------
+// ----------------1
 
 model LoanProvider {
   id                          String                        @id @default(cuid())
@@ -83,7 +83,7 @@ model LoanProduct {
   dataProvisioningConfigId    String?
   dataProvisioningConfig      DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   eligibilityFilter           String?                       @db.Text // JSON object for filtering borrowers
-  eligibilityUploadId         String?
+  eligibilityUploadId         String?                       @unique
   eligibilityUpload           DataProvisioningUpload?       @relation(fields: [eligibilityUploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   loans                       Loan[]
   loanAmountTiers             LoanAmountTier[]
@@ -112,9 +112,9 @@ model Loan {
   repaidAmount                Float?
   payments                    Payment[]
   journalEntries              JournalEntry[]
-  pendingPayments             PendingPayment[]
   createdAt                   DateTime        @default(now())
   updatedAt                   DateTime        @updatedAt
+  pendingPayments             PendingPayment[]
 }
 
 model Payment {
@@ -190,12 +190,11 @@ model UploadedDocument {
 model DataProvisioningConfig {
   id                 String                @id @default(cuid())
   providerId         String
-  provider           LoanProvider          @relation(fields: [providerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  provider           LoanProvider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name               String
   columns            String                @db.NVarChar(Max) // JSON array of DataColumn
   uploads            DataProvisioningUpload[]
   provisionedData    ProvisionedData[]
-  products           LoanProduct[]
 }
 
 model DataProvisioningUpload {
@@ -354,6 +353,33 @@ model Tax {
   appliedTo String  // JSON string: e.g., ["serviceFee", "interest", "penalty"]
 }
 
+// --------------------------------------
+// PAYMENT GATEWAY
+// --------------------------------------
+
+model PendingPayment {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  txnRef        String?  @unique
+  loanId        String
+  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  borrowerId    String
+  borrower      Borrower @relation(fields: [borrowerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amount        Float
+  status        String   // PENDING, COMPLETED, FAILED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PaymentTransaction {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  status        String   // RECEIVED, PROCESSED, FAILED
+  payload       String   @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 
 // --------------------------------------
 // AUDITING
@@ -373,29 +399,4 @@ model AuditLog {
   @@index([actorId])
   @@index([action])
   @@index([entity, entityId])
-}
-
-
-// --------------------------------------
-// PAYMENT GATEWAY
-// --------------------------------------
-model PendingPayment {
-  id              String   @id @default(cuid())
-  transactionId   String   @unique
-  loanId          String
-  loan            Loan     @relation(fields: [loanId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  borrowerId      String
-  borrower        Borrower @relation(fields: [borrowerId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  amount          Float
-  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
-
-model PaymentTransaction {
-    id              String @id @default(cuid())
-    transactionId   String @unique
-    status          String // e.g., RECEIVED, PROCESSED, FAILED_VALIDATION
-    payload         String @db.NVarChar(Max)
-    receivedAt      DateTime @default(now())
 }

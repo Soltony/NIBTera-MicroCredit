@@ -57,23 +57,22 @@ export async function POST(request: NextRequest) {
         Signature: receivedSignature
     } = requestBody;
     
-    // --- IMPORTANT: Store the transaction details to link them to the loan payment ---
+    // --- Log the raw transaction ---
      try {
         await prisma.paymentTransaction.upsert({
-            where: { transactionId },
+            where: { transactionId: txnRef },
             update: {
                 status: 'RECEIVED',
                 payload: JSON.stringify(requestBody)
             },
             create: {
-                transactionId,
+                transactionId: txnRef,
                 status: 'RECEIVED',
                 payload: JSON.stringify(requestBody)
             }
         });
     } catch(e) {
         console.error("Failed to log payment transaction:", e);
-        // We don't stop the process, but this is a critical monitoring point
     }
     // --- End of transaction logging ---
 
@@ -106,20 +105,17 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Process the payment
     try {
-        // Find the pending payment record using the transactionId
         const pendingPayment = await prisma.pendingPayment.findUnique({
-            where: { transactionId },
+            where: { txnRef },
         });
 
         if (!pendingPayment) {
-            console.error(`Callback Error: No pending payment found for transactionId: ${transactionId}`);
-            // Still return 200 to acknowledge receipt, but log error. The payment might have been processed already.
-            return NextResponse.json({ message: "Transaction ID not found or already processed." }, { status: 200 });
+            console.error(`Callback Error: No pending payment found for txnRef: ${txnRef}`);
+            return NextResponse.json({ message: "Transaction reference not found or already processed." }, { status: 200 });
         }
 
         const { loanId, amount: paymentAmount, borrowerId } = pendingPayment;
 
-        // Perform the actual repayment logic, similar to the direct payment route
         const [loan, taxConfig] = await Promise.all([
             prisma.loan.findUnique({
                 where: { id: loanId },
@@ -139,18 +135,12 @@ export async function POST(request: NextRequest) {
         const totalDue = total - alreadyRepaid;
         
         const updatedLoan = await prisma.$transaction(async (tx) => {
-             // ... [The entire repayment logic from /api/payments route goes here] ...
-             // For brevity, assuming a function `applyRepaymentLogic` exists
-             // that contains the full transaction logic from the payments route.
-             // This is a simplified representation. The actual implementation
-             // would duplicate the logic to correctly update ledgers and loan status.
-             
              const journalEntry = await tx.journalEntry.create({
                 data: {
                     providerId: provider.id,
                     loanId: loan.id,
                     date: paymentDate,
-                    description: `SuperApp repayment for loan ${loan.id} via TxID ${transactionId}`
+                    description: `SuperApp repayment for loan ${loan.id} via TxRef ${txnRef}`
                 }
             });
 
@@ -185,11 +175,10 @@ export async function POST(request: NextRequest) {
                 },
             });
             
-             await createAuditLog({ actorId: borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: { transactionId, amount: paymentAmount, paidBy: paidByNumber } });
+             await createAuditLog({ actorId: borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: { txnRef, amount: paymentAmount, paidBy: paidByNumber } });
 
-             // Mark the pending payment as completed
              await tx.pendingPayment.update({
-                 where: { transactionId },
+                 where: { txnRef },
                  data: { status: 'COMPLETED' }
              });
 
