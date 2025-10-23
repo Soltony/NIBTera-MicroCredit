@@ -17,12 +17,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const nonce = headers().get('x-nonce') || '';
   
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
       <head>
-        <meta httpEquiv="Content-Security-Policy" content={`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`} />
+        
       </head>
       <body className="font-body antialiased h-full bg-background">
         <AuthProvider>

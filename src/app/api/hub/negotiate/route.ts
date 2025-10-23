@@ -22,8 +22,3 @@ export async function POST(req: NextRequest) {
         ]
     });
 }
-
-export async function GET(req: NextRequest) {
-    // SignalR clients may sometimes use GET for connection attempts
-    return new NextResponse('SignalR hub is running.', { status: 200 });
-}
