@@ -359,7 +359,7 @@ export function DashboardClient({ dashboardData: initialDashboardData }: Dashboa
   const { currentUser } = useAuth();
   const [dashboardData, setDashboardData] = useState(initialDashboardData);
   
-  const { connection, startConnection } = useSignalR('/api/hub'); // Assuming hub is at /api/hub
+  const { connection, startConnection } = useSignalR('/api/hub');
 
   useEffect(() => {
     startConnection();
