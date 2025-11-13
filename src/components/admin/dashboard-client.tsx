@@ -285,42 +285,8 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
                 </CardContent>
             </Card>
         </div>
-         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
-            <Card className="lg:col-span-4">
-              <CardHeader>
-                <CardTitle>Recent Loan Activity</CardTitle>
-                <CardDescription>
-                  A log of the most recent loan applications.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Borrower</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentActivity.map((loan) => (
-                        <TableRow key={loan.id}>
-                            <TableCell>{loan.customer}</TableCell>
-                            <TableCell>{loan.product}</TableCell>
-                            <TableCell>
-                                <Badge variant={loan.status === 'Paid' ? 'secondary' : 'destructive'} style={loan.status === 'Paid' ? { backgroundColor: color, color: 'white' } : {}}>
-                                    {loan.status}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{formatCurrency(loan.amount)}</TableCell>
-                        </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            <Card className="lg:col-span-3">
+         <div className="grid gap-4 mt-4">
+            <Card className="lg:col-span-7">
               <CardHeader>
                 <CardTitle>Loan Products Overview</CardTitle>
                 <CardDescription>
@@ -359,7 +325,7 @@ export function DashboardClient({ dashboardData: initialDashboardData }: Dashboa
   const { currentUser } = useAuth();
   const [dashboardData, setDashboardData] = useState(initialDashboardData);
   
-  const { connection, startConnection } = useSignalR('/api/hub');
+  const { connection, startConnection } = useSignalR('/api/hub/negotiate');
 
   useEffect(() => {
     startConnection();
