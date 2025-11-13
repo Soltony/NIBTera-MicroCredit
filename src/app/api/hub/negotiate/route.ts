@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 
 // This is a placeholder for a real SignalR hub negotiation endpoint.
