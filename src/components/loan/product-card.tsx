@@ -113,6 +113,17 @@ export function ProductCard({
         }, product.penaltyRules[0]);
     }, [product.penaltyRules]);
 
+    const applicableTax = useMemo(() => {
+        if (!taxConfigs || taxConfigs.length === 0) return null;
+        // For simplicity, we'll assume the first tax config is the one to display.
+        // A more complex system might link specific taxes to products.
+        const tax = taxConfigs[0];
+        const appliedTo = JSON.parse(tax.appliedTo || '[]') as string[];
+        const isTaxable = appliedTo.some(item => ['serviceFee', 'interest', 'penalty'].includes(item));
+        
+        return isTaxable ? tax : null;
+    }, [taxConfigs]);
+
 
     const applyButton = (
         <Button 
@@ -205,6 +216,12 @@ export function ProductCard({
                              <div className="flex justify-between items-center">
                                 <span>Penalty:</span>
                                 <span>{formatPenaltyRule(maxPenaltyRule, 'summary')}</span>
+                            </div>
+                        )}
+                         {applicableTax && (
+                            <div className="flex justify-between items-center">
+                                <span>Tax:</span>
+                                <span>{applicableTax.rate}% on taxable fees</span>
                             </div>
                         )}
                     </div>
