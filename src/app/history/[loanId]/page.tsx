@@ -22,7 +22,7 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
     try {
         if (!loanId) return null;
 
-        const [loan, taxConfig] = await Promise.all([
+        const [loan, taxConfigs] = await Promise.all([
             prisma.loan.findUnique({
                 where: { id: loanId },
                 include: {
@@ -38,7 +38,7 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
                     }
                 }
             }),
-            prisma.tax.findFirst()
+            prisma.tax.findMany()
         ]);
         
 
@@ -47,12 +47,12 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
         const parsedProduct = {
             ...loan.product,
             serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
-            dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
+            dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
         };
 
         // Here we perform the calculation on the server side
-        const calculated = calculateTotalRepayable(loan as any, parsedProduct, taxConfig, new Date());
+        const calculated = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, new Date());
 
         return {
             id: loan.id,

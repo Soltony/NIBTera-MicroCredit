@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const [loans, taxConfig] = await Promise.all([
+        const [loans, taxConfigs] = await Promise.all([
             prisma.loan.findMany({
                 where: whereClause,
                 include: {
@@ -105,12 +105,12 @@ export async function GET(req: NextRequest) {
                     disbursedDate: 'desc',
                 },
             }),
-            prisma.tax.findFirst()
+            prisma.tax.findMany()
         ]);
         
         const today = new Date();
         const reportData = loans.map(loan => {
-            const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfig, today);
+            const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfigs, today);
             
             const totalRepaid = (loan.repaidAmount || 0);
 

@@ -24,10 +24,10 @@ const formatCurrency = (amount: number | null | undefined) => {
 interface HistoryClientProps {
   initialLoanHistory: LoanDetails[];
   providers: LoanProvider[];
-  taxConfig: Tax | null;
+  taxConfigs: Tax[];
 }
 
-export function HistoryClient({ initialLoanHistory, providers, taxConfig }: HistoryClientProps) {
+export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: HistoryClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -232,7 +232,7 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfig }: Hist
                 loan={repayingLoanInfo.loan}
                 totalBalanceDue={repayingLoanInfo.balanceDue}
                 providerColor={providers.find(p => p.id === repayingLoanInfo.loan.product.providerId)?.colorHex}
-                taxConfig={taxConfig}
+                taxConfigs={taxConfigs}
             />
         )}
     </div>

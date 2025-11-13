@@ -1,5 +1,4 @@
 
-
 import { differenceInDays, startOfDay } from 'date-fns';
 import type { LoanDetails, LoanProduct, PenaltyRule, Tax } from './types';
 
@@ -18,7 +17,7 @@ const roundCurrency = (amount: number): number => {
 };
 
 
-export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, taxConfig: Tax | null, asOfDate: Date = new Date()): CalculatedRepayment => {
+export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, taxConfigs: Tax[], asOfDate: Date = new Date()): CalculatedRepayment => {
     const loanStartDate = startOfDay(new Date(loanDetails.disbursedDate));
     const finalDate = startOfDay(asOfDate);
     const dueDate = startOfDay(new Date(loanDetails.dueDate));
@@ -28,10 +27,6 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     let interestComponent = 0;
     let penaltyComponent = 0;
     let taxComponent = 0;
-
-    // Fetch tax configuration
-    const taxRate = taxConfig?.rate ?? 0;
-    const taxAppliedTo: string[] = taxConfig && typeof taxConfig.appliedTo === 'string' ? JSON.parse(taxConfig.appliedTo) : [];
 
     // Safely parse JSON fields from the product, as they might be strings from the DB
     const safeParse = (field: any, defaultValue: any) => {
@@ -128,20 +123,25 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     }
     penaltyComponent = roundCurrency(penaltyComponent);
 
-    // 4. Tax Calculation
-    if (taxRate > 0) {
-        let taxableAmount = 0;
-        if (taxAppliedTo.includes('serviceFee')) {
-            taxableAmount += serviceFee;
+    // 4. Tax Calculation for all configured taxes
+    taxConfigs.forEach(taxConfig => {
+        const taxRate = taxConfig.rate;
+        const taxAppliedTo = JSON.parse(taxConfig.appliedTo);
+        
+        if (taxRate > 0) {
+            let taxableAmount = 0;
+            if (taxAppliedTo.includes('serviceFee')) {
+                taxableAmount += serviceFee;
+            }
+            if (taxAppliedTo.includes('interest')) {
+                taxableAmount += interestComponent;
+            }
+            if (taxAppliedTo.includes('penalty')) {
+                taxableAmount += penaltyComponent;
+            }
+            taxComponent += taxableAmount * (taxRate / 100);
         }
-        if (taxAppliedTo.includes('interest')) {
-            taxableAmount += interestComponent;
-        }
-        if (taxAppliedTo.includes('penalty')) {
-            taxableAmount += penaltyComponent;
-        }
-        taxComponent = taxableAmount * (taxRate / 100);
-    }
+    });
     taxComponent = roundCurrency(taxComponent);
 
     const totalDebt = roundCurrency(principal + serviceFee + interestComponent + penaltyComponent + taxComponent);

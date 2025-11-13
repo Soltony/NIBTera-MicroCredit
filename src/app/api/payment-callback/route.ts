@@ -128,21 +128,21 @@ export async function POST(request: NextRequest) {
 
     const { loanId, amount: paymentAmount, borrowerId } = pendingPayment;
 
-    const [loan, taxConfig] = await Promise.all([
+    const [loan, taxConfigs] = await Promise.all([
       prisma.loan.findUnique({
         where: { id: loanId },
         include: {
           product: { include: { provider: { include: { ledgerAccounts: true } } } },
         },
       }),
-      prisma.tax.findFirst(),
+      prisma.tax.findMany(),
     ]);
 
     if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
     const provider = loan.product.provider;
     const paymentDate = new Date();
-    const { total } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
+    const { total } = calculateTotalRepayable(loan as any, loan.product, taxConfigs, paymentDate);
     const alreadyRepaid = loan.repaidAmount || 0;
     const totalDue = total - alreadyRepaid;
 

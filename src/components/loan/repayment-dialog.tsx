@@ -25,7 +25,7 @@ interface RepaymentDialogProps {
     loan: LoanDetails;
     totalBalanceDue: number;
     providerColor?: string;
-    taxConfig: Tax | null;
+    taxConfigs: Tax[];
 }
 
 // Extend the window type to include myJsChannel
@@ -37,7 +37,7 @@ declare global {
   }
 }
 
-export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913', taxConfig }: RepaymentDialogProps) {
+export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913', taxConfigs }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -136,8 +136,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     
     const breakdown = useMemo(() => {
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0 };
-        return calculateTotalRepayable(loan, loan.product, taxConfig, new Date());
-    }, [loan, taxConfig]);
+        return calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
+    }, [loan, taxConfigs]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

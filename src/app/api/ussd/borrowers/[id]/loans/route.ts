@@ -16,7 +16,7 @@ export async function GET(
   }
 
   try {
-    const [loans, taxConfig] = await Promise.all([
+    const [loans, taxConfigs] = await Promise.all([
         prisma.loan.findMany({
             where: { borrowerId: borrowerId },
             include: {
@@ -26,7 +26,7 @@ export async function GET(
                 disbursedDate: 'desc',
             },
         }),
-        prisma.tax.findFirst()
+        prisma.tax.findMany()
     ]);
 
     const formattedLoans = loans.map(loan => {
@@ -40,7 +40,7 @@ export async function GET(
       };
 
       // Use the centralized calculator with the fully parsed product data
-      const { total } = calculateTotalRepayable(loan as any, parsedProduct, taxConfig, new Date());
+      const { total } = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, new Date());
       const totalRepayable = total;
 
       return {

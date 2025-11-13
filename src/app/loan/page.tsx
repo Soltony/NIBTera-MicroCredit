@@ -105,7 +105,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
               id: loan.product.id,
               providerId: loan.product.providerId,
               serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
-              dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
+              dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0, calculationBase: 'principal' }),
               penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
             },
             payments: loan.payments.map(p => ({
@@ -121,18 +121,18 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     }
 }
 
-async function getTaxConfig(): Promise<Tax | null> {
-    return await prisma.tax.findFirst();
+async function getTaxConfigs(): Promise<Tax[]> {
+    return await prisma.tax.findMany();
 }
 
 
 export default async function LoanPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
     const borrowerId = searchParams['borrowerId'] as string;
     
-    const [providers, loanHistory, taxConfig] = await Promise.all([
+    const [providers, loanHistory, taxConfigs] = await Promise.all([
         getProviders(),
         getLoanHistory(borrowerId),
-        getTaxConfig(),
+        getTaxConfigs(),
     ]);
     
     return (
@@ -141,7 +141,7 @@ export default async function LoanPage({ searchParams }: { searchParams: { [key:
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <DashboardClient providers={providers} initialLoanHistory={loanHistory} taxConfig={taxConfig} />
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} taxConfigs={taxConfigs} />
         </Suspense>
     );
 }

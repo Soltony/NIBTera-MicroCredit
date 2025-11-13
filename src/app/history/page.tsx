@@ -19,7 +19,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     try {
         if (!borrowerId) return [];
 
-        const [loans, taxConfig] = await Promise.all([
+        const [loans, taxConfigs] = await Promise.all([
             prisma.loan.findMany({
                 where: { borrowerId },
                 include: {
@@ -38,7 +38,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                     disbursedDate: 'desc'
                 }
             }),
-            prisma.tax.findFirst()
+            prisma.tax.findMany()
         ]);
 
         return loans.map(loan => {
@@ -49,7 +49,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                 penaltyRules: JSON.parse(loan.product.penaltyRules as string),
             };
 
-            const { total: totalRepayable } = calculateTotalRepayable(loan as any, parsedProduct, taxConfig, new Date());
+            const { total: totalRepayable } = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, new Date());
 
             return {
                 id: loan.id,
@@ -79,18 +79,18 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     }
 }
 
-async function getTaxConfig(): Promise<Tax | null> {
-    return await prisma.tax.findFirst();
+async function getTaxConfigs(): Promise<Tax[]> {
+    return await prisma.tax.findMany();
 }
 
 
 export default async function HistoryPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
     const borrowerId = searchParams['borrowerId'] as string;
     
-    const [loanHistory, providers, taxConfig] = await Promise.all([
+    const [loanHistory, providers, taxConfigs] = await Promise.all([
         getLoanHistory(borrowerId),
         getProviders(),
-        getTaxConfig()
+        getTaxConfigs()
     ]);
     
     return (
@@ -99,7 +99,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: { [k
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <HistoryClient initialLoanHistory={loanHistory} providers={providers} taxConfig={taxConfig} />
+            <HistoryClient initialLoanHistory={loanHistory} providers={providers} taxConfigs={taxConfigs} />
         </Suspense>
     );
 }

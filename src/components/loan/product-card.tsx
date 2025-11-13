@@ -64,7 +64,7 @@ const formatPenaltyRule = (rule: PenaltyRule | undefined, type: 'summary' | 'ful
 
 interface ProductCardProps {
     product: LoanProduct;
-    taxConfig: Tax | null;
+    taxConfigs: Tax[];
     providerColor?: string;
     activeLoan?: LoanDetails;
     onApply: () => void;
@@ -77,7 +77,7 @@ interface ProductCardProps {
 
 export function ProductCard({ 
     product, 
-    taxConfig,
+    taxConfigs,
     providerColor = '#fdb913', 
     activeLoan, 
     onApply, 
@@ -93,10 +93,10 @@ export function ProductCard({
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfig, new Date());
+        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, new Date());
         const remainingBalance = total - (activeLoan.repaidAmount || 0);
         return Math.max(0, remainingBalance);
-    }, [activeLoan, taxConfig]);
+    }, [activeLoan, taxConfigs]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general

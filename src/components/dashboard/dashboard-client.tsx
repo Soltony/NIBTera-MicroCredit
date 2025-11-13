@@ -36,7 +36,7 @@ const formatCurrency = (amount: number | null | undefined) => {
 interface DashboardClientProps {
   providers: LoanProvider[];
   initialLoanHistory: LoanDetails[];
-  taxConfig: Tax | null;
+  taxConfigs: Tax[];
 }
 
 interface EligibilityState {
@@ -49,7 +49,7 @@ interface AgreementState {
     hasAgreed?: boolean;
 }
 
-export function DashboardClient({ providers, initialLoanHistory, taxConfig }: DashboardClientProps) {
+export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId');
@@ -352,7 +352,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
                                                         ...product,
                                                         availableLimit: productLimit,
                                                     }}
-                                                    taxConfig={taxConfig}
+                                                    taxConfigs={taxConfigs}
                                                     providerColor={selectedProvider.colorHex}
                                                     activeLoan={activeLoansByProduct[product.id]}
                                                     onApply={() => handleApply(product)}
@@ -384,7 +384,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfig }: Da
             loan={repayingLoanInfo.loan}
             totalBalanceDue={repayingLoanInfo.balanceDue}
             providerColor={selectedProvider?.colorHex}
-            taxConfig={taxConfig}
+            taxConfigs={taxConfigs}
         />
       )}
        <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>

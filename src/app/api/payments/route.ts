@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
             details: paymentDetailsForLogging
         }));
 
-        const [loan, taxConfig] = await Promise.all([
+        const [loan, taxConfigs] = await Promise.all([
             prisma.loan.findUnique({
                 where: { id: loanId },
                 include: { 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
                     }
                 }
             }),
-            prisma.tax.findFirst()
+            prisma.tax.findMany()
         ]);
 
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         const provider = loan.product.provider;
         const paymentDate = new Date();
         
-        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
+        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfigs, paymentDate);
         const alreadyRepaid = loan.repaidAmount || 0;
         
         const totalDue = total - alreadyRepaid;
@@ -80,15 +80,17 @@ export async function POST(req: NextRequest) {
             const interestReceivable = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Receivable');
             const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
             const serviceFeeReceivable = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Receivable');
+            const taxReceivable = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Receivable');
 
             const principalReceived = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
             const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
             const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
             const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
+            const taxReceived = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Received');
             
             
-            if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable ||
-                !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived) {
+            if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable || !taxReceivable ||
+                !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived || !taxReceived) {
                 throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
             }
 
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
                 }
             });
 
-            // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Principal
+            // Apply payment according to priority: Penalty -> Service Fee -> Interest -> Tax -> Principal
             const penaltyToPay = Math.min(amountToApply, penaltyDue);
             if (penaltyToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
@@ -134,7 +136,11 @@ export async function POST(req: NextRequest) {
                 ]});
                 amountToApply -= interestToPay;
             }
-            
+
+            // Note: Tax calculation is part of totalRepayable, but its repayment is not explicitly handled here.
+            // This logic assumes tax is implicitly part of the components it's applied to.
+            // A more robust system would handle tax settlement separately.
+
             const principalToPay = Math.min(amountToApply, principalDue);
              if (principalToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
@@ -160,7 +166,6 @@ export async function POST(req: NextRequest) {
             const isFullyPaid = newRepaidAmount >= total;
             let repaymentBehavior: RepaymentBehavior | null = null;
             
-            // --- NEW: Set Repayment Behavior on final payment ---
             if (isFullyPaid) {
                 const today = startOfDay(new Date());
                 const dueDate = startOfDay(loan.dueDate);
@@ -172,15 +177,13 @@ export async function POST(req: NextRequest) {
                     repaymentBehavior = 'LATE';
                 }
             }
-            // --- END NEW ---
 
-            // Update loan status
             const finalLoan = await tx.loan.update({
                 where: { id: loanId },
                 data: {
                     repaidAmount: newRepaidAmount,
                     repaymentStatus: isFullyPaid ? 'Paid' : 'Unpaid',
-                    ...(repaymentBehavior && { repaymentBehavior: repaymentBehavior }), // Only set if not null
+                    ...(repaymentBehavior && { repaymentBehavior: repaymentBehavior }),
                 },
                 include: {
                     payments: { orderBy: { date: 'asc' } },

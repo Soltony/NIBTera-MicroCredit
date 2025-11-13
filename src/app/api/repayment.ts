@@ -35,7 +35,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
     console.log('Starting automated repayment process...');
     const today = startOfDay(new Date());
 
-    const taxConfig = await prisma.tax.findFirst();
+    const taxConfigs = await prisma.tax.findMany();
 
     // 1. Find all unpaid loans that are overdue
     const overdueLoans = await prisma.loan.findMany({
@@ -66,7 +66,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
     let processedCount = 0;
 
     for (const loan of overdueLoans) {
-        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfig, today);
+        const { total, principal, interest, penalty, serviceFee } = calculateTotalRepayable(loan as any, loan.product, taxConfigs, today);
         const alreadyRepaid = loan.repaidAmount || 0;
         const totalDue = total - alreadyRepaid;
 
