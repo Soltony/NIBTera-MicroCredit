@@ -1,0 +1,171 @@
+
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/session';
+import { z } from 'zod';
+import { createAuditLog } from '@/lib/audit-log';
+
+const approvalSchema = z.object({
+  changeId: z.string(),
+  approved: z.boolean(),
+  rejectionReason: z.string().optional(),
+});
+
+// Main function to apply an approved change
+async function applyChange(change: any) {
+  const { entityType, entityId, changeType, payload } = change;
+  const data = JSON.parse(payload);
+
+  switch (entityType) {
+    case 'LoanProvider':
+        if (changeType === 'UPDATE') {
+            await prisma.loanProvider.update({
+                where: { id: entityId },
+                data: { ...data.updated, status: 'ACTIVE' }
+            });
+        }
+      break;
+    case 'LoanProduct':
+        if (changeType === 'UPDATE') {
+             await prisma.loanProduct.update({
+                where: { id: entityId },
+                data: { ...data.updated, status: 'ACTIVE' }
+            });
+        }
+      break;
+    case 'ScoringRules':
+      // This is a more complex one as it involves deleting and creating
+      await prisma.$transaction(async (tx) => {
+        await tx.scoringParameter.deleteMany({ where: { providerId: entityId } });
+        for (const param of data.updated) {
+            await tx.scoringParameter.create({
+                data: {
+                    providerId: entityId,
+                    name: param.name,
+                    weight: param.weight,
+                    rules: {
+                        create: param.rules.map((rule: any) => ({
+                            field: rule.field,
+                            condition: rule.condition,
+                            value: String(rule.value),
+                            score: rule.score,
+                        })),
+                    },
+                },
+            });
+        }
+      });
+      break;
+    case 'Tax':
+        if (changeType === 'UPDATE') {
+             await prisma.tax.update({
+                where: { id: entityId },
+                data: { ...data.updated, status: 'ACTIVE' }
+            });
+        } else if (changeType === 'CREATE') {
+            await prisma.tax.create({
+                data: { ...data.created, status: 'ACTIVE' }
+            });
+        } else if (changeType === 'DELETE') {
+            await prisma.tax.delete({ where: { id: entityId } });
+        }
+      break;
+    default:
+      throw new Error(`Unknown entity type for approval: ${entityType}`);
+  }
+}
+
+
+export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session?.userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { changeId, approved, rejectionReason } = approvalSchema.parse(body);
+
+    const change = await prisma.pendingChange.findUnique({
+      where: { id: changeId },
+    });
+
+    if (!change) {
+      return NextResponse.json({ error: 'Change request not found.' }, { status: 404 });
+    }
+
+    if (change.createdById === session.userId) {
+      return NextResponse.json({ error: 'You cannot approve or reject your own changes.' }, { status: 403 });
+    }
+    
+    if (change.status !== 'PENDING') {
+      return NextResponse.json({ error: 'This change has already been processed.' }, { status: 409 });
+    }
+
+    if (approved) {
+      // Apply the change
+      await applyChange(change);
+
+      // Update the status of the change request
+      await prisma.pendingChange.update({
+        where: { id: changeId },
+        data: {
+          status: 'APPROVED',
+          approvedById: session.userId,
+          approvedAt: new Date(),
+        },
+      });
+
+      await createAuditLog({
+        actorId: session.userId,
+        action: 'CHANGE_APPROVED',
+        entity: change.entityType,
+        entityId: change.entityId,
+        details: { changeId },
+      });
+
+    } else { // Rejected
+      if (!rejectionReason) {
+        return NextResponse.json({ error: 'A reason is required for rejection.' }, { status: 400 });
+      }
+
+      await prisma.pendingChange.update({
+        where: { id: changeId },
+        data: {
+          status: 'REJECTED',
+          approvedById: session.userId,
+          approvedAt: new Date(),
+          rejectionReason,
+        },
+      });
+
+      // Also revert the status of the underlying entity if it was pending
+       if (change.entityId) {
+            if (change.entityType === 'LoanProvider') {
+                await prisma.loanProvider.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+            } else if (change.entityType === 'LoanProduct') {
+                await prisma.loanProduct.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+            } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
+                 await prisma.tax.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+            }
+        }
+      
+      await createAuditLog({
+        actorId: session.userId,
+        action: 'CHANGE_REJECTED',
+        entity: change.entityType,
+        entityId: change.entityId,
+        details: { changeId, reason: rejectionReason },
+      });
+    }
+
+    return NextResponse.json({ success: true });
+
+  } catch (error: any) {
+    console.error("Error processing change request:", error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 });
+    }
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}

@@ -9,6 +9,7 @@ import {
   Download,
   FolderArchive,
   BookUser,
+  CheckSquare,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -23,6 +24,12 @@ export const allMenuItems = [
     label: 'Reports',
     icon: FileText,
     roles: ['Super Admin', 'Loan Manager', 'Auditor', 'Loan Provider', 'Reconciliation'],
+  },
+   {
+    path: '/admin/approvals',
+    label: 'Approvals',
+    icon: CheckSquare,
+    roles: ['Super Admin', 'Loan Manager'],
   },
   {
     path: '/admin/npl',

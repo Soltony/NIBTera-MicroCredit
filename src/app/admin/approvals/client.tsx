@@ -1,0 +1,242 @@
+
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Loader2, Check, X, Eye } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { formatDistanceToNow } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import type { PendingChangeWithRelations } from './page';
+import type { User } from '@/lib/types';
+import { diff as showDiff } from 'json-diff';
+
+
+function ChangeDetailsDialog({
+  change,
+  isOpen,
+  onClose,
+}: {
+  change: PendingChangeWithRelations | null;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  if (!change) return null;
+
+  const renderDiff = (payload: string) => {
+    try {
+        const data = JSON.parse(payload);
+        const original = data.original || {};
+        const updated = data.updated || {};
+        
+        const diffResult = showDiff(original, updated);
+
+        // A very basic diff renderer
+        return (
+            <pre className="text-xs whitespace-pre-wrap font-mono bg-muted p-2 rounded-md">
+                {JSON.stringify(diffResult, null, 2)}
+            </pre>
+        );
+
+    } catch (e) {
+        return <p className="text-destructive">Could not parse change details.</p>;
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Change Details</DialogTitle>
+          <DialogDescription>
+            Review the changes submitted for approval.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="flex justify-between text-sm">
+                <span className="font-semibold">Entity Type:</span>
+                <span>{change.entityType}</span>
+            </div>
+             <div className="flex justify-between text-sm">
+                <span className="font-semibold">Change Type:</span>
+                <span><Badge>{change.changeType}</Badge></span>
+            </div>
+            <div className="space-y-1">
+                 <h4 className="font-semibold text-sm">Payload:</h4>
+                 {renderDiff(change.payload)}
+            </div>
+        </div>
+        <DialogFooter>
+            <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+export function ApprovalsClient({
+  pendingChanges: initialChanges,
+  currentUser,
+}: {
+  pendingChanges: PendingChangeWithRelations[];
+  currentUser: User;
+}) {
+  const [changes, setChanges] = useState(initialChanges);
+  const [isLoading, setIsLoading] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [changeToReject, setChangeToReject] = useState<PendingChangeWithRelations | null>(null);
+  const [changeToView, setChangeToView] = useState<PendingChangeWithRelations | null>(null);
+  const { toast } = useToast();
+
+  const handleProcessChange = async (changeId: string, approved: boolean, reason?: string) => {
+    setProcessingId(changeId);
+    try {
+      const response = await fetch('/api/approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changeId, approved, rejectionReason: reason }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${approved ? 'approve' : 'reject'} change.`);
+      }
+
+      setChanges(prev => prev.filter(c => c.id !== changeId));
+      toast({
+        title: 'Success',
+        description: `Change has been successfully ${approved ? 'approved' : 'rejected'}.`,
+      });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessingId(null);
+      setChangeToReject(null);
+      setRejectionReason('');
+    }
+  };
+
+  const filteredChanges = useMemo(() => {
+    // A user cannot approve their own changes
+    return changes.filter(c => c.createdById !== currentUser.id);
+  }, [changes, currentUser.id]);
+
+  return (
+    <>
+      <div className="flex-1 space-y-4 p-8 pt-6">
+        <h2 className="text-3xl font-bold tracking-tight">Pending Approvals</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Change Requests</CardTitle>
+            <CardDescription>Review and approve or reject pending changes made by other users.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Entity</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Requested By</TableHead>
+                  <TableHead>Requested At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredChanges.length > 0 ? (
+                  filteredChanges.map(change => (
+                    <TableRow key={change.id}>
+                      <TableCell className="font-medium">{change.entityType}</TableCell>
+                      <TableCell>
+                        <Badge variant={change.changeType === 'DELETE' ? 'destructive' : 'secondary'}>{change.changeType}</Badge>
+                      </TableCell>
+                      <TableCell>{change.createdBy.fullName}</TableCell>
+                      <TableCell>{formatDistanceToNow(new Date(change.createdAt), { addSuffix: true })}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setChangeToView(change)}>
+                            <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleProcessChange(change.id, true)}
+                          disabled={processingId === change.id}
+                          className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                        >
+                          {processingId === change.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setChangeToReject(change)}
+                          disabled={processingId === change.id}
+                           className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      No pending approvals for you to review.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+      <Dialog open={!!changeToReject} onOpenChange={() => setChangeToReject(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Change</DialogTitle>
+            <DialogDescription>Please provide a reason for rejecting this change.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              value={rejectionReason}
+              onChange={e => setRejectionReason(e.target.value)}
+              placeholder="e.g., Incorrect configuration..."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChangeToReject(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => handleProcessChange(changeToReject!.id, false, rejectionReason)}
+              disabled={!rejectionReason.trim()}
+            >
+              Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <ChangeDetailsDialog
+        change={changeToView}
+        isOpen={!!changeToView}
+        onClose={() => setChangeToView(null)}
+      />
+    </>
+  );
+}
