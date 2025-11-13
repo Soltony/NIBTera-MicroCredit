@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -62,6 +63,12 @@ const formatPenaltyRule = (rule: PenaltyRule | undefined, type: 'summary' | 'ful
     return `${valueString}${conditionString}`;
 }
 
+const taxComponentLabels: Record<string, string> = {
+    serviceFee: 'Service Fee',
+    interest: 'Daily Fee',
+    penalty: 'Penalty'
+};
+
 interface ProductCardProps {
     product: LoanProduct;
     taxConfigs: Tax[];
@@ -121,7 +128,24 @@ export function ProductCard({
         const appliedTo = JSON.parse(tax.appliedTo || '[]') as string[];
         const isTaxable = appliedTo.some(item => ['serviceFee', 'interest', 'penalty'].includes(item));
         
-        return isTaxable ? tax : null;
+        if (!isTaxable) return null;
+
+        const taxableComponents = appliedTo
+            .map(component => taxComponentLabels[component])
+            .filter(Boolean);
+        
+        let componentsString = '';
+        if (taxableComponents.length === 1) {
+            componentsString = taxableComponents[0];
+        } else if (taxableComponents.length > 1) {
+            const last = taxableComponents.pop();
+            componentsString = `${taxableComponents.join(', ')} & ${last}`;
+        }
+        
+        return {
+            ...tax,
+            componentsString
+        };
     }, [taxConfigs]);
 
 
@@ -221,7 +245,7 @@ export function ProductCard({
                          {applicableTax && (
                             <div className="flex justify-between items-center">
                                 <span>Tax:</span>
-                                <span>{applicableTax.rate}% on taxable fees</span>
+                                <span>{applicableTax.rate}% on {applicableTax.componentsString}</span>
                             </div>
                         )}
                     </div>
