@@ -208,6 +208,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
         params.set('product', product.id);
         const productLimit = eligibility.limits[product.id] ?? 0;
         
+        params.set('min', String(product.minLoan ?? 0));
         params.set('max', String(productLimit));
         router.push(`/apply?${params.toString()}`);
     }
@@ -423,5 +424,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
     </>
   );
 }
+
+    
 
     
