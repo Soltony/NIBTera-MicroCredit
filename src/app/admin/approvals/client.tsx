@@ -168,7 +168,7 @@ export function ApprovalsClient({
                       <TableCell>
                         <Badge variant={change.changeType === 'DELETE' ? 'destructive' : 'secondary'}>{change.changeType}</Badge>
                       </TableCell>
-                      <TableCell>{change.createdBy.fullName}</TableCell>
+                      <TableCell>{change.createdBy?.fullName || 'Unknown User'}</TableCell>
                       <TableCell>{formatDistanceToNow(new Date(change.createdAt), { addSuffix: true })}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setChangeToView(change)}>
