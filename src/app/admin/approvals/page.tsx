@@ -1,4 +1,6 @@
 
+'use server';
+
 import { getUserFromSession } from '@/lib/user';
 import { ApprovalsClient } from './client';
 import prisma from '@/lib/prisma';
