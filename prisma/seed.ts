@@ -14,6 +14,9 @@ const permissions = {
     settings: { create: true, read: true, update: true, delete: true },
     products: { create: true, read: true, update: true, delete: true },
     tax: { create: true, read: true, update: true, delete: true },
+    approvals: { create: true, read: true, update: true, delete: true },
+    npl: { create: true, read: true, update: true, delete: true },
+    'audit-logs': { create: true, read: true, update: true, delete: true },
   },
   loanProvider: {
     dashboard: { create: false, read: true, update: false, delete: false },
@@ -23,6 +26,9 @@ const permissions = {
     settings: { create: false, read: true, update: true, delete: false },
     products: { create: true, read: true, update: true, delete: true },
     tax: { create: false, read: true, update: false, delete: false },
+    approvals: { create: false, read: false, update: false, delete: false },
+    npl: { create: false, read: false, update: false, delete: false },
+    'audit-logs': { create: false, read: false, update: false, delete: false },
   },
    reconciliation: {
     dashboard: { create: false, read: true, update: false, delete: false },
@@ -32,6 +38,9 @@ const permissions = {
     settings: { create: false, read: false, update: false, delete: false },
     products: { create: false, read: false, update: false, delete: false },
     tax: { create: false, read: true, update: false, delete: false },
+    approvals: { create: false, read: false, update: false, delete: false },
+    npl: { create: false, read: false, update: false, delete: false },
+    'audit-logs': { create: false, read: false, update: false, delete: false },
   }
 };
 
@@ -91,6 +100,18 @@ async function main() {
     },
   });
 
+  const approverRole = await prisma.role.upsert({
+    where: { name: 'Approver' },
+    update: {
+      permissions: JSON.stringify(permissions.superAdmin), // Approvers get same permissions as Super Admin
+    },
+    create: {
+      name: 'Approver',
+      permissions: JSON.stringify(permissions.superAdmin),
+    },
+  });
+
+
   console.log('Roles seeded.');
 
   // Seed User
@@ -111,7 +132,25 @@ async function main() {
       }
     },
   });
-  console.log('Admin user seeded.');
+
+  await prisma.user.upsert({
+    where: { email: 'approver@example.com' },
+    update: {},
+    create: {
+      fullName: 'Approver User',
+      email: 'approver@example.com',
+      phoneNumber: '0900000001',
+      password: hashedPassword,
+      status: 'Active',
+      role: {
+        connect: {
+          id: approverRole.id,
+        }
+      }
+    },
+  });
+
+  console.log('Admin and Approver users seeded.');
 
   // Seed Loan Provider and Products
   const nibBank = await prisma.loanProvider.upsert({
@@ -348,3 +387,5 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+    
