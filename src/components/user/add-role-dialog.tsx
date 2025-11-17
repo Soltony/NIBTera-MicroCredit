@@ -68,10 +68,13 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, primaryColor = '#
   };
 
   const handleSelectAll = (module: keyof Permissions) => {
-    const allChecked = PERMISSION_ACTIONS.every(action => permissions[module][action]);
+    const allChecked = PERMISSION_ACTIONS.every(action => permissions[module]?.[action]);
     setPermissions(
       produce(draft => {
         PERMISSION_ACTIONS.forEach(action => {
+            if (!draft[module]) {
+                draft[module] = { create: false, read: false, update: false, delete: false };
+            }
             draft[module][action] = !allChecked;
         });
       })
