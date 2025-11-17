@@ -612,14 +612,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
     }
 
-    const visibleProviders = useMemo(() => {
-        if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
-            return providers;
-        }
-        return providers.filter(p => p.id === currentUser.providerId);
-    }, [providers, currentUser]);
-
-
     return (
     <>
       <div className="flex items-center justify-between space-y-2 mb-4">
@@ -631,7 +623,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
         )}
       </div>
       <Accordion type="multiple" className="w-full space-y-4">
-        {visibleProviders.map((provider) => (
+        {providers.map((provider) => (
           <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
             <div className="flex items-center w-full p-4">
               <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
@@ -1963,3 +1955,4 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
