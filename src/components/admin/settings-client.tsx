@@ -611,6 +611,17 @@ function ProvidersTab({ providers, onProvidersChange }: {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
     }
+    
+    if (providers.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Providers &amp; Products</CardTitle>
+                    <CardDescription>No providers available. Please contact a Super Admin.</CardDescription>
+                </CardHeader>
+            </Card>
+        );
+    }
 
     return (
     <>
@@ -1199,16 +1210,7 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
     onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
     taxConfig: Tax;
 }) {
-    const { currentUser } = useAuth();
-    
-    const visibleProviders = useMemo(() => {
-        if (!currentUser || currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
-            return providers;
-        }
-        return providers.filter(p => p.id === currentUser.providerId);
-    }, [providers, currentUser]);
-    
-    if (visibleProviders.length === 0) {
+    if (providers.length === 0) {
         return (
             <Card>
                 <CardHeader>
@@ -1223,7 +1225,7 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
     
     return (
         <Accordion type="multiple" className="w-full space-y-4">
-            {visibleProviders.map((provider) => (
+            {providers.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
                     <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
                         <div className="flex items-center gap-4">
@@ -1955,4 +1957,5 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
