@@ -1,4 +1,6 @@
 
+'use server';
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -19,9 +21,14 @@ async function applyChange(change: any) {
   switch (entityType) {
     case 'LoanProvider':
         if (changeType === 'UPDATE') {
+            const { products, dataProvisioningConfigs, ...providerData } = data.updated;
             await prisma.loanProvider.update({
                 where: { id: entityId },
-                data: { ...data.updated, status: 'ACTIVE' }
+                data: { ...providerData, status: 'ACTIVE' }
+            });
+        } else if (changeType === 'DELETE') {
+            await prisma.loanProvider.delete({
+                where: { id: entityId }
             });
         }
       break;
@@ -31,6 +38,12 @@ async function applyChange(change: any) {
                 where: { id: entityId },
                 data: { ...data.updated, status: 'ACTIVE' }
             });
+        } else if (changeType === 'CREATE') {
+            await prisma.loanProduct.create({
+                data: { ...data.created, status: 'ACTIVE' }
+            });
+        } else if (changeType === 'DELETE') {
+            await prisma.loanProduct.delete({ where: { id: entityId } });
         }
       break;
     case 'ScoringRules':
