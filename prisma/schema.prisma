@@ -15,20 +15,20 @@ datasource db {
 // --------------------------------------
 
 model User {
-  id            String       @id @default(cuid())
-  fullName      String
-  email         String       @unique
-  phoneNumber   String       @unique
-  password      String
-  status        String
-  roleId        String
-  role          Role         @relation(fields: [roleId], references: [id])
-  loanProviderId String?
-  loanProvider  LoanProvider? @relation(fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  pendingChanges      PendingChange[] @relation("CreatedBy")
-  approvedChanges     PendingChange[] @relation("ApprovedBy")
+  id                  String           @id @default(cuid())
+  fullName            String
+  email               String           @unique
+  phoneNumber         String           @unique
+  password            String
+  status              String
+  roleId              String
+  role                Role             @relation(fields: [roleId], references: [id])
+  loanProviderId      String?
+  loanProvider        LoanProvider?    @relation(fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdChanges      PendingChange[]  @relation("CreatedBy")
+  approvedChanges     PendingChange[]  @relation("ApprovedBy")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 }
 
 model Role {
@@ -74,7 +74,7 @@ model LoanProduct {
   minLoan                     Float
   maxLoan                     Float
   duration                    Int
-  status                      String                        @default("ACTIVE") // Active, Disabled, PENDING_APPROVAL
+  status                      String                        @default("Active") // Active, Disabled, PENDING_APPROVAL
   allowConcurrentLoans        Boolean                       @default(false)
   serviceFee                  String // JSON FeeRule
   serviceFeeEnabled           Boolean?
@@ -380,23 +380,23 @@ model AuditLog {
 }
 
 model PendingChange {
-  id                String   @id @default(cuid())
-  entityType        String   // e.g., "LoanProvider", "LoanProduct", "ScoringRules"
-  entityId          String?  // The ID of the entity being changed (null for creation)
-  changeType        String   // CREATE, UPDATE, DELETE
-  payload           String   @db.Text // JSON diff or full new object
-  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  createdById       String
-  createdBy         User     @relation("CreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt         DateTime @default(now())
-  approvedById      String?
-  approvedBy        User?    @relation("ApprovedBy", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  approvedAt        DateTime?
-  rejectionReason   String?  @db.Text
+  id               String   @id @default(cuid())
+  entityType       String   // e.g., "LoanProvider", "LoanProduct", "Tax"
+  entityId         String?  // The ID of the entity being changed. Null for CREATE.
+  changeType       String   // CREATE, UPDATE, DELETE
+  payload          String   @db.NVarChar(Max) // JSON payload with the changes
+  status           String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdById      String
+  createdBy        User     @relation("CreatedBy", fields: [createdById], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  approvedById     String?
+  approvedBy       User?    @relation("ApprovedBy", fields: [approvedById], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  approvedAt       DateTime?
+  rejectionReason  String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  @@index([createdById])
-  @@index([approvedById])
   @@index([status])
+  @@index([entityType])
 }
 
 
