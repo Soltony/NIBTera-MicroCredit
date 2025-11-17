@@ -61,9 +61,14 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
 async function getTaxConfig(): Promise<Tax> {
     let config = await prisma.tax.findFirst();
     if (!config) {
-        config = { id: 'default', rate: 0, appliedTo: '[]' };
+        // Provide a default structure if no tax config is found
+        config = { id: 'default', name: 'Default Tax', rate: 0, appliedTo: '[]', status: 'ACTIVE' };
     }
-    return config as Tax;
+    return {
+        ...config,
+        appliedTo: config.appliedTo || '[]',
+        name: config.name || 'Default'
+    } as Tax;
 }
 
 
@@ -77,6 +82,7 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} initialTaxConfig={taxConfig} />;
 }
+
 
 
 
