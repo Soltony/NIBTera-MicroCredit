@@ -186,11 +186,11 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
 
 
 interface CreditScoreEngineClientProps {
-    providers: LoanProvider[];
+    initialProviders: LoanProvider[];
     initialScoringParameters: ScoringParameter[];
 }
 
-export function CreditScoreEngineClient({ providers: initialProviders, initialScoringParameters }: CreditScoreEngineClientProps) {
+export function CreditScoreEngineClient({ initialProviders, initialScoringParameters }: CreditScoreEngineClientProps) {
     const [providers, setProviders] = useState(initialProviders);
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
     
@@ -344,59 +344,32 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
 
     const handleSaveAndApply = async () => {
         if (!selectedProviderId) return;
-        
-        const appliedProductIds = Object.entries(selectedProducts)
-            .filter(([, isSelected]) => isSelected)
-            .map(([productId]) => productId);
-
-        if (appliedProductIds.length === 0) {
-            toast({
-                title: 'No Products Selected',
-                description: 'Please select at least one product to apply this configuration to.',
-                variant: 'destructive'
-            });
-            return;
-        }
 
         setIsSaving(true);
         try {
-            // Step 1: Save the rules
-            const rulesResponse = await fetch('/api/scoring-rules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    providerId: selectedProviderId, 
-                    parameters: currentParameters,
-                }),
-            });
-            if (!rulesResponse.ok) throw new Error((await rulesResponse.json()).error || 'Failed to save rules.');
-            const savedParameters = await rulesResponse.json();
-            
-            // Step 2: Save history record
-            const historyResponse = await fetch('/api/scoring-history', {
+            const payload = {
+                original: initialScoringParameters.filter(p => p.providerId === selectedProviderId),
+                updated: currentParameters,
+            };
+            const response = await fetch('/api/settings/pending-changes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    providerId: selectedProviderId,
-                    parameters: savedParameters,
-                    appliedProductIds,
-                })
+                    entityType: 'ScoringRules',
+                    entityId: selectedProviderId,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload)
+                }),
             });
-             if (!historyResponse.ok) throw new Error((await historyResponse.json()).error || 'Failed to save history.');
-            const newHistoryItem = await historyResponse.json();
-            
-            // Update client state
-            setAllParameters(prev => [...prev.filter(p => p.providerId !== selectedProviderId), ...savedParameters]);
-            setScoringHistory(prev => [newHistoryItem, ...prev]);
+            if (!response.ok) throw new Error((await response.json()).error || 'Failed to submit changes for approval.');
             
             toast({
-                title: 'Configuration Saved & Applied',
-                description: `Rules have been applied to ${appliedProductIds.length} product(s).`,
+                title: 'Submitted for Approval',
+                description: `Your new scoring configuration has been submitted for review.`,
             });
-
         } catch (error: any) {
              toast({
-                title: 'Error Saving',
+                title: 'Error Submitting',
                 description: error.message,
                 variant: 'destructive',
             });
@@ -506,7 +479,7 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
                     </div>
                      <Button onClick={handleOpenSaveDialog} style={{ backgroundColor: themeColor }} className="text-white" disabled={isSaving}>
                         {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Configuration
+                        Submit for Approval
                     </Button>
                 </CardHeader>
                 <CardContent>
@@ -629,30 +602,16 @@ export function CreditScoreEngineClient({ providers: initialProviders, initialSc
             <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Apply Configuration to Products</DialogTitle>
+                        <DialogTitle>Submit Scoring Rules for Approval</DialogTitle>
                         <DialogDescription>
-                            Select the loan products you want to apply this new scoring configuration to. This will be saved as a new version in the history.
+                           Your changes to the scoring rules will be submitted for review. Once approved, they will become active.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4 space-y-2">
-                        {currentProvider?.products.map(product => (
-                             <div key={product.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                    id={`product-${product.id}`}
-                                    checked={selectedProducts[product.id] || false}
-                                    onCheckedChange={(checked) =>
-                                        setSelectedProducts(prev => ({...prev, [product.id]: !!checked}))
-                                    }
-                                />
-                                <Label htmlFor={`product-${product.id}`}>{product.name}</Label>
-                            </div>
-                        ))}
-                    </div>
-                    <DialogFooter>
+                    <DialogFooter className="pt-4">
                         <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
                         <Button onClick={handleSaveAndApply} style={{backgroundColor: themeColor}} className="text-white" disabled={isSaving}>
                              {isSaving && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-                             Save and Apply
+                             Submit for Approval
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1268,6 +1227,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

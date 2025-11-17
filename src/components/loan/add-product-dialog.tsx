@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -21,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 interface AddProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' > & {providerId: string}) => void;
+  onAddProduct: (product: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' >) => void;
 }
 
 const icons: { name: string; component: LucideIcon }[] = [
@@ -156,7 +157,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
             <DialogClose asChild>
               <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit">Add Product</Button>
+            <Button type="submit">Submit for Approval</Button>
           </DialogFooter>
         </form>
       </DialogContent>

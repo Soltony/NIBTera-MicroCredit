@@ -1,4 +1,5 @@
 
+
 import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-client';
 import prisma from '@/lib/prisma';
 import type { LoanProvider, ScoringParameter } from '@/lib/types';
@@ -88,5 +89,5 @@ export default async function CreditScoreEnginePage() {
     const providerIds = providers.map(p => p.id);
     const scoringParameters = await getScoringParameters(providerIds);
 
-    return <CreditScoreEngineClient providers={providers} initialScoringParameters={scoringParameters} />;
+    return <CreditScoreEngineClient initialProviders={providers} initialScoringParameters={scoringParameters} />;
 }

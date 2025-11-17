@@ -6,7 +6,9 @@ import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 
 
-// POST a new product
+// POST a new product - This route is no longer used for direct creation.
+// All creations go through the pending changes API.
+// This is kept for potential future direct admin actions but should not be used in the maker-checker flow.
 export async function POST(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
@@ -59,7 +61,8 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// PUT to update a product
+// PUT to update a product - This route is no longer used for direct updates.
+// All updates go through the pending changes API.
 export async function PUT(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
@@ -110,7 +113,8 @@ export async function PUT(req: NextRequest) {
     }
 }
 
-// DELETE a product
+// DELETE a product - This route is no longer used for direct deletions.
+// All deletions go through the pending changes API.
 export async function DELETE(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {

@@ -184,28 +184,46 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         e.preventDefault();
         setIsSaving(true);
         try {
-            const parsedDuration = parseInt(String(formData.duration));
-            const payload: any = {
-                ...formData,
-                minLoan: parseFloat(String(formData.minLoan)) || 0,
-                maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                duration: isNaN(parsedDuration) ? 30 : parsedDuration,
-            };
-
-            const response = await fetch('/api/settings/products', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (!response.ok) {
-                 const errorData = await response.json();
-                 throw new Error(errorData.error || 'Failed to save product settings.');
+            const originalProduct = provider.products.find(p => p.id === product.id);
+            if (!originalProduct) {
+                throw new Error("Original product not found.");
             }
-            const savedProduct = await response.json();
-            onSave(savedProduct); // This will update the parent state with the full saved product
-            toast({ title: "Settings Saved", description: `Settings for ${product.name} have been updated.` });
+            
+            const payload = {
+                original: originalProduct,
+                updated: {
+                    ...formData,
+                    minLoan: parseFloat(String(formData.minLoan)) || 0,
+                    maxLoan: parseFloat(String(formData.maxLoan)) || 0,
+                    duration: parseInt(String(formData.duration)) || 30
+                }
+            };
+            
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    entityId: product.id,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload)
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit changes for approval.');
+            }
+
+            // Update local state to show pending status
+            onUpdate({ status: 'PENDING_APPROVAL' });
+
+            toast({
+                title: 'Submitted for Approval',
+                description: `Your changes to ${product.name} have been submitted for review.`,
+            });
         } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: 'destructive' });
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -240,6 +258,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
                         <h4 className="text-sm font-semibold">{product.name}</h4>
+                        {product.status === 'PENDING_APPROVAL' && <Badge variant="outline">Pending Approval</Badge>}
                     </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                 </button>
@@ -381,9 +400,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
                     <div className="flex items-center space-x-2 justify-end">
                         <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving}>
+                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving || product.status === 'PENDING_APPROVAL'}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes
+                            {product.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Save Changes'}
                         </Button>
                     </div>
                 </form>
@@ -429,45 +448,47 @@ function ProvidersTab({ providers, onProvidersChange }: {
         setIsProviderDialogOpen(true);
     };
 
-    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>>) => {
+    const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string }) => {
         const isEditing = !!providerData.id;
-        const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/api/settings/providers';
-        const body = JSON.stringify(providerData);
-        
         try {
-            const response = await fetch(endpoint, {
-                method,
+            const changeType = isEditing ? 'UPDATE' : 'CREATE';
+            const entityId = isEditing ? providerData.id : undefined;
+
+            let originalProvider = null;
+            if (isEditing && entityId) {
+                originalProvider = providers.find(p => p.id === entityId) || null;
+            }
+
+            const payload = {
+                original: originalProvider,
+                updated: { ...originalProvider, ...providerData },
+                created: !isEditing ? providerData : undefined,
+            };
+
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body,
+                body: JSON.stringify({
+                    entityType: 'LoanProvider',
+                    entityId,
+                    changeType,
+                    payload: JSON.stringify(payload)
+                }),
             });
+
             if (!response.ok) {
                  const errorData = await response.json();
-                 throw new Error(errorData.error?.message || `Failed to ${isEditing ? 'update' : 'add'} provider`);
+                 throw new Error(errorData.error?.message || `Failed to submit provider changes`);
             }
-            
-            const savedProviderResponse = await response.json();
-            
+
             onProvidersChange(produce(draft => {
-                if (isEditing) {
-                    const index = draft.findIndex(p => p.id === savedProviderResponse.id);
-                    if (index !== -1) {
-                        const originalProvider = draft[index];
-                        draft[index] = {
-                            ...originalProvider,
-                            ...savedProviderResponse,
-                        };
-                    }
-                } else {
-                     draft.push({
-                        ...savedProviderResponse,
-                        products: [],
-                        dataProvisioningConfigs: [],
-                    });
+                if (isEditing && entityId) {
+                    const index = draft.findIndex(p => p.id === entityId);
+                    if (index !== -1) draft[index].status = 'PENDING_APPROVAL';
                 }
             }));
 
-            toast({ title: `Provider ${isEditing ? 'Updated' : 'Added'}`, description: `${isEditing ? providerData.name : savedProviderResponse.name} has been successfully saved.` });
+            toast({ title: 'Submitted for Approval', description: `Changes for ${providerData.name} have been submitted for review.` });
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
@@ -482,25 +503,21 @@ function ProvidersTab({ providers, onProvidersChange }: {
         if (!selectedProviderId) return;
 
         try {
-             const response = await fetch('/api/settings/products', {
+             const response = await fetch('/api/settings/pending-changes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...newProductData, providerId: selectedProviderId })
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    changeType: 'CREATE',
+                    payload: JSON.stringify({ created: { ...newProductData, providerId: selectedProviderId } })
+                })
             });
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to add product');
+                throw new Error(errorData.error || 'Failed to submit new product for approval');
             }
-            const newProduct = await response.json();
-
-            onProvidersChange(produce(draft => {
-                const provider = draft.find(p => p.id === selectedProviderId);
-                if (provider) {
-                    if (!provider.products) provider.products = [];
-                    provider.products.push(newProduct);
-                }
-            }));
-            toast({ title: "Product Added", description: `${newProduct.name} has been added successfully.` });
+            // Note: The product is not added to the local state, as it will only appear after approval.
+            toast({ title: "Submitted for Approval", description: `${newProductData.name} has been submitted for review.` });
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
@@ -532,13 +549,30 @@ function ProvidersTab({ providers, onProvidersChange }: {
     
     const handleDeleteProvider = async (providerId: string) => {
         try {
-            const response = await fetch(`/api/settings/providers?id=${providerId}`, { method: 'DELETE' });
+             const providerToDelete = providers.find(p => p.id === providerId);
+             if (!providerToDelete) throw new Error('Provider not found');
+
+            const response = await fetch(`/api/settings/pending-changes`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'LoanProvider',
+                    entityId: providerId,
+                    changeType: 'DELETE',
+                    payload: JSON.stringify({ original: providerToDelete })
+                }),
+            });
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Could not delete provider.');
+                throw new Error(errorData.error || 'Could not submit deletion for approval.');
             }
-            onProvidersChange(prev => prev.filter(p => p.id !== providerId));
-            toast({ title: "Provider Deleted" });
+            
+            onProvidersChange(produce(draft => {
+                const index = draft.findIndex(p => p.id === providerId);
+                if (index !== -1) draft[index].status = 'PENDING_APPROVAL';
+            }));
+
+            toast({ title: "Deletion Submitted", description: 'Provider deletion is pending approval.' });
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
@@ -546,22 +580,33 @@ function ProvidersTab({ providers, onProvidersChange }: {
     
     const handleDeleteProduct = async (providerId: string, productId: string) => {
         try {
-             const response = await fetch('/api/settings/products', {
-                method: 'DELETE',
+            const provider = providers.find(p => p.id === providerId);
+            const productToDelete = provider?.products.find(p => p.id === productId);
+            if (!productToDelete) throw new Error("Product not found");
+
+             const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: productId }),
+                body: JSON.stringify({ 
+                    entityType: 'LoanProduct',
+                    entityId: productId,
+                    changeType: 'DELETE',
+                    payload: JSON.stringify({ original: productToDelete })
+                 }),
              });
              if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Could not delete product.');
+                throw new Error(errorData.error || 'Could not submit product deletion for approval.');
             }
+            
              onProvidersChange(produce(draft => {
                 const provider = draft.find(p => p.id === providerId);
                 if (provider) {
-                    provider.products = provider.products.filter(p => p.id !== productId);
+                    const product = provider.products.find(p => p.id === productId);
+                    if (product) product.status = 'PENDING_APPROVAL';
                 }
             }));
-            toast({ title: "Product Deleted" });
+            toast({ title: "Deletion Submitted", description: "Product deletion is pending approval." });
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
@@ -594,7 +639,10 @@ function ProvidersTab({ providers, onProvidersChange }: {
                   <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                   <div>
                     <div className="text-lg font-semibold">{provider.name}</div>
-                    <p className="text-sm text-muted-foreground">{(provider.products || []).length} products</p>
+                    <p className="text-sm text-muted-foreground">
+                        {(provider.products || []).length} products
+                        {provider.status === 'PENDING_APPROVAL' && <Badge variant="outline" className="ml-2">Pending Approval</Badge>}
+                    </p>
                   </div>
                 </div>
               </AccordionTrigger>
@@ -659,12 +707,12 @@ function ProvidersTab({ providers, onProvidersChange }: {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the selected item. If it has associated data (like products or loans), this action might be blocked.
+              This action will submit a request to delete the selected item. This cannot be undone once approved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Submit for Deletion</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

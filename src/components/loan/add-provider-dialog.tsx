@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -251,7 +252,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">{provider ? 'Save Changes' : 'Add Provider'}</Button>
+            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">{provider ? 'Submit for Approval' : 'Add Provider'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
