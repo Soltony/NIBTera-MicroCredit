@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,7 +22,7 @@ async function applyChange(change: any) {
   switch (entityType) {
     case 'LoanProvider':
         if (changeType === 'UPDATE') {
-            const { products, dataProvisioningConfigs, ...providerData } = data.updated;
+            const { id, products, dataProvisioningConfigs, ...providerData } = data.updated;
             await prisma.loanProvider.update({
                 where: { id: entityId },
                 data: { ...providerData, status: 'ACTIVE' }
@@ -39,8 +40,16 @@ async function applyChange(change: any) {
                 data: { ...data.updated, status: 'ACTIVE' }
             });
         } else if (changeType === 'CREATE') {
+            const productToCreate = {
+                ...data.created,
+                status: 'ACTIVE',
+                // Ensure fee/penalty fields have default JSON values if they don't exist
+                serviceFee: JSON.stringify(data.created.serviceFee || { type: 'percentage', value: 0 }),
+                dailyFee: JSON.stringify(data.created.dailyFee || { type: 'percentage', value: 0, calculationBase: 'principal' }),
+                penaltyRules: JSON.stringify(data.created.penaltyRules || []),
+            };
             await prisma.loanProduct.create({
-                data: { ...data.created, status: 'ACTIVE' }
+                data: productToCreate
             });
         } else if (changeType === 'DELETE') {
             await prisma.loanProduct.delete({ where: { id: entityId } });
