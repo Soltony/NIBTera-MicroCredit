@@ -129,11 +129,6 @@ export function ApprovalsClient({
     }
   };
 
-  const filteredChanges = useMemo(() => {
-    // A user cannot approve their own changes
-    return changes.filter(c => c.createdById !== currentUser.id);
-  }, [changes, currentUser.id]);
-
   return (
     <>
       <div className="flex-1 space-y-4 p-8 pt-6">
@@ -161,8 +156,8 @@ export function ApprovalsClient({
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
-                ) : filteredChanges.length > 0 ? (
-                  filteredChanges.map(change => (
+                ) : changes.length > 0 ? (
+                  changes.map(change => (
                     <TableRow key={change.id}>
                       <TableCell className="font-medium">{change.entityType}</TableCell>
                       <TableCell>
@@ -178,7 +173,7 @@ export function ApprovalsClient({
                           variant="outline"
                           size="sm"
                           onClick={() => handleProcessChange(change.id, true)}
-                          disabled={processingId === change.id}
+                          disabled={processingId === change.id || change.createdById === currentUser.id}
                           className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
                         >
                           {processingId === change.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -187,7 +182,7 @@ export function ApprovalsClient({
                           variant="outline"
                           size="sm"
                           onClick={() => setChangeToReject(change)}
-                          disabled={processingId === change.id}
+                          disabled={processingId === change.id || change.createdById === currentUser.id}
                            className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
                         >
                           <X className="h-4 w-4" />
