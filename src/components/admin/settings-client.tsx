@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -639,10 +638,10 @@ function ProvidersTab({ providers, onProvidersChange }: {
                   <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                   <div>
                     <div className="text-lg font-semibold">{provider.name}</div>
-                    <p className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground flex items-center">
                         {(provider.products || []).length} products
                         {provider.status === 'PENDING_APPROVAL' && <Badge variant="outline" className="ml-2">Pending Approval</Badge>}
-                    </p>
+                    </div>
                   </div>
                 </div>
               </AccordionTrigger>
