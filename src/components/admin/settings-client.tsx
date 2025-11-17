@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -675,15 +676,17 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
                   />
                 ))}
-                <Button 
-                  variant="outline" 
-                  className="w-full hover:text-white"
-                  onClick={() => handleOpenAddProductDialog(provider.id)}
-                  onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
-                  onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
-                </Button>
+                {currentUser?.permissions?.['products']?.create && (
+                    <Button 
+                    variant="outline" 
+                    className="w-full hover:text-white"
+                    onClick={() => handleOpenAddProductDialog(provider.id)}
+                    onMouseOver={(e) => { e.currentTarget.style.backgroundColor = provider.colorHex || themeColor; }}
+                    onMouseOut={(e) => { e.currentTarget.style.backgroundColor = ''; }}
+                    >
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+                    </Button>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>
