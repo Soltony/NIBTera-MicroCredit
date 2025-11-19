@@ -112,7 +112,6 @@ async function applyChange(change: any) {
             await prisma.loanProduct.delete({ where: { id: entityId } });
         }
       break;
-    // ... other cases remain the same
     case 'ScoringRules':
       await prisma.$transaction(async (tx) => {
         await tx.scoringParameter.deleteMany({ where: { providerId: entityId } });
