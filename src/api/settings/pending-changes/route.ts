@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    console.log('[API][pending-changes] Received request to create pending change:', JSON.stringify(body, null, 2));
+    console.log('[API][pending-changes] Received request to create pending change:', JSON.stringify({ body: body, timestamp: new Date().toISOString() }));
 
     const { entityType, entityId, changeType, payload } = changeSchema.parse(body);
 

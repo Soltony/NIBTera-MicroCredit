@@ -44,7 +44,7 @@ async function applyChange(change: any) {
         console.log(`[applyChange] Handling LoanProvider change of type: ${changeType}`);
         if (changeType === 'UPDATE') {
             const { id, products, dataProvisioningConfigs, ...providerData } = data.updated;
-            console.log(`[applyChange] Updating LoanProvider ${entityId} with data:`, providerData);
+            console.log(`[applyChange] Updating LoanProvider ${entityId} with data:`, JSON.stringify(providerData, null, 2));
             await prisma.loanProvider.update({
                 where: { id: entityId },
                 data: { ...providerData, status: 'ACTIVE' }
@@ -54,15 +54,16 @@ async function applyChange(change: any) {
             console.log('[applyChange] Starting CREATE LoanProvider transaction...');
              await prisma.$transaction(async (tx) => {
                 const { startingCapital, ...restOfBody } = data.created;
-                console.log('[applyChange] Provider data for creation:', { ...restOfBody, startingCapital, initialBalance: startingCapital });
+                const providerCreationData = {
+                    ...restOfBody,
+                    startingCapital: startingCapital,
+                    initialBalance: startingCapital,
+                    status: 'ACTIVE',
+                };
+                console.log('[applyChange] Provider data for creation:', JSON.stringify(providerCreationData, null, 2));
                 
                 const newProvider = await tx.loanProvider.create({
-                    data: {
-                        ...restOfBody,
-                        startingCapital: startingCapital,
-                        initialBalance: startingCapital,
-                        status: 'ACTIVE',
-                    },
+                    data: providerCreationData,
                 });
                 console.log(`[applyChange] Created new provider with ID: ${newProvider.id}`);
 
@@ -102,7 +103,7 @@ async function applyChange(change: any) {
                 dailyFee: JSON.stringify(data.created.dailyFee || { type: 'percentage', value: 0, calculationBase: 'principal' }),
                 penaltyRules: JSON.stringify(data.created.penaltyRules || []),
             };
-            console.log('[applyChange] Creating new LoanProduct with data:', productToCreate);
+            console.log('[applyChange] Creating new LoanProduct with data:', JSON.stringify(productToCreate, null, 2));
             await prisma.loanProduct.create({
                 data: productToCreate
             });
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    console.log('[API][approvals] Received approval request:', body);
+    console.log('[API][approvals] Received approval request:', JSON.stringify({ body: body, timestamp: new Date().toISOString() }));
 
     const { changeId, approved, rejectionReason } = approvalSchema.parse(body);
 
@@ -261,5 +262,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
-
-    
