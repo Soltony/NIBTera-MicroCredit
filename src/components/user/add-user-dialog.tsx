@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User, UserRole, UserStatus, Role, LoanProvider } from '@/lib/types';
-import { useAuth } from '@/hooks/use-auth';
 
 interface AddUserDialogProps {
   isOpen: boolean;
@@ -29,7 +28,6 @@ interface AddUserDialogProps {
 }
 
 export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers, primaryColor = '#fdb913' }: AddUserDialogProps) {
-  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -40,16 +38,8 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     providerId: '' as string | null,
   });
 
-  const availableRoles = React.useMemo(() => {
-    if (currentUser?.role === 'Super Admin') {
-      return roles;
-    }
-    // Provider admin can see global roles and roles for their own provider
-    return roles.filter(r => !r.providerId || r.providerId === currentUser?.providerId);
-  }, [roles, currentUser]);
-
   useEffect(() => {
-    const defaultRole = availableRoles.length > 0 ? availableRoles[0].name : '';
+    const defaultRole = roles.length > 0 ? roles[0].name : '';
     const defaultProvider = providers.length > 0 ? providers[0] : null;
 
     if (user) {
@@ -70,10 +60,10 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         password: '',
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
-        providerId: currentUser?.role !== 'Super Admin' ? currentUser?.providerId || null : null,
+        providerId: defaultProvider ? defaultProvider.id : null,
       });
     }
-  }, [user, isOpen, providers, roles, availableRoles, currentUser]);
+  }, [user, isOpen, providers, roles]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -81,47 +71,24 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   };
 
   const handleSelectChange = (field: 'role' | 'status' | 'providerId') => (value: string) => {
-    const newRoleName = field === 'role' ? (value as UserRole) : formData.role;
-    const selectedRole = roles.find(r => r.name === newRoleName);
-    
-    setFormData(prev => {
-        const updatedState = { ...prev, [field]: value };
-        
-        // If a role is selected, check if it's provider-specific
-        if (field === 'role') {
-            if (selectedRole?.providerId) {
-                updatedState.providerId = selectedRole.providerId;
-            } else if (currentUser?.role !== 'Super Admin') {
-                updatedState.providerId = currentUser?.providerId || null;
-            } else {
-                // If a super admin selects a global role, don't force a provider
-                 if (!selectedRole?.providerId) {
-                    updatedState.providerId = null;
-                 }
-            }
-        }
-        
-        return updatedState;
-    });
-};
+    setFormData((prev) => ({ ...prev, [field]: value === 'none' ? null : value }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { 
+    if (!user) { // Only require password for new users
         if (!submissionData.password) {
             alert('Password is required for new users.');
             return;
         }
     } else {
-        delete submissionData.password; 
+        delete submissionData.password; // Don't send empty password on edit
     }
     
     onSave(submissionData);
     onClose();
   };
-  
-  const selectedRoleIsProviderScoped = roles.find(r => r.name === formData.role)?.providerId;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -168,7 +135,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {availableRoles.map(role => (
+                {roles.map(role => (
                     <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -179,11 +146,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
                 <Label htmlFor="providerId" className="text-right">
                     Provider
                 </Label>
-                <Select
-                    onValueChange={handleSelectChange('providerId')}
-                    value={formData.providerId || 'none'}
-                    disabled={currentUser?.role !== 'Super Admin'}
-                >
+                <Select onValueChange={handleSelectChange('providerId')} value={formData.providerId || 'none'}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a provider" />
                     </SelectTrigger>
@@ -225,5 +188,3 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     </Dialog>
   );
 }
-
-    

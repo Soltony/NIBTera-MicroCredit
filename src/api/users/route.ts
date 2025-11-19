@@ -5,7 +5,6 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
-import { getUserFromSession } from '@/lib/user';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -55,34 +54,21 @@ export async function POST(req: NextRequest) {
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
   try {
-    const currentUser = await getUserFromSession();
+
     const body = await req.json();
     const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
 
     const logDetails = { userEmail: userData.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_INITIATED', entity: 'USER', details: logDetails, ipAddress, userAgent });
+    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_INITIATED', actorId: session.userId }));
 
     if (!password) {
       throw new Error('Password is required for new users.');
     }
-    
-    // Determine the provider context for finding the role.
-    const isSuperAdmin = currentUser?.role === 'Super Admin';
-    
-    // A Super Admin can assign a global role (providerId from body is null) or a role for the specified provider.
-    // A provider admin can assign a global role or a role for their own provider.
-    const role = await prisma.role.findFirst({
-      where: {
-        name: roleName,
-        OR: [
-          { providerId: null }, // Global roles
-          { providerId: isSuperAdmin ? providerId : currentUser?.providerId }, // Provider-specific roles
-        ],
-      }
-    });
 
+    const role = await prisma.role.findUnique({ where: { name: roleName }});
     if (!role) {
-      throw new Error(`Role "${roleName}" not found for this provider context.`);
+      throw new Error('Invalid role selected.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -93,7 +79,6 @@ export async function POST(req: NextRequest) {
         roleId: role.id,
     };
     
-    // Assign providerId to the user if the role requires it and it's provided
     if (providerId) {
         dataToCreate.loanProviderId = providerId;
     }
@@ -104,6 +89,7 @@ export async function POST(req: NextRequest) {
     
     const successLogDetails = { createdUserId: newUser.id, createdUserEmail: newUser.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_SUCCESS', entity: 'USER', entityId: newUser.id, details: successLogDetails, ipAddress, userAgent });
+    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_SUCCESS', actorId: session.userId }));
 
 
     return NextResponse.json(newUser, { status: 201 });
@@ -111,6 +97,7 @@ export async function POST(req: NextRequest) {
      const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
      const failureLogDetails = { error: errorMessage };
      await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
+     console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_FAILED', actorId: session.userId }));
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
@@ -126,7 +113,7 @@ export async function PUT(req: NextRequest) {
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
   try {
-    const currentUser = await getUserFromSession();
+
     const body = await req.json();
     const { id, role: roleName, providerId, ...userData } = body;
 
@@ -136,25 +123,14 @@ export async function PUT(req: NextRequest) {
 
     const logDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_INITIATED', entity: 'USER', entityId: id, details: logDetails, ipAddress, userAgent });
+    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_INITIATED', actorId: session.userId }));
 
     let dataToUpdate: any = { ...userData };
 
     if (roleName) {
-        const isSuperAdmin = currentUser?.role === 'Super Admin';
-        const contextProviderId = isSuperAdmin ? providerId : currentUser?.providerId;
-
-        const role = await prisma.role.findFirst({ 
-            where: {
-                name: roleName,
-                OR: [
-                    { providerId: null },
-                    { providerId: contextProviderId }
-                ]
-            }
-        });
-
+        const role = await prisma.role.findUnique({ where: { name: roleName }});
         if (!role) {
-            throw new Error(`Role "${roleName}" not found for this provider context.`);
+            throw new Error('Invalid role selected.');
         }
         dataToUpdate.roleId = role.id;
     }
@@ -174,12 +150,14 @@ export async function PUT(req: NextRequest) {
     
     const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_SUCCESS', entity: 'USER', entityId: id, details: successLogDetails, ipAddress, userAgent });
+    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_SUCCESS', actorId: session.userId }));
 
     return NextResponse.json(updatedUser);
   } catch (error) {
     const errorMessage = (error as Error).message;
     const failureLogDetails = { error: errorMessage };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
+    console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_FAILED', actorId: session.userId }));
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
