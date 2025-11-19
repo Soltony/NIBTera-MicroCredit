@@ -24,7 +24,7 @@ model User {
   roleId              String
   role                Role             @relation(fields: [roleId], references: [id])
   loanProviderId      String?
-  loanProvider        LoanProvider?    @relation(fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loanProvider        LoanProvider?    @relation("UserToProvider", fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdChanges      PendingChange[]  @relation("CreatedBy")
   approvedChanges     PendingChange[]  @relation("ApprovedBy")
   createdAt           DateTime         @default(now())
@@ -33,9 +33,13 @@ model User {
 
 model Role {
   id          String @id @default(cuid())
-  name        String @unique
+  name        String
   permissions String // JSON string for permissions
   users       User[]
+  providerId  String?
+  provider    LoanProvider? @relation("ProviderRoles", fields: [providerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([name, providerId])
 }
 
 // --------------------------------------
@@ -58,7 +62,8 @@ model LoanProvider {
   scoringParameters           ScoringParameter[]
   scoringHistory              ScoringConfigurationHistory[]
   dataProvisioningConfigs     DataProvisioningConfig[]
-  users                       User[]
+  users                       User[]                        @relation("UserToProvider")
+  roles                       Role[]                        @relation("ProviderRoles")
   ledgerAccounts              LedgerAccount[]
   journalEntries              JournalEntry[]
   termsAndConditions          TermsAndConditions[]

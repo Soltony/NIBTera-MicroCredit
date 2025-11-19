@@ -225,7 +225,7 @@ function UsersTab() {
 }
 
 function RolesTab() {
-    const [roles, setRoles] = useState<Role[]>([]);
+    const [roles, setRoles] = useState<(Role & { providerName?: string })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [providers, setProviders] = useState<LoanProvider[]>([]);
     const { currentUser } = useAuth();
@@ -252,7 +252,15 @@ function RolesTab() {
             if (!providersResponse.ok) throw new Error('Failed to fetch providers');
             const rolesData = await rolesResponse.json();
             const providersData = await providersResponse.json();
-            setRoles(rolesData);
+            
+            const providerMap = new Map(providersData.map((p: LoanProvider) => [p.id, p.name]));
+
+            const enrichedRoles = rolesData.map((role: Role) => ({
+                ...role,
+                providerName: role.providerId ? providerMap.get(role.providerId) : 'Global'
+            }));
+
+            setRoles(enrichedRoles);
             setProviders(providersData);
         } catch (error) {
             toast({
@@ -362,9 +370,8 @@ function RolesTab() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[150px]">Role Name</TableHead>
-                                {PERMISSION_MODULES.map(module => (
-                                    <TableHead key={module} className="text-center capitalize">{module.replace(/-/g, ' ')}</TableHead>
-                                ))}
+                                <TableHead>Scope</TableHead>
+                                <TableHead className="text-center">Permissions Summary</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -372,16 +379,17 @@ function RolesTab() {
                             {roles.map((role) => (
                                 <TableRow key={role.id}>
                                     <TableCell className="font-medium">{role.name}</TableCell>
-                                    {PERMISSION_MODULES.map(module => (
-                                        <TableCell key={module} className="text-center">
-                                            <div className="flex justify-center items-center space-x-2">
-                                                <span title="Create" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.create ? 'text-green-500' : 'text-muted-foreground/30')}>C</span>
-                                                <span title="Read" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.read ? 'text-green-500' : 'text-muted-foreground/30')}>R</span>
-                                                <span title="Update" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.update ? 'text-green-500' : 'text-muted-foreground/30')}>U</span>
-                                                <span title="Delete" className={cn((role.permissions as Permissions)[module.toLowerCase()]?.delete ? 'text-green-500' : 'text-muted-foreground/30')}>D</span>
-                                            </div>
-                                        </TableCell>
-                                    ))}
+                                    <TableCell>{role.providerName}</TableCell>
+                                    <TableCell className="text-center text-xs text-muted-foreground">
+                                        {PERMISSION_MODULES.map(module => (
+                                            <span key={module} title={module.replace(/-/g, ' ')} className="inline-block mx-1">
+                                                <span className={cn('font-bold', (role.permissions as Permissions)[module.toLowerCase()]?.create ? 'text-green-500' : 'text-muted-foreground/30')}>C</span>
+                                                <span className={cn('font-bold', (role.permissions as Permissions)[module.toLowerCase()]?.read ? 'text-green-500' : 'text-muted-foreground/30')}>R</span>
+                                                <span className={cn('font-bold', (role.permissions as Permissions)[module.toLowerCase()]?.update ? 'text-green-500' : 'text-muted-foreground/30')}>U</span>
+                                                <span className={cn('font-bold', (role.permissions as Permissions)[module.toLowerCase()]?.delete ? 'text-green-500' : 'text-muted-foreground/30')}>D</span>
+                                            </span>
+                                        ))}
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -408,6 +416,7 @@ function RolesTab() {
                 onClose={handleCloseDialog}
                 onSave={handleSaveRole}
                 role={editingRole}
+                providers={providers}
                 primaryColor={themeColor}
             />
             <AlertDialog open={!!deletingRoleId} onOpenChange={(isOpen) => !isOpen && setDeletingRoleId(null)}>

@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import { getUserFromSession } from '@/lib/user';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -54,21 +55,30 @@ export async function POST(req: NextRequest) {
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
   try {
-
+    const currentUser = await getUserFromSession();
     const body = await req.json();
     const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
 
     const logDetails = { userEmail: userData.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_INITIATED', entity: 'USER', details: logDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_INITIATED', actorId: session.userId }));
 
     if (!password) {
       throw new Error('Password is required for new users.');
     }
+    
+    // Determine the providerId for the role lookup.
+    // Super Admins can assign roles from any provider, others are restricted.
+    const roleProviderId = currentUser?.role === 'Super Admin' ? providerId : currentUser?.providerId;
 
-    const role = await prisma.role.findUnique({ where: { name: roleName }});
+    const role = await prisma.role.findFirst({ 
+        where: { 
+            name: roleName,
+            providerId: roleProviderId || null
+        }
+    });
+
     if (!role) {
-      throw new Error('Invalid role selected.');
+      throw new Error('Invalid role selected for this provider context.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -79,6 +89,7 @@ export async function POST(req: NextRequest) {
         roleId: role.id,
     };
     
+    // Assign providerId to the user if the role requires it and it's provided
     if (providerId) {
         dataToCreate.loanProviderId = providerId;
     }
@@ -89,7 +100,6 @@ export async function POST(req: NextRequest) {
     
     const successLogDetails = { createdUserId: newUser.id, createdUserEmail: newUser.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_SUCCESS', entity: 'USER', entityId: newUser.id, details: successLogDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_SUCCESS', actorId: session.userId }));
 
 
     return NextResponse.json(newUser, { status: 201 });
@@ -97,7 +107,6 @@ export async function POST(req: NextRequest) {
      const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
      const failureLogDetails = { error: errorMessage };
      await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
-     console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_FAILED', actorId: session.userId }));
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
@@ -123,14 +132,25 @@ export async function PUT(req: NextRequest) {
 
     const logDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_INITIATED', entity: 'USER', entityId: id, details: logDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_INITIATED', actorId: session.userId }));
 
     let dataToUpdate: any = { ...userData };
 
     if (roleName) {
-        const role = await prisma.role.findUnique({ where: { name: roleName }});
+        // Find the role based on its name and potential provider association
+        const userToUpdate = await prisma.user.findUnique({ where: { id }});
+        const roleProviderId = userToUpdate?.loanProviderId;
+
+        const role = await prisma.role.findFirst({ 
+            where: {
+                name: roleName,
+                // A bit tricky: if the user belongs to a provider, look for provider-specific roles first.
+                // This logic might need refinement based on exact business rules.
+                providerId: roleProviderId || null
+            }
+        });
+
         if (!role) {
-            throw new Error('Invalid role selected.');
+            throw new Error('Invalid role selected for this context.');
         }
         dataToUpdate.roleId = role.id;
     }
@@ -150,14 +170,12 @@ export async function PUT(req: NextRequest) {
     
     const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_SUCCESS', entity: 'USER', entityId: id, details: successLogDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_SUCCESS', actorId: session.userId }));
 
     return NextResponse.json(updatedUser);
   } catch (error) {
     const errorMessage = (error as Error).message;
     const failureLogDetails = { error: errorMessage };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
-    console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_FAILED', actorId: session.userId }));
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
