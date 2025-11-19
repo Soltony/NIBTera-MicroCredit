@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
@@ -36,11 +37,12 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
+        console.log('[API][settings/providers] Received POST request with body:', body);
         const { startingCapital, ...restOfBody } = body;
         
         const logDetails = { providerName: restOfBody.name };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_INITIATED', entity: 'PROVIDER', details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, action: 'PROVIDER_CREATE_INITIATED', actorId: session.userId }));
+        console.log('[API][settings/providers] Creating provider with data:', { ...logDetails, action: 'PROVIDER_CREATE_INITIATED', actorId: session.userId });
 
         // Use a transaction to create the provider and its ledger accounts
         const newProvider = await prisma.$transaction(async (tx) => {
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
                     initialBalance: startingCapital, // Both start with the same value
                 },
             });
+            console.log(`[API][settings/providers] Created provider ${provider.id} inside transaction.`);
 
             const accountsToCreate = defaultLedgerAccounts.map(acc => ({
                 ...acc,
@@ -60,20 +63,21 @@ export async function POST(req: NextRequest) {
             await tx.ledgerAccount.createMany({
                 data: accountsToCreate,
             });
+            console.log(`[API][settings/providers] Created ${accountsToCreate.length} ledger accounts for provider ${provider.id}.`);
 
             return provider;
         });
 
         const successLogDetails = { providerId: newProvider.id, providerName: newProvider.name };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_SUCCESS', entity: 'PROVIDER', entityId: newProvider.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, action: 'PROVIDER_CREATE_SUCCESS', actorId: session.userId }));
+        console.log('[API][settings/providers] Provider creation successful:', { ...successLogDetails, action: 'PROVIDER_CREATE_SUCCESS', actorId: session.userId });
 
         return NextResponse.json(newProvider, { status: 201 });
     } catch (error) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_FAILED', entity: 'PROVIDER', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, action: 'PROVIDER_CREATE_FAILED', actorId: session.userId }));
+        console.error('[API][settings/providers] Provider creation failed:', { ...failureLogDetails, action: 'PROVIDER_CREATE_FAILED', actorId: session.userId });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -88,6 +92,7 @@ export async function PUT(req: NextRequest) {
 
     try {
         const body = await req.json();
+        console.log('[API][settings/providers] Received PUT request with body:', body);
         const { id, ...dataToUpdate } = body;
         
         if (!id) {
@@ -96,13 +101,11 @@ export async function PUT(req: NextRequest) {
         
         const logDetails = { providerId: id, updatedFields: Object.keys(dataToUpdate) };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, action: 'PROVIDER_UPDATE_INITIATED', actorId: session.userId }));
+        console.log('[API][settings/providers] Updating provider with data:', { ...logDetails, action: 'PROVIDER_UPDATE_INITIATED', actorId: session.userId });
 
-        // Do not allow startingCapital to be changed on update
         if ('startingCapital' in dataToUpdate) {
             delete dataToUpdate.startingCapital;
         }
-
 
         const updatedProvider = await prisma.loanProvider.update({
             where: { id },
@@ -111,14 +114,14 @@ export async function PUT(req: NextRequest) {
 
         const successLogDetails = { providerId: updatedProvider.id, updatedFields: Object.keys(dataToUpdate) };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_SUCCESS', entity: 'PROVIDER', entityId: updatedProvider.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, action: 'PROVIDER_UPDATE_SUCCESS', actorId: session.userId }));
+        console.log('[API][settings/providers] Provider update successful:', { ...successLogDetails, action: 'PROVIDER_UPDATE_SUCCESS', actorId: session.userId });
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_FAILED', entity: 'PROVIDER', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, action: 'PROVIDER_UPDATE_FAILED', actorId: session.userId }));
+        console.error('[API][settings/providers] Provider update failed:', { ...failureLogDetails, action: 'PROVIDER_UPDATE_FAILED', actorId: session.userId });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -138,10 +141,11 @@ export async function DELETE(req: NextRequest) {
         if (!id) {
             throw new Error('Provider ID is required');
         }
+        console.log(`[API][settings/providers] Received DELETE request for provider ID: ${id}`);
 
         const logDetails = { providerId: id };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, action: 'PROVIDER_DELETE_INITIATED', actorId: session.userId }));
+        console.log('[API][settings/providers] Initiating provider deletion:', { ...logDetails, action: 'PROVIDER_DELETE_INITIATED', actorId: session.userId });
         
         const productCount = await prisma.loanProduct.count({ where: { providerId: id } });
         if (productCount > 0) {
@@ -156,14 +160,14 @@ export async function DELETE(req: NextRequest) {
 
         const successLogDetails = { deletedProviderId: id, deletedProviderName: providerToDelete?.name };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_SUCCESS', entity: 'PROVIDER', entityId: id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, action: 'PROVIDER_DELETE_SUCCESS', actorId: session.userId }));
+        console.log('[API][settings/providers] Provider deletion successful:', { ...successLogDetails, action: 'PROVIDER_DELETE_SUCCESS', actorId: session.userId });
 
         return NextResponse.json({ message: 'Provider deleted successfully' });
     } catch (error) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { providerId: id, error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_FAILED', entity: 'PROVIDER', entityId: id || undefined, details: failureLogDetails, ipAddress, userAgent });
-         console.error(JSON.stringify({ ...failureLogDetails, action: 'PROVIDER_DELETE_FAILED', actorId: session.userId }));
+         console.error('[API][settings/providers] Provider deletion failed:', { ...failureLogDetails, action: 'PROVIDER_DELETE_FAILED', actorId: session.userId });
         return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }
