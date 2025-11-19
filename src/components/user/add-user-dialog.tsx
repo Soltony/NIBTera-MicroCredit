@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User, UserRole, UserStatus, Role, LoanProvider } from '@/lib/types';
+import { useAuth } from '@/hooks/use-auth';
 
 interface AddUserDialogProps {
   isOpen: boolean;
@@ -28,18 +29,27 @@ interface AddUserDialogProps {
 }
 
 export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers, primaryColor = '#fdb913' }: AddUserDialogProps) {
+  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phoneNumber: '',
     password: '',
-    role: 'Loan Provider' as UserRole,
+    role: '' as UserRole | '',
     status: 'Active' as UserStatus,
     providerId: '' as string | null,
   });
 
+  const availableRoles = React.useMemo(() => {
+    if (currentUser?.role === 'Super Admin') {
+      return roles;
+    }
+    // Provider admin can see global roles and roles for their own provider
+    return roles.filter(r => !r.providerId || r.providerId === currentUser?.providerId);
+  }, [roles, currentUser]);
+
   useEffect(() => {
-    const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
+    const defaultRole = availableRoles.length > 0 ? availableRoles[0].name : '';
     const defaultProvider = providers.length > 0 ? providers[0] : null;
 
     if (user) {
@@ -60,10 +70,10 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         password: '',
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
-        providerId: defaultProvider?.id || null,
+        providerId: currentUser?.role !== 'Super Admin' ? currentUser?.providerId || null : null,
       });
     }
-  }, [user, isOpen, providers, roles]);
+  }, [user, isOpen, providers, roles, availableRoles, currentUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -71,26 +81,29 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   };
 
   const handleSelectChange = (field: 'role' | 'status' | 'providerId') => (value: string) => {
-    const newRole = field === 'role' ? (value as UserRole) : formData.role;
-    const isProviderSpecificRole = newRole === 'Loan Provider' || newRole === 'Loan Manager';
+    const newRoleName = field === 'role' ? (value as UserRole) : formData.role;
+    const selectedRole = roles.find(r => r.name === newRoleName);
     
     setFormData(prev => {
         const updatedState = { ...prev, [field]: value };
         
+        // If a role is selected, check if it's provider-specific
         if (field === 'role') {
-            if (!isProviderSpecificRole) {
-                updatedState.providerId = null;
+            if (selectedRole?.providerId) {
+                updatedState.providerId = selectedRole.providerId;
+            } else if (currentUser?.role !== 'Super Admin') {
+                updatedState.providerId = currentUser?.providerId || null;
             } else {
-                if (!prev.providerId && providers.length > 0) {
-                    updatedState.providerId = providers[0].id;
-                }
+                // If a super admin selects a global role, don't force a provider
+                 if (!selectedRole?.providerId) {
+                    updatedState.providerId = null;
+                 }
             }
         }
         
         return updatedState;
     });
 };
-
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,22 +117,11 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         delete submissionData.password; 
     }
     
-    if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
-        submissionData.providerId = null;
-    } else if (!submissionData.providerId) {
-        if (providers.length > 0) {
-            submissionData.providerId = providers[0].id;
-        } else {
-            alert('A loan provider must be selected for this role.');
-            return;
-        }
-    }
-
     onSave(submissionData);
     onClose();
   };
   
-  const isProviderRole = formData.role === 'Loan Provider' || formData.role === 'Loan Manager';
+  const selectedRoleIsProviderScoped = roles.find(r => r.name === formData.role)?.providerId;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -166,29 +168,34 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map(role => (
+                {availableRoles.map(role => (
                     <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {isProviderRole && (
-             <div className="grid grid-cols-4 items-center gap-4">
+          
+           <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="providerId" className="text-right">
                     Provider
                 </Label>
-                <Select onValueChange={handleSelectChange('providerId')} value={formData.providerId || ''}>
+                <Select
+                    onValueChange={handleSelectChange('providerId')}
+                    value={formData.providerId || 'none'}
+                    disabled={currentUser?.role !== 'Super Admin'}
+                >
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a provider" />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="none">N/A</SelectItem>
                         {providers.map(provider => (
                             <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-             </div>
-          )}
+            </div>
+          
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="status" className="text-right">
               Status
@@ -218,3 +225,5 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     </Dialog>
   );
 }
+
+    

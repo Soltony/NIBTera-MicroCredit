@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
+import { getUserFromSession } from '@/lib/user';
 
 const permissionsSchema = z.record(z.string(), z.object({
   create: z.boolean(),
@@ -15,14 +16,29 @@ const permissionsSchema = z.record(z.string(), z.object({
 const roleSchema = z.object({
   name: z.string().min(1, 'Role name is required'),
   permissions: permissionsSchema,
+  providerId: z.string().nullable().optional(),
 });
 
 
 export async function GET() {
+  const user = await getUserFromSession();
   try {
+    const whereClause: any = {};
+    if (user?.role !== 'Super Admin' && user?.providerId) {
+        // Provider admins see their own roles and global roles
+        whereClause.OR = [
+            { providerId: user.providerId },
+            { providerId: null }
+        ];
+    }
+    
     const roles = await prisma.role.findMany({
+        where: whereClause,
         orderBy: {
             name: 'asc'
+        },
+        include: {
+            provider: true,
         }
     });
     
@@ -49,29 +65,31 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { name, permissions } = roleSchema.parse(body);
+        const { name, permissions, providerId } = roleSchema.parse(body);
         
-        const logDetails = { roleName: name };
+        const logDetails = { roleName: name, providerId };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_CREATE_INITIATED', entity: 'ROLE', details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'ROLE_CREATE_INITIATED', actorId: session.userId }));
 
         const newRole = await prisma.role.create({
             data: {
                 name,
                 permissions: JSON.stringify(permissions),
+                providerId: providerId || null,
             },
         });
         
         const successLogDetails = { roleId: newRole.id, roleName: newRole.name };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_CREATE_SUCCESS', entity: 'ROLE', entityId: newRole.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'ROLE_CREATE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json({ ...newRole, permissions }, { status: 201 });
     } catch (error) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
         const failureLogDetails = { error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_CREATE_FAILED', entity: 'ROLE', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'ROLE_CREATE_FAILED', actorId: session.userId }));
+        
+        if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+             return NextResponse.json({ error: 'A role with this name already exists for this provider or globally.' }, { status: 409 });
+        }
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
@@ -88,23 +106,22 @@ export async function PUT(req: NextRequest) {
     const userAgent = req.headers.get('user-agent') || 'N/A';
     try {
         const body = await req.json();
-        const { id, name, permissions } = roleSchema.extend({ id: z.string() }).parse(body);
+        const { id, name, permissions, providerId } = roleSchema.extend({ id: z.string() }).parse(body);
 
-        const logDetails = { roleId: id, roleName: name };
+        const logDetails = { roleId: id, roleName: name, providerId };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_UPDATE_INITIATED', entity: 'ROLE', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'ROLE_UPDATE_INITIATED', actorId: session.userId }));
 
         const updatedRole = await prisma.role.update({
             where: { id },
             data: {
                 name,
                 permissions: JSON.stringify(permissions),
+                providerId: providerId || null,
             },
         });
         
         const successLogDetails = { roleId: updatedRole.id, roleName: updatedRole.name };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_UPDATE_SUCCESS', entity: 'ROLE', entityId: updatedRole.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'ROLE_UPDATE_SUCCESS', actorId: session.userId }));
 
 
         return NextResponse.json({ ...updatedRole, permissions });
@@ -112,7 +129,6 @@ export async function PUT(req: NextRequest) {
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
         const failureLogDetails = { error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_UPDATE_FAILED', entity: 'ROLE', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'ROLE_UPDATE_FAILED', actorId: session.userId }));
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }
@@ -137,7 +153,6 @@ export async function DELETE(req: NextRequest) {
 
         const logDetails = { roleId: id };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_DELETE_INITIATED', entity: 'ROLE', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'ROLE_DELETE_INITIATED', actorId: session.userId }));
         
         // Check if any user is assigned to this role
         const usersWithRole = await prisma.user.count({ where: { roleId: id } });
@@ -153,7 +168,6 @@ export async function DELETE(req: NextRequest) {
 
         const successLogDetails = { deletedRoleId: id, deletedRoleName: roleToDelete?.name };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_DELETE_SUCCESS', entity: 'ROLE', entityId: id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'ROLE_DELETE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json({ message: 'Role deleted successfully' });
 
@@ -161,7 +175,8 @@ export async function DELETE(req: NextRequest) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { roleId: roleId, error: errorMessage };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_DELETE_FAILED', entity: 'ROLE', entityId: roleId, details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'ROLE_DELETE_FAILED', actorId: session.userId }));
         return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }
+
+    

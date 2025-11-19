@@ -70,6 +70,9 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primar
   const handlePermissionChange = (module: keyof Permissions, action: keyof Permissions[keyof Permissions]) => {
       setPermissions(
           produce(draft => {
+              if (!draft[module]) {
+                draft[module] = { create: false, read: false, update: false, delete: false };
+              }
               draft[module][action] = !draft[module][action];
           })
       )
@@ -184,3 +187,5 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primar
     </Dialog>
   );
 }
+
+    

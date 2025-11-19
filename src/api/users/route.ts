@@ -66,19 +66,22 @@ export async function POST(req: NextRequest) {
       throw new Error('Password is required for new users.');
     }
     
-    // Determine the providerId for the role lookup.
-    // Super Admins can assign roles from any provider, others are restricted.
-    const roleProviderId = currentUser?.role === 'Super Admin' ? providerId : currentUser?.providerId;
+    // Determine the provider context for finding the role.
+    // If the role being assigned is provider-specific, the user must be linked to that provider.
+    const isSuperAdmin = currentUser?.role === 'Super Admin';
+    const contextProviderId = isSuperAdmin ? providerId : currentUser?.providerId;
 
     const role = await prisma.role.findFirst({ 
         where: { 
             name: roleName,
-            providerId: roleProviderId || null
+            // A Super Admin can assign a global role (providerId: null) or a role for the specified provider.
+            // A provider admin can assign a global role or a role for their own provider.
+            providerId: contextProviderId || null
         }
     });
 
     if (!role) {
-      throw new Error('Invalid role selected for this provider context.');
+      throw new Error(`Role "${roleName}" not found for this provider context.`);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -122,7 +125,7 @@ export async function PUT(req: NextRequest) {
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
   try {
-
+    const currentUser = await getUserFromSession();
     const body = await req.json();
     const { id, role: roleName, providerId, ...userData } = body;
 
@@ -136,21 +139,18 @@ export async function PUT(req: NextRequest) {
     let dataToUpdate: any = { ...userData };
 
     if (roleName) {
-        // Find the role based on its name and potential provider association
-        const userToUpdate = await prisma.user.findUnique({ where: { id }});
-        const roleProviderId = userToUpdate?.loanProviderId;
+        const isSuperAdmin = currentUser?.role === 'Super Admin';
+        const contextProviderId = isSuperAdmin ? providerId : currentUser?.providerId;
 
         const role = await prisma.role.findFirst({ 
             where: {
                 name: roleName,
-                // A bit tricky: if the user belongs to a provider, look for provider-specific roles first.
-                // This logic might need refinement based on exact business rules.
-                providerId: roleProviderId || null
+                providerId: contextProviderId || null
             }
         });
 
         if (!role) {
-            throw new Error('Invalid role selected for this context.');
+            throw new Error(`Role "${roleName}" not found for this provider context.`);
         }
         dataToUpdate.roleId = role.id;
     }
@@ -179,3 +179,5 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
+
+    
