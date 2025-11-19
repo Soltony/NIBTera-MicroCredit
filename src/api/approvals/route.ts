@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
        if (change.entityId) {
             if (change.entityType === 'LoanProvider') {
                 await prisma.loanProvider.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
-            } else if (changeType === 'LoanProduct') {
+            } else if (change.entityType === 'LoanProduct') {
                 await prisma.loanProduct.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
                  await prisma.tax.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
