@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import {
   Card,
@@ -22,7 +23,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon, ChevronRight, ChevronLeft } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon, ChevronRight, ChevronLeft, RefreshCw } from 'lucide-react';
 import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -423,6 +424,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
     onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
 }) {
     const { currentUser } = useAuth();
+    const router = useRouter();
     const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
     const [editingProvider, setEditingProvider] = useState<LoanProvider | null>(null);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
@@ -462,7 +464,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
             const payload = {
                 original: originalProvider,
                 updated: { ...originalProvider, ...providerData },
-                created: !isEditing ? providerData : undefined,
+                created: !isEditing ? { ...providerData, status: 'PENDING_APPROVAL' } : undefined,
             };
 
             const response = await fetch('/api/settings/pending-changes', {
@@ -509,7 +511,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                 body: JSON.stringify({
                     entityType: 'LoanProduct',
                     changeType: 'CREATE',
-                    payload: JSON.stringify({ created: { ...newProductData, providerId: selectedProviderId } })
+                    payload: JSON.stringify({ created: { ...newProductData, providerId: selectedProviderId, status: 'PENDING_APPROVAL' } })
                 })
             });
             if (!response.ok) {
@@ -626,7 +628,10 @@ function ProvidersTab({ providers, onProvidersChange }: {
     return (
     <>
       <div className="flex items-center justify-between space-y-2 mb-4">
-        <div></div>
+        <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+            <RefreshCw className="h-4 w-4 mr-2"/>
+            Refresh List
+        </Button>
         {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
           <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
             <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
@@ -1957,5 +1962,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
