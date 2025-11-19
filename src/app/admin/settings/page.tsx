@@ -1,10 +1,8 @@
 
-
 import { SettingsClient } from '@/components/admin/settings-client';
 import type { LoanProvider as LoanProviderType, Tax } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
-import { revalidatePath } from 'next/cache';
 
 async function getProviders(userId: string): Promise<LoanProviderType[]> {
     const user = await prisma.user.findUnique({
@@ -74,7 +72,6 @@ async function getTaxConfig(): Promise<Tax> {
 
 
 export default async function AdminSettingsPage() {
-    revalidatePath('/admin/settings');
     const user = await getUserFromSession();
     if (!user) {
         return <div>Not authenticated</div>;
