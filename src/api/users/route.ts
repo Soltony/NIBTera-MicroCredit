@@ -67,17 +67,18 @@ export async function POST(req: NextRequest) {
     }
     
     // Determine the provider context for finding the role.
-    // If the role being assigned is provider-specific, the user must be linked to that provider.
     const isSuperAdmin = currentUser?.role === 'Super Admin';
-    const contextProviderId = isSuperAdmin ? providerId : currentUser?.providerId;
-
-    const role = await prisma.role.findFirst({ 
-        where: { 
-            name: roleName,
-            // A Super Admin can assign a global role (providerId: null) or a role for the specified provider.
-            // A provider admin can assign a global role or a role for their own provider.
-            providerId: contextProviderId || null
-        }
+    
+    // A Super Admin can assign a global role (providerId from body is null) or a role for the specified provider.
+    // A provider admin can assign a global role or a role for their own provider.
+    const role = await prisma.role.findFirst({
+      where: {
+        name: roleName,
+        OR: [
+          { providerId: null }, // Global roles
+          { providerId: isSuperAdmin ? providerId : currentUser?.providerId }, // Provider-specific roles
+        ],
+      }
     });
 
     if (!role) {
@@ -145,7 +146,10 @@ export async function PUT(req: NextRequest) {
         const role = await prisma.role.findFirst({ 
             where: {
                 name: roleName,
-                providerId: contextProviderId || null
+                OR: [
+                    { providerId: null },
+                    { providerId: contextProviderId }
+                ]
             }
         });
 
@@ -179,5 +183,3 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
-
-    
