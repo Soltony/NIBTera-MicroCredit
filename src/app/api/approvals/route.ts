@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Also revert the status of the underlying entity if it was pending
+      const entityId = change.entityId;
        if (entityId && change.changeType !== 'CREATE') {
             if (change.entityType === 'LoanProvider') {
                 await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
