@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -29,7 +30,7 @@ async function applyChange(change: any) {
         } else if (changeType === 'CREATE') {
             const providerToCreate = {
                 ...data.created,
-                initialBalance: data.created.startingCapital, // Set initialBalance from startingCapital
+                initialBalance: data.created.startingCapital,
                 status: 'ACTIVE',
             };
             await prisma.loanProvider.create({
@@ -190,13 +191,13 @@ export async function POST(req: NextRequest) {
       });
 
       // Also revert the status of the underlying entity if it was pending
-       if (change.entityId && change.changeType !== 'CREATE') {
+       if (entityId && change.changeType !== 'CREATE') {
             if (change.entityType === 'LoanProvider') {
-                await prisma.loanProvider.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+                await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'LoanProduct') {
-                await prisma.loanProduct.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+                await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
-                 await prisma.tax.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+                 await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             }
         }
       
