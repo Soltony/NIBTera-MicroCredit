@@ -47,7 +47,6 @@ async function applyChange(change: any) {
         if (changeType === 'UPDATE') {
              const updateData = { ...data.updated, status: 'ACTIVE' };
 
-            // Ensure JSON fields are stringified before saving
             if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
                 updateData.serviceFee = JSON.stringify(updateData.serviceFee);
             }
@@ -58,8 +57,6 @@ async function applyChange(change: any) {
                 updateData.penaltyRules = JSON.stringify(updateData.penaltyRules);
             }
 
-            // Prisma's update method doesn't accept nested relations directly.
-            // We need to remove them before updating.
             delete updateData.loanAmountTiers;
             delete updateData.eligibilityUpload;
 
@@ -72,7 +69,6 @@ async function applyChange(change: any) {
             const productToCreate = {
                 ...data.created,
                 status: 'ACTIVE',
-                // Ensure fee/penalty fields have default JSON values if they don't exist
                 serviceFee: JSON.stringify(data.created.serviceFee || { type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify(data.created.dailyFee || { type: 'percentage', value: 0, calculationBase: 'principal' }),
                 penaltyRules: JSON.stringify(data.created.penaltyRules || []),
@@ -85,28 +81,44 @@ async function applyChange(change: any) {
         }
       break;
     case 'ScoringRules':
-      // This is a more complex one as it involves deleting and creating
-      await prisma.$transaction(async (tx) => {
-        await tx.scoringParameter.deleteMany({ where: { providerId: entityId } });
-        for (const param of data.updated) {
-            await tx.scoringParameter.create({
+        await prisma.$transaction(async (tx) => {
+            const historyRecord = await tx.scoringConfigurationHistory.create({
                 data: {
                     providerId: entityId,
-                    name: param.name,
-                    weight: param.weight,
-                    rules: {
-                        create: param.rules.map((rule: any) => ({
-                            field: rule.field,
-                            condition: rule.condition,
-                            value: String(rule.value),
-                            score: rule.score,
-                        })),
-                    },
+                    parameters: JSON.stringify(data.updated),
                 },
             });
-        }
-      });
-      break;
+
+            if (data.appliedProductIds && data.appliedProductIds.length > 0) {
+                await tx.scoringConfigurationProduct.createMany({
+                    data: data.appliedProductIds.map((productId: string) => ({
+                        configId: historyRecord.id,
+                        productId: productId,
+                        assignedBy: change.createdById, 
+                    })),
+                });
+            }
+
+            await tx.scoringParameter.deleteMany({ where: { providerId: entityId } });
+            for (const param of data.updated) {
+                await tx.scoringParameter.create({
+                    data: {
+                        providerId: entityId,
+                        name: param.name,
+                        weight: param.weight,
+                        rules: {
+                            create: param.rules.map((rule: any) => ({
+                                field: rule.field,
+                                condition: rule.condition,
+                                value: String(rule.value),
+                                score: rule.score,
+                            })),
+                        },
+                    },
+                });
+            }
+        });
+        break;
     case 'Tax':
         if (changeType === 'UPDATE') {
              await prisma.tax.update({

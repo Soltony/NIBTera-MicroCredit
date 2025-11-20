@@ -347,9 +347,11 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
 
         setIsSaving(true);
         try {
+            const appliedProductIds = Object.keys(selectedProducts).filter(id => selectedProducts[id]);
             const payload = {
                 original: initialScoringParameters.filter(p => p.providerId === selectedProviderId),
                 updated: currentParameters,
+                appliedProductIds: appliedProductIds,
             };
             const response = await fetch('/api/settings/pending-changes', {
                 method: 'POST',
@@ -1248,6 +1250,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
