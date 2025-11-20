@@ -1,4 +1,5 @@
 import { AdminProviders } from '@/app/admin/admin-providers';
+import { ProtectedLayout } from '@/components/admin/protected-layout';
 import type { LoanProvider as LoanProviderType } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
 import prisma from '@/lib/prisma';
@@ -19,8 +20,10 @@ export default async function AdminLayout({children}: {children: React.ReactNode
   const user = await getUserFromSession();
   
   return (
-    <AdminProviders initialUser={user} providers={providers}>
-        {children}
+    <AdminProviders initialUser={user}>
+        <ProtectedLayout providers={providers}>
+            {children}
+        </ProtectedLayout>
     </AdminProviders>
   );
 }
