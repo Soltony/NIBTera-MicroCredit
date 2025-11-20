@@ -47,6 +47,12 @@ async function applyChange(change: any) {
                 updateData.penaltyRules = JSON.stringify(updateData.penaltyRules);
             }
 
+            // Prisma's update method doesn't accept nested relations directly.
+            // We need to remove them before updating.
+            delete updateData.loanAmountTiers;
+            delete updateData.eligibilityUpload;
+
+
             await prisma.loanProduct.update({
                 where: { id: entityId },
                 data: updateData,
