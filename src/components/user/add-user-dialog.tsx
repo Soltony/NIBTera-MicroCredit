@@ -71,55 +71,31 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   };
 
   const handleSelectChange = (field: 'role' | 'status' | 'providerId') => (value: string) => {
-    const newRole = field === 'role' ? (value as UserRole) : formData.role;
-    const isProviderSpecificRole = newRole === 'Loan Provider' || newRole === 'Loan Manager';
-    
-    setFormData(prev => {
-        const updatedState = { ...prev, [field]: value };
-        
-        if (field === 'role') {
-            if (!isProviderSpecificRole) {
-                updatedState.providerId = null;
-            } else {
-                if (!prev.providerId && providers.length > 0) {
-                    updatedState.providerId = providers[0].id;
-                }
-            }
-        }
-        
-        return updatedState;
-    });
-};
-
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { 
+    if (!user) { // It's a new user
         if (!submissionData.password) {
             alert('Password is required for new users.');
             return;
         }
     } else {
-        delete submissionData.password; 
+        delete submissionData.password; // Don't send password on edit
     }
     
-    if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
+    // Ensure providerId is null if the role doesn't require it
+    if (submissionData.role !== 'Loan Provider') {
         submissionData.providerId = null;
-    } else if (!submissionData.providerId) {
-        if (providers.length > 0) {
-            submissionData.providerId = providers[0].id;
-        } else {
-            alert('A loan provider must be selected for this role.');
-            return;
-        }
     }
 
     onSave(submissionData);
     onClose();
   };
   
-  const isProviderRole = formData.role === 'Loan Provider' || formData.role === 'Loan Manager';
+  const isProviderRole = formData.role === 'Loan Provider';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -218,3 +194,5 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     </Dialog>
   );
 }
+
+    
