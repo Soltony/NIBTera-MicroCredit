@@ -26,7 +26,16 @@ async function applyChange(change: any) {
                 where: { id: entityId },
                 data: { ...providerData, status: 'ACTIVE' }
             });
-        } else if (changeType === 'DELETE') {
+        } else if (changeType === 'CREATE') {
+            const providerToCreate = {
+                ...data.created,
+                status: 'ACTIVE',
+            };
+            await prisma.loanProvider.create({
+                data: providerToCreate,
+            });
+        }
+        else if (changeType === 'DELETE') {
             await prisma.loanProvider.delete({
                 where: { id: entityId }
             });
@@ -180,13 +189,13 @@ export async function POST(req: NextRequest) {
       });
 
       // Also revert the status of the underlying entity if it was pending
-       if (change.entityId) {
+       if (entityId && changeType !== 'CREATE') {
             if (change.entityType === 'LoanProvider') {
-                await prisma.loanProvider.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+                await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'LoanProduct') {
-                await prisma.loanProduct.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+                await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
-                 await prisma.tax.update({ where: { id: change.entityId }, data: { status: 'ACTIVE' } });
+                 await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             }
         }
       
