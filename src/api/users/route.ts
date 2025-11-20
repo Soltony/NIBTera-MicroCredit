@@ -1,18 +1,18 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import { getUserFromSession } from '@/lib/user';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Invalid email address'),
   phoneNumber: z.string().min(1, 'Phone number is required'),
   password: z.string().min(6, 'Password must be at least 6 characters long').optional(),
-  role: z.string(), // Role name, will be connected by ID
+  role: z.string(), // Role name
   providerId: z.string().nullable().optional(),
   status: z.enum(['Active', 'Inactive']),
 });
@@ -61,15 +61,26 @@ export async function POST(req: NextRequest) {
 
     const logDetails = { userEmail: userData.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_INITIATED', entity: 'USER', details: logDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_INITIATED', actorId: session.userId }));
-
+    
     if (!password) {
       throw new Error('Password is required for new users.');
     }
+    
+    const creatingUser = await getUserFromSession();
 
-    const role = await prisma.role.findUnique({ where: { name: roleName }});
+    // Correctly find the role based on name and scope
+    const role = await prisma.role.findFirst({
+      where: {
+        name: roleName,
+        // Global roles have providerId=null. Provider roles have a providerId.
+        // A super admin might assign a global role or a role for a specific provider.
+        // A provider admin can only assign roles for their own provider.
+        providerId: creatingUser?.role === 'Super Admin' ? (providerId || null) : creatingUser?.providerId
+      }
+    });
+
     if (!role) {
-      throw new Error('Invalid role selected.');
+      throw new Error(`Invalid role selected or role "${roleName}" not found for this scope.`);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -90,15 +101,12 @@ export async function POST(req: NextRequest) {
     
     const successLogDetails = { createdUserId: newUser.id, createdUserEmail: newUser.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_SUCCESS', entity: 'USER', entityId: newUser.id, details: successLogDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_SUCCESS', actorId: session.userId }));
-
-
+    
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
      const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
      const failureLogDetails = { error: errorMessage };
      await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
-     console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_FAILED', actorId: session.userId }));
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
@@ -124,20 +132,26 @@ export async function PUT(req: NextRequest) {
 
     const logDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_INITIATED', entity: 'USER', entityId: id, details: logDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_INITIATED', actorId: session.userId }));
-
+    
     let dataToUpdate: any = { ...userData };
+    
+    const creatingUser = await getUserFromSession();
 
     if (roleName) {
-        const role = await prisma.role.findUnique({ where: { name: roleName }});
+        const role = await prisma.role.findFirst({
+            where: {
+                name: roleName,
+                providerId: creatingUser?.role === 'Super Admin' ? (providerId || null) : creatingUser?.providerId
+            }
+        });
         if (!role) {
-            throw new Error('Invalid role selected.');
+            throw new Error('Invalid role selected for this scope.');
         }
         dataToUpdate.roleId = role.id;
     }
     
     // Handle providerId relationship
-    if (providerId === null) {
+    if (providerId === null || providerId === 'none') {
         dataToUpdate.loanProviderId = null;
     } else if (providerId) {
         dataToUpdate.loanProviderId = providerId;
@@ -151,14 +165,13 @@ export async function PUT(req: NextRequest) {
     
     const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_SUCCESS', entity: 'USER', entityId: id, details: successLogDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_SUCCESS', actorId: session.userId }));
-
+    
     return NextResponse.json(updatedUser);
   } catch (error) {
     const errorMessage = (error as Error).message;
     const failureLogDetails = { error: errorMessage };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
-    console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_FAILED', actorId: session.userId }));
+    
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
