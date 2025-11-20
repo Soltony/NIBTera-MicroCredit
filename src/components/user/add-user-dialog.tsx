@@ -71,24 +71,31 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   };
 
   const handleSelectChange = (field: 'role' | 'status' | 'providerId') => (value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value === 'none' ? null : value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { // Only require password for new users
+    if (!user) { // It's a new user
         if (!submissionData.password) {
             alert('Password is required for new users.');
             return;
         }
     } else {
-        delete submissionData.password; // Don't send empty password on edit
+        delete submissionData.password; // Don't send password on edit
+    }
+    
+    // Ensure providerId is null if the role doesn't require it
+    if (submissionData.role !== 'Loan Provider') {
+        submissionData.providerId = null;
     }
     
     onSave(submissionData);
     onClose();
   };
+  
+  const isProviderRole = formData.role === 'Loan Provider';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -188,3 +195,5 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     </Dialog>
   );
 }
+
+    
