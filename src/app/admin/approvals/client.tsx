@@ -38,20 +38,33 @@ function ChangeDetailsDialog({
   const renderDiff = (payload: string) => {
     try {
         const data = JSON.parse(payload);
-        const original = data.original || {};
-        const updated = data.updated || {};
+        // Fallback for CREATE/DELETE where one side might be missing
+        const original = data.original || data.deleted || {};
+        const updated = data.updated || data.created || {};
         
-        const diffResult = showDiff(original, updated);
+        // The json-diff library returns a structured object, not a simple string.
+        const diffResult = showDiff(original, updated, { full: true });
+        
+        if (!diffResult) {
+            return <p>No changes detected in payload.</p>;
+        }
 
-        // A very basic diff renderer
+        // A basic renderer for the diff object.
         return (
             <pre className="text-xs whitespace-pre-wrap font-mono bg-muted p-2 rounded-md">
-                {JSON.stringify(diffResult, null, 2)}
+                {JSON.stringify(diffResult, (key, value) => {
+                    // Exclude noisy internal fields from the diff library
+                    if (key.includes('__old') || key.includes('__new')) {
+                        return undefined;
+                    }
+                    return value;
+                }, 2)}
             </pre>
         );
 
     } catch (e) {
-        return <p className="text-destructive">Could not parse change details.</p>;
+        console.error("Failed to parse or diff payload:", e);
+        return <p className="text-destructive">Could not parse or display change details.</p>;
     }
   };
 
