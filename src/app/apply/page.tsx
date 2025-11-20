@@ -42,6 +42,7 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
         startingCapital: provider.startingCapital,
         initialBalance: provider.initialBalance,
         allowCrossProviderLoans: provider.allowCrossProviderLoans,
+        nplThresholdDays: provider.nplThresholdDays,
         products: provider.products.map(prod => ({
             ...prod,
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
@@ -51,8 +52,8 @@ async function getProvider(providerId: string): Promise<LoanProvider | null> {
     } as LoanProvider;
 }
 
-async function getTaxConfig(): Promise<Tax | null> {
-    return await prisma.tax.findFirst();
+async function getTaxConfigs(): Promise<Tax[] | null> {
+    return await prisma.tax.findMany();
 }
 
 
@@ -63,9 +64,9 @@ export default async function ApplyPage({ searchParams }: { searchParams: { [key
         notFound();
     }
     
-    const [selectedProvider, taxConfig] = await Promise.all([
+    const [selectedProvider, taxConfigs] = await Promise.all([
         getProvider(providerId),
-        getTaxConfig()
+        getTaxConfigs()
     ]);
 
 
@@ -84,5 +85,5 @@ export default async function ApplyPage({ searchParams }: { searchParams: { [key
         )
     }
 
-    return <ApplyClient provider={selectedProvider} taxConfig={taxConfig} />;
+    return <ApplyClient provider={selectedProvider} taxConfigs={taxConfigs} />;
 }

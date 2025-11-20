@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -19,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 
 interface LoanOfferAndCalculatorProps {
   product: LoanProduct;
-  taxConfig: Tax | null;
+  taxConfigs: Tax[];
   isLoading: boolean;
   eligibilityResult: CheckLoanEligibilityOutput | null;
   onAccept: (details: Omit<LoanDetails, 'id' | 'providerName' | 'productName' | 'payments' >) => void;
@@ -68,7 +67,7 @@ const formatPenaltyRule = (rule: PenaltyRule): string => {
 }
 
 
-export function LoanOfferAndCalculator({ product, taxConfig, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
+export function LoanOfferAndCalculator({ product, taxConfigs, isLoading, eligibilityResult, onAccept, providerColor = 'hsl(var(--primary))' }: LoanOfferAndCalculatorProps) {
   const [loanAmount, setLoanAmount] = useState<number | string>('');
   const [amountError, setAmountError] = useState('');
   const [isPenaltyDetailsOpen, setIsPenaltyDetailsOpen] = useState(false);
@@ -119,7 +118,7 @@ export function LoanOfferAndCalculator({ product, taxConfig, isLoading, eligibil
             product: product,
         };
         
-        const result = calculateTotalRepayable(tempLoan, product, taxConfig, dueDate);
+        const result = calculateTotalRepayable(tempLoan, product, taxConfigs, dueDate);
 
         setCalculationResult({
             ...result,
@@ -130,7 +129,7 @@ export function LoanOfferAndCalculator({ product, taxConfig, isLoading, eligibil
     };
 
     calculate();
-}, [loanAmount, eligibilityResult, product, taxConfig]);
+}, [loanAmount, eligibilityResult, product, taxConfigs]);
 
   const validateAmount = (amount: number | string) => {
     const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;

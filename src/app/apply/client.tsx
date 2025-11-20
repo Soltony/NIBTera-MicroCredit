@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type Step = 'calculator' | 'details';
 
-export function ApplyClient({ provider, taxConfig }: { provider: LoanProvider, taxConfig: Tax | null }) {
+export function ApplyClient({ provider, taxConfigs }: { provider: LoanProvider, taxConfigs: Tax[] | null }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
@@ -114,7 +114,7 @@ export function ApplyClient({ provider, taxConfig }: { provider: LoanProvider, t
         switch (step) {
             case 'calculator':
                 if (selectedProduct) {
-                    return <LoanOfferAndCalculator product={selectedProduct} taxConfig={taxConfig} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
+                    return <LoanOfferAndCalculator product={selectedProduct} taxConfigs={taxConfigs || []} isLoading={false} eligibilityResult={eligibilityResult} onAccept={handleLoanAccept} providerColor={provider.colorHex} />;
                 }
                 if (productId && !selectedProduct) {
                         return <div className="text-center">Product not found. Please <button onClick={() => router.push('/loan')} className="underline" style={{color: 'hsl(var(--primary))'}}>start over</button>.</div>;
