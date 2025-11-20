@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +101,8 @@ export function ApprovalsClient({
   const [changeToReject, setChangeToReject] = useState<PendingChangeWithRelations | null>(null);
   const [changeToView, setChangeToView] = useState<PendingChangeWithRelations | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
+
 
   const handleProcessChange = async (changeId: string, approved: boolean, reason?: string) => {
     setProcessingId(changeId);
@@ -120,6 +123,11 @@ export function ApprovalsClient({
         title: 'Success',
         description: `Change has been successfully ${approved ? 'approved' : 'rejected'}.`,
       });
+
+      if (approved) {
+          router.refresh();
+      }
+
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
