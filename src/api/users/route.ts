@@ -72,10 +72,11 @@ export async function POST(req: NextRequest) {
     const role = await prisma.role.findFirst({
       where: {
         name: roleName,
-        // Global roles have providerId=null. Provider roles have a providerId.
-        // A super admin might assign a global role or a role for a specific provider.
-        // A provider admin can only assign roles for their own provider.
-        providerId: creatingUser?.role === 'Super Admin' ? (providerId || null) : creatingUser?.providerId
+        // A super admin can assign a global role (providerId=null) or a role for a specific provider.
+        // A provider admin can only assign roles that belong to their own provider.
+        providerId: creatingUser?.role === 'Super Admin' 
+            ? (providerId || null) 
+            : (creatingUser?.loanProviderId || undefined)
       }
     });
 
@@ -141,7 +142,7 @@ export async function PUT(req: NextRequest) {
         const role = await prisma.role.findFirst({
             where: {
                 name: roleName,
-                providerId: creatingUser?.role === 'Super Admin' ? (providerId || null) : creatingUser?.providerId
+                providerId: creatingUser?.role === 'Super Admin' ? (providerId || null) : creatingUser?.loanProviderId
             }
         });
         if (!role) {
