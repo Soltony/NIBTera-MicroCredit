@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,36 +11,37 @@ import { createAuditLog } from '@/lib/audit-log';
 
 async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
     return await prisma.$transaction(async (tx) => {
-        // Step 1: Create the LoanApplication record.
         const loanApplication = await tx.loanApplication.create({
             data: {
                 borrowerId: data.borrowerId,
                 productId: data.productId,
                 loanAmount: data.loanAmount,
-                status: 'DISBURSED', // Personal loans are disbursed immediately
+                status: 'DISBURSED',
             }
         });
 
-        const product = await tx.loanProduct.findUnique({
-            where: { id: data.productId },
-            include: {
-                provider: {
-                    include: {
-                        ledgerAccounts: true
+        const [product, taxConfigs] = await Promise.all([
+            tx.loanProduct.findUnique({
+                where: { id: data.productId },
+                include: {
+                    provider: {
+                        include: {
+                            ledgerAccounts: true
+                        }
                     }
                 }
-            }
-        });
+            }),
+            tx.tax.findMany()
+        ]);
+
 
         if (!product) {
             throw new Error('Loan product not found.');
         }
         
-        // --- NEW: Check provider balance before disbursement ---
         if (product.provider.initialBalance < data.loanAmount) {
             throw new Error(`Insufficient provider funds. Available: ${product.provider.initialBalance}, Requested: ${data.loanAmount}`);
         }
-        // --- END NEW ---
 
         const provider = product.provider;
         
@@ -57,9 +59,8 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             penaltyAmount: 0,
             product: product as any,
         };
-        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, taxConfigs, new Date(data.disbursedDate));
 
-        // Ledger Account Checks
         const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
         const serviceFeeReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Receivable');
         const serviceFeeIncomeAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Income');
@@ -67,12 +68,11 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
         if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
 
 
-        // Step 2: Create the Loan record and connect it to the application.
         const createdLoan = await tx.loan.create({
             data: {
                 borrowerId: data.borrowerId,
                 productId: data.productId,
-                loanApplicationId: loanApplication.id, // Link to the created application
+                loanApplicationId: loanApplication.id,
                 loanAmount: data.loanAmount,
                 disbursedDate: data.disbursedDate,
                 dueDate: data.dueDate,
@@ -140,7 +140,6 @@ export async function POST(req: NextRequest) {
         const logDetails = { borrowerId: data.borrowerId, productId: data.productId, amount: data.loanAmount };
         await createAuditLog({ actorId: 'system', action: 'LOAN_DISBURSEMENT_INITIATED', entity: 'LOAN', details: logDetails });
 
-        // --- SERVER-SIDE VALIDATION ---
         const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(data.borrowerId, product.providerId, product.id);
 
         if (!isEligible) {
@@ -150,7 +149,6 @@ export async function POST(req: NextRequest) {
         if (data.loanAmount > maxLoanAmount) {
             throw new Error(`Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`);
         }
-        // --- END OF VALIDATION ---
 
         const newLoan = await handlePersonalLoan(data);
 
