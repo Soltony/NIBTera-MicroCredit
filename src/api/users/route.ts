@@ -1,11 +1,11 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
-import { getUserFromSession } from '@/lib/user';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -67,22 +67,9 @@ export async function POST(req: NextRequest) {
       throw new Error('Password is required for new users.');
     }
 
-    const currentUser = await getUserFromSession();
-    const isSuperAdmin = currentUser?.role === 'Super Admin';
-    
-    // Find the correct role based on name and scope
-    const role = await prisma.role.findFirst({
-        where: {
-            name: roleName,
-            // If a providerId is specified, match it.
-            // If the creator is not a Super Admin, they are implicitly creating a user for their own provider's roles.
-            // Global roles have providerId: null
-            providerId: providerId ? providerId : (isSuperAdmin ? null : currentUser?.providerId || null)
-        }
-    });
-
+    const role = await prisma.role.findUnique({ where: { name: roleName }});
     if (!role) {
-      throw new Error(`Role "${roleName}" not found for the specified scope.`);
+      throw new Error('Invalid role selected.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -142,14 +129,9 @@ export async function PUT(req: NextRequest) {
     let dataToUpdate: any = { ...userData };
 
     if (roleName) {
-        const role = await prisma.role.findFirst({ 
-            where: { 
-                name: roleName,
-                providerId: providerId ? providerId : null
-            }
-        });
+        const role = await prisma.role.findUnique({ where: { name: roleName }});
         if (!role) {
-            throw new Error('Invalid role selected for the given provider scope.');
+            throw new Error('Invalid role selected.');
         }
         dataToUpdate.roleId = role.id;
     }
