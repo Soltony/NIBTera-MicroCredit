@@ -274,7 +274,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
-                            <Label htmlFor={`status-${product.id}`}>{formData.status}</Label>
+                            <Label htmlFor={`status-${product.id}`}>{formData.status === 'PENDING_APPROVAL' ? 'PENDING_APPROVAL' : formData.status}</Label>
                         </div>
                         <div className="flex items-center space-x-2">
                             <Switch
@@ -1957,5 +1957,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
