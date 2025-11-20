@@ -184,43 +184,30 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         e.preventDefault();
         setIsSaving(true);
         try {
-            const originalProduct = provider.products.find(p => p.id === product.id);
-            if (!originalProduct) {
-                throw new Error("Original product not found.");
-            }
-            
-            const payload = {
-                original: originalProduct,
-                updated: {
-                    ...formData,
-                    minLoan: parseFloat(String(formData.minLoan)) || 0,
-                    maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                    duration: parseInt(String(formData.duration)) || 30
-                }
+            const productToSave = {
+                ...formData,
+                minLoan: parseFloat(String(formData.minLoan)) || 0,
+                maxLoan: parseFloat(String(formData.maxLoan)) || 0,
+                duration: parseInt(String(formData.duration)) || 30
             };
             
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
+            const response = await fetch('/api/settings/products', {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    entityId: product.id,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
+                body: JSON.stringify(productToSave)
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit changes for approval.');
+                throw new Error(errorData.error || 'Failed to save product.');
             }
 
-            // Update local state to show pending status
-            onUpdate({ status: 'PENDING_APPROVAL' });
+            const savedProduct = await response.json();
+            onSave(savedProduct);
 
             toast({
-                title: 'Submitted for Approval',
-                description: `Your changes to ${product.name} have been submitted for review.`,
+                title: 'Product Saved',
+                description: `Changes to ${product.name} have been saved successfully.`,
             });
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -1957,6 +1944,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
