@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,9 +34,22 @@ async function applyChange(change: any) {
       break;
     case 'LoanProduct':
         if (changeType === 'UPDATE') {
-             await prisma.loanProduct.update({
+             const updateData = { ...data.updated, status: 'ACTIVE' };
+
+            // Ensure JSON fields are stringified before saving
+            if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
+                updateData.serviceFee = JSON.stringify(updateData.serviceFee);
+            }
+            if (updateData.dailyFee && typeof updateData.dailyFee === 'object') {
+                updateData.dailyFee = JSON.stringify(updateData.dailyFee);
+            }
+            if (updateData.penaltyRules && Array.isArray(updateData.penaltyRules)) {
+                updateData.penaltyRules = JSON.stringify(updateData.penaltyRules);
+            }
+
+            await prisma.loanProduct.update({
                 where: { id: entityId },
-                data: { ...data.updated, status: 'ACTIVE' }
+                data: updateData,
             });
         } else if (changeType === 'CREATE') {
             const productToCreate = {
