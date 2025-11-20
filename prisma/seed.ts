@@ -61,6 +61,7 @@ const defaultLedgerAccounts = [
     { name: 'Interest Income', type: 'Income', category: 'Interest' },
     { name: 'Service Fee Income', type: 'Income', category: 'ServiceFee' },
     { name: 'Penalty Income', type: 'Income', category: 'Penalty' },
+    { name: 'Tax Income', type: 'Income', category: 'Tax' },
 ];
 
 async function main() {
@@ -68,7 +69,12 @@ async function main() {
 
   // Seed Roles
   const superAdminRole = await prisma.role.upsert({
-    where: { name: 'Super Admin' },
+    where: { 
+        name_providerId: {
+            name: 'Super Admin',
+            providerId: null,
+        },
+    },
     update: {
       permissions: JSON.stringify(permissions.superAdmin),
     },
@@ -79,7 +85,12 @@ async function main() {
   });
 
   const loanProviderRole = await prisma.role.upsert({
-    where: { name: 'Loan Provider' },
+    where: { 
+        name_providerId: {
+            name: 'Loan Provider',
+            providerId: null,
+        },
+    },
     update: {
        permissions: JSON.stringify(permissions.loanProvider),
     },
@@ -90,7 +101,12 @@ async function main() {
   });
 
   const reconciliationRole = await prisma.role.upsert({
-    where: { name: 'Reconciliation' },
+    where: {
+        name_providerId: {
+            name: 'Reconciliation',
+            providerId: null,
+        },
+    },
     update: {
       permissions: JSON.stringify(permissions.reconciliation),
     },
@@ -101,7 +117,12 @@ async function main() {
   });
 
   const approverRole = await prisma.role.upsert({
-    where: { name: 'Approver' },
+    where: {
+        name_providerId: {
+            name: 'Approver',
+            providerId: null,
+        },
+    },
     update: {
       permissions: JSON.stringify(permissions.superAdmin), // Approvers get same permissions as Super Admin
     },
