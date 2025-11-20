@@ -602,14 +602,35 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
             <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Submit Scoring Rules for Approval</DialogTitle>
+                        <DialogTitle>Apply Scoring Rules to Products</DialogTitle>
                         <DialogDescription>
-                           Your changes to the scoring rules will be submitted for review. Once approved, they will become active.
+                            Select which products will use this new scoring configuration. This will be submitted for approval.
                         </DialogDescription>
                     </DialogHeader>
+                    <div className="py-4 space-y-2">
+                        <Label>Available Products for {currentProvider?.name}</Label>
+                        {(currentProvider?.products || []).map(product => (
+                            <div key={product.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`product-${product.id}`}
+                                    checked={selectedProducts[product.id] || false}
+                                    onCheckedChange={(checked) => setSelectedProducts(prev => ({...prev, [product.id]: !!checked}))}
+                                />
+                                <label
+                                    htmlFor={`product-${product.id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                    {product.name}
+                                </label>
+                            </div>
+                        ))}
+                        {(currentProvider?.products || []).length === 0 && (
+                            <p className="text-sm text-muted-foreground">No products available for this provider.</p>
+                        )}
+                    </div>
                     <DialogFooter className="pt-4">
                         <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button onClick={handleSaveAndApply} style={{backgroundColor: themeColor}} className="text-white" disabled={isSaving}>
+                        <Button onClick={handleSaveAndApply} style={{backgroundColor: themeColor}} className="text-white" disabled={isSaving || Object.values(selectedProducts).every(v => !v)}>
                              {isSaving && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                              Submit for Approval
                         </Button>
@@ -1227,6 +1248,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
