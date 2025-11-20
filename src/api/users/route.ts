@@ -162,5 +162,3 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
-
-    

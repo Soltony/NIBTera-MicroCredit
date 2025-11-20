@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -20,8 +21,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { Role, Permissions, LoanProvider } from '@/lib/types';
 import { produce } from 'immer';
 import { allMenuItems } from '@/lib/menu-items';
-import { useAuth } from '@/hooks/use-auth';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface AddRoleDialogProps {
   isOpen: boolean;
@@ -41,15 +40,12 @@ const initialPermissions = PERMISSION_MODULES.reduce((acc, module) => {
 }, {} as Permissions);
 
 export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primaryColor = '#fdb913' }: AddRoleDialogProps) {
-  const { currentUser } = useAuth();
   const [roleName, setRoleName] = useState('');
-  const [providerId, setProviderId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<Permissions>(initialPermissions);
 
   useEffect(() => {
     if (role) {
       setRoleName(role.name);
-      setProviderId(role.providerId || null);
       // Deep merge existing permissions with the full structure to handle new modules
       const mergedPermissions = produce(initialPermissions, draft => {
         for (const module in role.permissions) {
@@ -61,11 +57,9 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primar
       setPermissions(mergedPermissions);
     } else {
       setRoleName('');
-      // If the current user is a provider admin, default to their provider.
-      setProviderId(currentUser?.role === 'Super Admin' ? null : currentUser?.providerId || null);
       setPermissions(initialPermissions);
     }
-  }, [role, isOpen, currentUser]);
+  }, [role, isOpen]);
 
   const handlePermissionChange = (module: keyof Permissions, action: keyof Permissions[keyof Permissions]) => {
       setPermissions(
@@ -94,7 +88,7 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primar
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ name: roleName, permissions, providerId });
+    onSave({ name: roleName, permissions });
     onClose();
   };
 
@@ -108,29 +102,9 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primar
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="roleName">Role Name</Label>
-                <Input id="roleName" value={roleName} onChange={(e) => setRoleName(e.target.value)} required />
-              </div>
-               <div className="space-y-2">
-                <Label htmlFor="providerId">Associated Provider</Label>
-                <Select 
-                    value={providerId || 'global'}
-                    onValueChange={(value) => setProviderId(value === 'global' ? null : value)}
-                    disabled={currentUser?.role !== 'Super Admin'}
-                >
-                  <SelectTrigger id="providerId">
-                    <SelectValue placeholder="Select a provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                      <SelectItem value="global">Global (All Providers)</SelectItem>
-                      {providers.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div>
+            <Label htmlFor="roleName">Role Name</Label>
+            <Input id="roleName" value={roleName} onChange={(e) => setRoleName(e.target.value)} required />
           </div>
 
           <div>
@@ -187,5 +161,3 @@ export function AddRoleDialog({ isOpen, onClose, onSave, role, providers, primar
     </Dialog>
   );
 }
-
-    

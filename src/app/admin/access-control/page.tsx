@@ -225,7 +225,7 @@ function UsersTab() {
 }
 
 function RolesTab() {
-    const [roles, setRoles] = useState<(Role & { providerName?: string })[]>([]);
+    const [roles, setRoles] = useState<Role[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [providers, setProviders] = useState<LoanProvider[]>([]);
     const { currentUser } = useAuth();
@@ -252,15 +252,7 @@ function RolesTab() {
             if (!providersResponse.ok) throw new Error('Failed to fetch providers');
             const rolesData = await rolesResponse.json();
             const providersData = await providersResponse.json();
-            
-            const providerMap = new Map(providersData.map((p: LoanProvider) => [p.id, p.name]));
-
-            const enrichedRoles = rolesData.map((role: Role) => ({
-                ...role,
-                providerName: role.providerId ? providerMap.get(role.providerId) : 'Global'
-            }));
-
-            setRoles(enrichedRoles);
+            setRoles(rolesData);
             setProviders(providersData);
         } catch (error) {
             toast({
@@ -369,8 +361,7 @@ function RolesTab() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[150px]">Role Name</TableHead>
-                                <TableHead>Scope</TableHead>
+                                <TableHead className="w-[200px]">Role Name</TableHead>
                                 <TableHead className="text-center">Permissions Summary</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
@@ -379,7 +370,6 @@ function RolesTab() {
                             {roles.map((role) => (
                                 <TableRow key={role.id}>
                                     <TableCell className="font-medium">{role.name}</TableCell>
-                                    <TableCell>{role.providerName}</TableCell>
                                     <TableCell className="text-center text-xs text-muted-foreground">
                                         {PERMISSION_MODULES.map(module => (
                                             <span key={module} title={module.replace(/-/g, ' ')} className="inline-block mx-1">
@@ -456,4 +446,3 @@ export default function AccessControlPage() {
         </div>
     );
 }
-
