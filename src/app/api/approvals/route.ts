@@ -14,6 +14,26 @@ const approvalSchema = z.object({
   rejectionReason: z.string().optional(),
 });
 
+const defaultLedgerAccounts = [
+    // Assets (Receivables)
+    { name: 'Principal Receivable', type: 'Receivable', category: 'Principal' },
+    { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
+    { name: 'Service Fee Receivable', type: 'Receivable', category: 'ServiceFee' },
+    { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    { name: 'Tax Receivable', type: 'Receivable', category: 'Tax' },
+    // Cash / Received
+    { name: 'Principal Received', type: 'Received', category: 'Principal' },
+    { name: 'Interest Received', type: 'Received', category: 'Interest' },
+    { name: 'Service Fee Received', type: 'Received', category: 'ServiceFee' },
+    { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+    { name: 'Tax Received', type: 'Received', category: 'Tax' },
+    // Income
+    { name: 'Interest Income', type: 'Income', category: 'Interest' },
+    { name: 'Service Fee Income', type: 'Income', category: 'ServiceFee' },
+    { name: 'Penalty Income', type: 'Income', category: 'Penalty' },
+];
+
+
 // Main function to apply an approved change
 async function applyChange(change: any) {
   const { entityType, entityId, changeType, payload } = change;
@@ -28,13 +48,26 @@ async function applyChange(change: any) {
                 data: { ...providerData, status: 'ACTIVE' }
             });
         } else if (changeType === 'CREATE') {
-            const providerToCreate = {
-                ...data.created,
-                initialBalance: data.created.startingCapital,
-                status: 'ACTIVE',
-            };
-            await prisma.loanProvider.create({
-                data: providerToCreate,
+            await prisma.$transaction(async (tx) => {
+                const providerToCreate = {
+                    ...data.created,
+                    initialBalance: data.created.startingCapital,
+                    status: 'ACTIVE',
+                };
+                const newProvider = await tx.loanProvider.create({
+                    data: providerToCreate,
+                });
+                
+                const accountsToCreate = defaultLedgerAccounts.map(acc => ({
+                    ...acc,
+                    providerId: newProvider.id,
+                }));
+
+                await tx.ledgerAccount.createMany({
+                    data: accountsToCreate,
+                });
+
+                return newProvider;
             });
         }
         else if (changeType === 'DELETE') {
