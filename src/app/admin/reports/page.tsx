@@ -11,14 +11,14 @@ export const dynamic = 'force-dynamic';
 async function getProviders(userId: string): Promise<LoanProviderType[]> {
     const user = await getUserFromSession();
 
-    const isSuperAdminOrRecon = user?.role === 'Super Admin' || user?.role === 'Reconciliation';
-
-    if (isSuperAdminOrRecon) {
+    // ONLY Super Admin can see all providers. All other roles are scoped.
+    if (user?.role === 'Super Admin') {
         return (await prisma.loanProvider.findMany({
             orderBy: { displayOrder: 'asc' }
         })) as LoanProviderType[];
     }
     
+    // For all other users, if they have a providerId, fetch only that one.
     if (user?.loanProviderId) {
         const provider = await prisma.loanProvider.findUnique({
             where: { id: user.loanProviderId }
@@ -26,6 +26,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
         return provider ? [provider] as LoanProviderType[] : [];
     }
     
+    // If a user has no providerId, they see no providers.
     return [];
 }
 

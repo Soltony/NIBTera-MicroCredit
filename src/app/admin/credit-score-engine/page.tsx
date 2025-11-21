@@ -7,20 +7,19 @@ import { getUserFromSession } from '@/lib/user';
 
 
 async function getProviders(userId: string): Promise<LoanProvider[]> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { loanProvider: true }
-    });
+    const user = await getUserFromSession();
 
-    const whereClause = (user?.role === 'Super Admin' || user?.role === 'Admin')
+    // Only Super Admin can see and manage all providers.
+    // Other roles are scoped to their own provider if they have one.
+    const whereClause = (user?.role === 'Super Admin')
         ? {}
-        : { id: user?.loanProvider?.id };
+        : { id: user?.loanProviderId || '---NO_PROVIDER---' }; // Use an impossible ID if no providerId
+
 
     const providers = await prisma.loanProvider.findMany({
         where: whereClause,
         include: {
             products: {
-                // We need eligibilityUploadId to filter these out of the general uploads list
                 select: {
                     id: true,
                     name: true,
@@ -51,8 +50,6 @@ async function getProviders(userId: string): Promise<LoanProvider[]> {
         }
     };
     
-    // Casting here after ensuring the structure aligns.
-    // The product data is partial but sufficient for the client component's needs.
     return providers.map(p => ({
         ...p,
         dataProvisioningConfigs: (p.dataProvisioningConfigs || []).map(config => ({
@@ -78,7 +75,6 @@ async function getScoringParameters(providerIds: string[]): Promise<ScoringParam
 
 
 export default async function CreditScoreEnginePage() {
-    // Session fetching will be replaced with a real auth solution
     const user = await getUserFromSession();
     
     if (!user?.id) {
