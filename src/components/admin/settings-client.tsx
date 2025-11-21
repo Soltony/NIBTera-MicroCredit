@@ -389,7 +389,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                         <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving || product.status === 'PENDING_APPROVAL'}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {product.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Save Changes'}
+                            {product.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
                         </Button>
                     </div>
                 </form>
@@ -1944,6 +1944,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
