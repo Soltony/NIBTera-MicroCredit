@@ -40,8 +40,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
 
   useEffect(() => {
     const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
-    const defaultProvider = providers.length > 0 ? providers[0] : null;
-
     if (user) {
       setFormData({
         fullName: user.fullName,
@@ -60,7 +58,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         password: '',
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
-        providerId: defaultProvider?.id || null,
+        providerId: providers.length > 0 ? providers[0].id : null,
       });
     }
   }, [user, isOpen, providers, roles]);
@@ -80,10 +78,8 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         if (field === 'role') {
             if (!isProviderSpecificRole) {
                 updatedState.providerId = null;
-            } else {
-                if (!prev.providerId && providers.length > 0) {
-                    updatedState.providerId = providers[0].id;
-                }
+            } else if (!prev.providerId && providers.length > 0) {
+                updatedState.providerId = providers[0].id;
             }
         }
         
@@ -95,24 +91,18 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { 
+    if (!user) { // Only require password for new users
         if (!submissionData.password) {
             alert('Password is required for new users.');
             return;
         }
     } else {
-        delete submissionData.password; 
+        delete submissionData.password; // Don't send empty password on edit
     }
     
+    // Ensure providerId is null if the role is not provider-specific
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
         submissionData.providerId = null;
-    } else if (!submissionData.providerId) {
-        if (providers.length > 0) {
-            submissionData.providerId = providers[0].id;
-        } else {
-            alert('A loan provider must be selected for this role.');
-            return;
-        }
     }
 
     onSave(submissionData);
