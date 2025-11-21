@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -91,9 +90,12 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { id, value, type } = e.target;
-      setFormData(prev => ({ ...prev, [id]: type === 'number' ? parseInt(value) || 0 : value }));
-  }
+    const { id, value, type } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [id]: type === 'number' ? (value === '' ? '' : Number(value)) : value,
+    }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
