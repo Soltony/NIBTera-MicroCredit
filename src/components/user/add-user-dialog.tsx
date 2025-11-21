@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User, UserRole, UserStatus, Role, LoanProvider } from '@/lib/types';
-import { useAuth } from '@/hooks/use-auth';
 
 interface AddUserDialogProps {
   isOpen: boolean;
@@ -29,7 +28,6 @@ interface AddUserDialogProps {
 }
 
 export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers, primaryColor = '#fdb913' }: AddUserDialogProps) {
-  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -42,15 +40,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
 
   useEffect(() => {
     const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
-    let defaultProviderId: string | null = null;
-    
-    if (currentUser?.role !== 'Super Admin') {
-        defaultProviderId = currentUser?.providerId || null;
-    } else if (providers.length > 0) {
-        defaultProviderId = providers[0].id;
-    }
-
-
     if (user) {
       setFormData({
         fullName: user.fullName,
@@ -69,10 +58,10 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         password: '',
         role: defaultRole as UserRole,
         status: 'Active' as UserStatus,
-        providerId: defaultProviderId,
+        providerId: providers.length > 0 ? providers[0].id : null,
       });
     }
-  }, [user, isOpen, providers, roles, currentUser]);
+  }, [user, isOpen, providers, roles]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -89,12 +78,8 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         if (field === 'role') {
             if (!isProviderSpecificRole) {
                 updatedState.providerId = null;
-            } else {
-                if (currentUser?.role !== 'Super Admin') {
-                     updatedState.providerId = currentUser?.providerId || null;
-                } else if (!prev.providerId && providers.length > 0) {
-                    updatedState.providerId = providers[0].id;
-                }
+            } else if (!prev.providerId && providers.length > 0) {
+                updatedState.providerId = providers[0].id;
             }
         }
         
@@ -106,19 +91,18 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { 
+    if (!user) { // Only require password for new users
         if (!submissionData.password) {
             alert('Password is required for new users.');
             return;
         }
     } else {
-        delete submissionData.password; 
+        delete submissionData.password; // Don't send empty password on edit
     }
     
+    // Ensure providerId is null if the role is not provider-specific
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
         submissionData.providerId = null;
-    } else if (currentUser?.role !== 'Super Admin') {
-        submissionData.providerId = currentUser?.providerId;
     }
 
     onSave(submissionData);
@@ -178,7 +162,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
               </SelectContent>
             </Select>
           </div>
-          {isProviderRole && currentUser?.role === 'Super Admin' && (
+          {isProviderRole && (
              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="providerId" className="text-right">
                     Provider
