@@ -114,11 +114,41 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
         if (name === 'status') {
-            onUpdate({ status: checked ? 'Active' : 'Disabled' });
+            handleStatusChange(checked);
         } else {
             onUpdate({ [name]: checked });
         }
     }
+
+    const handleStatusChange = async (checked: boolean) => {
+        const newStatus = checked ? 'Active' : 'Disabled';
+        // Optimistically update the UI
+        onUpdate({ status: newStatus }); 
+        
+        try {
+            const response = await fetch('/api/settings/products', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: product.id, status: newStatus })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update status.');
+            }
+            
+            toast({
+                title: 'Status Updated',
+                description: `${product.name} has been set to ${newStatus}.`
+            });
+            // The onUpdate call above already updated the state, so no need to do it again on success.
+
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+            // Revert UI on failure
+            onUpdate({ status: product.status });
+        }
+    };
     
     const handleFilterFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -188,7 +218,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 ...formData,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                duration: parseInt(String(formData.duration)) || 30
+                duration: parseInt(String(formData.duration)) || 30,
+                // Exclude status from the approval payload
+                status: undefined, 
             };
 
             const originalProduct = provider.products.find(p => p.id === product.id);
@@ -257,6 +289,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                     <div className="flex items-center gap-2">
                         <h4 className="text-sm font-semibold">{product.name}</h4>
                         {product.status === 'PENDING_APPROVAL' && <Badge variant="outline">Pending Approval</Badge>}
+                        {product.status !== 'PENDING_APPROVAL' && <Badge variant={product.status === 'Active' ? 'default' : 'destructive'} className={cn(product.status === 'Active' && 'bg-green-600')}>{product.status}</Badge>}
                     </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                 </button>
@@ -272,13 +305,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
-                            <Label htmlFor={`status-${product.id}`}>{formData.status === 'PENDING_APPROVAL' ? 'PENDING_APPROVAL' : formData.status}</Label>
+                            <Label htmlFor={`status-${product.id}`}>Status ({formData.status})</Label>
                         </div>
                         <div className="flex items-center space-x-2">
                             <Switch
                                 id={`allowConcurrentLoans-${product.id}`}
                                 checked={!!formData.allowConcurrentLoans}
-                                onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', checked)}
+                                onCheckedChange={(checked) => onUpdate({ allowConcurrentLoans: checked })}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -324,7 +357,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                             <Switch
                                 id={`dataProvisioningEnabled-${product.id}`}
                                 checked={!!formData.dataProvisioningEnabled}
-                                onCheckedChange={(checked) => handleSwitchChange('dataProvisioningEnabled', checked)}
+                                onCheckedChange={(checked) => onUpdate({ dataProvisioningEnabled: checked })}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -1955,6 +1988,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
