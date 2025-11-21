@@ -33,8 +33,25 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails,
       });
-      console.log(JSON.stringify({ ...logDetails, action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+      console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+    }
+
+    if (user.status === 'Inactive') {
+        const logDetails = {
+            reason: 'User account is inactive',
+            userId: user.id,
+            attemptedPhoneNumber: phoneNumber,
+        };
+        await createAuditLog({
+            actorId: user.id,
+            action: 'USER_LOGIN_FAILURE',
+            ipAddress,
+            userAgent,
+            details: logDetails
+        });
+        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -52,7 +69,7 @@ export async function POST(req: NextRequest) {
            userAgent,
            details: logDetails
        });
-       console.log(JSON.stringify({ ...logDetails, action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+       console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
@@ -69,7 +86,7 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails
     });
-    console.log(JSON.stringify({ ...logDetails, action: 'USER_LOGIN_SUCCESS', userId: user.id, ipAddress, userAgent }));
+    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_SUCCESS', userId: user.id, ipAddress, userAgent }));
 
     return NextResponse.json({ message: 'Login successful' }, { status: 200 });
 
