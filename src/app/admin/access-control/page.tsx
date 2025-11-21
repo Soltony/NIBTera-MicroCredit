@@ -167,7 +167,7 @@ function UsersTab() {
                                 <TableHead>Full Name</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Role</TableHead>
-                                <TableHead>Provider</TableHead>
+                                {currentUser?.role === 'Super Admin' && <TableHead>Provider</TableHead>}
                                 <TableHead>Status</TableHead>
                                 <TableHead>Actions</TableHead>
                             </TableRow>
@@ -182,7 +182,7 @@ function UsersTab() {
                                             {user.role}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>{user.providerName}</TableCell>
+                                    {currentUser?.role === 'Super Admin' && <TableCell>{user.providerName}</TableCell>}
                                     <TableCell>
                                         <Badge variant={user.status === 'Active' ? 'secondary' : 'destructive'} style={user.status === 'Active' ? { backgroundColor: '#16a34a', color: 'white' } : {}}>
                                             {user.status}
@@ -429,20 +429,24 @@ function RolesTab() {
 }
 
 export default function AccessControlPage() {
+    const { currentUser } = useAuth();
+    
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <h2 className="text-3xl font-bold tracking-tight">Access Control</h2>
             <Tabs defaultValue="users" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="users">Users</TabsTrigger>
-                    <TabsTrigger value="roles">Roles</TabsTrigger>
+                    {currentUser?.role === 'Super Admin' && <TabsTrigger value="roles">Roles</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="users">
                     <UsersTab />
                 </TabsContent>
-                <TabsContent value="roles">
-                    <RolesTab />
-                </TabsContent>
+                {currentUser?.role === 'Super Admin' && (
+                    <TabsContent value="roles">
+                        <RolesTab />
+                    </TabsContent>
+                )}
             </Tabs>
         </div>
     );

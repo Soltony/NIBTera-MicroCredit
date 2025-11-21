@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import { getUserFromSession } from '@/lib/user';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -17,8 +18,20 @@ const userSchema = z.object({
 });
 
 export async function GET() {
+  const actor = await getUserFromSession();
+  if (!actor) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
+    // If the actor is a Super Admin, they see all users.
+    // Otherwise, they only see users associated with their own provider.
+    const whereClause: any = (actor.role === 'Super Admin')
+        ? {}
+        : { loanProviderId: actor.loanProviderId };
+
     const users = await prisma.user.findMany({
+      where: whereClause,
       include: {
         role: true,
         loanProvider: true,
@@ -48,7 +61,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
     const session = await getSession();
-    if (!session?.userId) {
+    const actor = await getUserFromSession();
+
+    if (!session?.userId || !actor) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
@@ -79,7 +94,10 @@ export async function POST(req: NextRequest) {
         roleId: role.id,
     };
     
-    if (providerId) {
+    // If actor is not Super Admin, force the new user's providerId to be the actor's providerId
+    if (actor.role !== 'Super Admin') {
+        dataToCreate.loanProviderId = actor.loanProviderId;
+    } else if (providerId) {
         dataToCreate.loanProviderId = providerId;
     }
 
@@ -107,7 +125,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
     const session = await getSession();
-    if (!session?.userId) {
+    const actor = await getUserFromSession();
+    
+    if (!session?.userId || !actor) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
@@ -120,6 +140,15 @@ export async function PUT(req: NextRequest) {
     if (!id) {
         throw new Error('User ID is required for an update.');
     }
+    
+    // Security check: Non-Super Admins cannot edit users outside their provider
+    if (actor.role !== 'Super Admin') {
+        const userToEdit = await prisma.user.findUnique({ where: { id }});
+        if (userToEdit?.loanProviderId !== actor.loanProviderId) {
+            return NextResponse.json({ error: 'You are not authorized to edit this user.' }, { status: 403 });
+        }
+    }
+
 
     const logDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_INITIATED', entity: 'USER', entityId: id, details: logDetails, ipAddress, userAgent });
@@ -135,11 +164,14 @@ export async function PUT(req: NextRequest) {
         dataToUpdate.roleId = role.id;
     }
     
-    // Handle providerId relationship
-    if (providerId === null) {
-        dataToUpdate.loanProviderId = null;
-    } else if (providerId) {
-        dataToUpdate.loanProviderId = providerId;
+    // If actor is not a super admin, they cannot change the provider ID.
+    // If they are a super admin, they can change it.
+    if (actor.role === 'Super Admin') {
+        if (providerId === null) {
+            dataToUpdate.loanProviderId = null;
+        } else if (providerId) {
+            dataToUpdate.loanProviderId = providerId;
+        }
     }
 
 
