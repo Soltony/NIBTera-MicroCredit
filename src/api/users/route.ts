@@ -5,7 +5,6 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
-import { getUserFromSession } from '@/lib/user';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -18,20 +17,8 @@ const userSchema = z.object({
 });
 
 export async function GET() {
-  const actor = await getUserFromSession();
-  if (!actor) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-
   try {
-    // If the actor is a Super Admin, they see all users.
-    // Otherwise, they only see users associated with their own provider.
-    const whereClause: any = (actor.role === 'Super Admin')
-        ? {}
-        : { loanProviderId: actor.loanProviderId };
-
     const users = await prisma.user.findMany({
-      where: whereClause,
       include: {
         role: true,
         loanProvider: true,
@@ -61,9 +48,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
     const session = await getSession();
-    const actor = await getUserFromSession();
-
-    if (!session?.userId || !actor) {
+    if (!session?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
@@ -75,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     const logDetails = { userEmail: userData.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_INITIATED', entity: 'USER', details: logDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...logDetails, action: 'USER_CREATE_INITIATED', actorId: session.userId }));
+    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_INITIATED', actorId: session.userId }));
 
     if (!password) {
       throw new Error('Password is required for new users.');
@@ -94,10 +79,7 @@ export async function POST(req: NextRequest) {
         roleId: role.id,
     };
     
-    // If actor is not Super Admin, force the new user's providerId to be the actor's providerId
-    if (actor.role !== 'Super Admin') {
-        dataToCreate.loanProviderId = actor.loanProviderId;
-    } else if (providerId) {
+    if (providerId) {
         dataToCreate.loanProviderId = providerId;
     }
 
@@ -107,7 +89,7 @@ export async function POST(req: NextRequest) {
     
     const successLogDetails = { createdUserId: newUser.id, createdUserEmail: newUser.email, assignedRole: roleName };
     await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_SUCCESS', entity: 'USER', entityId: newUser.id, details: successLogDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...successLogDetails, action: 'USER_CREATE_SUCCESS', actorId: session.userId }));
+    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_SUCCESS', actorId: session.userId }));
 
 
     return NextResponse.json(newUser, { status: 201 });
@@ -115,7 +97,7 @@ export async function POST(req: NextRequest) {
      const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
      const failureLogDetails = { error: errorMessage };
      await createAuditLog({ actorId: session.userId, action: 'USER_CREATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
-     console.error(JSON.stringify({ ...failureLogDetails, action: 'USER_CREATE_FAILED', actorId: session.userId }));
+     console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_CREATE_FAILED', actorId: session.userId }));
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
@@ -125,9 +107,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
     const session = await getSession();
-    const actor = await getUserFromSession();
-    
-    if (!session?.userId || !actor) {
+    if (!session?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
@@ -140,19 +120,10 @@ export async function PUT(req: NextRequest) {
     if (!id) {
         throw new Error('User ID is required for an update.');
     }
-    
-    // Security check: Non-Super Admins cannot edit users outside their provider
-    if (actor.role !== 'Super Admin') {
-        const userToEdit = await prisma.user.findUnique({ where: { id }});
-        if (userToEdit?.loanProviderId !== actor.loanProviderId) {
-            return NextResponse.json({ error: 'You are not authorized to edit this user.' }, { status: 403 });
-        }
-    }
-
 
     const logDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_INITIATED', entity: 'USER', entityId: id, details: logDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...logDetails, action: 'USER_UPDATE_INITIATED', actorId: session.userId }));
+    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_INITIATED', actorId: session.userId }));
 
     let dataToUpdate: any = { ...userData };
 
@@ -164,14 +135,11 @@ export async function PUT(req: NextRequest) {
         dataToUpdate.roleId = role.id;
     }
     
-    // If actor is not a super admin, they cannot change the provider ID.
-    // If they are a super admin, they can change it.
-    if (actor.role === 'Super Admin') {
-        if (providerId === null) {
-            dataToUpdate.loanProviderId = null;
-        } else if (providerId) {
-            dataToUpdate.loanProviderId = providerId;
-        }
+    // Handle providerId relationship
+    if (providerId === null) {
+        dataToUpdate.loanProviderId = null;
+    } else if (providerId) {
+        dataToUpdate.loanProviderId = providerId;
     }
 
 
@@ -182,14 +150,14 @@ export async function PUT(req: NextRequest) {
     
     const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_SUCCESS', entity: 'USER', entityId: id, details: successLogDetails, ipAddress, userAgent });
-    console.log(JSON.stringify({ ...successLogDetails, action: 'USER_UPDATE_SUCCESS', actorId: session.userId }));
+    console.log(JSON.stringify({ ...successLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_SUCCESS', actorId: session.userId }));
 
     return NextResponse.json(updatedUser);
   } catch (error) {
     const errorMessage = (error as Error).message;
     const failureLogDetails = { error: errorMessage };
     await createAuditLog({ actorId: session.userId, action: 'USER_UPDATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
-    console.error(JSON.stringify({ ...failureLogDetails, action: 'USER_UPDATE_FAILED', actorId: session.userId }));
+    console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'USER_UPDATE_FAILED', actorId: session.userId }));
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
   }
 }
