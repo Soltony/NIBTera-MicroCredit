@@ -180,34 +180,45 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     };
 
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const submitForApproval = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
         try {
-            const productToSave = {
+             const productToSave = {
                 ...formData,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: parseInt(String(formData.duration)) || 30
             };
-            
-            const response = await fetch('/api/settings/products', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(productToSave)
-            });
 
+            const originalProduct = provider.products.find(p => p.id === product.id);
+
+            const payload = {
+                original: originalProduct,
+                updated: productToSave
+            };
+
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    entityId: product.id,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload)
+                }),
+            });
+            
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save product.');
+                throw new Error(errorData.error || 'Failed to submit product changes for approval.');
             }
 
-            const savedProduct = await response.json();
-            onSave(savedProduct);
+            onUpdate({ status: 'PENDING_APPROVAL' });
 
             toast({
-                title: 'Product Saved',
-                description: `Changes to ${product.name} have been saved successfully.`,
+                title: 'Submitted for Approval',
+                description: `Changes to ${product.name} have been submitted successfully.`,
             });
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -251,7 +262,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-                 <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-background space-y-6">
+                 <form onSubmit={submitForApproval} className="p-4 border rounded-lg bg-background space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="flex items-center space-x-2">
                             <Switch 
@@ -1944,6 +1955,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+
 
 
 
