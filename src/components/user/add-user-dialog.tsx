@@ -44,7 +44,6 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
     let defaultProviderId: string | null = null;
     
-    // Super admins can pick, but provider admins are tied to their own provider.
     if (currentUser?.role !== 'Super Admin') {
         defaultProviderId = currentUser?.providerId || null;
     } else if (providers.length > 0) {
@@ -119,15 +118,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
         submissionData.providerId = null;
     } else if (currentUser?.role !== 'Super Admin') {
-        // Force provider ID for non-super admins
         submissionData.providerId = currentUser?.providerId;
-    } else if (!submissionData.providerId) {
-         if (providers.length > 0) {
-            submissionData.providerId = providers[0].id;
-        } else {
-            alert('A loan provider must be selected for this role.');
-            return;
-        }
     }
 
     onSave(submissionData);
