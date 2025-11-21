@@ -6,13 +6,14 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
 
 async function getProviders(userId: string): Promise<LoanProviderType[]> {
-    const user = await getUserFromSession();
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { loanProvider: true }
+    });
 
-    // Only Super Admin can see and manage all providers.
-    // Other roles are scoped to their own provider if they have one.
-    const whereClause = (user?.role === 'Super Admin')
+    const whereClause = (user?.role === 'Super Admin' || user?.role === 'Admin')
         ? {}
-        : { id: user?.loanProviderId || '---NO_PROVIDER---' }; // Use an impossible ID if no providerId
+        : { id: user?.loanProvider?.id };
 
     const providers = await prisma.loanProvider.findMany({
         where: whereClause,
@@ -20,7 +21,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             products: {
                 include: {
                     loanAmountTiers: true,
-                    eligibilityUpload: true,
+                    eligibilityUpload: true, // <-- This is the critical addition
                 },
                 orderBy: { name: 'asc' }
             },
@@ -81,3 +82,8 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} initialTaxConfig={taxConfig} />;
 }
+
+
+
+
+

@@ -190,28 +190,25 @@ export async function getDashboardData(userId: string): Promise<{
         include: { loanProvider: true }
     });
 
-    const isSuperAdmin = user?.role === 'Super Admin';
+    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
     
-    // Get all providers for Super Admin, or just the user's provider for others.
-    const providers = isSuperAdmin
+    // For non-admins, get their specific provider or an empty array
+    const providers = isSuperAdminOrAdmin
         ? await prisma.loanProvider.findMany()
         : (user?.loanProvider ? [user.loanProvider] : []);
 
-    // Get the overall data. For non-super-admins, this IS their provider-specific data.
-    const overallData = await getProviderData(isSuperAdmin ? undefined : user?.loanProviderId);
+    const overallData = await getProviderData(isSuperAdminOrAdmin ? undefined : user?.loanProvider?.id);
     
     let providerSpecificData: Record<string, DashboardData> = {};
 
-    // If super admin, fetch data for each provider individually.
-    if (isSuperAdmin) {
+    if (isSuperAdminOrAdmin) {
          const specificDataPromises = providers.map(p => getProviderData(p.id));
          const results = await Promise.all(specificDataPromises);
          results.forEach((data, index) => {
              providerSpecificData[providers[index].id] = data;
          });
-    } else if (user?.loanProviderId) {
-        // For other roles, their "specific" data is the same as the "overall" data we already fetched.
-        providerSpecificData[user.loanProviderId] = overallData;
+    } else if (user?.loanProvider) {
+        providerSpecificData[user.loanProvider.id] = overallData;
     }
 
 
