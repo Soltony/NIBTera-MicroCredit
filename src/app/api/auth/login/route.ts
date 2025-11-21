@@ -37,6 +37,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
+    if (user.status === 'Inactive') {
+        const logDetails = {
+            reason: 'User account is inactive',
+            userId: user.id,
+            attemptedPhoneNumber: phoneNumber,
+        };
+        await createAuditLog({
+            actorId: user.id,
+            action: 'USER_LOGIN_FAILURE',
+            ipAddress,
+            userAgent,
+            details: logDetails
+        });
+        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
