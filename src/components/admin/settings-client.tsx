@@ -1044,6 +1044,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
 }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
@@ -1093,9 +1094,40 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     };
 
     const handleSave = async () => {
-        // Here we call the prop to bubble up the entire changed config
-        onProductUpdate(config);
-        // The parent will handle the API call
+        setIsSaving(true);
+        try {
+            const payload = {
+                original: product, // The original product state before edits
+                updated: config,   // The new state from the form
+            };
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    entityId: product.id,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload)
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit changes for approval.');
+            }
+
+            // Update the parent state to reflect pending status
+            onProductUpdate({ ...config, status: 'PENDING_APPROVAL' });
+            
+            toast({
+                title: 'Submitted for Approval',
+                description: `Changes for ${config.name} have been submitted successfully.`,
+            });
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -1103,7 +1135,11 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
             <CollapsibleTrigger asChild>
                  <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
                     <h4 className="text-sm font-semibold">{product.name}</h4>
-                    <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                    {config.status === 'PENDING_APPROVAL' ? (
+                        <Badge variant="outline">Pending Approval</Badge>
+                    ) : (
+                        <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
+                    )}
                 </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -1195,8 +1231,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                             size="sm"
                             style={{ backgroundColor: providerColor }}
                             className="text-white ml-auto"
+                            disabled={isSaving || config.status === 'PENDING_APPROVAL'}
                         >
-                            Stage Changes
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            {config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
                         </Button>
                 </CardFooter>
             </Card>
@@ -1210,50 +1248,6 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
     onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
     taxConfig: Tax;
 }) {
-    const { toast } = useToast();
-    const [stagedChanges, setStagedChanges] = useState<Record<string, LoanProduct>>({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const handleStageProductUpdate = (product: LoanProduct) => {
-        setStagedChanges(prev => ({...prev, [product.id]: product}));
-        toast({ title: 'Changes Staged', description: `Changes for ${product.name} are staged. Click "Submit All for Approval" to save.` });
-    }
-    
-    const handleSubmitAll = async () => {
-        setIsSubmitting(true);
-        const changePromises = Object.values(stagedChanges).map(product => {
-            const originalProduct = providers.flatMap(p => p.products).find(p => p.id === product.id);
-            const payload = {
-                original: originalProduct,
-                updated: product,
-            };
-            return fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    entityId: product.id,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
-            }).then(res => {
-                if (!res.ok) throw new Error(`Failed to submit changes for ${product.name}`);
-                onProductUpdate(product.providerId, { ...product, status: 'PENDING_APPROVAL' });
-                return res;
-            });
-        });
-        
-        try {
-            await Promise.all(changePromises);
-            toast({ title: 'Success', description: 'All staged changes have been submitted for approval.' });
-            setStagedChanges({});
-        } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    }
-
     if (providers.length === 0) {
         return (
             <Card>
@@ -1267,8 +1261,6 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
         );
     }
     
-    const hasStagedChanges = Object.keys(stagedChanges).length > 0;
-
     return (
         <>
         <Accordion type="multiple" className="w-full space-y-4">
@@ -1287,9 +1279,9 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
                        {(provider.products || []).map(product => (
                             <ProductConfiguration
                                 key={product.id}
-                                product={stagedChanges[product.id] || product}
+                                product={product}
                                 providerColor={provider.colorHex}
-                                onProductUpdate={handleStageProductUpdate}
+                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
                                 taxConfig={taxConfig}
                             />
                        ))}
@@ -1297,14 +1289,6 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
                 </AccordionItem>
             ))}
         </Accordion>
-         {hasStagedChanges && (
-            <div className="sticky bottom-8 z-10 flex justify-end">
-                <Button onClick={handleSubmitAll} size="lg" className="shadow-lg" disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-                    Submit {Object.keys(stagedChanges).length} Staged Change(s) for Approval
-                </Button>
-            </div>
-         )}
         </>
     );
 }
@@ -2024,6 +2008,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
