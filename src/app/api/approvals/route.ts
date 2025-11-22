@@ -89,6 +89,20 @@ async function applyChange(change: any) {
             if (updateData.penaltyRules && Array.isArray(updateData.penaltyRules)) {
                 updateData.penaltyRules = JSON.stringify(updateData.penaltyRules);
             }
+            if (updateData.loanAmountTiers && Array.isArray(updateData.loanAmountTiers)) {
+                await prisma.loanAmountTier.deleteMany({ where: { productId: entityId } });
+                if (updateData.loanAmountTiers.length > 0) {
+                    await prisma.loanAmountTier.createMany({
+                        data: updateData.loanAmountTiers.map((tier: any) => ({
+                            productId: entityId,
+                            fromScore: tier.fromScore,
+                            toScore: tier.toScore,
+                            loanAmount: tier.loanAmount,
+                        })),
+                    });
+                }
+            }
+
 
             delete updateData.loanAmountTiers;
             delete updateData.eligibilityUpload;
@@ -150,6 +164,34 @@ async function applyChange(change: any) {
                     },
                 });
             }
+        });
+        break;
+    case 'TermsAndConditions':
+        await prisma.$transaction(async (tx) => {
+            const { providerId, content } = data.updated;
+            // Deactivate previous versions
+            await tx.termsAndConditions.updateMany({
+                where: { providerId },
+                data: { isActive: false },
+            });
+
+            // Get the latest version number
+            const latestVersion = await tx.termsAndConditions.findFirst({
+                where: { providerId },
+                orderBy: { version: 'desc' },
+            });
+            const newVersionNumber = (latestVersion?.version || 0) + 1;
+
+            // Create the new active version
+            await tx.termsAndConditions.create({
+                data: {
+                    providerId,
+                    content,
+                    version: newVersionNumber,
+                    isActive: true,
+                    publishedAt: new Date(),
+                },
+            });
         });
         break;
     case 'Tax':
