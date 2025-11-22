@@ -775,7 +775,7 @@ const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: Fee
                 <Input
                     type="number"
                     value={fee.value ?? ''}
-                    onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                    onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : Number(e.target.value) })}
                     placeholder="Enter value"
                     className={cn(fee.type === 'percentage' ? "pr-8" : "")}
                     disabled={!isEnabled}
@@ -804,7 +804,7 @@ const DailyFeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee
                     <Input
                         type="number"
                         value={fee.value ?? ''}
-                        onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                        onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : Number(e.target.value) })}
                         placeholder="Enter value"
                         className={cn(fee.type === 'percentage' ? "pr-8" : "")}
                         disabled={!isEnabled}
@@ -872,7 +872,7 @@ const PenaltyRuleRow = ({ rule, onChange, onRemove, color, isEnabled }: { rule: 
                 <Input
                     type="number"
                     value={rule.value ?? ''}
-                    onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                    onChange={(e) => onChange({ ...rule, value: e.target.value === '' ? '' : Number(e.target.value) })}
                     placeholder="Value"
                     className={cn(rule.type !== 'fixed' ? "pr-8" : "")}
                     disabled={!isEnabled}
@@ -968,25 +968,14 @@ function LoanTiersForm({ product, onUpdate, color }: {
                 }
             });
 
-            const response = await fetch('/api/settings/loan-amount-tiers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ productId: product.id, tiers: tiersToSend }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save loan tiers.');
-            }
-
-            const savedTiers = await response.json();
-            onUpdate({ loanAmountTiers: savedTiers });
+            // This update is now part of the parent's save logic.
+            onUpdate({ loanAmountTiers: tiersToSend });
+            toast({ title: 'Tiers Updated', description: 'Tiers have been staged for approval. Submit the product changes to finalize.' });
             
-            toast({ title: 'Success', description: 'Loan amount tiers have been saved successfully.' });
         } catch (error: any) {
-            // Validation errors are already toasted. Only toast for server/network errors.
+            // Validation errors are already toasted.
             if (!["Invalid tier data", "Invalid loan amount", "Overlapping Tiers"].includes(error.message)) {
-                toast({ title: 'Error Saving Tiers', description: error.message, variant: 'destructive' });
+                toast({ title: 'Error Updating Tiers', description: error.message, variant: 'destructive' });
             }
         } finally {
             setIsLoading(false);
@@ -1041,12 +1030,6 @@ function LoanTiersForm({ product, onUpdate, color }: {
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
                         </Button>
                     </CardContent>
-                    <CardFooter>
-                         <Button onClick={handleSaveTiers} style={{ backgroundColor: color }} className="text-white ml-auto" disabled={isLoading}>
-                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            Save Tiers for {product.name}
-                        </Button>
-                    </CardFooter>
                 </CollapsibleContent>
             </Card>
         </Collapsible>
@@ -1064,7 +1047,6 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     
     const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
-    // Ensure JSON fields are parsed on initialization or when product prop changes
     const parsedProduct = useMemo(() => {
         const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
         const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
@@ -1111,22 +1093,9 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     };
 
     const handleSave = async () => {
-        try {
-            const response = await fetch('/api/settings/products', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save configuration');
-            }
-            const savedProduct = await response.json();
-            onProductUpdate(savedProduct);
-            toast({ title: 'Configuration Saved', description: `Configuration for ${product.name} has been updated.` });
-        } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        }
+        // Here we call the prop to bubble up the entire changed config
+        onProductUpdate(config);
+        // The parent will handle the API call
     };
 
     return (
@@ -1227,7 +1196,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                             style={{ backgroundColor: providerColor }}
                             className="text-white ml-auto"
                         >
-                            Save Configuration for {config.name}
+                            Stage Changes
                         </Button>
                 </CardFooter>
             </Card>
@@ -1241,6 +1210,50 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
     onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
     taxConfig: Tax;
 }) {
+    const { toast } = useToast();
+    const [stagedChanges, setStagedChanges] = useState<Record<string, LoanProduct>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const handleStageProductUpdate = (product: LoanProduct) => {
+        setStagedChanges(prev => ({...prev, [product.id]: product}));
+        toast({ title: 'Changes Staged', description: `Changes for ${product.name} are staged. Click "Submit All for Approval" to save.` });
+    }
+    
+    const handleSubmitAll = async () => {
+        setIsSubmitting(true);
+        const changePromises = Object.values(stagedChanges).map(product => {
+            const originalProduct = providers.flatMap(p => p.products).find(p => p.id === product.id);
+            const payload = {
+                original: originalProduct,
+                updated: product,
+            };
+            return fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    entityId: product.id,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload)
+                }),
+            }).then(res => {
+                if (!res.ok) throw new Error(`Failed to submit changes for ${product.name}`);
+                onProductUpdate(product.providerId, { ...product, status: 'PENDING_APPROVAL' });
+                return res;
+            });
+        });
+        
+        try {
+            await Promise.all(changePromises);
+            toast({ title: 'Success', description: 'All staged changes have been submitted for approval.' });
+            setStagedChanges({});
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
     if (providers.length === 0) {
         return (
             <Card>
@@ -1254,7 +1267,10 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
         );
     }
     
+    const hasStagedChanges = Object.keys(stagedChanges).length > 0;
+
     return (
+        <>
         <Accordion type="multiple" className="w-full space-y-4">
             {providers.map((provider) => (
                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
@@ -1271,9 +1287,9 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
                        {(provider.products || []).map(product => (
                             <ProductConfiguration
                                 key={product.id}
-                                product={product}
+                                product={stagedChanges[product.id] || product}
                                 providerColor={provider.colorHex}
-                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
+                                onProductUpdate={handleStageProductUpdate}
                                 taxConfig={taxConfig}
                             />
                        ))}
@@ -1281,6 +1297,15 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
                 </AccordionItem>
             ))}
         </Accordion>
+         {hasStagedChanges && (
+            <div className="sticky bottom-8 z-10 flex justify-end">
+                <Button onClick={handleSubmitAll} size="lg" className="shadow-lg" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                    Submit {Object.keys(stagedChanges).length} Staged Change(s) for Approval
+                </Button>
+            </div>
+         )}
+        </>
     );
 }
 
@@ -1446,21 +1471,29 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
         }
         setIsLoading(true);
         try {
-            const response = await fetch('/api/settings/terms', {
+            const originalTerms = provider.termsAndConditions?.find(t => t.isActive);
+            const payload = {
+                original: originalTerms,
+                updated: { providerId: provider.id, content: terms.content }
+            }
+
+            const response = await fetch('/api/settings/pending-changes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ providerId: provider.id, content: terms.content })
+                body: JSON.stringify({
+                    entityType: 'TermsAndConditions',
+                    entityId: originalTerms?.id || provider.id, // Use provider ID for new terms
+                    changeType: 'UPDATE', // Always an update/new version
+                    payload: JSON.stringify(payload)
+                }),
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to save new terms.");
+                throw new Error(errorData.error || "Failed to submit new terms for approval.");
             }
             
-            const newTerms = await response.json();
-            setTerms(newTerms);
-            onProviderUpdate({ id: provider.id, termsAndConditions: [newTerms] });
-            toast({ title: "Published", description: `Version ${newTerms.version} of the terms has been published.` });
+            toast({ title: "Submitted for Approval", description: `A new version of the terms has been submitted for review.` });
 
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1494,7 +1527,7 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
                 </p>
                 <Button onClick={handleSave} disabled={isLoading}>
                     {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
-                    Save & Publish New Version
+                    Submit New Version for Approval
                 </Button>
             </div>
         </div>
@@ -1988,6 +2021,10 @@ function UploadDataViewerDialog({ upload, onClose }: {
         </UIDialog>
     );
 }
+    
+
+    
+
 
 
 
