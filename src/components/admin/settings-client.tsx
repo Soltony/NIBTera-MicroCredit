@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -448,13 +447,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
        </>
     )
 }
-//... (rest of the file is unchanged, but needs to be included for completeness)
-```
-<omitted the rest of the very long file `src/components/admin/settings-client.tsx` since it's identical to the provided one>
-
-Here's the rest of `src/components/admin/settings-client.tsx` for completeness.
-
-```tsx
 function ProvidersTab({ providers, onProvidersChange }: { 
     providers: LoanProvider[],
     onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
@@ -2014,15 +2006,3 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
-
-
-
-
-
-
-
-
-
-
-
-
