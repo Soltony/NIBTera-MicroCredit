@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { produce } from 'immer';
+import { Badge } from '@/components/ui/badge';
 
 const TAX_COMPONENTS = [
     { id: 'serviceFee', label: 'Service Fee' },
@@ -208,10 +209,13 @@ export default function TaxSettingsPage() {
         const changeType = isNew ? 'CREATE' : 'UPDATE';
         const entityId = isNew ? undefined : taxToSave.id;
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id, ...taxDataForCreation } = taxToSave;
+
         const payload = {
             original: isNew ? null : originalTax,
             updated: isNew ? null : taxToSave,
-            created: isNew ? taxToSave : null,
+            created: isNew ? taxDataForCreation : null,
         };
 
         try {

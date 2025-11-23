@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -78,7 +77,8 @@ async function applyChange(change: any) {
       break;
     case 'LoanProduct':
         if (changeType === 'UPDATE') {
-             const updateData = { ...data.updated, status: 'ACTIVE' };
+            const { loanAmountTiers, eligibilityUpload, ...restOfUpdateData } = data.updated;
+            const updateData = { ...restOfUpdateData, status: 'ACTIVE' };
 
             if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
                 updateData.serviceFee = JSON.stringify(updateData.serviceFee);
@@ -89,29 +89,28 @@ async function applyChange(change: any) {
             if (updateData.penaltyRules && Array.isArray(updateData.penaltyRules)) {
                 updateData.penaltyRules = JSON.stringify(updateData.penaltyRules);
             }
-            if (updateData.loanAmountTiers && Array.isArray(updateData.loanAmountTiers)) {
-                await prisma.loanAmountTier.deleteMany({ where: { productId: entityId } });
-                if (updateData.loanAmountTiers.length > 0) {
-                    await prisma.loanAmountTier.createMany({
-                        data: updateData.loanAmountTiers.map((tier: any) => ({
-                            productId: entityId,
-                            fromScore: tier.fromScore,
-                            toScore: tier.toScore,
-                            loanAmount: tier.loanAmount,
-                        })),
-                    });
+            
+            await prisma.$transaction(async (tx) => {
+                await tx.loanProduct.update({
+                    where: { id: entityId },
+                    data: updateData,
+                });
+
+                if (loanAmountTiers && Array.isArray(loanAmountTiers)) {
+                    await tx.loanAmountTier.deleteMany({ where: { productId: entityId } });
+                    if (loanAmountTiers.length > 0) {
+                        await tx.loanAmountTier.createMany({
+                            data: loanAmountTiers.map((tier: any) => ({
+                                productId: entityId,
+                                fromScore: tier.fromScore,
+                                toScore: tier.toScore,
+                                loanAmount: tier.loanAmount,
+                            })),
+                        });
+                    }
                 }
-            }
-
-
-            delete updateData.loanAmountTiers;
-            delete updateData.eligibilityUpload;
-
-
-            await prisma.loanProduct.update({
-                where: { id: entityId },
-                data: updateData,
             });
+
         } else if (changeType === 'CREATE') {
             const productToCreate = {
                 ...data.created,
@@ -166,7 +165,7 @@ async function applyChange(change: any) {
             }
         });
         break;
-    case 'TermsAndConditions':
+     case 'TermsAndConditions':
         await prisma.$transaction(async (tx) => {
             const { providerId, content } = data.updated;
             // Deactivate previous versions
@@ -201,8 +200,9 @@ async function applyChange(change: any) {
                 data: { ...data.updated, status: 'ACTIVE' }
             });
         } else if (changeType === 'CREATE') {
+            const { id, ...creationData } = data.created;
             await prisma.tax.create({
-                data: { ...data.created, status: 'ACTIVE' }
+                data: { ...creationData, status: 'ACTIVE' }
             });
         } else if (changeType === 'DELETE') {
             await prisma.tax.delete({ where: { id: entityId } });
