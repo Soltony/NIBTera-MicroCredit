@@ -55,52 +55,80 @@ const ChangeDetailsDialog = ({
 
   const diffResult = useMemo(() => {
     try {
-      const { original, updated } = JSON.parse(change.payload);
-      if (change.changeType === 'UPDATE') {
-        const diff = showDiff(original, updated, { full: true });
-        const fields = { added: 0, removed: 0, updated: 0, details: [] as any[] };
-        
-        const parseDiff = (obj: any, path: string = '') => {
-            if (!obj || typeof obj !== 'object') return;
-            for (const key of Object.keys(obj)) {
-                 const currentPath = path ? `${path} -> ${key}` : key;
-                
-                if (key.endsWith('__added')) {
-                    fields.added++;
-                    fields.details.push({ field: key.replace('__added', ''), after: obj[key], type: 'added' });
-                } else if (key.endsWith('__deleted')) {
-                    fields.removed++;
-                    fields.details.push({ field: key.replace('__deleted', ''), before: obj[key], type: 'removed' });
-                } else if (typeof obj[key] === 'object' && obj[key] !== null && '__old' in obj[key] && '__new' in obj[key]) {
-                     fields.updated++;
-                     fields.details.push({ field: currentPath, before: obj[key].__old, after: obj[key].__new, type: 'updated' });
-                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-                    // It's a nested object without __old/__new, so recurse
-                    parseDiff(obj[key], currentPath);
-                }
-            }
+        const { original, updated, created } = JSON.parse(change.payload);
+
+        const formatFieldName = (path: string) => {
+            return path
+                .replace(/__/g, ' -> ')
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/^./, (str) => str.toUpperCase());
         };
 
-        parseDiff(diff);
-        return fields;
+        if (change.changeType === 'UPDATE') {
+            const diff = showDiff(original, updated, { full: true, keepUnchangedValues: false });
+            const fields = { added: 0, removed: 0, updated: 0, details: [] as any[] };
 
-      } else if (change.changeType === 'CREATE') {
-          const created = JSON.parse(change.payload).created;
-          return {
-              added: Object.keys(created).length, removed: 0, updated: 0,
-              details: Object.entries(created).map(([key, value]) => ({ field: key, after: value, type: 'added' }))
-          };
-      } else if (change.changeType === 'DELETE') {
-           const original = JSON.parse(change.payload).original;
-           return {
-              added: 0, removed: Object.keys(original).length, updated: 0,
-              details: Object.entries(original).map(([key, value]) => ({ field: key, before: value, type: 'removed' }))
-          };
-      }
+            const flattenDiff = (obj: any, path: string = ''): any[] => {
+                let result: any[] = [];
+                if (!obj || typeof obj !== 'object') return result;
+
+                for (const key of Object.keys(obj)) {
+                    const newPath = path ? `${path}__${key}` : key;
+                    const value = obj[key];
+
+                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                         if ('__old' in value && '__new' in value) {
+                            result.push({ path: newPath, ...value });
+                        } else {
+                            result = result.concat(flattenDiff(value, newPath));
+                        }
+                    } else if (Array.isArray(value)) {
+                         // Treat array changes as a single field update for simplicity
+                         const originalArray = newPath.split('__').reduce((o, k) => o?.[k], original);
+                         const updatedArray = newPath.split('__').reduce((o, k) => o?.[k], updated);
+                         result.push({ path: newPath, __old: originalArray, __new: updatedArray });
+                    } else {
+                        // This case handles __added and __deleted at the top level
+                         if (key.endsWith('__added') || key.endsWith('__deleted')) {
+                            result.push({ path: newPath, value });
+                        }
+                    }
+                }
+                return result;
+            };
+
+            const flatDiff = flattenDiff(diff);
+            
+            flatDiff.forEach(item => {
+                 if (item.path.endsWith('__added')) {
+                    fields.added++;
+                    fields.details.push({ field: formatFieldName(item.path.replace('__added', '')), after: item.value, type: 'added' });
+                } else if (item.path.endsWith('__deleted')) {
+                    fields.removed++;
+                    fields.details.push({ field: formatFieldName(item.path.replace('__deleted', '')), before: item.value, type: 'removed' });
+                } else if (item.__old !== undefined || item.__new !== undefined) {
+                    fields.updated++;
+                    fields.details.push({ field: formatFieldName(item.path), before: item.__old, after: item.__new, type: 'updated' });
+                }
+            });
+            
+            return fields;
+
+        } else if (change.changeType === 'CREATE') {
+            return {
+                added: Object.keys(created).length, removed: 0, updated: 0,
+                details: Object.entries(created).map(([key, value]) => ({ field: formatFieldName(key), after: value, type: 'added' }))
+            };
+        } else if (change.changeType === 'DELETE') {
+            return {
+                added: 0, removed: Object.keys(original).length, updated: 0,
+                details: Object.entries(original).map(([key, value]) => ({ field: formatFieldName(key), before: value, type: 'removed' }))
+            };
+        }
 
     } catch (e) {
-      console.error("Failed to parse or diff payload:", e);
-      return null;
+        console.error("Failed to parse or diff payload:", e);
+        return null;
     }
     return null;
   }, [change]);
@@ -143,9 +171,9 @@ const ChangeDetailsDialog = ({
                         <p className="text-sm text-muted-foreground">
                             {diffResult.updated > 0 && `${diffResult.updated} fields updated`}
                             {diffResult.updated > 0 && (diffResult.removed > 0 || diffResult.added > 0) && ' • '}
-                            {diffResult.removed > 0 && `${diffResult.removed} removed`}
+                            {diffResult.removed > 0 && `${diffResult.removed} fields removed`}
                             {diffResult.removed > 0 && diffResult.added > 0 && ' • '}
-                            {diffResult.added > 0 && `${diffResult.added} added`}
+                            {diffResult.added > 0 && `${diffResult.added} fields added`}
                         </p>
                     </CardContent>
                 </Card>
@@ -153,7 +181,7 @@ const ChangeDetailsDialog = ({
 
             <Collapsible defaultOpen>
                  <CollapsibleTrigger asChild>
-                    <Card className="rounded-b-none cursor-pointer">
+                    <Card className="rounded-b-none cursor-pointer group">
                          <CardHeader className="flex-row items-center justify-between">
                             <CardTitle className="text-base">Details</CardTitle>
                             <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -170,7 +198,7 @@ const ChangeDetailsDialog = ({
                         <Separator />
                         {diffResult?.details.map((item, index) => (
                              <div key={index} className="grid grid-cols-3 gap-x-4 py-2 border-b last:border-none">
-                                <div className="col-span-1 font-medium capitalize">{item.field.replace(/_/g, ' ')}</div>
+                                <div className="col-span-1 font-medium capitalize">{item.field}</div>
                                 <div className="col-span-1 text-red-600 line-through">
                                     {item.type !== 'added' ? renderFieldValue(item.before) : ''}
                                 </div>
