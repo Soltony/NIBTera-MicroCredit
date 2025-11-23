@@ -196,9 +196,9 @@ async function applyChange(change: any) {
                         await tx.loanAmountTier.createMany({
                             data: loanAmountTiers.map((tier: any) => ({
                                 productId: entityId,
-                                fromScore: tier.fromScore,
-                                toScore: tier.toScore,
-                                loanAmount: tier.loanAmount,
+                                fromScore: parseInt(String(tier.fromScore), 10),
+                                toScore: parseInt(String(tier.toScore), 10),
+                                loanAmount: parseInt(String(tier.loanAmount), 10),
                             })),
                         });
                     }
