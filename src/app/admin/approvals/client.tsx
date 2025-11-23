@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, X, Eye } from 'lucide-react';
+import { Loader2, Check, X, Eye, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -19,8 +19,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import type { PendingChangeWithRelations } from './page';
-import type { User } from '@/lib/types';
+import type { PendingChangeWithDetails } from './page';
+import type { User, LoanProvider } from '@/lib/types';
 import { diff as showDiff } from 'json-diff';
 
 
@@ -28,45 +28,70 @@ function ChangeDetailsDialog({
   change,
   isOpen,
   onClose,
+  allProviders,
 }: {
-  change: PendingChangeWithRelations | null;
+  change: PendingChangeWithDetails | null;
   isOpen: boolean;
   onClose: () => void;
+  allProviders: LoanProvider[];
 }) {
   if (!change) return null;
 
-  const renderDiff = (payload: string) => {
+  const renderReadableDiff = (payload: string) => {
     try {
         const data = JSON.parse(payload);
-        // Fallback for CREATE/DELETE where one side might be missing
-        const original = data.original || data.deleted || {};
-        const updated = data.updated || data.created || {};
+        const original = data.original || {};
+        const updated = data.updated || {};
+        const created = data.created || {};
+
+        let diffSummary = [];
         
-        // The json-diff library returns a structured object, not a simple string.
-        const diffResult = showDiff(original, updated, { full: true });
-        
-        if (!diffResult) {
-            return <p>No changes detected in payload.</p>;
+        if (change.changeType === 'CREATE') {
+            for (const key in created) {
+                diffSummary.push(<div key={key}><strong>{key}:</strong> <span className="text-green-600">{JSON.stringify(created[key])}</span></div>);
+            }
+        } else if (change.changeType === 'DELETE') {
+             for (const key in original) {
+                diffSummary.push(<div key={key}><strong>{key}:</strong> <span className="text-red-600">{JSON.stringify(original[key])}</span></div>);
+            }
+        } else { // UPDATE
+            const diffResult = showDiff(original, updated, { full: true });
+             if (!diffResult) return <p>No changes detected.</p>;
+             for (const key in diffResult) {
+                 if (key.endsWith('__old')) continue;
+                 const oldValue = diffResult[key + '__old'];
+                 const newValue = diffResult[key];
+                 if (oldValue !== undefined) {
+                     diffSummary.push(
+                        <div key={key} className="flex items-start gap-2">
+                           <strong>{key}:</strong> 
+                           <div className="flex-1">
+                               <span className="text-red-600 line-through">{JSON.stringify(oldValue)}</span>
+                               <ArrowRight className="inline h-4 w-4 mx-2 text-muted-foreground" />
+                               <span className="text-green-600">{JSON.stringify(newValue)}</span>
+                           </div>
+                        </div>
+                    );
+                 }
+             }
         }
 
-        // A basic renderer for the diff object.
-        return (
-            <pre className="text-xs whitespace-pre-wrap font-mono bg-muted p-2 rounded-md">
-                {JSON.stringify(diffResult, (key, value) => {
-                    // Exclude noisy internal fields from the diff library
-                    if (key.includes('__old') || key.includes('__new')) {
-                        return undefined;
-                    }
-                    return value;
-                }, 2)}
-            </pre>
-        );
+        if (diffSummary.length === 0) {
+            return <p>No displayable changes in payload.</p>;
+        }
+
+        return <div className="space-y-2 text-sm">{diffSummary}</div>
 
     } catch (e) {
         console.error("Failed to parse or diff payload:", e);
         return <p className="text-destructive">Could not parse or display change details.</p>;
     }
   };
+  
+  const getProviderName = (providerId: string | null | undefined): string => {
+      if (!providerId) return 'N/A';
+      return allProviders.find(p => p.id === providerId)?.name || providerId;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -78,17 +103,19 @@ function ChangeDetailsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-            <div className="flex justify-between text-sm">
-                <span className="font-semibold">Entity Type:</span>
-                <span>{change.entityType}</span>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div className="font-semibold">Entity</div><div>{change.entityType}</div>
+                <div className="font-semibold">Name</div><div>{change.entityName}</div>
+                 {change.providerName && (
+                    <>
+                        <div className="font-semibold">Provider</div><div>{change.providerName}</div>
+                    </>
+                )}
+                <div className="font-semibold">Change Type</div><div><Badge>{change.changeType}</Badge></div>
             </div>
-             <div className="flex justify-between text-sm">
-                <span className="font-semibold">Change Type:</span>
-                <span><Badge>{change.changeType}</Badge></span>
-            </div>
-            <div className="space-y-1">
-                 <h4 className="font-semibold text-sm">Payload:</h4>
-                 {renderDiff(change.payload)}
+             <div className="space-y-1 pt-4">
+                 <h4 className="font-semibold text-sm">Payload Changes:</h4>
+                 <div className="p-4 border rounded-md bg-muted/50">{renderReadableDiff(change.payload)}</div>
             </div>
         </div>
         <DialogFooter>
@@ -103,16 +130,18 @@ function ChangeDetailsDialog({
 export function ApprovalsClient({
   pendingChanges: initialChanges,
   currentUser,
+  allProviders,
 }: {
-  pendingChanges: PendingChangeWithRelations[];
+  pendingChanges: PendingChangeWithDetails[];
   currentUser: User;
+  allProviders: LoanProvider[];
 }) {
   const [changes, setChanges] = useState(initialChanges);
   const [isLoading, setIsLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [changeToReject, setChangeToReject] = useState<PendingChangeWithRelations | null>(null);
-  const [changeToView, setChangeToView] = useState<PendingChangeWithRelations | null>(null);
+  const [changeToReject, setChangeToReject] = useState<PendingChangeWithDetails | null>(null);
+  const [changeToView, setChangeToView] = useState<PendingChangeWithDetails | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -180,7 +209,11 @@ export function ApprovalsClient({
                 ) : changes.length > 0 ? (
                   changes.map(change => (
                     <TableRow key={change.id}>
-                      <TableCell className="font-medium">{change.entityType}</TableCell>
+                      <TableCell className="font-medium">
+                        <div>{change.entityType}</div>
+                        <div className="text-sm text-muted-foreground">{change.entityName}</div>
+                         {change.providerName && <div className="text-xs text-muted-foreground">({change.providerName})</div>}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={change.changeType === 'DELETE' ? 'destructive' : 'secondary'}>{change.changeType}</Badge>
                       </TableCell>
@@ -252,6 +285,7 @@ export function ApprovalsClient({
         change={changeToView}
         isOpen={!!changeToView}
         onClose={() => setChangeToView(null)}
+        allProviders={allProviders}
       />
     </>
   );
