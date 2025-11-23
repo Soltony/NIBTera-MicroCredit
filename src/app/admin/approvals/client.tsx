@@ -32,6 +32,10 @@ const renderFieldValue = (value: any): string => {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'object') {
       if (Array.isArray(value)) return `[${value.length} items]`;
+       // For simple objects like fees, format them
+      if (value.type && value.value !== undefined) {
+          return `${value.value}${value.type === 'percentage' ? '%' : ' ETB'}`;
+      }
       return '{...}';
   }
   return String(value);
@@ -58,19 +62,21 @@ const ChangeDetailsDialog = ({
         
         const parseDiff = (obj: any, path: string = '') => {
             if (!obj || typeof obj !== 'object') return;
-            for (const key in obj) {
-                const newPath = path ? `${path} -> ${key}` : key;
+            for (const key of Object.keys(obj)) {
+                 const currentPath = path ? `${path} -> ${key}` : key;
+                
                 if (key.endsWith('__added')) {
                     fields.added++;
                     fields.details.push({ field: key.replace('__added', ''), after: obj[key], type: 'added' });
                 } else if (key.endsWith('__deleted')) {
                     fields.removed++;
                     fields.details.push({ field: key.replace('__deleted', ''), before: obj[key], type: 'removed' });
-                } else if (typeof obj[key] === 'object' && obj[key] !== null && ('__old' in obj[key] && '__new' in obj[key])) {
-                    fields.updated++;
-                    fields.details.push({ field: newPath, before: obj[key].__old, after: obj[key].__new, type: 'updated' });
-                } else if (typeof obj[key] === 'object') {
-                    parseDiff(obj[key], newPath);
+                } else if (typeof obj[key] === 'object' && obj[key] !== null && '__old' in obj[key] && '__new' in obj[key]) {
+                     fields.updated++;
+                     fields.details.push({ field: currentPath, before: obj[key].__old, after: obj[key].__new, type: 'updated' });
+                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+                    // It's a nested object without __old/__new, so recurse
+                    parseDiff(obj[key], currentPath);
                 }
             }
         };
