@@ -4,7 +4,7 @@
 import { getUserFromSession } from '@/lib/user';
 import { ApprovalsClient } from './client';
 import prisma from '@/lib/prisma';
-import type { PendingChange, User, LoanProvider } from '@prisma/client';
+import type { PendingChange, User } from '@prisma/client';
 
 export type PendingChangeWithDetails = PendingChange & { 
     createdBy: User,
@@ -87,14 +87,10 @@ export default async function ApprovalsPage() {
     }
     const pendingChanges = await getPendingChanges();
     
-    // Fetch all providers to pass to the client for context
-    const allProviders = await prisma.loanProvider.findMany();
-
     return (
         <ApprovalsClient
             pendingChanges={pendingChanges}
             currentUser={user}
-            allProviders={allProviders}
         />
     );
 }

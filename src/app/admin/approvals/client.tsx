@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, X, Eye, ArrowRight } from 'lucide-react';
+import { Loader2, Check, X, Eye, ArrowRight, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -22,123 +22,182 @@ import { Textarea } from '@/components/ui/textarea';
 import type { PendingChangeWithDetails } from './page';
 import type { User, LoanProvider } from '@/lib/types';
 import { diff as showDiff } from 'json-diff';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+
+
+const renderFieldValue = (value: any): string => {
+  if (value === null || value === undefined) return 'N/A';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') {
+      if (Array.isArray(value)) return `[${value.length} items]`;
+      return '{...}';
+  }
+  return String(value);
+};
 
 
 const ChangeDetailsDialog = ({
   change,
   isOpen,
   onClose,
-  allProviders,
 }: {
   change: PendingChangeWithDetails | null;
   isOpen: boolean;
   onClose: () => void;
-  allProviders: LoanProvider[];
 }) => {
   if (!change) return null;
 
-  const renderReadableDiff = (payload: string) => {
+  const diffResult = useMemo(() => {
     try {
-      const data = JSON.parse(payload);
-      const { original, updated, created } = data;
+      const { original, updated } = JSON.parse(change.payload);
+      if (change.changeType === 'UPDATE') {
+        const diff = showDiff(original, updated, { full: true });
+        const fields = { added: 0, removed: 0, updated: 0, details: [] as any[] };
+        
+        const parseDiff = (obj: any, path: string = '') => {
+            if (!obj || typeof obj !== 'object') return;
+            for (const key in obj) {
+                const newPath = path ? `${path} -> ${key}` : key;
+                if (key.endsWith('__added')) {
+                    fields.added++;
+                    fields.details.push({ field: key.replace('__added', ''), after: obj[key], type: 'added' });
+                } else if (key.endsWith('__deleted')) {
+                    fields.removed++;
+                    fields.details.push({ field: key.replace('__deleted', ''), before: obj[key], type: 'removed' });
+                } else if (typeof obj[key] === 'object' && obj[key] !== null && ('__old' in obj[key] && '__new' in obj[key])) {
+                    fields.updated++;
+                    fields.details.push({ field: newPath, before: obj[key].__old, after: obj[key].__new, type: 'updated' });
+                } else if (typeof obj[key] === 'object') {
+                    parseDiff(obj[key], newPath);
+                }
+            }
+        };
 
-      let content;
+        parseDiff(diff);
+        return fields;
 
-      if (change.changeType === 'CREATE') {
-        content = created;
+      } else if (change.changeType === 'CREATE') {
+          const created = JSON.parse(change.payload).created;
+          return {
+              added: Object.keys(created).length, removed: 0, updated: 0,
+              details: Object.entries(created).map(([key, value]) => ({ field: key, after: value, type: 'added' }))
+          };
       } else if (change.changeType === 'DELETE') {
-        content = original;
-      } else { // UPDATE
-        content = showDiff(original, updated);
+           const original = JSON.parse(change.payload).original;
+           return {
+              added: 0, removed: Object.keys(original).length, updated: 0,
+              details: Object.entries(original).map(([key, value]) => ({ field: key, before: value, type: 'removed' }))
+          };
       }
-
-      if (!content) {
-        return <p className="text-sm text-muted-foreground">No payload data to display.</p>;
-      }
-      
-       // Special handling for columns to parse the inner JSON string
-      if (content.columns && typeof content.columns === 'string') {
-          try {
-              content.columns = JSON.parse(content.columns);
-          } catch (e) {
-              // ignore if it fails
-          }
-      }
-      if (content.columns?.__new && typeof content.columns.__new === 'string') {
-           try {
-              content.columns.__new = JSON.parse(content.columns.__new);
-          } catch (e) {
-              // ignore if it fails
-          }
-      }
-      if (content.columns?.__old && typeof content.columns.__old === 'string') {
-           try {
-              content.columns.__old = JSON.parse(content.columns.__old);
-          } catch (e) {
-              // ignore if it fails
-          }
-      }
-
-
-      return (
-        <pre className="text-sm bg-muted/50 p-4 rounded-md overflow-x-auto">
-          <code>{JSON.stringify(content, null, 2)}</code>
-        </pre>
-      );
 
     } catch (e) {
       console.error("Failed to parse or diff payload:", e);
-      return <p className="text-destructive">Could not parse or display change details.</p>;
+      return null;
     }
-  };
-  
-  const getProviderName = (providerId: string | null | undefined): string => {
-      if (!providerId) return 'N/A';
-      return allProviders.find(p => p.id === providerId)?.name || providerId;
-  }
+    return null;
+  }, [change]);
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Change Details</DialogTitle>
-          <DialogDescription>
+          <DialogTitle>Change Request Details</DialogTitle>
+           <DialogDescription>
             Review the changes submitted for approval.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <div className="font-semibold">Entity</div><div>{change.entityType}</div>
-                <div className="font-semibold">Name</div><div>{change.entityName}</div>
-                 {change.providerName && (
-                    <>
-                        <div className="font-semibold">Provider</div><div>{change.providerName}</div>
-                    </>
-                )}
-                <div className="font-semibold">Change Type</div><div><Badge>{change.changeType}</Badge></div>
-            </div>
-             <div className="space-y-1 pt-4">
-                 <h4 className="font-semibold text-sm">Payload Changes:</h4>
-                 {renderReadableDiff(change.payload)}
-            </div>
+        
+        <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <Card>
+                <CardContent className="pt-6 text-sm space-y-2">
+                    <div className="flex justify-between">
+                        <span className="text-muted-foreground">Requested By:</span>
+                        <span className="font-medium">{change.createdBy.fullName}</span>
+                    </div>
+                     <div className="flex justify-between">
+                        <span className="text-muted-foreground">Date:</span>
+                        <span className="font-medium">{format(new Date(change.createdAt), 'MMM dd, yyyy')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-muted-foreground">Entity:</span>
+                        <span className="font-medium">{change.entityType} ({change.entityName})</span>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {diffResult && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Summary of Changes</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                            {diffResult.updated > 0 && `${diffResult.updated} fields updated`}
+                            {diffResult.updated > 0 && (diffResult.removed > 0 || diffResult.added > 0) && ' • '}
+                            {diffResult.removed > 0 && `${diffResult.removed} removed`}
+                            {diffResult.removed > 0 && diffResult.added > 0 && ' • '}
+                            {diffResult.added > 0 && `${diffResult.added} added`}
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            <Collapsible defaultOpen>
+                 <CollapsibleTrigger asChild>
+                    <Card className="rounded-b-none cursor-pointer">
+                         <CardHeader className="flex-row items-center justify-between">
+                            <CardTitle className="text-base">Details</CardTitle>
+                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                        </CardHeader>
+                    </Card>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                    <div className="border border-t-0 rounded-b-lg p-4 text-sm">
+                        <div className="grid grid-cols-3 gap-x-4 mb-2 font-semibold">
+                            <div className="col-span-1">Field</div>
+                            <div className="col-span-1">Before</div>
+                            <div className="col-span-1">After</div>
+                        </div>
+                        <Separator />
+                        {diffResult?.details.map((item, index) => (
+                             <div key={index} className="grid grid-cols-3 gap-x-4 py-2 border-b last:border-none">
+                                <div className="col-span-1 font-medium capitalize">{item.field.replace(/_/g, ' ')}</div>
+                                <div className="col-span-1 text-red-600 line-through">
+                                    {item.type !== 'added' ? renderFieldValue(item.before) : ''}
+                                </div>
+                                <div className="col-span-1 text-green-600">
+                                    {item.type !== 'removed' ? renderFieldValue(item.after) : ''}
+                                </div>
+                            </div>
+                        ))}
+                         {(!diffResult || diffResult.details.length === 0) && (
+                            <p className="text-muted-foreground text-center py-4">No changes to display.</p>
+                        )}
+                    </div>
+                </CollapsibleContent>
+            </Collapsible>
         </div>
+        
         <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
+};
 
 
 export function ApprovalsClient({
   pendingChanges: initialChanges,
   currentUser,
-  allProviders,
 }: {
   pendingChanges: PendingChangeWithDetails[];
   currentUser: User;
-  allProviders: LoanProvider[];
 }) {
   const [changes, setChanges] = useState(initialChanges);
   const [isLoading, setIsLoading] = useState(false);
@@ -289,7 +348,6 @@ export function ApprovalsClient({
         change={changeToView}
         isOpen={!!changeToView}
         onClose={() => setChangeToView(null)}
-        allProviders={allProviders}
       />
     </>
   );
