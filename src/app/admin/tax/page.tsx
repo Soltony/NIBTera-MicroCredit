@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -19,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { produce } from 'immer';
 
 const TAX_COMPONENTS = [
     { id: 'serviceFee', label: 'Service Fee' },
@@ -26,7 +28,7 @@ const TAX_COMPONENTS = [
     { id: 'penalty', label: 'Penalty' },
 ];
 
-function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxConfig) => void; onDelete: (taxId: string) => void; }) {
+function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxConfig, originalTax?: TaxConfig) => Promise<void>; onDelete: (tax: TaxConfig) => Promise<void>; }) {
     const [config, setConfig] = useState(tax);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -53,8 +55,12 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                 toast({ title: 'Invalid Rate', description: 'Tax rate must be a positive number.', variant: 'destructive'});
                 return;
             }
-            await onSave({ ...config, rate: numericRate });
-            toast({ title: 'Success', description: 'Tax configuration has been saved.' });
+            await onSave({ ...config, rate: numericRate }, tax);
+            if (!config.id.startsWith('new-')) {
+                setConfig(prev => produce(prev, draft => {
+                    draft.status = 'PENDING_APPROVAL';
+                }));
+            }
         } catch (error) {
             // onSave should handle the toast for errors
         } finally {
@@ -65,7 +71,10 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
     const handleDelete = async () => {
         setIsDeleting(true);
         try {
-            await onDelete(config.id);
+            await onDelete(config);
+             setConfig(prev => produce(prev, draft => {
+                draft.status = 'PENDING_APPROVAL';
+            }));
         } finally {
             setIsDeleting(false);
         }
@@ -73,6 +82,14 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
 
     return (
         <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CardTitle>{config.name}</CardTitle>
+                    {config.status === 'PENDING_APPROVAL' && (
+                        <Badge variant="outline">Pending Approval</Badge>
+                    )}
+                </div>
+            </CardHeader>
             <CardContent className="pt-6 space-y-6">
                 <div className="space-y-2">
                     <Label htmlFor={`tax-name-${config.id}`}>Tax Name</Label>
@@ -83,6 +100,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                         onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="e.g., VAT"
                         className="max-w-xs"
+                        disabled={config.status === 'PENDING_APPROVAL'}
                     />
                 </div>
                 <div className="space-y-2">
@@ -94,6 +112,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                         onChange={(e) => setConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) || 0 }))}
                         placeholder="e.g., 15"
                         className="max-w-xs"
+                        disabled={config.status === 'PENDING_APPROVAL'}
                     />
                 </div>
                  <div className="space-y-4">
@@ -105,6 +124,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                                     id={`tax-on-${config.id}-${component.id}`}
                                     checked={JSON.parse(config.appliedTo).includes(component.id)}
                                     onCheckedChange={(checked) => handleComponentChange(component.id, !!checked)}
+                                    disabled={config.status === 'PENDING_APPROVAL'}
                                 />
                                 <Label htmlFor={`tax-on-${config.id}-${component.id}`} className="font-normal">{component.label}</Label>
                             </div>
@@ -113,13 +133,13 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-2">
-                <Button variant="destructive" onClick={() => setIsDeleting(true)} disabled={isSaving || isDeleting}>
+                <Button variant="destructive" onClick={() => setIsDeleting(true)} disabled={isSaving || isDeleting || config.status === 'PENDING_APPROVAL' || config.id.startsWith('new-') }>
                     {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                     Delete
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || isDeleting}>
+                <Button onClick={handleSave} disabled={isSaving || isDeleting || config.status === 'PENDING_APPROVAL'}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save Configuration
+                    {config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
                 </Button>
             </CardFooter>
             <AlertDialog open={isDeleting} onOpenChange={setIsDeleting}>
@@ -127,14 +147,14 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will permanently delete the "{config.name}" tax configuration. This action cannot be undone.
+                            This will submit a request to delete the "{config.name}" tax configuration.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
                              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Delete
+                            Submit for Deletion
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -170,57 +190,85 @@ export default function TaxSettingsPage() {
 
     useEffect(() => {
         fetchTaxConfigs();
-    }, [toast]);
+    }, []);
     
     const handleAddNewTax = () => {
         const newTax: TaxConfig = {
             id: `new-${Date.now()}`,
             name: 'New Tax',
             rate: 0,
-            appliedTo: '[]'
+            appliedTo: '[]',
+            status: 'ACTIVE',
         };
         setTaxes(prev => [...prev, newTax]);
     }
 
-    const handleSave = async (taxToSave: TaxConfig) => {
+    const handleSave = async (taxToSave: TaxConfig, originalTax?: TaxConfig) => {
         const isNew = taxToSave.id.startsWith('new-');
-        const method = isNew ? 'POST' : 'PUT';
+        const changeType = isNew ? 'CREATE' : 'UPDATE';
+        const entityId = isNew ? undefined : taxToSave.id;
+
+        const payload = {
+            original: isNew ? null : originalTax,
+            updated: isNew ? null : taxToSave,
+            created: isNew ? taxToSave : null,
+        };
+
         try {
-            const response = await fetch('/api/tax', {
-                method,
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(taxToSave),
+                body: JSON.stringify({
+                    entityType: 'Tax',
+                    entityId,
+                    changeType,
+                    payload: JSON.stringify(payload),
+                }),
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save configuration.');
+                throw new Error(errorData.error || 'Failed to submit changes for approval.');
             }
             
-            // Refetch all taxes to get the real ID for the new one and ensure sync.
-            await fetchTaxConfigs();
+            toast({
+                title: 'Submitted for Approval',
+                description: `Changes for "${taxToSave.name}" have been submitted for review.`,
+            });
+            
+            if (isNew) {
+                await fetchTaxConfigs();
+            }
 
         } catch (error: any) {
              toast({ title: 'Error', description: error.message, variant: 'destructive' });
-             throw error; // re-throw to be caught by card
+             throw error;
         }
     };
     
-    const handleDelete = async (taxId: string) => {
-        // If it's a new, unsaved tax, just remove from state
-        if (taxId.startsWith('new-')) {
-            setTaxes(prev => prev.filter(t => t.id !== taxId));
+    const handleDelete = async (taxToDelete: TaxConfig) => {
+        if (taxToDelete.id.startsWith('new-')) {
+            setTaxes(prev => prev.filter(t => t.id !== taxToDelete.id));
             return;
         }
 
         try {
-            const response = await fetch(`/api/tax?id=${taxId}`, { method: 'DELETE' });
+            const response = await fetch(`/api/settings/pending-changes`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'Tax',
+                    entityId: taxToDelete.id,
+                    changeType: 'DELETE',
+                    payload: JSON.stringify({ original: taxToDelete })
+                }),
+            });
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to delete tax configuration.');
+                throw new Error(errorData.error || 'Could not submit deletion for approval.');
             }
-            setTaxes(prev => prev.filter(t => t.id !== taxId));
-            toast({ title: 'Success', description: 'Tax configuration deleted.' });
+            
+            toast({ title: "Deletion Submitted", description: 'Tax configuration deletion is pending approval.' });
         } catch (error: any) {
              toast({ title: 'Error', description: error.message, variant: 'destructive' });
              throw error;
