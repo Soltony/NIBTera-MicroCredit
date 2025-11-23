@@ -38,6 +38,7 @@ export interface DataProvisioningUpload {
     rowCount: number;
     uploadedAt: string;
     uploadedBy: string;
+    status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 }
 
 export interface DataProvisioningConfig {
@@ -46,6 +47,7 @@ export interface DataProvisioningConfig {
     name: string;
     columns: DataColumn[];
     uploads?: DataProvisioningUpload[];
+    status?: 'ACTIVE' | 'PENDING_APPROVAL';
 }
 
 export interface LoanAmountTier {

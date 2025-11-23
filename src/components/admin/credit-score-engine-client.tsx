@@ -21,7 +21,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical, Upload, Edit, FileClock, ChevronRight, ChevronLeft } from 'lucide-react';
+import { PlusCircle, Trash2, Save, History, Loader2 as Loader, Info, GripVertical, Upload, Edit, FileClock, ChevronRight, ChevronLeft, CheckCircle, XCircle, Clock } from 'lucide-react';
 import type { Rule, ScoringParameter, DataProvisioningConfig, DataColumn, DataProvisioningUpload } from '@/lib/types';
 import {
   AlertDialog,
@@ -714,6 +714,14 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 throw new Error(errorData.error || 'Failed to submit deletion for approval.');
             }
             toast({ title: "Deletion Submitted", description: `Deletion of "${configToDelete.name}" is pending approval.` });
+            
+            const newConfigs = produce(configs, draft => {
+                const config = draft.find(c => c.id === configId);
+                if (config) {
+                    (config as any).status = 'PENDING_APPROVAL';
+                }
+            });
+            onConfigChange(newConfigs);
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
@@ -750,6 +758,16 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 throw new Error(errorData.error || 'Failed to submit changes for approval.');
             }
             toast({ title: "Submitted for Approval", description: `Changes for "${config.name}" have been submitted.` });
+
+             if (isEditing) {
+                const newConfigs = produce(configs, draft => {
+                    const cfg = draft.find(c => c.id === config.id);
+                    if (cfg) {
+                        (cfg as any).status = 'PENDING_APPROVAL';
+                    }
+                });
+                onConfigChange(newConfigs);
+            }
             
         } catch(error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
@@ -770,36 +788,58 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
 
         setIsUploading(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('configId', config.id);
+            const fileReader = new FileReader();
+            fileReader.readAsDataURL(file);
+            fileReader.onload = async () => {
+                const fileContentBase64 = (fileReader.result as string).split(',')[1];
+                const payload = {
+                    created: {
+                        configId: config.id,
+                        fileName: file.name,
+                        fileContent: fileContentBase64
+                    }
+                };
 
-            const response = await fetch('/api/settings/data-provisioning-uploads', {
-                method: 'POST',
-                body: formData,
-            });
+                const response = await fetch('/api/settings/pending-changes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        entityType: 'DataProvisioningUpload',
+                        entityId: config.id, // Use configId as entityId for context
+                        changeType: 'CREATE',
+                        payload: JSON.stringify(payload),
+                    }),
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to upload file.');
-            }
-            
-            const newUpload = await response.json();
-            
-            const newConfigs = produce(configs, draft => {
-                const cfg = draft.find(c => c.id === config.id);
-                if (cfg) {
-                    if (!cfg.uploads) cfg.uploads = [];
-                    cfg.uploads.unshift(newUpload);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to submit file for approval.');
                 }
-            });
-            setConfigs(newConfigs);
-            onConfigChange(newConfigs);
+                
+                toast({
+                    title: 'Submitted for Approval',
+                    description: `File "${file.name}" has been submitted for review.`,
+                });
+                // Optimistically add to UI with pending status
+                const tempUpload: DataProvisioningUpload = {
+                    id: `temp-${Date.now()}`,
+                    configId: config.id,
+                    fileName: file.name,
+                    rowCount: 0, // Unknown until approval
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: 'You',
+                    status: 'PENDING_APPROVAL'
+                };
 
-            toast({
-                title: 'Upload Successful',
-                description: `File "${file.name}" uploaded and recorded successfully.`,
-            });
+                const newConfigs = produce(configs, draft => {
+                    const cfg = draft.find(c => c.id === config.id);
+                    if (cfg) {
+                        if (!cfg.uploads) cfg.uploads = [];
+                        cfg.uploads.unshift(tempUpload as any);
+                    }
+                });
+                onConfigChange(newConfigs);
+            };
 
         } catch (error: any) {
              toast({
@@ -842,6 +882,15 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             setDeletingUpload(null);
         }
     };
+    
+    const getUploadStatusIcon = (upload: DataProvisioningUpload) => {
+        const status = (upload as any).status;
+        if (status === 'PENDING_APPROVAL') return <Clock className="h-4 w-4 text-yellow-500" />;
+        if (status === 'REJECTED') return <XCircle className="h-4 w-4 text-red-500" />;
+        if (status === 'APPROVED') return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <FileClock className="h-4 w-4 text-muted-foreground"/>;
+    };
+
 
     const eligibilityUploadIds = useMemo(() => {
         return new Set(allProviderProducts.map(p => p.eligibilityUploadId).filter(Boolean));
@@ -866,15 +915,17 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 <CardContent>
                      {configs?.map((config) => {
                         const generalUploads = (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
+                        const isPending = (config as any).status === 'PENDING_APPROVAL';
                         return (
                             <Card key={config.id} className="mb-4">
                                 <CardHeader className="flex flex-row justify-between items-center">
-                                     <div>
+                                     <div className="flex items-center gap-2">
                                         <CardTitle className="text-lg">{config.name}</CardTitle>
+                                        {isPending && <Badge variant="outline">Pending Approval</Badge>}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)}><Edit className="h-4 w-4" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)}><Trash2 className="h-4 w-4" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)} disabled={isPending}><Edit className="h-4 w-4" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)} disabled={isPending}><Trash2 className="h-4 w-4" /></Button>
                                     </div>
                                 </CardHeader>
                                 <CardContent>
@@ -917,19 +968,24 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                                                </TableHeader>
                                                <TableBody>
                                                    {generalUploads && generalUploads.length > 0 ? (
-                                                       generalUploads.map(upload => (
+                                                       generalUploads.map(upload => {
+                                                            const isTemp = upload.id.startsWith('temp-');
+                                                            return (
                                                             <TableRow key={upload.id}>
-                                                                <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => setViewingUpload(upload)}><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
-                                                                <TableCell>{upload.rowCount}</TableCell>
+                                                                <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => !isTemp && setViewingUpload(upload)}>
+                                                                    {getUploadStatusIcon(upload)}
+                                                                    {upload.fileName}
+                                                                </TableCell>
+                                                                <TableCell>{isTemp ? 'N/A' : upload.rowCount}</TableCell>
                                                                 <TableCell>{upload.uploadedBy}</TableCell>
                                                                 <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
                                                                 <TableCell className="text-right">
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)}>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)} disabled={isTemp}>
                                                                         <Trash2 className="h-4 w-4" />
                                                                     </Button>
                                                                 </TableCell>
                                                             </TableRow>
-                                                       ))
+                                                       )})
                                                    ) : (
                                                         <TableRow>
                                                             <TableCell colSpan={5} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
@@ -1241,6 +1297,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
+import * as XLSX from 'xlsx';
 
 const approvalSchema = z.object({
   changeId: z.string(),
@@ -34,6 +35,74 @@ const defaultLedgerAccounts = [
 ];
 
 
+// Helper to convert strings to camelCase
+const toCamelCase = (str: string) => {
+    if (!str) return '';
+    return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
+};
+
+async function applyDataProvisioningUpload(change: any, data: any) {
+    const { fileContent, fileName, configId } = data.created;
+    const user = await getSession();
+
+    const config = await prisma.dataProvisioningConfig.findUnique({
+        where: { id: configId }
+    });
+    if (!config) throw new Error('Data Provisioning Config not found.');
+
+    const buffer = Buffer.from(fileContent, 'base64');
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    
+    const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
+    const camelCaseHeaders = originalHeaders.map(toCamelCase);
+    const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
+
+    await prisma.$transaction(async (tx) => {
+        const newUpload = await tx.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: fileName,
+                rowCount: rows.length,
+                uploadedBy: change.createdById, // User who requested the change
+                status: 'APPROVED',
+            }
+        });
+
+        const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
+        if (!idColumnConfig) throw new Error('No identifier column found in config');
+        const idColumnCamelCase = toCamelCase(idColumnConfig.name);
+
+        for (const row of rows) {
+            const newRowData: { [key: string]: any } = {};
+            camelCaseHeaders.forEach((header, index) => { newRowData[header] = row[index]; });
+            
+            const borrowerId = String(newRowData[idColumnCamelCase]);
+            if (!borrowerId) continue;
+
+            await tx.borrower.upsert({ where: { id: borrowerId }, update: {}, create: { id: borrowerId } });
+
+            const existingData = await tx.provisionedData.findUnique({
+                where: { borrowerId_configId: { borrowerId: borrowerId, configId: configId } },
+            });
+            
+            let mergedData = newRowData;
+            if (existingData?.data) {
+                mergedData = { ...JSON.parse(existingData.data as string), ...newRowData };
+            }
+
+            await tx.provisionedData.upsert({
+                where: { borrowerId_configId: { borrowerId: borrowerId, configId: configId } },
+                update: { data: JSON.stringify(mergedData), uploadId: newUpload.id },
+                create: { borrowerId: borrowerId, configId: configId, data: JSON.stringify(mergedData), uploadId: newUpload.id }
+            });
+        }
+    });
+}
+
+
 // Main function to apply an approved change
 async function applyChange(change: any) {
   const { entityType, entityId, changeType, payload } = change;
@@ -47,6 +116,7 @@ async function applyChange(change: any) {
                 data: {
                     name: data.updated.name,
                     columns: JSON.stringify(data.updated.columns),
+                    status: 'ACTIVE',
                 }
             });
         } else if (changeType === 'CREATE') {
@@ -55,10 +125,16 @@ async function applyChange(change: any) {
                 data: {
                     ...creationData,
                     columns: JSON.stringify(creationData.columns),
+                    status: 'ACTIVE',
                 }
             });
         } else if (changeType === 'DELETE') {
             await prisma.dataProvisioningConfig.delete({ where: { id: entityId } });
+        }
+      break;
+    case 'DataProvisioningUpload':
+        if (changeType === 'CREATE') {
+            await applyDataProvisioningUpload(change, data);
         }
       break;
     case 'LoanProvider':
