@@ -886,8 +886,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     const getUploadStatusIcon = (upload: DataProvisioningUpload) => {
         const status = (upload as any).status;
         if (status === 'PENDING_APPROVAL') return <Clock className="h-4 w-4 text-yellow-500" />;
-        if (status === 'REJECTED') return <XCircle className="h-4 w-4 text-red-500" />;
-        if (status === 'APPROVED') return <CheckCircle className="h-4 w-4 text-green-500" />;
+        // Assuming no status field exists anymore
         return <FileClock className="h-4 w-4 text-muted-foreground"/>;
     };
 
@@ -1297,6 +1296,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

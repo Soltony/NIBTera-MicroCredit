@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -67,7 +66,6 @@ async function applyDataProvisioningUpload(change: any, data: any) {
                 fileName: fileName,
                 rowCount: rows.length,
                 uploadedBy: change.createdById, // User who requested the change
-                status: 'APPROVED',
             }
         });
 
@@ -120,11 +118,11 @@ async function applyChange(change: any) {
                 }
             });
         } else if (changeType === 'CREATE') {
-            const { id, ...creationData } = data.created;
             await prisma.dataProvisioningConfig.create({
                 data: {
-                    ...creationData,
-                    columns: JSON.stringify(creationData.columns),
+                    ...data.created,
+                    providerId: data.created.providerId,
+                    columns: JSON.stringify(data.created.columns),
                     status: 'ACTIVE',
                 }
             });
@@ -382,7 +380,10 @@ export async function POST(req: NextRequest) {
                 await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'LoanProduct') {
                 await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
+            } else if (change.entityType === 'DataProvisioningConfig') {
+                await prisma.dataProvisioningConfig.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
+            }
+             else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
                  await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             }
         }
