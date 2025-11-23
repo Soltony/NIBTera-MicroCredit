@@ -793,6 +793,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             fileReader.onload = async () => {
                 const fileContentBase64 = (fileReader.result as string).split(',')[1];
                 const payload = {
+                    original: null,
                     created: {
                         configId: config.id,
                         fileName: file.name,
@@ -820,25 +821,6 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                     title: 'Submitted for Approval',
                     description: `File "${file.name}" has been submitted for review.`,
                 });
-                // Optimistically add to UI with pending status
-                const tempUpload: DataProvisioningUpload = {
-                    id: `temp-${Date.now()}`,
-                    configId: config.id,
-                    fileName: file.name,
-                    rowCount: 0, // Unknown until approval
-                    uploadedAt: new Date().toISOString(),
-                    uploadedBy: 'You',
-                    status: 'PENDING_APPROVAL'
-                };
-
-                const newConfigs = produce(configs, draft => {
-                    const cfg = draft.find(c => c.id === config.id);
-                    if (cfg) {
-                        if (!cfg.uploads) cfg.uploads = [];
-                        cfg.uploads.unshift(tempUpload as any);
-                    }
-                });
-                onConfigChange(newConfigs);
             };
 
         } catch (error: any) {
@@ -881,13 +863,6 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
         } finally {
             setDeletingUpload(null);
         }
-    };
-    
-    const getUploadStatusIcon = (upload: DataProvisioningUpload) => {
-        const status = (upload as any).status;
-        if (status === 'PENDING_APPROVAL') return <Clock className="h-4 w-4 text-yellow-500" />;
-        // Assuming no status field exists anymore
-        return <FileClock className="h-4 w-4 text-muted-foreground"/>;
     };
 
 
@@ -1296,6 +1271,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

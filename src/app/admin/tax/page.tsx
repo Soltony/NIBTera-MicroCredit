@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -57,11 +58,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                 return;
             }
             await onSave({ ...config, rate: numericRate }, tax);
-            if (!config.id.startsWith('new-')) {
-                setConfig(prev => produce(prev, draft => {
-                    draft.status = 'PENDING_APPROVAL';
-                }));
-            }
+            
         } catch (error) {
             // onSave should handle the toast for errors
         } finally {
@@ -73,9 +70,6 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
         setIsDeleting(true);
         try {
             await onDelete(config);
-             setConfig(prev => produce(prev, draft => {
-                draft.status = 'PENDING_APPROVAL';
-            }));
         } finally {
             setIsDeleting(false);
         }
@@ -86,9 +80,6 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <CardTitle>{config.name}</CardTitle>
-                    {config.status === 'PENDING_APPROVAL' && (
-                        <Badge variant="outline">Pending Approval</Badge>
-                    )}
                 </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
@@ -101,7 +92,6 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                         onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="e.g., VAT"
                         className="max-w-xs"
-                        disabled={config.status === 'PENDING_APPROVAL'}
                     />
                 </div>
                 <div className="space-y-2">
@@ -113,7 +103,6 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                         onChange={(e) => setConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) || 0 }))}
                         placeholder="e.g., 15"
                         className="max-w-xs"
-                        disabled={config.status === 'PENDING_APPROVAL'}
                     />
                 </div>
                  <div className="space-y-4">
@@ -125,7 +114,6 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                                     id={`tax-on-${config.id}-${component.id}`}
                                     checked={JSON.parse(config.appliedTo).includes(component.id)}
                                     onCheckedChange={(checked) => handleComponentChange(component.id, !!checked)}
-                                    disabled={config.status === 'PENDING_APPROVAL'}
                                 />
                                 <Label htmlFor={`tax-on-${config.id}-${component.id}`} className="font-normal">{component.label}</Label>
                             </div>
@@ -134,13 +122,13 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-2">
-                <Button variant="destructive" onClick={() => setIsDeleting(true)} disabled={isSaving || isDeleting || config.status === 'PENDING_APPROVAL' || config.id.startsWith('new-') }>
+                <Button variant="destructive" onClick={() => setIsDeleting(true)} disabled={isSaving || isDeleting || config.id.startsWith('new-') }>
                     {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                     Delete
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || isDeleting || config.status === 'PENDING_APPROVAL'}>
+                <Button onClick={handleSave} disabled={isSaving || isDeleting}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    {config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
+                    Submit for Approval
                 </Button>
             </CardFooter>
             <AlertDialog open={isDeleting} onOpenChange={setIsDeleting}>
@@ -209,13 +197,10 @@ export default function TaxSettingsPage() {
         const changeType = isNew ? 'CREATE' : 'UPDATE';
         const entityId = isNew ? undefined : taxToSave.id;
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { id, ...taxDataForCreation } = taxToSave;
-
         const payload = {
             original: isNew ? null : originalTax,
             updated: isNew ? null : taxToSave,
-            created: isNew ? taxDataForCreation : null,
+            created: isNew ? taxToSave : null,
         };
 
         try {
@@ -240,9 +225,7 @@ export default function TaxSettingsPage() {
                 description: `Changes for "${taxToSave.name}" have been submitted for review.`,
             });
             
-            if (isNew) {
-                await fetchTaxConfigs();
-            }
+            await fetchTaxConfigs();
 
         } catch (error: any) {
              toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -273,6 +256,7 @@ export default function TaxSettingsPage() {
             }
             
             toast({ title: "Deletion Submitted", description: 'Tax configuration deletion is pending approval.' });
+            await fetchTaxConfigs();
         } catch (error: any) {
              toast({ title: 'Error', description: error.message, variant: 'destructive' });
              throw error;

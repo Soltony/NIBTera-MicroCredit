@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -42,7 +43,6 @@ const toCamelCase = (str: string) => {
 
 async function applyDataProvisioningUpload(change: any, data: any) {
     const { fileContent, fileName, configId } = data.created;
-    const user = await getSession();
 
     const config = await prisma.dataProvisioningConfig.findUnique({
         where: { id: configId }
@@ -109,19 +109,20 @@ async function applyChange(change: any) {
   switch (entityType) {
     case 'DataProvisioningConfig':
         if (changeType === 'UPDATE') {
+            const { id, providerId, uploads, status, ...updateData} = data.updated;
             await prisma.dataProvisioningConfig.update({
                 where: { id: entityId },
                 data: {
-                    name: data.updated.name,
-                    columns: JSON.stringify(data.updated.columns),
+                    ...updateData,
+                    columns: JSON.stringify(updateData.columns),
                 }
             });
         } else if (changeType === 'CREATE') {
+             const { id, ...createData } = data.created;
             await prisma.dataProvisioningConfig.create({
                 data: {
-                    ...data.created,
-                    providerId: data.created.providerId,
-                    columns: JSON.stringify(data.created.columns),
+                    ...createData,
+                    columns: JSON.stringify(createData.columns),
                 }
             });
         } else if (changeType === 'DELETE') {
@@ -135,17 +136,17 @@ async function applyChange(change: any) {
       break;
     case 'LoanProvider':
         if (changeType === 'UPDATE') {
-            const { id, products, dataProvisioningConfigs, ...providerData } = data.updated;
+            const { id, products, dataProvisioningConfigs, status, ...providerData } = data.updated;
             await prisma.loanProvider.update({
                 where: { id: entityId },
-                data: { ...providerData, status: 'ACTIVE' }
+                data: { ...providerData }
             });
         } else if (changeType === 'CREATE') {
             await prisma.$transaction(async (tx) => {
+                const { id, ...createData } = data.created;
                 const providerToCreate = {
-                    ...data.created,
-                    initialBalance: data.created.startingCapital,
-                    status: 'ACTIVE',
+                    ...createData,
+                    initialBalance: createData.startingCapital,
                 };
                 const newProvider = await tx.loanProvider.create({
                     data: providerToCreate,
@@ -171,8 +172,8 @@ async function applyChange(change: any) {
       break;
     case 'LoanProduct':
         if (changeType === 'UPDATE') {
-            const { loanAmountTiers, eligibilityUpload, ...restOfUpdateData } = data.updated;
-            const updateData = { ...restOfUpdateData, status: 'ACTIVE' };
+            const { loanAmountTiers, eligibilityUpload, status, ...restOfUpdateData } = data.updated;
+            const updateData = { ...restOfUpdateData };
 
             if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
                 updateData.serviceFee = JSON.stringify(updateData.serviceFee);
@@ -195,21 +196,21 @@ async function applyChange(change: any) {
                     await tx.loanAmountTier.createMany({
                         data: loanAmountTiers.map((tier: any) => ({
                             productId: entityId,
-                            fromScore: parseInt(String(tier.fromScore), 10),
-                            toScore: parseInt(String(tier.toScore), 10),
-                            loanAmount: parseInt(String(tier.loanAmount), 10),
+                            fromScore: parseInt(String(tier.fromScore)),
+                            toScore: parseInt(String(tier.toScore)),
+                            loanAmount: parseInt(String(tier.loanAmount)),
                         })),
                     });
                 }
             });
 
         } else if (changeType === 'CREATE') {
+            const { id, ...createData } = data.created;
             const productToCreate = {
-                ...data.created,
-                status: 'ACTIVE',
-                serviceFee: JSON.stringify(data.created.serviceFee || { type: 'percentage', value: 0 }),
-                dailyFee: JSON.stringify(data.created.dailyFee || { type: 'percentage', value: 0, calculationBase: 'principal' }),
-                penaltyRules: JSON.stringify(data.created.penaltyRules || []),
+                ...createData,
+                serviceFee: JSON.stringify(createData.serviceFee || { type: 'percentage', value: 0 }),
+                dailyFee: JSON.stringify(createData.dailyFee || { type: 'percentage', value: 0, calculationBase: 'principal' }),
+                penaltyRules: JSON.stringify(createData.penaltyRules || []),
             };
             await prisma.loanProduct.create({
                 data: productToCreate
@@ -287,14 +288,15 @@ async function applyChange(change: any) {
         break;
     case 'Tax':
         if (changeType === 'UPDATE') {
+             const { id, ...updateData } = data.updated;
              await prisma.tax.update({
                 where: { id: entityId },
-                data: { ...data.updated, status: 'ACTIVE' }
+                data: { ...updateData }
             });
         } else if (changeType === 'CREATE') {
             const { id, ...creationData } = data.created;
             await prisma.tax.create({
-                data: { ...creationData, status: 'ACTIVE' }
+                data: { ...creationData }
             });
         } else if (changeType === 'DELETE') {
             await prisma.tax.delete({ where: { id: entityId } });
@@ -368,19 +370,6 @@ export async function POST(req: NextRequest) {
           rejectionReason,
         },
       });
-
-      // Also revert the status of the underlying entity if it was pending
-      const entityId = change.entityId;
-       if (entityId && change.changeType !== 'CREATE') {
-            if (change.entityType === 'LoanProvider') {
-                await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            } else if (change.entityType === 'LoanProduct') {
-                await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            }
-             else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
-                 await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            }
-        }
       
       await createAuditLog({
         actorId: session.userId,
