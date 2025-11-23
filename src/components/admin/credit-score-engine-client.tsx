@@ -220,6 +220,31 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
         }
     }, [toast]);
 
+    const fetchProviderData = useCallback(async () => {
+        if (!selectedProviderId) return;
+        setIsHistoryLoading(true);
+        try {
+            await fetchCustomParams(selectedProviderId);
+            const [historyResponse, configsResponse] = await Promise.all([
+                fetch(`/api/scoring-history?providerId=${selectedProviderId}`),
+                fetch(`/api/settings/data-provisioning?providerId=${selectedProviderId}`)
+            ]);
+
+            if (!historyResponse.ok) throw new Error('Failed to fetch scoring history');
+            const historyData = await historyResponse.json();
+            setScoringHistory(historyData);
+            
+            if (!configsResponse.ok) throw new Error('Failed to fetch data configs');
+            const configsData = await configsResponse.json();
+            setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...configsData]);
+
+        } catch (error) {
+            toast({ title: "Error", description: "Could not fetch configuration data.", variant: "destructive" });
+        } finally {
+            setIsHistoryLoading(false);
+        }
+    }, [selectedProviderId, fetchCustomParams, toast]);
+
     useEffect(() => {
         if (providers.length > 0 && !selectedProviderId) {
             setSelectedProviderId(providers[0].id);
@@ -227,32 +252,8 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     }, [providers, selectedProviderId]);
     
     useEffect(() => {
-        const fetchProviderData = async () => {
-            if (!selectedProviderId) return;
-            setIsHistoryLoading(true);
-            try {
-                await fetchCustomParams(selectedProviderId);
-                const [historyResponse, configsResponse] = await Promise.all([
-                    fetch(`/api/scoring-history?providerId=${selectedProviderId}`),
-                    fetch(`/api/settings/data-provisioning?providerId=${selectedProviderId}`)
-                ]);
-
-                if (!historyResponse.ok) throw new Error('Failed to fetch scoring history');
-                const historyData = await historyResponse.json();
-                setScoringHistory(historyData);
-                
-                if (!configsResponse.ok) throw new Error('Failed to fetch data configs');
-                const configsData = await configsResponse.json();
-                setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...configsData]);
-
-            } catch (error) {
-                toast({ title: "Error", description: "Could not fetch configuration data.", variant: "destructive" });
-            } finally {
-                setIsHistoryLoading(false);
-            }
-        };
         fetchProviderData();
-    }, [selectedProviderId, toast, fetchCustomParams]);
+    }, [selectedProviderId, fetchProviderData]);
 
     const themeColor = useMemo(() => providers.find(p => p.id === selectedProviderId)?.colorHex || '#fdb913', [providers, selectedProviderId]);
 
@@ -432,14 +433,6 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     
     const currentProvider = providers.find(p => p.id === selectedProviderId);
 
-    const onConfigChange = (newConfigs: DataProvisioningConfig[]) => {
-        setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
-        // After a config changes, we must refetch the custom parameters for the preview.
-        if (selectedProviderId) {
-            fetchCustomParams(selectedProviderId);
-        }
-    };
-
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
             <div className="flex items-center justify-between">
@@ -466,9 +459,11 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
             <DataProvisioningTab 
                 providerId={selectedProviderId}
                 initialConfigs={currentDataConfigs}
-                onConfigChange={onConfigChange}
+                onConfigChange={(newConfigs) => {
+                    setAllDataConfigs(prev => [...prev.filter(c => c.providerId !== selectedProviderId), ...newConfigs]);
+                    fetchProviderData();
+                }}
                 allProviderProducts={currentProvider?.products || []}
-                onUploadSuccess={() => fetchCustomParams(selectedProviderId)}
             />
 
             <Card>
@@ -673,12 +668,11 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     );
 }
 
-function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allProviderProducts, onUploadSuccess }: {
+function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allProviderProducts }: {
     providerId: string;
     initialConfigs: DataProvisioningConfig[];
     onConfigChange: (newConfigs: DataProvisioningConfig[]) => void;
     allProviderProducts: LoanProduct[];
-    onUploadSuccess: () => void;
 }) {
     const { toast } = useToast();
     const [configs, setConfigs] = useState(initialConfigs);
@@ -702,17 +696,24 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
 
     const handleDeleteConfig = async (configId: string) => {
         try {
-            const response = await fetch(`/api/settings/data-provisioning?id=${configId}`, {
-                method: 'DELETE',
+            const configToDelete = configs.find(c => c.id === configId);
+            if (!configToDelete) throw new Error("Config not found");
+
+            const response = await fetch(`/api/settings/pending-changes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'DataProvisioningConfig',
+                    entityId: configId,
+                    changeType: 'DELETE',
+                    payload: JSON.stringify({ original: configToDelete })
+                }),
             });
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to delete config.');
+                throw new Error(errorData.error || 'Failed to submit deletion for approval.');
             }
-            const newConfigs = configs.filter(c => c.id !== configId);
-            setConfigs(newConfigs);
-            onConfigChange(newConfigs);
-            toast({ title: "Success", description: "Data type deleted successfully." });
+            toast({ title: "Deletion Submitted", description: `Deletion of "${configToDelete.name}" is pending approval.` });
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
@@ -722,43 +723,34 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     
     const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
         const isEditing = !!config.id;
-        const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/api/settings/data-provisioning';
-        const body = { ...config, providerId: providerId };
-
         try {
-            const response = await fetch(endpoint, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save config.');
-            }
-            const savedConfig = await response.json();
+            const originalConfig = isEditing ? configs.find(c => c.id === config.id) : null;
+            const changeType = isEditing ? 'UPDATE' : 'CREATE';
+            const entityId = isEditing ? config.id : undefined;
             
-            // Ensure columns are parsed before updating state
-            const parsedConfig = {
-                ...savedConfig,
-                columns: typeof savedConfig.columns === 'string' 
-                    ? JSON.parse(savedConfig.columns) 
-                    : savedConfig.columns
+            const payload = {
+                original: originalConfig,
+                updated: { ...originalConfig, ...config },
+                created: !isEditing ? { ...config, providerId } : null,
             };
 
-            const newConfigs = produce(configs, draft => {
-                if (isEditing) {
-                    const index = draft.findIndex(c => c.id === parsedConfig.id);
-                    if (index !== -1) {
-                        draft[index] = { ...draft[index], ...parsedConfig };
-                    }
-                } else {
-                    draft.push(parsedConfig);
-                }
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'DataProvisioningConfig',
+                    entityId,
+                    changeType,
+                    payload: JSON.stringify(payload),
+                })
             });
-            setConfigs(newConfigs);
-            onConfigChange(newConfigs);
-            toast({ title: "Success", description: `Data type "${savedConfig.name}" saved successfully.` });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit changes for approval.');
+            }
+            toast({ title: "Submitted for Approval", description: `Changes for "${config.name}" have been submitted.` });
+            
         } catch(error: any) {
             toast({ title: "Error", description: error.message, variant: 'destructive' });
         }
@@ -803,7 +795,6 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             });
             setConfigs(newConfigs);
             onConfigChange(newConfigs);
-            onUploadSuccess();
 
             toast({
                 title: 'Upload Successful',
@@ -970,12 +961,12 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the data type. This action may fail if it's currently in use by a loan product.
+                            This will submit a request to delete the data type. This action cannot be undone once approved and may fail if the data type is in use.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteConfig(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={() => handleDeleteConfig(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Submit for Deletion</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -1155,7 +1146,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit">Save</Button>
+                        <Button type="submit">Submit for Approval</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
@@ -1250,6 +1241,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

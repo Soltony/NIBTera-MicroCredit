@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -39,6 +40,27 @@ async function applyChange(change: any) {
   const data = JSON.parse(payload);
 
   switch (entityType) {
+    case 'DataProvisioningConfig':
+        if (changeType === 'UPDATE') {
+            await prisma.dataProvisioningConfig.update({
+                where: { id: entityId },
+                data: {
+                    name: data.updated.name,
+                    columns: JSON.stringify(data.updated.columns),
+                }
+            });
+        } else if (changeType === 'CREATE') {
+            const { id, ...creationData } = data.created;
+            await prisma.dataProvisioningConfig.create({
+                data: {
+                    ...creationData,
+                    columns: JSON.stringify(creationData.columns),
+                }
+            });
+        } else if (changeType === 'DELETE') {
+            await prisma.dataProvisioningConfig.delete({ where: { id: entityId } });
+        }
+      break;
     case 'LoanProvider':
         if (changeType === 'UPDATE') {
             const { id, products, dataProvisioningConfigs, ...providerData } = data.updated;
