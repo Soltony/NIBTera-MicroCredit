@@ -718,7 +718,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             const newConfigs = produce(configs, draft => {
                 const config = draft.find(c => c.id === configId);
                 if (config) {
-                    (config as any).status = 'PENDING_APPROVAL';
+                    config.status = 'PENDING_APPROVAL';
                 }
             });
             onConfigChange(newConfigs);
@@ -763,7 +763,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 const newConfigs = produce(configs, draft => {
                     const cfg = draft.find(c => c.id === config.id);
                     if (cfg) {
-                        (cfg as any).status = 'PENDING_APPROVAL';
+                        cfg.status = 'PENDING_APPROVAL';
                     }
                 });
                 onConfigChange(newConfigs);
@@ -914,7 +914,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 <CardContent>
                      {configs?.map((config) => {
                         const generalUploads = (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
-                        const isPending = (config as any).status === 'PENDING_APPROVAL';
+                        const isPending = config.status === 'PENDING_APPROVAL';
                         return (
                             <Card key={config.id} className="mb-4">
                                 <CardHeader className="flex flex-row justify-between items-center">
@@ -972,7 +972,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                                                             return (
                                                             <TableRow key={upload.id}>
                                                                 <TableCell className="font-medium flex items-center gap-2 cursor-pointer hover:underline" onClick={() => !isTemp && setViewingUpload(upload)}>
-                                                                    {getUploadStatusIcon(upload)}
+                                                                    <FileClock className="h-4 w-4 text-muted-foreground"/>
                                                                     {upload.fileName}
                                                                 </TableCell>
                                                                 <TableCell>{isTemp ? 'N/A' : upload.rowCount}</TableCell>
@@ -1296,6 +1296,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

@@ -114,7 +114,6 @@ async function applyChange(change: any) {
                 data: {
                     name: data.updated.name,
                     columns: JSON.stringify(data.updated.columns),
-                    status: 'ACTIVE',
                 }
             });
         } else if (changeType === 'CREATE') {
@@ -123,7 +122,6 @@ async function applyChange(change: any) {
                     ...data.created,
                     providerId: data.created.providerId,
                     columns: JSON.stringify(data.created.columns),
-                    status: 'ACTIVE',
                 }
             });
         } else if (changeType === 'DELETE') {
@@ -380,8 +378,6 @@ export async function POST(req: NextRequest) {
                 await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             } else if (change.entityType === 'LoanProduct') {
                 await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            } else if (change.entityType === 'DataProvisioningConfig') {
-                await prisma.dataProvisioningConfig.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             }
              else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
                  await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
