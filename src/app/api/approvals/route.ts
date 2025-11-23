@@ -190,18 +190,16 @@ async function applyChange(change: any) {
                     data: updateData,
                 });
 
-                if (loanAmountTiers && Array.isArray(loanAmountTiers)) {
-                    await tx.loanAmountTier.deleteMany({ where: { productId: entityId } });
-                    if (loanAmountTiers.length > 0) {
-                        await tx.loanAmountTier.createMany({
-                            data: loanAmountTiers.map((tier: any) => ({
-                                productId: entityId,
-                                fromScore: parseInt(String(tier.fromScore), 10),
-                                toScore: parseInt(String(tier.toScore), 10),
-                                loanAmount: parseInt(String(tier.loanAmount), 10),
-                            })),
-                        });
-                    }
+                await tx.loanAmountTier.deleteMany({ where: { productId: entityId } });
+                if (loanAmountTiers && Array.isArray(loanAmountTiers) && loanAmountTiers.length > 0) {
+                    await tx.loanAmountTier.createMany({
+                        data: loanAmountTiers.map((tier: any) => ({
+                            productId: entityId,
+                            fromScore: parseInt(String(tier.fromScore), 10),
+                            toScore: parseInt(String(tier.toScore), 10),
+                            loanAmount: parseInt(String(tier.loanAmount), 10),
+                        })),
+                    });
                 }
             });
 

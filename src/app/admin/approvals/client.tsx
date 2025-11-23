@@ -30,13 +30,16 @@ import { cn } from '@/lib/utils';
 const renderFieldValue = (value: any): string => {
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[Empty]';
+    return `[${value.length} items]`;
+  }
   if (typeof value === 'object') {
-      if (Array.isArray(value)) return `[${value.length} items]`;
-       // For simple objects like fees, format them
-      if (value.type && value.value !== undefined) {
-          return `${value.value}${value.type === 'percentage' ? '%' : ' ETB'}`;
-      }
-      return '{...}';
+     // For simple objects like fees, format them
+    if (value.type && value.value !== undefined) {
+        return `${value.value}${value.type === 'percentage' ? '%' : ' ETB'}`;
+    }
+    return '{...}';
   }
   return String(value);
 };
@@ -69,34 +72,27 @@ const ChangeDetailsDialog = ({
             const fields = { added: 0, removed: 0, updated: 0, details: [] as any[] };
 
             const flattenDiff = (obj: any, path: string = ''): any[] => {
-                let result: any[] = [];
-                if (!obj || typeof obj !== 'object') return result;
-
-                for (const key of Object.keys(obj)) {
+                if (!obj || typeof obj !== 'object') return [];
+                
+                return Object.keys(obj).reduce((acc: any[], key) => {
                     const newPath = path ? `${path}__${key}` : key;
                     const value = obj[key];
 
-                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                         if ('__old' in value && '__new' in value) {
-                            result.push({ path: newPath, ...value });
-                        } else {
-                            result = result.concat(flattenDiff(value, newPath));
-                        }
-                    } else if (Array.isArray(value)) {
-                         // Treat array changes as a single field update for simplicity
-                         const originalArray = newPath.split('__').reduce((o, k) => o?.[k], original);
-                         const updatedArray = newPath.split('__').reduce((o, k) => o?.[k], updated);
-                         result.push({ path: newPath, __old: originalArray, __new: updatedArray });
-                    } else {
-                        // This case handles __added and __deleted at the top level
-                         if (key.endsWith('__added') || key.endsWith('__deleted')) {
-                            result.push({ path: newPath, value });
-                        }
+                    if (key.endsWith('__added') || key.endsWith('__deleted')) {
+                        acc.push({ path: newPath, value });
+                    } else if (value && typeof value === 'object' && value.__old !== undefined && value.__new !== undefined) {
+                        acc.push({ path: newPath, ...value });
+                    } else if (value && typeof value === 'object' && value._t === 'a') {
+                        // Handle array diffs
+                        acc.push({path: newPath, __old: original[key], __new: updated[key]});
                     }
-                }
-                return result;
+                    else if (typeof value === 'object' && value !== null) {
+                        acc.push(...flattenDiff(value, newPath));
+                    }
+                    return acc;
+                }, []);
             };
-
+            
             const flatDiff = flattenDiff(diff);
             
             flatDiff.forEach(item => {
