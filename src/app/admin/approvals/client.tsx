@@ -24,7 +24,7 @@ import type { User, LoanProvider } from '@/lib/types';
 import { diff as showDiff } from 'json-diff';
 
 
-function ChangeDetailsDialog({
+const ChangeDetailsDialog = ({
   change,
   isOpen,
   onClose,
@@ -34,57 +34,61 @@ function ChangeDetailsDialog({
   isOpen: boolean;
   onClose: () => void;
   allProviders: LoanProvider[];
-}) {
+}) => {
   if (!change) return null;
 
   const renderReadableDiff = (payload: string) => {
     try {
-        const data = JSON.parse(payload);
-        const original = data.original || {};
-        const updated = data.updated || {};
-        const created = data.created || {};
+      const data = JSON.parse(payload);
+      const { original, updated, created } = data;
 
-        let diffSummary = [];
-        
-        if (change.changeType === 'CREATE') {
-            for (const key in created) {
-                diffSummary.push(<div key={key}><strong>{key}:</strong> <span className="text-green-600">{JSON.stringify(created[key])}</span></div>);
-            }
-        } else if (change.changeType === 'DELETE') {
-             for (const key in original) {
-                diffSummary.push(<div key={key}><strong>{key}:</strong> <span className="text-red-600">{JSON.stringify(original[key])}</span></div>);
-            }
-        } else { // UPDATE
-            const diffResult = showDiff(original, updated, { full: true });
-             if (!diffResult) return <p>No changes detected.</p>;
-             for (const key in diffResult) {
-                 if (key.endsWith('__old')) continue;
-                 const oldValue = diffResult[key + '__old'];
-                 const newValue = diffResult[key];
-                 if (oldValue !== undefined) {
-                     diffSummary.push(
-                        <div key={key} className="flex items-start gap-2">
-                           <strong>{key}:</strong> 
-                           <div className="flex-1">
-                               <span className="text-red-600 line-through">{JSON.stringify(oldValue)}</span>
-                               <ArrowRight className="inline h-4 w-4 mx-2 text-muted-foreground" />
-                               <span className="text-green-600">{JSON.stringify(newValue)}</span>
-                           </div>
-                        </div>
-                    );
-                 }
-             }
-        }
+      let content;
 
-        if (diffSummary.length === 0) {
-            return <p>No displayable changes in payload.</p>;
-        }
+      if (change.changeType === 'CREATE') {
+        content = created;
+      } else if (change.changeType === 'DELETE') {
+        content = original;
+      } else { // UPDATE
+        content = showDiff(original, updated);
+      }
 
-        return <div className="space-y-2 text-sm">{diffSummary}</div>
+      if (!content) {
+        return <p className="text-sm text-muted-foreground">No payload data to display.</p>;
+      }
+      
+       // Special handling for columns to parse the inner JSON string
+      if (content.columns && typeof content.columns === 'string') {
+          try {
+              content.columns = JSON.parse(content.columns);
+          } catch (e) {
+              // ignore if it fails
+          }
+      }
+      if (content.columns?.__new && typeof content.columns.__new === 'string') {
+           try {
+              content.columns.__new = JSON.parse(content.columns.__new);
+          } catch (e) {
+              // ignore if it fails
+          }
+      }
+      if (content.columns?.__old && typeof content.columns.__old === 'string') {
+           try {
+              content.columns.__old = JSON.parse(content.columns.__old);
+          } catch (e) {
+              // ignore if it fails
+          }
+      }
+
+
+      return (
+        <pre className="text-sm bg-muted/50 p-4 rounded-md overflow-x-auto">
+          <code>{JSON.stringify(content, null, 2)}</code>
+        </pre>
+      );
 
     } catch (e) {
-        console.error("Failed to parse or diff payload:", e);
-        return <p className="text-destructive">Could not parse or display change details.</p>;
+      console.error("Failed to parse or diff payload:", e);
+      return <p className="text-destructive">Could not parse or display change details.</p>;
     }
   };
   
@@ -115,7 +119,7 @@ function ChangeDetailsDialog({
             </div>
              <div className="space-y-1 pt-4">
                  <h4 className="font-semibold text-sm">Payload Changes:</h4>
-                 <div className="p-4 border rounded-md bg-muted/50">{renderReadableDiff(change.payload)}</div>
+                 {renderReadableDiff(change.payload)}
             </div>
         </div>
         <DialogFooter>
