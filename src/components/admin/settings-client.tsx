@@ -156,50 +156,29 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
         setIsUploading(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('configId', product.dataProvisioningConfigId);
-            formData.append('productFilter', 'true');
-            formData.append('productId', product.id);
-            
-            const response = await fetch('/api/settings/data-provisioning-uploads', {
-                method: 'POST',
-                body: formData,
+            const fileContentBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                reader.onerror = error => reject(error);
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to upload file.');
-            }
-
-            const newUpload: DataProvisioningUpload = await response.json();
-            
-            // Create the filter object from the file headers
-            const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet);
-
-            if (json.length === 0) {
-                throw new Error("File is empty.");
-            }
-            
-            const headers = Object.keys(json[0] as object);
-            const filterObject = headers.reduce((acc, header) => {
-                const values = json.map(row => (row as any)[header]).filter(Boolean);
-                acc[header] = values.join(', ');
-                return acc;
-            }, {} as Record<string, string>);
-            
-            const updatedProductData: Partial<LoanProduct> = {
-                eligibilityFilter: JSON.stringify(filterObject, null, 2),
-                eligibilityUploadId: newUpload.id,
-                eligibilityUpload: newUpload,
+            // Create a temporary upload object for the UI
+            const tempUpload: DataProvisioningUpload = {
+                id: `temp-${Date.now()}`,
+                configId: product.dataProvisioningConfigId,
+                fileName: file.name,
+                rowCount: 0, // Placeholder
+                uploadedAt: new Date().toISOString(),
+                uploadedBy: 'you',
+                status: 'PENDING_APPROVAL', // This indicates it's new and not saved
+                // Store file content temporarily for submission
+                fileContent: fileContentBase64
             };
-            onUpdate(updatedProductData);
+            
+            onUpdate({ eligibilityUpload: tempUpload });
 
-            toast({ title: "Filter Generated", description: `The eligibility list has been generated from ${file.name}. Remember to save changes.` });
+            toast({ title: "File Ready for Submission", description: `"${file.name}" is ready. Click "Submit Eligibility for Approval" to save.` });
 
         } catch (error: any) {
             toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
@@ -208,6 +187,49 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             if (event.target) event.target.value = '';
         }
     };
+
+    const handleEligibilitySubmitForApproval = async () => {
+        if (!product.eligibilityUpload || !('fileContent' in product.eligibilityUpload)) {
+            toast({ title: 'No File to Submit', description: 'Please upload a new eligibility file first.', variant: 'destructive' });
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const payload = {
+                created: {
+                    productId: product.id,
+                    configId: product.dataProvisioningConfigId,
+                    fileName: product.eligibilityUpload.fileName,
+                    fileContent: (product.eligibilityUpload as any).fileContent,
+                }
+            };
+             const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'EligibilityList',
+                    entityId: product.id,
+                    changeType: 'UPDATE', // Using UPDATE to signify changing the product's list
+                    payload: JSON.stringify(payload),
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit eligibility list for approval.');
+            }
+            
+            onUpdate({ eligibilityUpload: { ...product.eligibilityUpload, status: 'PENDING_APPROVAL' }});
+
+            toast({ title: "Submitted for Approval", description: "The new eligibility list is pending review." });
+
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    }
 
 
     const submitForApproval = async (e: React.FormEvent) => {
@@ -219,12 +241,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: parseInt(String(formData.duration)) || 30,
-                // Ensure all fields from 'onUpdate' are included
                 ...formData, 
-                 // Exclude status from the approval payload
-                status: undefined,
-            };
-
+                status: undefined, // Status is handled separately
+                 // Exclude eligibility upload data from the main product save
+                eligibilityUpload: undefined, 
+                eligibilityUploadId: product.eligibilityUploadId,
+             };
+             
             const originalProduct = provider.products.find(p => p.id === product.id);
 
             const payload = {
@@ -416,12 +439,21 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                     <p className="text-sm text-muted-foreground">
                                                         By {product.eligibilityUpload.uploadedBy} on {format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
                                                     </p>
+                                                    {product.eligibilityUpload.status === 'PENDING_APPROVAL' && (
+                                                        <Badge variant="outline" className="mt-1">Pending Approval</Badge>
+                                                    )}
                                                 </div>
                                                 <div className="flex gap-2">
                                                     <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
                                                     <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
                                                 </div>
                                             </div>
+                                             {/* New dedicated approval button */}
+                                             {(product.eligibilityUpload as any).fileContent && product.eligibilityUpload.status !== 'PENDING_APPROVAL' && (
+                                                <Button onClick={handleEligibilitySubmitForApproval} size="sm" className="mt-2 text-white" style={{backgroundColor: providerColor}}>
+                                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : "Submit Eligibility for Approval"}
+                                                </Button>
+                                            )}
                                         </div>
                                     ) : (
                                         <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
@@ -1356,18 +1388,14 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
 
-    const onProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
+    const onProductUpdate = useCallback((providerId: string, updatedProduct: Partial<LoanProduct>) => {
         setProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
                 if (productIndex !== -1) {
-                    // Make sure to preserve the existing loanAmountTiers if they are not in the update
-                    const existingTiers = provider.products[productIndex].loanAmountTiers;
-                    provider.products[productIndex] = {
-                        ...updatedProduct,
-                        loanAmountTiers: updatedProduct.loanAmountTiers || existingTiers,
-                    };
+                    // Merge new fields into the existing product
+                    provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
                 }
             }
         }));
@@ -1517,199 +1545,6 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
                 </Button>
             </div>
         </div>
-    );
-}
-
-// --------------------------------------------------
-// DATA PROVISIONING MANAGER (NEW COMPONENT)
-// --------------------------------------------------
-function DataProvisioningManager({ providerId, config, onConfigChange, allProviderProducts }: {
-    providerId: string;
-    config: DataProvisioningConfig | undefined;
-    onConfigChange: (newConfig: DataProvisioningConfig) => void;
-    allProviderProducts: LoanProduct[];
-}) {
-    const { toast } = useToast();
-    const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
-
-    const handleSaveConfig = async (newConfigData: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
-        const isEditing = !!newConfigData.id;
-        const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/api/settings/data-provisioning';
-        const body = { ...newConfigData, providerId: providerId };
-
-        try {
-            const response = await fetch(endpoint, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save config.');
-            }
-            const savedConfig = await response.json();
-            
-            onConfigChange(savedConfig);
-            toast({ title: "Success", description: `Data type "${savedConfig.name}" saved successfully.` });
-        } catch(error: any) {
-            toast({ title: "Error", description: error.message, variant: 'destructive' });
-        }
-    };
-    
-    const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!config) return;
-
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('configId', config.id);
-
-            const response = await fetch('/api/settings/data-provisioning-uploads', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to upload file.');
-            }
-            
-            const newUpload = await response.json();
-            
-            const updatedConfig = produce(config, draft => {
-                if (!draft.uploads) draft.uploads = [];
-                draft.uploads.unshift(newUpload);
-            });
-            onConfigChange(updatedConfig);
-
-            toast({
-                title: 'Upload Successful',
-                description: `File "${file.name}" uploaded and recorded successfully.`,
-            });
-
-        } catch (error: any) {
-             toast({
-                title: 'Upload Failed',
-                description: error.message,
-                variant: 'destructive',
-            });
-        } finally {
-            setIsUploading(false);
-            if (event.target) event.target.value = '';
-        }
-    };
-
-    if (!config) {
-        return (
-            <>
-                <Button onClick={() => setIsConfigDialogOpen(true)}>
-                    <FilePlus2 className="h-4 w-4 mr-2" /> Create Data Source
-                </Button>
-                <DataProvisioningDialog
-                    isOpen={isConfigDialogOpen}
-                    onClose={() => setIsConfigDialogOpen(false)}
-                    onSave={handleSaveConfig}
-                    config={null}
-                />
-            </>
-        )
-    }
-
-    const generalUploads = useMemo(() => {
-        const eligibilityUploadIds = new Set(allProviderProducts.map(p => p.eligibilityUploadId).filter(Boolean));
-        return (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
-    }, [config.uploads, allProviderProducts]);
-
-
-    return (
-        <>
-            <Card className="bg-muted/50">
-                <CardHeader className="flex flex-row justify-between items-center">
-                     <div>
-                        <CardTitle className="text-lg">{config.name}</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsConfigDialogOpen(true)}><Edit className="h-4 w-4" /></Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                   <h4 className="font-medium mb-2">Columns</h4>
-                   <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                        {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
-                   </ul>
-                   <Separator />
-                   <div className="mt-4">
-                       <div className="flex justify-between items-center mb-2">
-                            <h4 className="font-medium">Upload History</h4>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={isUploading}
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
-                                Upload File
-                            </Button>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept=".xlsx, .xls"
-                                onChange={handleExcelUpload}
-                            />
-                       </div>
-                       <div className="border rounded-md">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>File Name</TableHead>
-                                       <TableHead>Rows</TableHead>
-                                       <TableHead>Uploaded By</TableHead>
-                                       <TableHead>Date</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                   {generalUploads.length > 0 ? (
-                                       generalUploads.map(upload => (
-                                            <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
-                                                <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
-                                                <TableCell>{upload.rowCount}</TableCell>
-                                                <TableCell>{upload.uploadedBy}</TableCell>
-                                                <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
-                                            </TableRow>
-                                       ))
-                                   ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
-                                        </TableRow>
-                                   )}
-                               </TableBody>
-                           </Table>
-                       </div>
-                   </div>
-                </CardContent>
-            </Card>
-
-             <DataProvisioningDialog
-                isOpen={isConfigDialogOpen}
-                onClose={() => setIsConfigDialogOpen(false)}
-                onSave={handleSaveConfig}
-                config={config}
-            />
-            <UploadDataViewerDialog
-                upload={viewingUpload}
-                onClose={() => setViewingUpload(null)}
-            />
-        </>
     );
 }
 
@@ -1911,54 +1746,6 @@ function UploadDataViewerDialog({ upload, onClose }: {
 
     if (!upload) return null;
     
-    // Special handling for temporary filter preview
-    if (upload.id.startsWith('temp-')) {
-        const filterData = JSON.parse(upload.fileName); // Storing JSON in fileName for temp
-        const headers = Object.keys(filterData);
-        const maxRows = Math.max(0, ...Object.values(filterData).map((v: any) => v.split(',').length));
-        const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
-            return headers.map(header => {
-                const values = filterData[header].split(',').map((s:string) => s.trim());
-                return values[rowIndex] || '';
-            });
-        });
-
-        return (
-             <UIDialog open={!!upload} onOpenChange={onClose}>
-                <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    <UIDialogHeader>
-                        <UIDialogTitle>Viewing Eligibility Criteria</UIDialogTitle>
-                        <UIDialogDescription>
-                            This is the list of criteria generated from your uploaded file.
-                        </UIDialogDescription>
-                    </UIDialogHeader>
-                    <div className="flex-grow overflow-auto border rounded-md">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-background">
-                                <TableRow>
-                                    {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {rows.map((row, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                        {row.map((cell, cellIndex) => (
-                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                     <UIDialogFooter className="pt-4">
-                        <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
-                    </UIDialogFooter>
-                </UIDialogContent>
-            </UIDialog>
-        );
-    }
-
-
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
     return (
@@ -2010,6 +1797,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

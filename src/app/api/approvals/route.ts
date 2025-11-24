@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -100,6 +101,48 @@ async function applyDataProvisioningUpload(change: any, data: any) {
     });
 }
 
+async function applyEligibilityList(data: any, createdById: string) {
+    const { productId, configId, fileName, fileContent } = data.created;
+    
+    const buffer = Buffer.from(fileContent, 'base64');
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json(worksheet);
+
+    if (json.length === 0) {
+        throw new Error("Cannot process empty eligibility file.");
+    }
+    
+    const headers = Object.keys(json[0] as object);
+    const filterObject = headers.reduce((acc, header) => {
+        const values = json.map(row => (row as any)[header]).filter(Boolean);
+        acc[header] = values.join(', ');
+        return acc;
+    }, {} as Record<string, string>);
+
+    return await prisma.$transaction(async (tx) => {
+        const newUpload = await tx.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: fileName,
+                rowCount: json.length,
+                uploadedBy: createdById,
+            }
+        });
+        
+        const updatedProduct = await tx.loanProduct.update({
+            where: { id: productId },
+            data: {
+                eligibilityFilter: JSON.stringify(filterObject, null, 2),
+                eligibilityUploadId: newUpload.id,
+            },
+        });
+        
+        return updatedProduct;
+    });
+}
+
 
 // Main function to apply an approved change
 async function applyChange(change: any) {
@@ -107,6 +150,11 @@ async function applyChange(change: any) {
   const data = JSON.parse(payload);
 
   switch (entityType) {
+    case 'EligibilityList':
+        if (changeType === 'UPDATE') { // We use UPDATE to signify changing the list
+            await applyEligibilityList(data, change.createdById);
+        }
+        break;
     case 'DataProvisioningConfig':
         if (changeType === 'UPDATE') {
             await prisma.dataProvisioningConfig.update({
