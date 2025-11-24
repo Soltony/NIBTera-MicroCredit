@@ -38,7 +38,3 @@ The loan lifecycle follows a clear, structured path from initial eligibility che
 7.  **Automated Services**:
     *   **Automated Repayment**: A background service runs periodically to attempt to deduct payments for overdue loans from the borrower's account (simulated via provisioned data).
     *   **NPL Flagging**: Another service identifies loans that have been overdue for a configurable period (e.g., 60 days) and flags the borrower's account as a Non-Performing Loan (NPL), restricting them from taking new loans.
-
-## The `loanApplicationId`
-
-The `loanApplicationId` is the key that connects the entire loan lifecycle. It serves as a container for the application process, linking the initial request, the approval status, and the final disbursed `Loan` record. This ensures a complete and auditable trail for every loan in the system from start to finish.
