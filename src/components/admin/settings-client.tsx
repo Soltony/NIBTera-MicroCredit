@@ -63,18 +63,6 @@ import { Checkbox } from '../ui/checkbox';
 import Link from 'next/link';
 
 
-// Helper to safely parse JSON fields that might be strings
-const safeParseJson = (data: any, field: string, defaultValue: any) => {
-    if (data && typeof data[field] === 'string') {
-        try {
-            return JSON.parse(data[field]);
-        } catch (e) {
-            return defaultValue;
-        }
-    }
-    return data?.[field] ?? defaultValue;
-};
-
 const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate, allDataConfigs }: {
     provider: LoanProvider;
     product: LoanProduct;
@@ -95,9 +83,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const formData = useMemo(() => {
         return {
             ...product,
-            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
-            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
-            penaltyRules: safeParseJson(product, 'penaltyRules', []),
+            serviceFee: typeof product.serviceFee === 'string' ? JSON.parse(product.serviceFee) : product.serviceFee,
+            dailyFee: typeof product.dailyFee === 'string' ? JSON.parse(product.dailyFee) : product.dailyFee,
+            penaltyRules: typeof product.penaltyRules === 'string' ? JSON.parse(product.penaltyRules) : product.penaltyRules,
             eligibilityFilter: product.eligibilityFilter
         };
     }, [product]);
@@ -714,8 +702,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
       <Accordion type="multiple" className="w-full space-y-4">
         {providers.map((provider) => (
           <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-            <div className="flex items-center w-full p-4">
-              <AccordionTrigger className="flex-1 p-0 hover:no-underline text-left" hideChevron>
+            <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
                 <div className="flex items-center gap-4">
                   <IconDisplay iconName={provider.icon} className="h-6 w-6" />
                   <div>
@@ -726,7 +713,6 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     </div>
                   </div>
                 </div>
-              </AccordionTrigger>
               <div className="flex items-center gap-2 ml-auto pl-4">
                 {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
                   <>
@@ -738,11 +724,8 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     </Button>
                   </>
                 )}
-                <AccordionTrigger className="p-2">
-                  <span className="sr-only">Toggle</span>
-                </AccordionTrigger>
               </div>
-            </div>
+            </AccordionTrigger>
             <AccordionContent className="p-4 border-t">
               <div className="space-y-6">
                 {(provider.products || []).map(product => (
@@ -1093,12 +1076,12 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const [isOpen, setIsOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
-    const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const taxAppliedTo = useMemo(() => typeof taxConfig.appliedTo === 'string' ? JSON.parse(taxConfig.appliedTo) : taxConfig.appliedTo || [], [taxConfig.appliedTo]);
 
     const parsedProduct = useMemo(() => {
-        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
-        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
-        const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
+        const serviceFee = typeof product.serviceFee === 'string' ? JSON.parse(product.serviceFee) : product.serviceFee;
+        const dailyFee = typeof product.dailyFee === 'string' ? JSON.parse(product.dailyFee) : product.dailyFee;
+        const penaltyRules = typeof product.penaltyRules === 'string' ? JSON.parse(product.penaltyRules) : product.penaltyRules.map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
         return {
             ...product,
             serviceFee,
@@ -1353,7 +1336,7 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
         setTaxConfig(initialTaxConfig);
     }, [initialTaxConfig]);
     
-    const appliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const appliedTo = useMemo(() => typeof taxConfig.appliedTo === 'string' ? JSON.parse(taxConfig.appliedTo) : taxConfig.appliedTo || [], [taxConfig.appliedTo]);
 
     return (
         <Card>
@@ -1760,24 +1743,23 @@ function UploadDataViewerDialog({ upload, onClose }: {
     if (!upload) return null;
     
     // Special handling for temporary filter preview
-    if (upload.id.startsWith('temp-')) {
-        const filterData = JSON.parse(upload.fileName); // Storing JSON in fileName for temp
-        const headers = Object.keys(filterData);
-        const maxRows = Math.max(0, ...Object.values(filterData).map((v: any) => v.split(',').length));
-        const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
-            return headers.map(header => {
-                const values = filterData[header].split(',').map((s:string) => s.trim());
-                return values[rowIndex] || '';
-            });
-        });
+    if (upload.id.startsWith('temp-') && 'fileContent' in upload) {
+        const buffer = Buffer.from((upload as any).fileContent, 'base64');
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
+        const rows = jsonData;
 
         return (
              <UIDialog open={!!upload} onOpenChange={onClose}>
                 <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <UIDialogHeader>
-                        <UIDialogTitle>Viewing Eligibility Criteria</UIDialogTitle>
+                        <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
                         <UIDialogDescription>
-                            This is the list of criteria generated from your uploaded file.
+                            This is a preview of the data from your uploaded file.
                         </UIDialogDescription>
                     </UIDialogHeader>
                     <div className="flex-grow overflow-auto border rounded-md">
@@ -1790,8 +1772,8 @@ function UploadDataViewerDialog({ upload, onClose }: {
                             <TableBody>
                                 {rows.map((row, rowIndex) => (
                                     <TableRow key={rowIndex}>
-                                        {row.map((cell, cellIndex) => (
-                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
+                                        {headers.map((header, cellIndex) => (
+                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{row[header]}</TableCell>
                                         ))}
                                     </TableRow>
                                 ))}
@@ -1858,6 +1840,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
