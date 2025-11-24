@@ -104,6 +104,16 @@ async function applyDataProvisioningUpload(change: any, data: any) {
 async function applyEligibilityList(data: any, createdById: string) {
     const { productId, configId, fileName, fileContent } = data.created;
     
+    // 1. Find the linked data configuration to know which column is the identifier
+    const config = await prisma.dataProvisioningConfig.findUnique({ where: { id: configId } });
+    if (!config) throw new Error("Data source configuration not found.");
+    
+    const configColumns = JSON.parse(config.columns as string);
+    const idColumn = configColumns.find((c: any) => c.isIdentifier);
+    if (!idColumn) throw new Error("Identifier column not defined in the data source configuration.");
+    const idColumnName = idColumn.name;
+
+    // 2. Parse the Excel file
     const buffer = Buffer.from(fileContent, 'base64');
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
@@ -114,13 +124,26 @@ async function applyEligibilityList(data: any, createdById: string) {
         throw new Error("Cannot process empty eligibility file.");
     }
     
+    // 3. Find the header in the Excel file that matches the identifier column name
     const headers = Object.keys(json[0] as object);
-    const filterObject = headers.reduce((acc, header) => {
-        const values = json.map(row => (row as any)[header]).filter(Boolean);
-        acc[header] = values.join(', ');
-        return acc;
-    }, {} as Record<string, string>);
+    const idHeader = headers.find(h => h.toLowerCase() === idColumnName.toLowerCase());
+    
+    if (!idHeader) {
+        throw new Error(`The uploaded file is missing the required identifier column: "${idColumnName}".`);
+    }
+    
+    // 4. Extract all IDs from that column
+    const idList = json.map(row => (row as any)[idHeader]).filter(Boolean).map(String);
+    if (idList.length === 0) {
+        throw new Error("No identifiers found in the uploaded eligibility file.");
+    }
 
+    // 5. Create the filter object
+    const filterObject = {
+        [toCamelCase(idColumnName)]: idList.join(', ')
+    };
+    
+    // 6. Save the new upload and update the product in a transaction
     return await prisma.$transaction(async (tx) => {
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
@@ -134,7 +157,7 @@ async function applyEligibilityList(data: any, createdById: string) {
         const updatedProduct = await tx.loanProduct.update({
             where: { id: productId },
             data: {
-                eligibilityFilter: JSON.stringify(filterObject, null, 2),
+                eligibilityFilter: JSON.stringify(filterObject),
                 eligibilityUploadId: newUpload.id,
             },
         });
