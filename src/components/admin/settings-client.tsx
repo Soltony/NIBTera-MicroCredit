@@ -1,9 +1,8 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import *XLSX * as XLSX from 'xlsx';
 import {
   Card,
   CardContent,
@@ -447,7 +446,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
     }, [providers]);
     
     const themeColor = useMemo(() => {
-        if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
+        if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
         }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
@@ -984,7 +983,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
                 }
             });
 
-            // This update is now part of the parent's save logic.
+            // This update is now part of the parent’s save logic.
             onUpdate({ loanAmountTiers: tiersToSend });
             toast({ title: 'Tiers Updated', description: 'Tiers have been staged for approval. Submit the product changes to finalize.' });
             
@@ -1052,10 +1051,11 @@ function LoanTiersForm({ product, onUpdate, color }: {
     );
 }
 
-function ProductConfiguration({ product, providerColor, onProductUpdate, taxConfig }: { 
+function ProductConfiguration({ product: initialProduct, provider, providerColor, onProductUpdate, taxConfig }: { 
     product: LoanProduct; 
+    provider: LoanProvider;
     providerColor?: string;
-    onProductUpdate: (updatedProduct: Partial<LoanProduct>) => void;
+    onProductUpdate: (originalProduct: LoanProduct, updatedProduct: Partial<LoanProduct>) => void;
     taxConfig: Tax;
 }) {
     const { toast } = useToast();
@@ -1065,16 +1065,16 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     const parsedProduct = useMemo(() => {
-        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
-        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
-        const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
+        const serviceFee = safeParseJson(initialProduct, 'serviceFee', { type: 'percentage', value: 0 });
+        const dailyFee = safeParseJson(initialProduct, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
+        const penaltyRules = safeParseJson(initialProduct, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
         return {
-            ...product,
+            ...initialProduct,
             serviceFee,
             dailyFee,
             penaltyRules,
         };
-    }, [product]);
+    }, [initialProduct]);
     
     const [config, setConfig] = useState(parsedProduct);
 
@@ -1109,11 +1109,17 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
         }));
     };
 
-    const handleSave = async () => {
+    const handleSaveConfiguration = async () => {
         setIsSaving(true);
         try {
-            onProductUpdate({ ...config, status: 'PENDING_APPROVAL' });
-
+            const originalProduct = provider.products.find(p => p.id === config.id);
+            if (!originalProduct) {
+                throw new Error("Could not find the original product state.");
+            }
+            
+            // Pass both original and new config to the parent
+            onProductUpdate(originalProduct, config);
+            
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
         } finally {
@@ -1125,7 +1131,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
                  <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
-                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                    <h4 className="text-sm font-semibold">{config.name}</h4>
                     {config.status === 'PENDING_APPROVAL' ? (
                         <Badge variant="outline">Pending Approval</Badge>
                     ) : (
@@ -1218,7 +1224,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                 </CardContent>
                 <CardFooter>
                         <Button 
-                            onClick={handleSave} 
+                            onClick={handleSaveConfiguration} 
                             size="sm"
                             style={{ backgroundColor: providerColor }}
                             className="text-white ml-auto"
@@ -1234,11 +1240,52 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     );
 }
 
-function ConfigurationTab({ providers, onProductUpdate, taxConfig }: { 
+function ConfigurationTab({ providers, onProvidersChange, taxConfig }: { 
     providers: LoanProvider[],
-    onProductUpdate: (providerId: string, updatedProduct: Partial<LoanProduct>) => void;
+    onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
     taxConfig: Tax;
 }) {
+
+    const { toast } = useToast();
+
+    const handleProductConfigSave = (originalProduct: LoanProduct, updatedConfig: Partial<LoanProduct>) => {
+        
+        const payload = {
+            original: originalProduct,
+            updated: updatedConfig,
+        };
+
+        fetch('/api/settings/pending-changes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                entityType: 'LoanProduct',
+                entityId: updatedConfig.id,
+                changeType: 'UPDATE',
+                payload: JSON.stringify(payload),
+            }),
+        }).then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Failed to submit changes.')});
+            }
+            onProvidersChange(produce(draft => {
+                 const provider = draft.find(p => p.id === updatedConfig.providerId);
+                 if (provider) {
+                     const productIndex = provider.products.findIndex(p => p.id === updatedConfig.id);
+                     if (productIndex > -1) {
+                         provider.products[productIndex].status = 'PENDING_APPROVAL';
+                     }
+                 }
+            }));
+            toast({
+                title: 'Submitted for Approval',
+                description: `Configuration changes to ${updatedConfig.name} have been submitted.`,
+            });
+        }).catch((error: any) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        });
+    };
+
     if (providers.length === 0) {
         return (
             <Card>
@@ -1270,9 +1317,10 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
                        {(provider.products || []).map(product => (
                             <ProductConfiguration
                                 key={product.id}
-                                product={product}
+                                initialProduct={product}
+                                provider={provider}
                                 providerColor={provider.colorHex}
-                                onProductUpdate={(updatedFields) => onProductUpdate(provider.id, { id: product.id, ...updatedFields })}
+                                onProductUpdate={(original, updated) => handleProductConfigSave(original, updated)}
                                 taxConfig={taxConfig}
                             />
                        ))}
@@ -1377,7 +1425,7 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
             <Tabs defaultValue="providers" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
-                    <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
+                    <TabsTrigger value="configuration">Fee &amp; Tier Configuration</TabsTrigger>
                     <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
                     <TabsTrigger value="tax">Tax</TabsTrigger>
                 </TabsList>
@@ -1385,7 +1433,7 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
                     <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} taxConfig={initialTaxConfig} />
+                     <ConfigurationTab providers={providers} onProvidersChange={handleProvidersChange} taxConfig={initialTaxConfig} />
                 </TabsContent>
                  <TabsContent value="agreement">
                     <Accordion type="multiple" className="w-full space-y-4">
