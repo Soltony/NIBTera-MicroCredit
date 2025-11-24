@@ -64,7 +64,7 @@ import Link from 'next/link';
 
 
 // Helper to safely parse JSON fields that might be strings
-const safeJsonParse = (data: any, field: string, defaultValue: any) => {
+const safeParseJson = (data: any, field: string, defaultValue: any) => {
     if (data && typeof data[field] === 'string') {
         try {
             return JSON.parse(data[field]);
@@ -95,9 +95,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const formData = useMemo(() => {
         return {
             ...product,
-            serviceFee: safeJsonParse(product, 'serviceFee', { type: 'percentage', value: 0 }),
-            dailyFee: safeJsonParse(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
-            penaltyRules: safeJsonParse(product, 'penaltyRules', []),
+            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
+            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
+            penaltyRules: safeParseJson(product, 'penaltyRules', []),
             eligibilityFilter: product.eligibilityFilter
         };
     }, [product]);
@@ -286,22 +286,35 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     
     const handleDeleteFilter = async () => {
         if (!product.eligibilityUploadId) return;
-        setIsSaving(true);
+        
         try {
-            // Call an API to delete the upload record and nullify the fields on the product
-            const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
-                method: 'DELETE',
+            const productToDeleteFilter = provider.products.find(p => p.id === product.id);
+
+            const payload = {
+                original: productToDeleteFilter,
+                updated: { ...productToDeleteFilter, eligibilityUploadId: null, eligibilityFilter: null, eligibilityUpload: undefined }
+            };
+
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'EligibilityList',
+                    entityId: product.id,
+                    changeType: 'DELETE',
+                    payload: JSON.stringify(payload),
+                }),
             });
-            if (!response.ok) {
+
+             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to delete filter.');
+                throw new Error(errorData.error || 'Could not submit filter deletion for approval.');
             }
-            onUpdate({ eligibilityFilter: null, eligibilityUploadId: null, eligibilityUpload: undefined });
-            toast({ title: "Filter Deleted", description: "Eligibility list has been removed." });
+            onUpdate({ eligibilityUpload: { ...product.eligibilityUpload, status: 'PENDING_APPROVAL' } as any});
+            toast({ title: 'Deletion Submitted', description: 'The eligibility filter deletion is pending approval.' });
+
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: 'destructive' });
-        } finally {
-            setIsSaving(false);
         }
     };
 
@@ -1083,9 +1096,9 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const taxAppliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     const parsedProduct = useMemo(() => {
-        const serviceFee = safeJsonParse(product, 'serviceFee', { type: 'percentage', value: 0 });
-        const dailyFee = safeJsonParse(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
-        const penaltyRules = safeJsonParse(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
+        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
+        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
+        const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
         return {
             ...product,
             serviceFee,
@@ -1340,7 +1353,7 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
         setTaxConfig(initialTaxConfig);
     }, [initialTaxConfig]);
     
-    const appliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const appliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     return (
         <Card>
@@ -1797,6 +1810,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 

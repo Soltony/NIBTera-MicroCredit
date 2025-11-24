@@ -153,6 +153,14 @@ async function applyChange(change: any) {
     case 'EligibilityList':
         if (changeType === 'UPDATE') { // We use UPDATE to signify changing the list
             await applyEligibilityList(data, change.createdById);
+        } else if (changeType === 'DELETE') {
+            await prisma.loanProduct.update({
+                where: { id: entityId },
+                data: {
+                    eligibilityFilter: null,
+                    eligibilityUploadId: null
+                }
+            });
         }
         break;
     case 'DataProvisioningConfig':
@@ -422,10 +430,9 @@ export async function POST(req: NextRequest) {
        if (entityId && change.changeType !== 'CREATE') {
             if (change.entityType === 'LoanProvider') {
                 await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            } else if (change.entityType === 'LoanProduct') {
+            } else if (changeType === 'UPDATE' && change.entityType === 'LoanProduct') {
                 await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            }
-             else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
+            } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
                  await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
             }
         }
