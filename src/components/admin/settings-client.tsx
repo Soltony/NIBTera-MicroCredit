@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon, ChevronRight, ChevronLeft } from 'lucide-react';
-import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax } from '@/lib/types';
+import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax, DailyFeeRule } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
 import { cn } from '@/lib/utils';
@@ -95,9 +95,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const formData = useMemo(() => {
         return {
             ...product,
-            serviceFee: safeJsonParse(product, 'serviceFee', { type: 'percentage', value: 0 }),
-            dailyFee: safeJsonParse(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
-            penaltyRules: safeJsonParse(product, 'penaltyRules', []),
+            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
+            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
+            penaltyRules: safeParseJson(product, 'penaltyRules', []),
             eligibilityFilter: product.eligibilityFilter
         };
     }, [product]);
@@ -246,6 +246,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                  // Exclude eligibility upload data from the main product save
                 eligibilityUpload: undefined, 
                 eligibilityUploadId: product.eligibilityUploadId,
+                dataProvisioningEnabled: product.dataProvisioningEnabled,
+                dataProvisioningConfigId: product.dataProvisioningConfigId
              };
              
             const originalProduct = provider.products.find(p => p.id === product.id);
@@ -439,9 +441,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                     <p className="text-sm text-muted-foreground">
                                                         By {product.eligibilityUpload.uploadedBy} on {format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
                                                     </p>
-                                                    {product.eligibilityUpload.status === 'PENDING_APPROVAL' && (
-                                                        <Badge variant="outline" className="mt-1">Pending Approval</Badge>
-                                                    )}
                                                 </div>
                                                 <div className="flex gap-2">
                                                     <Button variant="outline" size="sm" onClick={() => {
@@ -458,8 +457,11 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                     <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
                                                 </div>
                                             </div>
+                                             {product.eligibilityUpload.status === 'PENDING_APPROVAL' && (
+                                                <Badge variant="outline" className="mt-1">Pending Approval</Badge>
+                                             )}
                                              {(product.eligibilityUpload as any).fileContent && product.eligibilityUpload.status !== 'PENDING_APPROVAL' && (
-                                                <Button onClick={handleEligibilitySubmitForApproval} size="sm" className="w-full text-white" style={{backgroundColor: providerColor}}>
+                                                <Button onClick={handleEligibilitySubmitForApproval} size="sm" className="w-full text-white mt-2" style={{backgroundColor: providerColor}}>
                                                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : "Submit Eligibility for Approval"}
                                                 </Button>
                                             )}
@@ -749,7 +751,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     providerColor={provider.colorHex} 
                     onSave={(savedProduct) => handleUpdateProduct(provider.id, savedProduct)}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                    onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
+                    onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields } as LoanProduct)}
                     allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
                   />
                 ))}
@@ -862,7 +864,7 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
         setTaxConfig(initialTaxConfig);
     }, [initialTaxConfig]);
     
-    const appliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const appliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     return (
         <Card>
@@ -1583,12 +1585,12 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const [isOpen, setIsOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
-    const taxAppliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     const parsedProduct = useMemo(() => {
-        const serviceFee = safeJsonParse(product, 'serviceFee', { type: 'percentage', value: 0 });
-        const dailyFee = safeJsonParse(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
-        const penaltyRules = safeJsonParse(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
+        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
+        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
+        const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
         return {
             ...product,
             serviceFee,
@@ -1810,6 +1812,7 @@ const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: Fee
     
 
     
+
 
 
 
