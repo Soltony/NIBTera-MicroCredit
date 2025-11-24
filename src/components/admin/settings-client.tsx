@@ -64,7 +64,7 @@ import Link from 'next/link';
 
 
 // Helper to safely parse JSON fields that might be strings
-const safeParseJson = (data: any, field: string, defaultValue: any) => {
+const safeJsonParse = (data: any, field: string, defaultValue: any) => {
     if (data && typeof data[field] === 'string') {
         try {
             return JSON.parse(data[field]);
@@ -219,8 +219,10 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: parseInt(String(formData.duration)) || 30,
-                // Exclude status from the approval payload
-                status: undefined, 
+                // Ensure all fields from 'onUpdate' are included
+                ...product, 
+                 // Exclude status from the approval payload
+                status: undefined,
             };
 
             const originalProduct = provider.products.find(p => p.id === product.id);
@@ -285,14 +287,14 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
        <>
        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
-                <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors cursor-pointer">
                     <div className="flex items-center gap-2">
                         <h4 className="text-sm font-semibold">{product.name}</h4>
                         {product.status === 'PENDING_APPROVAL' && <Badge variant="outline">Pending Approval</Badge>}
                         {product.status !== 'PENDING_APPROVAL' && <Badge variant={product.status === 'Active' ? 'default' : 'destructive'} className={cn(product.status === 'Active' && 'bg-green-600')}>{product.status}</Badge>}
                     </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
-                </button>
+                </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
                  <form onSubmit={submitForApproval} className="p-4 border rounded-lg bg-background space-y-6">
@@ -1133,14 +1135,14 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     return (
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
             <CollapsibleTrigger asChild>
-                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                 <div className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors cursor-pointer">
                     <h4 className="text-sm font-semibold">{product.name}</h4>
                     {config.status === 'PENDING_APPROVAL' ? (
                         <Badge variant="outline">Pending Approval</Badge>
                     ) : (
                         <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                     )}
-                </button>
+                </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
                  <Card className="border-t-0 rounded-t-none">
@@ -1865,7 +1867,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     
                     <UIDialogFooter>
                         <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
-                        <Button type="submit">Save</Button>
+                        <Button type="submit">Submit for Approval</Button>
                     </UIDialogFooter>
                 </form>
             </UIDialogContent>
@@ -2008,6 +2010,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
