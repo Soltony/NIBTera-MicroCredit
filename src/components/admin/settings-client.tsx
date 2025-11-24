@@ -95,9 +95,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const formData = useMemo(() => {
         return {
             ...product,
-            serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
-            dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
-            penaltyRules: safeParseJson(product, 'penaltyRules', []),
+            serviceFee: safeJsonParse(product, 'serviceFee', { type: 'percentage', value: 0 }),
+            dailyFee: safeJsonParse(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
+            penaltyRules: safeJsonParse(product, 'penaltyRules', []),
             eligibilityFilter: product.eligibilityFilter
         };
     }, [product]);
@@ -215,12 +215,12 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         setIsSaving(true);
         try {
              const productToSave = {
-                ...formData,
+                ...product,
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: parseInt(String(formData.duration)) || 30,
                 // Ensure all fields from 'onUpdate' are included
-                ...product, 
+                ...formData, 
                  // Exclude status from the approval payload
                 status: undefined,
             };
@@ -1048,12 +1048,12 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const [isOpen, setIsOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
-    const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const taxAppliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     const parsedProduct = useMemo(() => {
-        const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
-        const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
-        const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
+        const serviceFee = safeJsonParse(product, 'serviceFee', { type: 'percentage', value: 0 });
+        const dailyFee = safeJsonParse(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
+        const penaltyRules = safeJsonParse(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
         return {
             ...product,
             serviceFee,
@@ -1308,7 +1308,7 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
         setTaxConfig(initialTaxConfig);
     }, [initialTaxConfig]);
     
-    const appliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const appliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     return (
         <Card>
@@ -2010,6 +2010,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
