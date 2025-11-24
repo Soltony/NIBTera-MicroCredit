@@ -79,7 +79,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     provider: LoanProvider;
     product: LoanProduct;
     providerColor?: string;
-    onSave: (product: LoanProduct) => void;
+    onSave: (originalProduct: LoanProduct, updatedProduct: LoanProduct) => void;
     onDelete: () => void;
     onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
     allDataConfigs: DataProvisioningConfig[];
@@ -222,36 +222,15 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 // Exclude status from the approval payload
                 status: undefined, 
             };
-
+            
             const originalProduct = provider.products.find(p => p.id === product.id);
 
-            const payload = {
-                original: originalProduct,
-                updated: productToSave
-            };
-
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    entityId: product.id,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit product changes for approval.');
+            if (!originalProduct) {
+                throw new Error("Could not find the original product to compare changes.");
             }
 
-            onUpdate({ status: 'PENDING_APPROVAL' });
-
-            toast({
-                title: 'Submitted for Approval',
-                description: `Changes to ${product.name} have been submitted successfully.`,
-            });
+            onSave(originalProduct, productToSave as LoanProduct);
+            
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
         } finally {
@@ -643,6 +622,43 @@ function ProvidersTab({ providers, onProvidersChange }: {
         }
     }
     
+    const handleSaveProduct = (originalProduct: LoanProduct, updatedProduct: LoanProduct) => {
+        const payload = {
+            original: originalProduct,
+            updated: updatedProduct,
+        };
+
+        fetch('/api/settings/pending-changes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                entityType: 'LoanProduct',
+                entityId: updatedProduct.id,
+                changeType: 'UPDATE',
+                payload: JSON.stringify(payload),
+            }),
+        }).then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Failed to submit changes.')});
+            }
+            onProvidersChange(produce(draft => {
+                 const provider = draft.find(p => p.id === updatedProduct.providerId);
+                 if (provider) {
+                     const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                     if (productIndex > -1) {
+                         provider.products[productIndex].status = 'PENDING_APPROVAL';
+                     }
+                 }
+            }));
+            toast({
+                title: 'Submitted for Approval',
+                description: `Changes to ${updatedProduct.name} have been submitted.`,
+            });
+        }).catch((error: any) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        });
+    }
+
     if (providers.length === 0) {
         return (
             <Card>
@@ -704,7 +720,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     provider={provider}
                     product={{...product, icon: product.icon || 'PersonStanding'}} 
                     providerColor={provider.colorHex} 
-                    onSave={(savedProduct) => handleUpdateProduct(provider.id, savedProduct)}
+                    onSave={(original, updated) => handleSaveProduct(original, updated)}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
                     onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
                     allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
@@ -1039,7 +1055,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
 function ProductConfiguration({ product, providerColor, onProductUpdate, taxConfig }: { 
     product: LoanProduct; 
     providerColor?: string;
-    onProductUpdate: (updatedProduct: LoanProduct) => void;
+    onProductUpdate: (updatedProduct: Partial<LoanProduct>) => void;
     taxConfig: Tax;
 }) {
     const { toast } = useToast();
@@ -1096,33 +1112,8 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const payload = {
-                original: product, // The original product state before edits
-                updated: config,   // The new state from the form
-            };
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    entityId: product.id,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit changes for approval.');
-            }
-
-            // Update the parent state to reflect pending status
             onProductUpdate({ ...config, status: 'PENDING_APPROVAL' });
-            
-            toast({
-                title: 'Submitted for Approval',
-                description: `Changes for ${config.name} have been submitted successfully.`,
-            });
+
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
         } finally {
@@ -1245,7 +1236,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
 
 function ConfigurationTab({ providers, onProductUpdate, taxConfig }: { 
     providers: LoanProvider[],
-    onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
+    onProductUpdate: (providerId: string, updatedProduct: Partial<LoanProduct>) => void;
     taxConfig: Tax;
 }) {
     if (providers.length === 0) {
@@ -1281,7 +1272,7 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
                                 key={product.id}
                                 product={product}
                                 providerColor={provider.colorHex}
-                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
+                                onProductUpdate={(updatedFields) => onProductUpdate(provider.id, { id: product.id, ...updatedFields })}
                                 taxConfig={taxConfig}
                             />
                        ))}
@@ -1354,18 +1345,14 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
 
-    const onProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
+    const onProductUpdate = useCallback((providerId: string, updatedProduct: Partial<LoanProduct>) => {
         setProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
                 if (productIndex !== -1) {
-                    // Make sure to preserve the existing loanAmountTiers if they are not in the update
-                    const existingTiers = provider.products[productIndex].loanAmountTiers;
-                    provider.products[productIndex] = {
-                        ...updatedProduct,
-                        loanAmountTiers: updatedProduct.loanAmountTiers || existingTiers,
-                    };
+                    const existingProduct = provider.products[productIndex];
+                    provider.products[productIndex] = { ...existingProduct, ...updatedProduct };
                 }
             }
         }));
@@ -1865,7 +1852,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     
                     <UIDialogFooter>
                         <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
-                        <Button type="submit">Save</Button>
+                        <Button type="submit">Submit for Approval</Button>
                     </UIDialogFooter>
                 </form>
             </UIDialogContent>
@@ -2017,3 +2004,8 @@ function UploadDataViewerDialog({ upload, onClose }: {
 
 
 
+
+
+
+
+    
