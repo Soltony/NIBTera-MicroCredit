@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import *XLSX * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import {
   Card,
   CardContent,
@@ -721,7 +721,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     providerColor={provider.colorHex} 
                     onSave={(original, updated) => handleSaveProduct(original, updated)}
                     onDelete={() => setDeletingId({ type: 'product', providerId: provider.id, productId: product.id })}
-                    onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields })}
+                    onUpdate={(updatedFields) => handleUpdateProduct(provider.id, { id: product.id, ...updatedFields } as LoanProduct)}
                     allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
                   />
                 ))}
