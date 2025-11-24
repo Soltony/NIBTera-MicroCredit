@@ -314,7 +314,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             toast({ title: 'Deletion Submitted', description: 'The eligibility filter deletion is pending approval.' });
 
         } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: 'destructive' });
+             toast({ title: "Error", description: error.message, variant: "destructive" });
         }
     };
 
@@ -461,8 +461,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                     <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
                                                 </div>
                                             </div>
-                                             {/* New dedicated approval button */}
-                                             {(product.eligibilityUpload as any).fileContent && product.eligibilityUpload.status !== 'PENDING_APPROVAL' && (
+                                             {/* New dedicated approval button - Corrected logic */}
+                                             {product.eligibilityUpload && 'fileContent' in product.eligibilityUpload && product.eligibilityUpload.status !== 'PENDING_APPROVAL' && (
                                                 <Button onClick={handleEligibilitySubmitForApproval} size="sm" className="mt-2 text-white" style={{backgroundColor: providerColor}}>
                                                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : "Submit Eligibility for Approval"}
                                                 </Button>
@@ -1093,7 +1093,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const [isOpen, setIsOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
-    const taxAppliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+    const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
     const parsedProduct = useMemo(() => {
         const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
@@ -1759,6 +1759,54 @@ function UploadDataViewerDialog({ upload, onClose }: {
 
     if (!upload) return null;
     
+    // Special handling for temporary filter preview
+    if (upload.id.startsWith('temp-')) {
+        const filterData = JSON.parse(upload.fileName); // Storing JSON in fileName for temp
+        const headers = Object.keys(filterData);
+        const maxRows = Math.max(0, ...Object.values(filterData).map((v: any) => v.split(',').length));
+        const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
+            return headers.map(header => {
+                const values = filterData[header].split(',').map((s:string) => s.trim());
+                return values[rowIndex] || '';
+            });
+        });
+
+        return (
+             <UIDialog open={!!upload} onOpenChange={onClose}>
+                <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                    <UIDialogHeader>
+                        <UIDialogTitle>Viewing Eligibility Criteria</UIDialogTitle>
+                        <UIDialogDescription>
+                            This is the list of criteria generated from your uploaded file.
+                        </UIDialogDescription>
+                    </UIDialogHeader>
+                    <div className="flex-grow overflow-auto border rounded-md">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {rows.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {row.map((cell, cellIndex) => (
+                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                     <UIDialogFooter className="pt-4">
+                        <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
+                    </UIDialogFooter>
+                </UIDialogContent>
+            </UIDialog>
+        );
+    }
+
+
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
     return (
@@ -1810,6 +1858,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
