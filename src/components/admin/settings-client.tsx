@@ -64,7 +64,7 @@ import Link from 'next/link';
 
 
 // Helper to safely parse JSON fields that might be strings
-const safeJsonParse = (data: any, field: string, defaultValue: any) => {
+const safeParseJson = (data: any, field: string, defaultValue: any) => {
     if (data && typeof data[field] === 'string') {
         try {
             return JSON.parse(data[field]);
@@ -88,7 +88,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
     const [isUploading, setIsUploading] = useState(false);
-    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | { previewData: any[] } | null>(null);
     
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -432,7 +432,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 <div className="space-y-2">
                                     <Label>Uploaded List</Label>
                                     {product.eligibilityUpload ? (
-                                         <div className="border rounded-lg p-3">
+                                         <div className="border rounded-lg p-3 space-y-2">
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <p className="font-medium">{product.eligibilityUpload.fileName}</p>
@@ -444,13 +444,22 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                     )}
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
+                                                    <Button variant="outline" size="sm" onClick={() => {
+                                                        if ((product.eligibilityUpload as any)?.fileContent) {
+                                                            const workbook = XLSX.read((product.eligibilityUpload as any).fileContent, { type: 'base64' });
+                                                            const sheetName = workbook.SheetNames[0];
+                                                            const worksheet = workbook.Sheets[sheetName];
+                                                            const json = XLSX.utils.sheet_to_json(worksheet);
+                                                            setViewingUpload({ ...product.eligibilityUpload, previewData: json });
+                                                        } else {
+                                                            setViewingUpload(product.eligibilityUpload);
+                                                        }
+                                                    }}>View</Button>
                                                     <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
                                                 </div>
                                             </div>
-                                             {/* New dedicated approval button */}
                                              {(product.eligibilityUpload as any).fileContent && product.eligibilityUpload.status !== 'PENDING_APPROVAL' && (
-                                                <Button onClick={handleEligibilitySubmitForApproval} size="sm" className="mt-2 text-white" style={{backgroundColor: providerColor}}>
+                                                <Button onClick={handleEligibilitySubmitForApproval} size="sm" className="w-full text-white" style={{backgroundColor: providerColor}}>
                                                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : "Submit Eligibility for Approval"}
                                                 </Button>
                                             )}
@@ -790,35 +799,529 @@ function ProvidersTab({ providers, onProvidersChange }: {
     );
 }
 
-type DailyFeeRule = FeeRule & { calculationBase?: 'principal' | 'compound' };
-
-const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
+function ConfigurationTab({ providers, onProductUpdate, taxConfig }: { 
+    providers: LoanProvider[],
+    onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
+    taxConfig: Tax;
+}) {
+    if (providers.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Product Fee Configuration</CardTitle>
+                    <CardDescription>
+                        No providers available to configure.
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+        );
+    }
+    
     return (
-        <div className="flex items-center gap-2">
-            <Label className={cn("w-28", !isEnabled && "text-muted-foreground/50")}>{label}</Label>
-            <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type })} disabled={!isEnabled}>
-                <SelectTrigger className="w-32" disabled={!isEnabled}>
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="percentage">Percentage</SelectItem>
-                    <SelectItem value="fixed">Fixed</SelectItem>
-                </SelectContent>
-            </Select>
-            <div className="relative flex-1">
-                <Input
-                    type="number"
-                    value={fee.value ?? ''}
-                    onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : Number(e.target.value) })}
-                    placeholder="Enter value"
-                    className={cn(fee.type === 'percentage' ? "pr-8" : "")}
-                    disabled={!isEnabled}
-                />
-                {fee.type === 'percentage' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
+        <>
+        <Accordion type="multiple" className="w-full space-y-4">
+            {providers.map((provider) => (
+                <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                    <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                        <div className="flex items-center gap-4">
+                            <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                            <div>
+                                <div className="text-lg font-semibold">{provider.name}</div>
+                                <p className="text-sm text-muted-foreground">{(provider.products || []).length} products to configure</p>
+                            </div>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 border-t space-y-6">
+                       {(provider.products || []).map(product => (
+                            <ProductConfiguration
+                                key={product.id}
+                                product={product}
+                                providerColor={provider.colorHex}
+                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
+                                taxConfig={taxConfig}
+                            />
+                       ))}
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
+        </>
+    );
+}
+
+const TAX_COMPONENTS = [
+    { id: 'serviceFee', label: 'Service Fee' },
+    { id: 'interest', label: 'Daily Fee (Interest)' },
+    { id: 'penalty', label: 'Penalty' },
+];
+
+function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
+    const [taxConfig, setTaxConfig] = useState(initialTaxConfig);
+
+    useEffect(() => {
+        setTaxConfig(initialTaxConfig);
+    }, [initialTaxConfig]);
+    
+    const appliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
+
+    return (
+        <Card>
+            <CardHeader className='flex-row items-start justify-between'>
+                <div>
+                    <CardTitle>Global Tax Configuration</CardTitle>
+                    <CardDescription>This is a read-only view of the current system-wide tax settings.</CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                    <Link href="/admin/tax">
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit Configuration
+                    </Link>
+                </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label>Tax Rate (%)</Label>
+                    <Input 
+                        value={`${taxConfig.rate}%`}
+                        readOnly
+                        className="max-w-xs bg-muted"
+                    />
+                </div>
+                <div className="space-y-4">
+                    <Label>Tax is Applied On</Label>
+                    <div className="space-y-2 rounded-md border p-4 bg-muted">
+                        {TAX_COMPONENTS.map(component => (
+                            <div key={component.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`tax-on-${component.id}-readonly`}
+                                    checked={appliedTo.includes(component.id)}
+                                    disabled
+                                />
+                                <Label htmlFor={`tax-on-${component.id}-readonly`} className="font-normal">{component.label}</Label>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
+    const [providers, setProviders] = useState(initialProviders);
+
+    const onProductUpdate = useCallback((providerId: string, updatedProduct: Partial<LoanProduct>) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                if (productIndex !== -1) {
+                    // Merge new fields into the existing product
+                    provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
+                }
+            }
+        }));
+    }, []);
+
+    const handleProvidersChange = useCallback((updater: React.SetStateAction<LoanProvider[]>) => {
+        setProviders(updater);
+    }, []);
+    
+    const handleProviderUpdate = useCallback((update: Partial<LoanProvider>) => {
+        setProviders(produce(draft => {
+            const provider = draft.find(p => p.id === update.id);
+            if (provider) {
+                Object.assign(provider, update);
+            }
+        }));
+    }, []);
+
+    return (
+        <div className="flex-1 space-y-4 p-8 pt-6">
+            <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+            <Tabs defaultValue="providers" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
+                    <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
+                    <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
+                    <TabsTrigger value="tax">Tax</TabsTrigger>
+                </TabsList>
+                <TabsContent value="providers">
+                    <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
+                </TabsContent>
+                <TabsContent value="configuration">
+                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} taxConfig={initialTaxConfig} />
+                </TabsContent>
+                 <TabsContent value="agreement">
+                    <Accordion type="multiple" className="w-full space-y-4">
+                        {providers.map((provider) => (
+                             <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                                 <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                                    <div className="flex items-center gap-4">
+                                        <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                                        <div className="text-lg font-semibold">{provider.name}</div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-4 border-t">
+                                    <AgreementTab provider={provider} onProviderUpdate={handleProviderUpdate} />
+                                </AccordionContent>
+                             </AccordionItem>
+                        ))}
+                    </Accordion>
+                </TabsContent>
+                <TabsContent value="tax">
+                    <TaxTab initialTaxConfig={initialTaxConfig} />
+                </TabsContent>
+            </Tabs>
+        </div>
+    );
+}
+
+function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
+    const { toast } = useToast();
+    const [terms, setTerms] = useState<TermsAndConditions | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    
+    useEffect(() => {
+        const fetchTerms = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`/api/settings/terms?providerId=${provider.id}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setTerms(data);
+                }
+            } catch (error) {
+                 toast({ title: "Error", description: "Failed to load terms and conditions.", variant: "destructive"});
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchTerms();
+    }, [provider.id, toast]);
+    
+    const handleSave = async () => {
+        if (!terms || !terms.content.trim()) {
+            toast({ title: "Error", description: "Terms and conditions content cannot be empty.", variant: "destructive" });
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const originalTerms = provider.termsAndConditions?.find(t => t.isActive);
+            const payload = {
+                original: originalTerms,
+                updated: { providerId: provider.id, content: terms.content }
+            }
+
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'TermsAndConditions',
+                    entityId: originalTerms?.id || provider.id, // Use provider ID for new terms
+                    changeType: 'UPDATE', // Always an update/new version
+                    payload: JSON.stringify(payload)
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to submit new terms for approval.");
+            }
+            
+            toast({ title: "Submitted for Approval", description: `A new version of the terms has been submitted for review.` });
+
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
+    if (isLoading) {
+        return <div className="space-y-4">
+            <Skeleton className="h-8 w-1/4" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-10 w-32" />
+        </div>
+    }
+
+    return (
+        <div className="space-y-4">
+            <Label htmlFor={`terms-content-${provider.id}`}>Terms and Conditions Content</Label>
+             <Textarea
+                id={`terms-content-${provider.id}`}
+                value={terms?.content || ''}
+                onChange={(e) => setTerms(prev => ({ ...(prev || { version: 0, content: '' }), content: e.target.value }) as TermsAndConditions)}
+                placeholder="Enter the terms and conditions for your loan products here."
+                rows={15}
+            />
+            <div className="flex justify-between items-center">
+                <p className="text-sm text-muted-foreground">
+                    Current Version: {terms?.version || 0}
+                </p>
+                <Button onClick={handleSave} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
+                    Submit New Version for Approval
+                </Button>
             </div>
         </div>
     );
-};
+}
+
+// --------------------------------------------------
+// DATA PROVISIONING DIALOG (NEW COMPONENT)
+// --------------------------------------------------
+type EditableDataColumn = DataColumn & { optionsString?: string };
+
+function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => void;
+    config: DataProvisioningConfig | null;
+}) {
+    const { toast } = useToast();
+    const [name, setName] = useState('');
+    const [columns, setColumns] = useState<EditableDataColumn[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            if (config) {
+                setName(config.name);
+                setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
+            } else {
+                setName('');
+                setColumns([]);
+            }
+        }
+    }, [config, isOpen]);
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
+            
+            setColumns(headers.map((header, index) => ({
+                id: `col-${Date.now()}-${index}`,
+                name: header,
+                type: 'string', // default type
+                isIdentifier: index === 0, // default first column as identifier
+                options: [],
+                optionsString: '',
+            })));
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
+        setColumns(produce(draft => {
+            if (field === 'isIdentifier' && typeof value === 'boolean') {
+                // Ensure only one column can be the identifier
+                draft.forEach((col, i) => {
+                    col.isIdentifier = i === index ? value : false;
+                });
+            } else {
+                 (draft[index] as any)[field] = value;
+            }
+        }));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!columns.some(c => c.isIdentifier)) {
+            toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
+            return;
+        }
+
+        // Process the final columns array before saving
+        const finalColumns = columns.map(col => {
+            const { optionsString, ...rest } = col;
+            const finalOptions = optionsString ? optionsString.split(',').map(s => s.trim()).filter(Boolean) : [];
+            return { ...rest, options: finalOptions };
+        });
+
+        onSave({ id: config?.id, name, columns: finalColumns });
+        onClose();
+    };
+
+    return (
+         <UIDialog open={isOpen} onOpenChange={onClose}>
+            <UIDialogContent className="sm:max-w-2xl">
+                <UIDialogHeader>
+                    <UIDialogTitle>{config ? 'Edit' : 'Create'} Data Type</UIDialogTitle>
+                     <UIDialogDescription>Define a new data schema by uploading a sample file.</UIDialogDescription>
+                </UIDialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    <div>
+                        <Label htmlFor="data-type-name">Data Type Name</Label>
+                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="file-upload">Upload Sample File (.xlsx, .xls)</Label>
+                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                         <p className="text-xs text-muted-foreground mt-1">Upload a file to automatically detect columns.</p>
+                    </div>
+
+                    {columns.length > 0 && (
+                        <div>
+                            <Label>Configure Columns</Label>
+                            <div className="space-y-4 mt-2 border p-4 rounded-md max-h-[50vh] overflow-y-auto">
+                                {columns.map((col, index) => (
+                                    <div key={col.id} className="space-y-2 p-2 rounded-md bg-muted/50">
+                                        <div className="grid grid-cols-12 items-center gap-2">
+                                            <Input
+                                                className="col-span-5"
+                                                value={col.name}
+                                                onChange={e => handleColumnChange(index, 'name', e.target.value)}
+                                                required
+                                            />
+                                            <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="string">Text</SelectItem>
+                                                    <SelectItem value="number">Number</SelectItem>
+                                                    <SelectItem value="date">Date</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                             <div className="col-span-4 flex items-center justify-end space-x-2">
+                                                <Checkbox
+                                                    id={`is-identifier-${col.id}`}
+                                                    checked={col.isIdentifier}
+                                                    onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                                />
+                                                <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
+                                            </div>
+                                        </div>
+                                         {col.type === 'string' && (
+                                            <div className="space-y-1">
+                                                <Label htmlFor={`options-${col.id}`} className="text-xs text-muted-foreground">Dropdown Options (optional)</Label>
+                                                <Textarea
+                                                    id={`options-${col.id}`}
+                                                    placeholder="e.g., Male, Female, Other"
+                                                    className="text-xs"
+                                                    value={col.optionsString || ''}
+                                                    onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
+                                                />
+                                                <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <UIDialogFooter>
+                        <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
+                        <Button type="submit">Submit for Approval</Button>
+                    </UIDialogFooter>
+                </form>
+            </UIDialogContent>
+        </UIDialog>
+    )
+}
+
+function UploadDataViewerDialog({ upload, onClose }: {
+    upload: DataProvisioningUpload | { previewData: any[] } | null;
+    onClose: () => void;
+}) {
+    const [data, setData] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRows, setTotalRows] = useState(0);
+    const rowsPerPage = 100;
+
+    useEffect(() => {
+        if (upload && 'previewData' in upload) {
+             setData(upload.previewData);
+             setTotalRows(upload.previewData.length);
+             setTotalPages(1);
+             setPage(1);
+             setIsLoading(false);
+        } else if (upload && !upload.id.startsWith('temp-')) {
+            const fetchData = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await fetch(`/api/settings/data-provisioning-uploads/view?uploadId=${upload.id}&page=${page}&limit=${rowsPerPage}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch uploaded data');
+                    }
+                    const result = await response.json();
+                    setData(result.data);
+                    setTotalPages(result.totalPages);
+                    setTotalRows(result.totalRows);
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchData();
+        }
+    }, [upload, page]);
+
+    if (!upload) return null;
+    
+    const headers = data.length > 0 ? Object.keys(data[0]) : [];
+
+    return (
+        <UIDialog open={!!upload} onOpenChange={onClose}>
+            <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                <UIDialogHeader>
+                    <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
+                    <UIDialogDescription>
+                        Displaying {data.length} of {totalRows} rows from the uploaded file.
+                    </UIDialogDescription>
+                </UIDialogHeader>
+                <div className="flex-grow overflow-auto border rounded-md">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headers.map(header => <TableHead key={header} className="capitalize">{header.replace(/([A-Z])/g, ' $1')}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {data.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {headers.map(header => <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>)}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </div>
+                <UIDialogFooter className="justify-between items-center pt-4">
+                    <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                            <ChevronLeft className="h-4 w-4 mr-2" /> Previous
+                        </Button>
+                        <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                            Next <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
+                </UIDialogFooter>
+            </UIDialogContent>
+        </UIDialog>
+    );
+}
 
 const DailyFeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: DailyFeeRule; onChange: (fee: DailyFeeRule) => void; isEnabled: boolean; }) => {
     return (
@@ -1277,526 +1780,37 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     );
 }
 
-function ConfigurationTab({ providers, onProductUpdate, taxConfig }: { 
-    providers: LoanProvider[],
-    onProductUpdate: (providerId: string, updatedProduct: LoanProduct) => void;
-    taxConfig: Tax;
-}) {
-    if (providers.length === 0) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Product Fee Configuration</CardTitle>
-                    <CardDescription>
-                        No providers available to configure.
-                    </CardDescription>
-                </CardHeader>
-            </Card>
-        );
-    }
-    
+const FeeInput = ({ label, fee, onChange, isEnabled }: { label: string; fee: FeeRule; onChange: (fee: FeeRule) => void; isEnabled: boolean; }) => {
     return (
-        <>
-        <Accordion type="multiple" className="w-full space-y-4">
-            {providers.map((provider) => (
-                <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                    <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
-                        <div className="flex items-center gap-4">
-                            <IconDisplay iconName={provider.icon} className="h-6 w-6" />
-                            <div>
-                                <div className="text-lg font-semibold">{provider.name}</div>
-                                <p className="text-sm text-muted-foreground">{(provider.products || []).length} products to configure</p>
-                            </div>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="p-4 border-t space-y-6">
-                       {(provider.products || []).map(product => (
-                            <ProductConfiguration
-                                key={product.id}
-                                product={product}
-                                providerColor={provider.colorHex}
-                                onProductUpdate={(updatedProduct) => onProductUpdate(provider.id, updatedProduct)}
-                                taxConfig={taxConfig}
-                            />
-                       ))}
-                    </AccordionContent>
-                </AccordionItem>
-            ))}
-        </Accordion>
-        </>
-    );
-}
-
-const TAX_COMPONENTS = [
-    { id: 'serviceFee', label: 'Service Fee' },
-    { id: 'interest', label: 'Daily Fee (Interest)' },
-    { id: 'penalty', label: 'Penalty' },
-];
-
-function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
-    const [taxConfig, setTaxConfig] = useState(initialTaxConfig);
-
-    useEffect(() => {
-        setTaxConfig(initialTaxConfig);
-    }, [initialTaxConfig]);
-    
-    const appliedTo = useMemo(() => safeJsonParse({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
-
-    return (
-        <Card>
-            <CardHeader className='flex-row items-start justify-between'>
-                <div>
-                    <CardTitle>Global Tax Configuration</CardTitle>
-                    <CardDescription>This is a read-only view of the current system-wide tax settings.</CardDescription>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                    <Link href="/admin/tax">
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit Configuration
-                    </Link>
-                </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="space-y-2">
-                    <Label>Tax Rate (%)</Label>
-                    <Input 
-                        value={`${taxConfig.rate}%`}
-                        readOnly
-                        className="max-w-xs bg-muted"
-                    />
-                </div>
-                <div className="space-y-4">
-                    <Label>Tax is Applied On</Label>
-                    <div className="space-y-2 rounded-md border p-4 bg-muted">
-                        {TAX_COMPONENTS.map(component => (
-                            <div key={component.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                    id={`tax-on-${component.id}-readonly`}
-                                    checked={appliedTo.includes(component.id)}
-                                    disabled
-                                />
-                                <Label htmlFor={`tax-on-${component.id}-readonly`} className="font-normal">{component.label}</Label>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    )
-}
-
-export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
-    const [providers, setProviders] = useState(initialProviders);
-
-    const onProductUpdate = useCallback((providerId: string, updatedProduct: Partial<LoanProduct>) => {
-        setProviders(produce(draft => {
-            const provider = draft.find(p => p.id === providerId);
-            if (provider) {
-                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
-                if (productIndex !== -1) {
-                    // Merge new fields into the existing product
-                    provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
-                }
-            }
-        }));
-    }, []);
-
-    const handleProvidersChange = useCallback((updater: React.SetStateAction<LoanProvider[]>) => {
-        setProviders(updater);
-    }, []);
-    
-    const handleProviderUpdate = useCallback((update: Partial<LoanProvider>) => {
-        setProviders(produce(draft => {
-            const provider = draft.find(p => p.id === update.id);
-            if (provider) {
-                Object.assign(provider, update);
-            }
-        }));
-    }, []);
-
-    return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
-            <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-            <Tabs defaultValue="providers" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
-                    <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
-                    <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
-                    <TabsTrigger value="tax">Tax</TabsTrigger>
-                </TabsList>
-                <TabsContent value="providers">
-                    <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
-                </TabsContent>
-                <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} taxConfig={initialTaxConfig} />
-                </TabsContent>
-                 <TabsContent value="agreement">
-                    <Accordion type="multiple" className="w-full space-y-4">
-                        {providers.map((provider) => (
-                             <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                                 <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
-                                    <div className="flex items-center gap-4">
-                                        <IconDisplay iconName={provider.icon} className="h-6 w-6" />
-                                        <div className="text-lg font-semibold">{provider.name}</div>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="p-4 border-t">
-                                    <AgreementTab provider={provider} onProviderUpdate={handleProviderUpdate} />
-                                </AccordionContent>
-                             </AccordionItem>
-                        ))}
-                    </Accordion>
-                </TabsContent>
-                <TabsContent value="tax">
-                    <TaxTab initialTaxConfig={initialTaxConfig} />
-                </TabsContent>
-            </Tabs>
-        </div>
-    );
-}
-
-function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
-    const { toast } = useToast();
-    const [terms, setTerms] = useState<TermsAndConditions | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    
-    useEffect(() => {
-        const fetchTerms = async () => {
-            setIsLoading(true);
-            try {
-                const response = await fetch(`/api/settings/terms?providerId=${provider.id}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setTerms(data);
-                }
-            } catch (error) {
-                 toast({ title: "Error", description: "Failed to load terms and conditions.", variant: "destructive"});
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchTerms();
-    }, [provider.id, toast]);
-    
-    const handleSave = async () => {
-        if (!terms || !terms.content.trim()) {
-            toast({ title: "Error", description: "Terms and conditions content cannot be empty.", variant: "destructive" });
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const originalTerms = provider.termsAndConditions?.find(t => t.isActive);
-            const payload = {
-                original: originalTerms,
-                updated: { providerId: provider.id, content: terms.content }
-            }
-
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'TermsAndConditions',
-                    entityId: originalTerms?.id || provider.id, // Use provider ID for new terms
-                    changeType: 'UPDATE', // Always an update/new version
-                    payload: JSON.stringify(payload)
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to submit new terms for approval.");
-            }
-            
-            toast({ title: "Submitted for Approval", description: `A new version of the terms has been submitted for review.` });
-
-        } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-
-    if (isLoading) {
-        return <div className="space-y-4">
-            <Skeleton className="h-8 w-1/4" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-10 w-32" />
-        </div>
-    }
-
-    return (
-        <div className="space-y-4">
-            <Label htmlFor={`terms-content-${provider.id}`}>Terms and Conditions Content</Label>
-             <Textarea
-                id={`terms-content-${provider.id}`}
-                value={terms?.content || ''}
-                onChange={(e) => setTerms(prev => ({ ...(prev || { version: 0, content: '' }), content: e.target.value }) as TermsAndConditions)}
-                placeholder="Enter the terms and conditions for your loan products here."
-                rows={15}
-            />
-            <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                    Current Version: {terms?.version || 0}
-                </p>
-                <Button onClick={handleSave} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
-                    Submit New Version for Approval
-                </Button>
+        <div className="flex items-center gap-2">
+            <Label className={cn("w-28", !isEnabled && "text-muted-foreground/50")}>{label}</Label>
+            <Select value={fee.type} onValueChange={(type: 'fixed' | 'percentage') => onChange({ ...fee, type })} disabled={!isEnabled}>
+                <SelectTrigger className="w-32" disabled={!isEnabled}>
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed">Fixed</SelectItem>
+                </SelectContent>
+            </Select>
+            <div className="relative flex-1">
+                <Input
+                    type="number"
+                    value={fee.value ?? ''}
+                    onChange={(e) => onChange({ ...fee, value: e.target.value === '' ? '' : Number(e.target.value) })}
+                    placeholder="Enter value"
+                    className={cn(fee.type === 'percentage' ? "pr-8" : "")}
+                    disabled={!isEnabled}
+                />
+                {fee.type === 'percentage' && <span className={cn("absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground", !isEnabled && "text-muted-foreground/50")}>%</span>}
             </div>
         </div>
     );
-}
-
-// --------------------------------------------------
-// DATA PROVISIONING DIALOG (NEW COMPONENT)
-// --------------------------------------------------
-type EditableDataColumn = DataColumn & { optionsString?: string };
-
-function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => void;
-    config: DataProvisioningConfig | null;
-}) {
-    const { toast } = useToast();
-    const [name, setName] = useState('');
-    const [columns, setColumns] = useState<EditableDataColumn[]>([]);
-
-    useEffect(() => {
-        if (isOpen) {
-            if (config) {
-                setName(config.name);
-                setColumns(config.columns.map(c => ({...c, optionsString: (c.options || []).join(', ') })) || []);
-            } else {
-                setName('');
-                setColumns([]);
-            }
-        }
-    }, [config, isOpen]);
-
-    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
-            
-            setColumns(headers.map((header, index) => ({
-                id: `col-${Date.now()}-${index}`,
-                name: header,
-                type: 'string', // default type
-                isIdentifier: index === 0, // default first column as identifier
-                options: [],
-                optionsString: '',
-            })));
-        };
-        reader.readAsArrayBuffer(file);
-    };
-
-    const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
-        setColumns(produce(draft => {
-            if (field === 'isIdentifier' && typeof value === 'boolean') {
-                // Ensure only one column can be the identifier
-                draft.forEach((col, i) => {
-                    col.isIdentifier = i === index ? value : false;
-                });
-            } else {
-                 (draft[index] as any)[field] = value;
-            }
-        }));
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!columns.some(c => c.isIdentifier)) {
-            toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
-            return;
-        }
-
-        // Process the final columns array before saving
-        const finalColumns = columns.map(col => {
-            const { optionsString, ...rest } = col;
-            const finalOptions = optionsString ? optionsString.split(',').map(s => s.trim()).filter(Boolean) : [];
-            return { ...rest, options: finalOptions };
-        });
-
-        onSave({ id: config?.id, name, columns: finalColumns });
-        onClose();
-    };
-
-    return (
-         <UIDialog open={isOpen} onOpenChange={onClose}>
-            <UIDialogContent className="sm:max-w-2xl">
-                <UIDialogHeader>
-                    <UIDialogTitle>{config ? 'Edit' : 'Create'} Data Type</UIDialogTitle>
-                     <UIDialogDescription>Define a new data schema by uploading a sample file.</UIDialogDescription>
-                </UIDialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                    <div>
-                        <Label htmlFor="data-type-name">Data Type Name</Label>
-                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required />
-                    </div>
-
-                    <div>
-                        <Label htmlFor="file-upload">Upload Sample File (.xlsx, .xls)</Label>
-                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
-                         <p className="text-xs text-muted-foreground mt-1">Upload a file to automatically detect columns.</p>
-                    </div>
-
-                    {columns.length > 0 && (
-                        <div>
-                            <Label>Configure Columns</Label>
-                            <div className="space-y-4 mt-2 border p-4 rounded-md max-h-[50vh] overflow-y-auto">
-                                {columns.map((col, index) => (
-                                    <div key={col.id} className="space-y-2 p-2 rounded-md bg-muted/50">
-                                        <div className="grid grid-cols-12 items-center gap-2">
-                                            <Input
-                                                className="col-span-5"
-                                                value={col.name}
-                                                onChange={e => handleColumnChange(index, 'name', e.target.value)}
-                                                required
-                                            />
-                                            <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
-                                                <SelectTrigger className="col-span-3">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="string">Text</SelectItem>
-                                                    <SelectItem value="number">Number</SelectItem>
-                                                    <SelectItem value="date">Date</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                             <div className="col-span-4 flex items-center justify-end space-x-2">
-                                                <Checkbox
-                                                    id={`is-identifier-${col.id}`}
-                                                    checked={col.isIdentifier}
-                                                    onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
-                                                />
-                                                <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
-                                            </div>
-                                        </div>
-                                         {col.type === 'string' && (
-                                            <div className="space-y-1">
-                                                <Label htmlFor={`options-${col.id}`} className="text-xs text-muted-foreground">Dropdown Options (optional)</Label>
-                                                <Textarea
-                                                    id={`options-${col.id}`}
-                                                    placeholder="e.g., Male, Female, Other"
-                                                    className="text-xs"
-                                                    value={col.optionsString || ''}
-                                                    onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
-                                                />
-                                                <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    
-                    <UIDialogFooter>
-                        <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
-                        <Button type="submit">Submit for Approval</Button>
-                    </UIDialogFooter>
-                </form>
-            </UIDialogContent>
-        </UIDialog>
-    )
-}
-
-function UploadDataViewerDialog({ upload, onClose }: {
-    upload: DataProvisioningUpload | null;
-    onClose: () => void;
-}) {
-    const [data, setData] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalRows, setTotalRows] = useState(0);
-    const rowsPerPage = 100;
-
-    useEffect(() => {
-        if (upload && !upload.id.startsWith('temp-')) {
-            const fetchData = async () => {
-                setIsLoading(true);
-                try {
-                    const response = await fetch(`/api/settings/data-provisioning-uploads/view?uploadId=${upload.id}&page=${page}&limit=${rowsPerPage}`);
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch uploaded data');
-                    }
-                    const result = await response.json();
-                    setData(result.data);
-                    setTotalPages(result.totalPages);
-                    setTotalRows(result.totalRows);
-                } catch (error) {
-                    console.error(error);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            fetchData();
-        }
-    }, [upload, page]);
-
-    if (!upload) return null;
-    
-    const headers = data.length > 0 ? Object.keys(data[0]) : [];
-
-    return (
-        <UIDialog open={!!upload} onOpenChange={onClose}>
-            <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                <UIDialogHeader>
-                    <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
-                    <UIDialogDescription>
-                        Displaying {data.length} of {totalRows} rows from the uploaded file.
-                    </UIDialogDescription>
-                </UIDialogHeader>
-                <div className="flex-grow overflow-auto border rounded-md">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center h-full">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
-                    ) : (
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-background">
-                                <TableRow>
-                                    {headers.map(header => <TableHead key={header} className="capitalize">{header.replace(/([A-Z])/g, ' $1')}</TableHead>)}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data.map((row, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                        {headers.map(header => <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>)}
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    )}
-                </div>
-                <UIDialogFooter className="justify-between items-center pt-4">
-                    <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
-                            <ChevronLeft className="h-4 w-4 mr-2" /> Previous
-                        </Button>
-                        <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
-                            Next <ChevronRight className="h-4 w-4 ml-2" />
-                        </Button>
-                    </div>
-                </UIDialogFooter>
-            </UIDialogContent>
-        </UIDialog>
-    );
-}
+};
     
 
     
+
 
 
 
