@@ -62,7 +62,6 @@ import { format } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
 import Link from 'next/link';
 
-
 // Helper to safely parse JSON fields that might be strings
 const safeParseJson = (data: any, field: string, defaultValue: any) => {
     if (data && typeof data[field] === 'string') {
@@ -1502,9 +1501,9 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                                     <Button variant="destructive" size="sm" onClick={() => handleDeleteFilter(product)}>Delete List</Button>
                                                                 </div>
                                                             </div>
-                                                            {(product.eligibilityUpload as any).fileContent && (
+                                                             {(product.eligibilityUpload as any).fileContent && (
                                                                 <div className="mt-2 text-right">
-                                                                     <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving}>Submit Eligibility for Approval</Button>
+                                                                    <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving}>Submit Eligibility for Approval</Button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1704,199 +1703,6 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
 }
 
 // --------------------------------------------------
-// DATA PROVISIONING MANAGER (NEW COMPONENT)
-// --------------------------------------------------
-function DataProvisioningManager({ providerId, config, onConfigChange, allProviderProducts }: {
-    providerId: string;
-    config: DataProvisioningConfig | undefined;
-    onConfigChange: (newConfig: DataProvisioningConfig) => void;
-    allProviderProducts: LoanProduct[];
-}) {
-    const { toast } = useToast();
-    const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
-
-    const handleSaveConfig = async (newConfigData: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
-        const isEditing = !!newConfigData.id;
-        const method = isEditing ? 'PUT' : 'POST';
-        const endpoint = '/api/settings/data-provisioning';
-        const body = { ...newConfigData, providerId: providerId };
-
-        try {
-            const response = await fetch(endpoint, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save config.');
-            }
-            const savedConfig = await response.json();
-            
-            onConfigChange(savedConfig);
-            toast({ title: "Success", description: `Data type "${savedConfig.name}" saved successfully.` });
-        } catch(error: any) {
-            toast({ title: "Error", description: error.message, variant: 'destructive' });
-        }
-    };
-    
-    const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!config) return;
-
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('configId', config.id);
-
-            const response = await fetch('/api/settings/data-provisioning-uploads', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to upload file.');
-            }
-            
-            const newUpload = await response.json();
-            
-            const updatedConfig = produce(config, draft => {
-                if (!draft.uploads) draft.uploads = [];
-                draft.uploads.unshift(newUpload);
-            });
-            onConfigChange(updatedConfig);
-
-            toast({
-                title: 'Upload Successful',
-                description: `File "${file.name}" uploaded and recorded successfully.`,
-            });
-
-        } catch (error: any) {
-             toast({
-                title: 'Upload Failed',
-                description: error.message,
-                variant: 'destructive',
-            });
-        } finally {
-            setIsUploading(false);
-            if (event.target) event.target.value = '';
-        }
-    };
-
-    if (!config) {
-        return (
-            <>
-                <Button onClick={() => setIsConfigDialogOpen(true)}>
-                    <FilePlus2 className="h-4 w-4 mr-2" /> Create Data Source
-                </Button>
-                <DataProvisioningDialog
-                    isOpen={isConfigDialogOpen}
-                    onClose={() => setIsConfigDialogOpen(false)}
-                    onSave={handleSaveConfig}
-                    config={null}
-                />
-            </>
-        )
-    }
-
-    const generalUploads = useMemo(() => {
-        const eligibilityUploadIds = new Set(allProviderProducts.map(p => p.eligibilityUploadId).filter(Boolean));
-        return (config.uploads || []).filter(upload => !eligibilityUploadIds.has(upload.id));
-    }, [config.uploads, allProviderProducts]);
-
-
-    return (
-        <>
-            <Card className="bg-muted/50">
-                <CardHeader className="flex flex-row justify-between items-center">
-                     <div>
-                        <CardTitle className="text-lg">{config.name}</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsConfigDialogOpen(true)}><Edit className="h-4 w-4" /></Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                   <h4 className="font-medium mb-2">Columns</h4>
-                   <ul className="list-disc pl-5 text-sm text-muted-foreground mb-4">
-                        {(config.columns || []).map(col => <li key={col.id}>{col.name} <span className="text-xs opacity-70">({col.type})</span> {col.isIdentifier && <Badge variant="outline" className="ml-2">ID</Badge>}</li>)}
-                   </ul>
-                   <Separator />
-                   <div className="mt-4">
-                       <div className="flex justify-between items-center mb-2">
-                            <h4 className="font-medium">Upload History</h4>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={isUploading}
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
-                                Upload File
-                            </Button>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept=".xlsx, .xls"
-                                onChange={handleExcelUpload}
-                            />
-                       </div>
-                       <div className="border rounded-md">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>File Name</TableHead>
-                                       <TableHead>Rows</TableHead>
-                                       <TableHead>Uploaded By</TableHead>
-                                       <TableHead>Date</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                   {generalUploads.length > 0 ? (
-                                       generalUploads.map(upload => (
-                                            <TableRow key={upload.id} onClick={() => setViewingUpload(upload)} className="cursor-pointer hover:bg-muted">
-                                                <TableCell className="font-medium flex items-center gap-2"><FileClock className="h-4 w-4 text-muted-foreground"/>{upload.fileName}</TableCell>
-                                                <TableCell>{upload.rowCount}</TableCell>
-                                                <TableCell>{upload.uploadedBy}</TableCell>
-                                                <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
-                                            </TableRow>
-                                       ))
-                                   ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground h-24">No files uploaded yet.</TableCell>
-                                        </TableRow>
-                                   )}
-                               </TableBody>
-                           </Table>
-                       </div>
-                   </div>
-                </CardContent>
-            </Card>
-
-             <DataProvisioningDialog
-                isOpen={isConfigDialogOpen}
-                onClose={() => setIsConfigDialogOpen(false)}
-                onSave={handleSaveConfig}
-                config={config}
-            />
-            <UploadDataViewerDialog
-                upload={viewingUpload}
-                onClose={() => setViewingUpload(null)}
-            />
-        </>
-    );
-}
-
-// --------------------------------------------------
 // DATA PROVISIONING DIALOG (NEW COMPONENT)
 // --------------------------------------------------
 type EditableDataColumn = DataColumn & { optionsString?: string };
@@ -2050,7 +1856,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     
                     <UIDialogFooter>
                         <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
-                        <Button type="submit">Save</Button>
+                        <Button type="submit">Submit for Approval</Button>
                     </UIDialogFooter>
                 </form>
             </UIDialogContent>
@@ -2095,10 +1901,8 @@ function UploadDataViewerDialog({ upload, onClose }: {
     if (!upload) return null;
     
     // Special handling for temporary filter preview
-    if (upload.id.startsWith('temp-')) {
-        const fileContent = (upload as any).fileContent;
-        if (!fileContent) return null; // Should not happen
-
+    const fileContent = (upload as any).fileContent;
+    if (upload.id.startsWith('temp-') && fileContent) {
         try {
             const workbook = XLSX.read(fileContent, { type: 'base64' });
             const sheetName = workbook.SheetNames[0];
@@ -2207,6 +2011,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
