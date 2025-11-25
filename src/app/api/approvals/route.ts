@@ -114,6 +114,7 @@ async function applyEligibilityList(change: any, data: any) {
     
     const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
     if (!idColumnConfig) throw new Error('No identifier column found in config');
+    
     const idColumnName = idColumnConfig.name;
     const idColumnIndex = originalHeaders.findIndex(h => h === idColumnName);
     if (idColumnIndex === -1) throw new Error(`Identifier column "${idColumnName}" not found in uploaded file.`);
@@ -127,7 +128,7 @@ async function applyEligibilityList(change: any, data: any) {
     const filterString = idList.join(',');
 
     await prisma.$transaction(async (tx) => {
-        // Just create the upload record for history, but don't process its data rows against ProvisionedData
+        // Create the upload record for history, and now include file content
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
                 configId: configId,
@@ -136,6 +137,36 @@ async function applyEligibilityList(change: any, data: any) {
                 uploadedBy: change.createdById,
             }
         });
+
+        // Now, iterate through the file and save the data for viewing later.
+        for (const row of rows) {
+             const rowData: { [key: string]: any } = {};
+             originalHeaders.forEach((header, index) => {
+                 rowData[header] = row[index];
+             });
+
+            const borrowerId = String(rowData[idColumnName]);
+            if (!borrowerId) continue;
+            
+             // Ensure the borrower exists before linking data
+             await tx.borrower.upsert({
+                 where: { id: borrowerId },
+                 update: {},
+                 create: { id: borrowerId }
+             });
+
+            // Using upsert to prevent unique constraint errors if the same list is uploaded again
+             await tx.provisionedData.upsert({
+                 where: { borrowerId_configId_uploadId: { borrowerId, configId, uploadId: newUpload.id } },
+                 update: { data: JSON.stringify(rowData) },
+                 create: {
+                     borrowerId,
+                     configId,
+                     uploadId: newUpload.id,
+                     data: JSON.stringify(rowData)
+                 }
+             });
+        }
         
         // Update the product with the filter string and the link to the historic upload
         await tx.loanProduct.update({

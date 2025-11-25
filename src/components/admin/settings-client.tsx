@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -416,7 +417,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
     }, [providers]);
     
     const themeColor = useMemo(() => {
-        if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
+        if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') {
             return providers.find(p => p.name === 'NIb Bank')?.colorHex || '#fdb913';
         }
         return providers.find(p => p.name === currentUser?.providerName)?.colorHex || '#fdb913';
@@ -2206,6 +2207,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
