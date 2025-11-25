@@ -1,7 +1,7 @@
 
 
 import { SettingsClient } from '@/components/admin/settings-client';
-import type { LoanProvider as LoanProviderType, Tax } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, Tax, LoanCycleConfig } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
 
@@ -21,7 +21,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             products: {
                 include: {
                     loanAmountTiers: true,
-                    eligibilityUpload: true, // <-- This is the critical addition
+                    eligibilityUpload: true, 
                 },
                 orderBy: { name: 'asc' }
             },
@@ -31,7 +31,16 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
                         orderBy: { uploadedAt: 'desc' }
                     }
                 }
-            }
+            },
+            loanCycleConfig: {
+                include: {
+                    tiers: {
+                        orderBy: {
+                            threshold: 'asc',
+                        },
+                    },
+                },
+            },
         },
         orderBy: {
             displayOrder: 'asc'
@@ -54,7 +63,11 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
             dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
             penaltyRules: safeJsonParse(prod.penaltyRules, []),
-        }))
+        })),
+        loanCycleConfig: p.loanCycleConfig ? {
+            ...p.loanCycleConfig,
+            tiers: p.loanCycleConfig.tiers || [],
+        } : null,
     })) as LoanProviderType[];
 }
 
@@ -82,8 +95,3 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} initialTaxConfig={taxConfig} />;
 }
-
-
-
-
-

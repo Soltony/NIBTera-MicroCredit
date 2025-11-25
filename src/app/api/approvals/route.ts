@@ -113,29 +113,43 @@ async function applyEligibilityList(change: any, data: any) {
     if (!idColumnConfig) throw new Error('No identifier column found in config');
     const idColumnName = idColumnConfig.name;
 
-    const idList = jsonData.map(row => row[idColumnName]).filter(Boolean);
+    const borrowerIds = jsonData.map(row => String(row[idColumnName])).filter(Boolean);
 
-    if (idList.length === 0) {
+    if (borrowerIds.length === 0) {
         throw new Error("No identifiers found in the uploaded file.");
     }
     
-    const filterString = idList.join(',');
+    await prisma.$transaction(async (tx) => {
+        // Create the upload record
+        const newUpload = await tx.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: fileName,
+                rowCount: jsonData.length,
+                uploadedBy: change.createdById,
+            }
+        });
 
-    const newUpload = await prisma.dataProvisioningUpload.create({
-        data: {
-            configId: configId,
-            fileName: fileName,
-            rowCount: jsonData.length,
-            uploadedBy: change.createdById,
-        }
-    });
+        // Link the product to this new upload
+        await tx.loanProduct.update({
+            where: { id: productId },
+            data: { eligibilityUploadId: newUpload.id },
+        });
 
-    await prisma.loanProduct.update({
-        where: { id: productId },
-        data: {
-            eligibilityUploadId: newUpload.id,
-            eligibilityFilter: filterString,
-        }
+        // Clear the old list for this product
+        await tx.eligibilityList.deleteMany({
+            where: { productId: productId },
+        });
+        
+        // Insert the new list
+        await tx.eligibilityList.createMany({
+            data: borrowerIds.map(borrowerId => ({
+                productId,
+                borrowerId,
+                uploadId: newUpload.id,
+            })),
+            skipDuplicates: true,
+        });
     });
 }
 
@@ -344,6 +358,43 @@ async function applyChange(change: any) {
             await prisma.tax.delete({ where: { id: entityId } });
         }
       break;
+    case 'LoanCycleConfig':
+        if (changeType === 'UPDATE') {
+            const { metric, tiers, providerId } = data.updated;
+            const config = await prisma.loanCycleConfig.upsert({
+                where: { providerId },
+                update: { metric, status: 'ACTIVE' },
+                create: { providerId, metric, status: 'ACTIVE' },
+            });
+
+            await prisma.loanCycleTier.deleteMany({ where: { configId: config.id }});
+
+            if (tiers && tiers.length > 0) {
+                 await prisma.loanCycleTier.createMany({
+                    data: tiers.map((tier: any) => ({
+                        configId: config.id,
+                        threshold: tier.threshold,
+                        payoutPercentage: tier.payoutPercentage,
+                    }))
+                });
+            }
+
+        } else if (changeType === 'CREATE') {
+             const { metric, tiers, providerId } = data.created;
+             const config = await prisma.loanCycleConfig.create({
+                data: { providerId, metric, status: 'ACTIVE' },
+             });
+             if (tiers && tiers.length > 0) {
+                 await prisma.loanCycleTier.createMany({
+                    data: tiers.map((tier: any) => ({
+                        configId: config.id,
+                        threshold: tier.threshold,
+                        payoutPercentage: tier.payoutPercentage,
+                    }))
+                });
+             }
+        }
+        break;
     default:
       throw new Error(`Unknown entity type for approval: ${entityType}`);
   }
@@ -423,6 +474,8 @@ export async function POST(req: NextRequest) {
             }
              else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
                  await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
+            } else if (change.entityType === 'LoanCycleConfig') {
+                await prisma.loanCycleConfig.update({ where: { id: entityId }, data: { status: 'ACTIVE' }});
             }
         }
       

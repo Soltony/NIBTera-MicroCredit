@@ -58,6 +58,21 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
+export interface LoanCycleTier {
+    id: string;
+    configId: string;
+    threshold: number;
+    payoutPercentage: number;
+}
+
+export interface LoanCycleConfig {
+    id: string;
+    providerId: string;
+    metric: 'totalLoansCount' | 'loansOnTime' | 'loansPaidEarly' | 'loansPaidLate';
+    tiers: LoanCycleTier[];
+    status?: 'ACTIVE' | 'PENDING_APPROVAL';
+}
+
 export interface LoanProvider {
   id: string;
   name: string;
@@ -74,6 +89,7 @@ export interface LoanProvider {
   nplThresholdDays: number;
   ledgerAccounts?: LedgerAccount[];
   termsAndConditions?: TermsAndConditions[];
+  loanCycleConfig?: LoanCycleConfig | null;
 }
 
 export interface LoanProduct {
@@ -131,6 +147,7 @@ export interface UploadedDocument {
     fileName: string;
     fileType: string;
     fileContent: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 
