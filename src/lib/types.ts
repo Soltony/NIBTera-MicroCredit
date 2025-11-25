@@ -58,6 +58,22 @@ export interface LoanAmountTier {
     loanAmount: number;
 }
 
+export interface LoanCycleTier {
+    id: string;
+    configId: string;
+    cycleNumber: number;
+    threshold: number;
+    payoutPercentage: number;
+}
+
+export interface LoanCycleConfig {
+    id: string;
+    providerId: string;
+    cycleMetric: string;
+    status: string;
+    tiers: LoanCycleTier[];
+}
+
 export interface LoanProvider {
   id: string;
   name: string;
@@ -74,6 +90,7 @@ export interface LoanProvider {
   nplThresholdDays: number;
   ledgerAccounts?: LedgerAccount[];
   termsAndConditions?: TermsAndConditions[];
+  loanCycleConfig?: LoanCycleConfig;
 }
 
 export interface LoanProduct {
@@ -404,5 +421,5 @@ export interface Tax {
     id: string;
     name: string | null;
     rate: number;
-    appliedTo: string; // JSON array
+    appliedTo: string; // JSON array: ['serviceFee', 'interest', 'penalty']
 }

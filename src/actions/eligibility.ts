@@ -134,6 +134,20 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     if (!product) {
         return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
+
+    if (product.dataProvisioningEnabled) {
+      const isEligibleByList = await prisma.eligibilityList.findUnique({
+        where: {
+          productId_borrowerId: {
+            productId: productId,
+            borrowerId: borrowerId,
+          },
+        },
+      });
+      if (!isEligibleByList) {
+        return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
+      }
+    }
     
     type LoanWithProduct = Loan & { product: LoanProduct };
     
@@ -155,24 +169,6 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
     
-    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId);
-    
-    if (product.dataProvisioningEnabled && product.eligibilityFilter) {
-        const filter = JSON.parse(product.eligibilityFilter as string);
-        const filterKeys = Object.keys(filter);
-
-        const isMatch = filterKeys.every(key => {
-            const filterValue = String(filter[key]).toLowerCase();
-            const borrowerValue = String(borrowerDataForScoring[toCamelCase(key)] || '').toLowerCase();
-            return filterValue.split(',').map(s => s.trim()).includes(borrowerValue);
-        });
-
-        if (!isMatch) {
-            return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
-        }
-    }
-
-
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
@@ -188,17 +184,40 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         }
     });
         
-    const productMaxLoan = applicableTier?.loanAmount || 0;
+    const tierMaxLoan = applicableTier?.loanAmount || 0;
 
-    if (productMaxLoan <= 0) {
+    if (tierMaxLoan <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
     }
     
+    // --- NEW LOAN CYCLE LOGIC ---
+    let finalMaxLoanAmount = tierMaxLoan;
+
+    const cycleConfig = await prisma.loanCycleConfig.findUnique({
+      where: { providerId },
+      include: { tiers: { orderBy: { threshold: 'asc' } } },
+    });
+
+    if (cycleConfig && cycleConfig.tiers.length > 0) {
+        const borrowerData = await getBorrowerDataForScoring(borrowerId, providerId);
+        const metricValue = borrowerData[cycleConfig.cycleMetric] || 0;
+
+        let applicableCycleTier = cycleConfig.tiers[0];
+        for (const tier of cycleConfig.tiers) {
+            if (metricValue >= tier.threshold) {
+                applicableCycleTier = tier;
+            } else {
+                break; 
+            }
+        }
+        
+        finalMaxLoanAmount = tierMaxLoan * applicableCycleTier.payoutPercentage;
+    }
+    // --- END NEW LOAN CYCLE LOGIC ---
+    
     const totalOutstandingPrincipal = allActiveLoans.reduce((sum, loan) => sum + loan.loanAmount - (loan.repaidAmount || 0), 0);
     
-    const maxLoanAmount = productMaxLoan;
-    
-    const availableToBorrow = Math.max(0, maxLoanAmount - totalOutstandingPrincipal);
+    const availableToBorrow = Math.max(0, finalMaxLoanAmount - totalOutstandingPrincipal);
     
     if (availableToBorrow <= 0 && allActiveLoans.length > 0) {
          return { isEligible: true, reason: `You have reached your credit limit with this provider. Your current outstanding balance is ${totalOutstandingPrincipal}. Please repay your active loans to be eligible for more.`, score, maxLoanAmount: 0 };
