@@ -127,6 +127,7 @@ async function applyEligibilityList(change: any, data: any) {
             fileName: fileName,
             rowCount: jsonData.length,
             uploadedBy: change.createdById,
+            fileContent: fileContent, // Add file content here
         }
     });
 
