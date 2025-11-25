@@ -107,13 +107,18 @@ async function applyEligibilityList(change: any, data: any) {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
+    const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
+    const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
+    
     const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
     if (!idColumnConfig) throw new Error('No identifier column found in config');
     const idColumnName = idColumnConfig.name;
+    const idColumnIndex = originalHeaders.findIndex(h => h === idColumnName);
+    if (idColumnIndex === -1) throw new Error(`Identifier column "${idColumnName}" not found in uploaded file.`);
     
-    const idList = jsonData.map(row => row[idColumnName]).filter(Boolean);
+    const idList = rows.map(row => row[idColumnIndex]).filter(Boolean);
 
     if (idList.length === 0) {
         throw new Error("No identifiers found in the uploaded file.");
@@ -121,21 +126,43 @@ async function applyEligibilityList(change: any, data: any) {
     
     const filterString = idList.join(',');
 
-    const newUpload = await prisma.dataProvisioningUpload.create({
-        data: {
-            configId: configId,
-            fileName: fileName,
-            rowCount: jsonData.length,
-            uploadedBy: change.createdById,
-        }
-    });
+    await prisma.$transaction(async (tx) => {
+        const newUpload = await tx.dataProvisioningUpload.create({
+            data: {
+                configId: configId,
+                fileName: fileName,
+                rowCount: rows.length,
+                uploadedBy: change.createdById,
+            }
+        });
 
-    await prisma.loanProduct.update({
-        where: { id: productId },
-        data: {
-            eligibilityUploadId: newUpload.id,
-            eligibilityFilter: filterString,
+        // Save each row of the eligibility list to the ProvisionedData table
+        for (const row of rows) {
+            const borrowerId = String(row[idColumnIndex]);
+            if (!borrowerId) continue;
+            
+            const rowData: { [key: string]: any } = {};
+            originalHeaders.forEach((header, index) => {
+                rowData[header] = row[index];
+            });
+
+             await tx.provisionedData.create({
+                data: {
+                    borrowerId: borrowerId,
+                    configId: configId,
+                    uploadId: newUpload.id,
+                    data: JSON.stringify(rowData)
+                }
+             });
         }
+        
+        await tx.loanProduct.update({
+            where: { id: productId },
+            data: {
+                eligibilityUploadId: newUpload.id,
+                eligibilityFilter: filterString,
+            }
+        });
     });
 }
 
