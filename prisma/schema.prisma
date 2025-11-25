@@ -15,20 +15,20 @@ datasource db {
 // --------------------------------------
 
 model User {
-  id                String          @id @default(cuid())
-  fullName          String
-  email             String          @unique
-  phoneNumber       String          @unique
-  password          String
-  status            String
-  roleId            String
-  role              Role            @relation(fields: [roleId], references: [id])
-  loanProviderId    String?
-  loanProvider      LoanProvider?   @relation(fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdChanges    PendingChange[] @relation("CreatedBy")
-  approvedChanges   PendingChange[] @relation("ApprovedBy")
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                  String           @id @default(cuid())
+  fullName            String
+  email               String           @unique
+  phoneNumber         String           @unique
+  password            String
+  status              String
+  roleId              String
+  role                Role             @relation(fields: [roleId], references: [id])
+  loanProviderId      String?
+  loanProvider        LoanProvider?    @relation(fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdChanges      PendingChange[]  @relation("CreatedBy")
+  approvedChanges     PendingChange[]  @relation("ApprovedBy")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 }
 
 model Role {
@@ -86,7 +86,7 @@ model LoanProduct {
   dataProvisioningEnabled     Boolean?
   dataProvisioningConfigId    String?
   dataProvisioningConfig      DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  eligibilityUploadId         String?
+  eligibilityUploadId         String?                       @unique
   eligibilityUpload           DataProvisioningUpload?       @relation(fields: [eligibilityUploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   loans                       Loan[]
   loanAmountTiers             LoanAmountTier[]
@@ -142,7 +142,6 @@ model Borrower {
   pendingPayments   PendingPayment[]
   eligibilityList   EligibilityList[]
 }
-
 
 // --------------------------------------
 // LOAN APPLICATION & DOCUMENTS
@@ -214,7 +213,7 @@ model DataProvisioningUpload {
     uploadedAt  DateTime    @default(now())
     provisionedData ProvisionedData[]
     LoanProduct       LoanProduct[]
-    EligibilityList   EligibilityList[]
+    eligibilityLists  EligibilityList[]
 }
 
 model ProvisionedData {
@@ -284,37 +283,40 @@ model ScoringConfigurationProduct {
 }
 
 model EligibilityList {
-  id         String                  @id @default(cuid())
+  id         String                   @id @default(cuid())
   productId  String
-  product    LoanProduct             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    LoanProduct              @relation(fields: [productId], references: [id], onDelete: Cascade)
   borrowerId String
-  borrower   Borrower                @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  borrower   Borrower                 @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
   uploadId   String?
-  upload     DataProvisioningUpload? @relation(fields: [uploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  upload     DataProvisioningUpload?  @relation(fields: [uploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([productId, borrowerId])
 }
 
+// --------------------------------------
+// LOAN CYCLES
+// --------------------------------------
+
 model LoanCycleConfig {
-    id          String      @id @default(cuid())
-    providerId  String      @unique
-    provider    LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-    cycleMetric String      // e.g., "totalLoansCount", "loansOnTime"
-    status      String      @default("ACTIVE")
-    tiers       LoanCycleTier[]
+  id          String            @id @default(cuid())
+  providerId  String            @unique
+  provider    LoanProvider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  cycleMetric String            // e.g., "totalLoansCount", "loansOnTime"
+  status      String            @default("ACTIVE")
+  tiers       LoanCycleTier[]
 }
 
 model LoanCycleTier {
-    id                  String      @id @default(cuid())
-    configId            String
-    config              LoanCycleConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-    cycleNumber         Int
-    threshold           Int         // e.g., if metric is 'totalLoansCount', threshold could be 5
-    payoutPercentage    Float       // e.g., 0.35 for 35%
-    
-    @@unique([configId, cycleNumber])
+  id                  String           @id @default(cuid())
+  configId            String
+  config              LoanCycleConfig  @relation(fields: [configId], references: [id], onDelete: Cascade)
+  cycleNumber         Int
+  threshold           Int              // Number of loans needed to reach this cycle
+  payoutPercentage    Float            // e.g., 0.35 for 35%
+  
+  @@unique([configId, cycleNumber])
 }
-
 
 // --------------------------------------
 // ACCOUNTING
