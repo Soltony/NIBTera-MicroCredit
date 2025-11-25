@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -2099,46 +2098,60 @@ function UploadDataViewerDialog({ upload, onClose }: {
         const fileContent = (upload as any).fileContent;
         if (!fileContent) return null; // Should not happen
 
-        const workbook = XLSX.read(fileContent, { type: 'base64' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        const headers = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : [];
+        try {
+            const workbook = XLSX.read(fileContent, { type: 'base64' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            
+            const headers = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : [];
 
-        return (
-             <UIDialog open={!!upload} onOpenChange={onClose}>
-                <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    <UIDialogHeader>
-                        <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
-                        <UIDialogDescription>
-                           This is a preview of the file you uploaded.
-                        </UIDialogDescription>
-                    </UIDialogHeader>
-                    <div className="flex-grow overflow-auto border rounded-md">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-background">
-                                <TableRow>
-                                    {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {jsonData.map((row: any, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                        {headers.map((header) => (
-                                            <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
-                                        ))}
+            return (
+                <UIDialog open={!!upload} onOpenChange={onClose}>
+                    <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                        <UIDialogHeader>
+                            <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
+                            <UIDialogDescription>
+                            This is a preview of the file you uploaded.
+                            </UIDialogDescription>
+                        </UIDialogHeader>
+                        <div className="flex-grow overflow-auto border rounded-md">
+                            <Table>
+                                <TableHeader className="sticky top-0 bg-background">
+                                    <TableRow>
+                                        {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                     <UIDialogFooter className="pt-4">
-                        <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
-                    </UIDialogFooter>
-                </UIDialogContent>
-            </UIDialog>
-        );
+                                </TableHeader>
+                                <TableBody>
+                                    {jsonData.map((row: any, rowIndex) => (
+                                        <TableRow key={rowIndex}>
+                                            {headers.map((header) => (
+                                                <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                                            ))}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <UIDialogFooter className="pt-4">
+                            <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
+                        </UIDialogFooter>
+                    </UIDialogContent>
+                </UIDialog>
+            );
+        } catch (error) {
+            console.error("Error parsing preview file:", error);
+            return (
+                <UIDialog open={!!upload} onOpenChange={onClose}>
+                    <UIDialogContent>
+                         <UIDialogHeader>
+                            <UIDialogTitle>Preview Error</UIDialogTitle>
+                            <UIDialogDescription>Could not display a preview of the uploaded file.</UIDialogDescription>
+                        </UIDialogHeader>
+                    </UIDialogContent>
+                </UIDialog>
+            );
+        }
     }
 
 
@@ -2193,6 +2206,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
