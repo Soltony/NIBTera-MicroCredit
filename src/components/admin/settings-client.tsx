@@ -1308,17 +1308,59 @@ function EligibilityTab({ providers, onProvidersChange }: {
     const [isSaving, setIsSaving] = useState(false);
     const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
 
-    const handleUpdateProduct = (providerId: string, updatedProduct: Partial<LoanProduct>) => {
+    const handleUpdateProduct = useCallback((providerId: string, updatedProduct: Partial<LoanProduct>) => {
         onProvidersChange(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
                 const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
                 if (productIndex !== -1) {
+                    // Important: Merge with existing product to not lose other properties
                     provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
                 }
             }
         }));
-    };
+    }, [onProvidersChange]);
+
+    const handleFieldUpdate = useCallback(async (providerId: string, productId: string, update: Partial<LoanProduct>) => {
+        const provider = providers.find(p => p.id === providerId);
+        const originalProduct = provider?.products.find(p => p.id === productId);
+        if (!originalProduct) return;
+
+        // Optimistically update the UI
+        handleUpdateProduct(providerId, { id: productId, ...update, status: 'PENDING_APPROVAL' });
+
+        try {
+            const payload = {
+                original: originalProduct,
+                updated: { ...originalProduct, ...update },
+            };
+
+            const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    entityId: productId,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload),
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to submit changes for approval.');
+            }
+
+            toast({
+                title: 'Submitted for Approval',
+                description: 'Your eligibility setting changes are pending review.',
+            });
+
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+            // Revert optimistic update
+            handleUpdateProduct(providerId, originalProduct);
+        }
+    }, [providers, handleUpdateProduct, toast]);
     
     const handleFilterFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, product: LoanProduct) => {
         const file = event.target.files?.[0];
@@ -1431,92 +1473,100 @@ function EligibilityTab({ providers, onProvidersChange }: {
                             </div>
                         </AccordionTrigger>
                         <AccordionContent className="p-4 border-t space-y-6">
-                            {(provider.products || []).map(product => (
-                                <Card key={product.id}>
-                                    <CardHeader>
-                                        <CardTitle className="text-base">{product.name}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="flex items-center space-x-2">
-                                            <Switch
-                                                id={`dataProvisioningEnabled-${product.id}`}
-                                                checked={!!product.dataProvisioningEnabled}
-                                                onCheckedChange={(checked) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningEnabled: checked })}
-                                                className="data-[state=checked]:bg-[--provider-color]"
-                                                style={{ '--provider-color': provider.colorHex } as React.CSSProperties}
-                                            />
-                                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
-                                        </div>
+                            {(provider.products || []).map(product => {
+                                const isPending = product.status === 'PENDING_APPROVAL';
+                                return (
+                                    <Card key={product.id}>
+                                        <CardHeader>
+                                            <div className="flex justify-between items-center">
+                                                <CardTitle className="text-base">{product.name}</CardTitle>
+                                                {isPending && <Badge variant="outline">Pending Approval</Badge>}
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="flex items-center space-x-2">
+                                                <Switch
+                                                    id={`dataProvisioningEnabled-${product.id}`}
+                                                    checked={!!product.dataProvisioningEnabled}
+                                                    onCheckedChange={(checked) => handleFieldUpdate(provider.id, product.id, { dataProvisioningEnabled: checked })}
+                                                    className="data-[state=checked]:bg-[--provider-color]"
+                                                    style={{ '--provider-color': provider.colorHex } as React.CSSProperties}
+                                                    disabled={isPending}
+                                                />
+                                                <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
+                                            </div>
 
-                                        {product.dataProvisioningEnabled && (
-                                            <div className="pl-8 space-y-4">
-                                                <div className="space-y-2">
-                                                    <Label>Link Data Source</Label>
-                                                    <Select
-                                                        value={product.dataProvisioningConfigId || ''}
-                                                        onValueChange={(value) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningConfigId: value })}
-                                                    >
-                                                        <SelectTrigger className="w-full">
-                                                            <SelectValue placeholder="Select a data source..." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {(provider.dataProvisioningConfigs || []).map(config => (
-                                                                <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>Upload List</Label>
-                                                    <div className="flex items-center gap-4">
-                                                        <Button asChild variant="outline" size="sm">
-                                                            <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
-                                                                <Upload className="h-4 w-4 mr-2" />
-                                                                {isSaving ? "Uploading..." : "Upload Excel File"}
-                                                                <input
-                                                                    id={`filter-upload-${product.id}`}
-                                                                    type="file"
-                                                                    accept=".xlsx, .xls"
-                                                                    onChange={(e) => handleFilterFileUpload(e, product)}
-                                                                    className="hidden"
-                                                                    disabled={isSaving || !product.dataProvisioningConfigId}
-                                                                />
-                                                            </label>
-                                                        </Button>
-                                                        <p className="text-xs text-muted-foreground">The headers must match the linked data source.</p>
+                                            {product.dataProvisioningEnabled && (
+                                                <div className="pl-8 space-y-4">
+                                                    <div className="space-y-2">
+                                                        <Label>Link Data Source</Label>
+                                                        <Select
+                                                            value={product.dataProvisioningConfigId || ''}
+                                                            onValueChange={(value) => handleFieldUpdate(provider.id, product.id, { dataProvisioningConfigId: value })}
+                                                            disabled={isPending}
+                                                        >
+                                                            <SelectTrigger className="w-full">
+                                                                <SelectValue placeholder="Select a data source..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {(provider.dataProvisioningConfigs || []).map(config => (
+                                                                    <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Upload List</Label>
+                                                        <div className="flex items-center gap-4">
+                                                            <Button asChild variant="outline" size="sm">
+                                                                <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", (!product.dataProvisioningConfigId || isPending) && 'cursor-not-allowed opacity-50')}>
+                                                                    <Upload className="h-4 w-4 mr-2" />
+                                                                    {isSaving ? "Uploading..." : "Upload Excel File"}
+                                                                    <input
+                                                                        id={`filter-upload-${product.id}`}
+                                                                        type="file"
+                                                                        accept=".xlsx, .xls"
+                                                                        onChange={(e) => handleFilterFileUpload(e, product)}
+                                                                        className="hidden"
+                                                                        disabled={isSaving || !product.dataProvisioningConfigId || isPending}
+                                                                    />
+                                                                </label>
+                                                            </Button>
+                                                            <p className="text-xs text-muted-foreground">The headers must match the linked data source.</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Uploaded List</Label>
+                                                        {product.eligibilityUpload ? (
+                                                            <div className="border rounded-lg p-3">
+                                                                <div className="flex justify-between items-start">
+                                                                    <div>
+                                                                        <p className="font-medium">{product.eligibilityUpload.fileName}</p>
+                                                                        <p className="text-sm text-muted-foreground">
+                                                                            {product.eligibilityUpload.status === 'PENDING_APPROVAL' ? 'Pending Approval' : `By ${product.eligibilityUpload.uploadedBy} on ${format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}`}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
+                                                                        <Button variant="destructive" size="sm" onClick={() => handleDeleteFilter(product)} disabled={isPending}>Delete List</Button>
+                                                                    </div>
+                                                                </div>
+                                                                {(product.eligibilityUpload as any).fileContent && (
+                                                                    <div className="mt-2 text-right">
+                                                                        <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving || isPending}>Submit Eligibility for Approval</Button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label>Uploaded List</Label>
-                                                    {product.eligibilityUpload ? (
-                                                        <div className="border rounded-lg p-3">
-                                                            <div className="flex justify-between items-start">
-                                                                <div>
-                                                                    <p className="font-medium">{product.eligibilityUpload.fileName}</p>
-                                                                    <p className="text-sm text-muted-foreground">
-                                                                        {product.eligibilityUpload.status === 'PENDING_APPROVAL' ? 'Pending Approval' : `By ${product.eligibilityUpload.uploadedBy} on ${format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}`}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="flex gap-2 items-center">
-                                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
-                                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteFilter(product)}>Delete List</Button>
-                                                                </div>
-                                                            </div>
-                                                            {(product.eligibilityUpload as any).fileContent && (
-                                                                <div className="mt-2 text-right">
-                                                                     <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving}>Submit Eligibility for Approval</Button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            ))}
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })}
                         </AccordionContent>
                     </AccordionItem>
                 ))}
@@ -2193,6 +2243,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
