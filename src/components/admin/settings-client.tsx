@@ -391,6 +391,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
              <UploadDataViewerDialog
                 upload={viewingUpload}
                 onClose={() => setViewingUpload(null)}
+                isEligibilityList={true}
             />
         )}
        </>
@@ -1576,6 +1577,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                  <UploadDataViewerDialog
                     upload={viewingUpload}
                     onClose={() => setViewingUpload(null)}
+                    isEligibilityList={true}
                 />
             )}
         </>
@@ -1916,9 +1918,10 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     )
 }
 
-function UploadDataViewerDialog({ upload, onClose }: {
+function UploadDataViewerDialog({ upload, onClose, isEligibilityList = false }: {
     upload: DataProvisioningUpload | null;
     onClose: () => void;
+    isEligibilityList?: boolean;
 }) {
     const [data, setData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -1931,15 +1934,27 @@ function UploadDataViewerDialog({ upload, onClose }: {
         if (upload && !upload.id.startsWith('temp-')) {
             const fetchData = async () => {
                 setIsLoading(true);
+                const endpoint = isEligibilityList
+                    ? `/api/settings/eligibility-list/view?uploadId=${upload.id}`
+                    : `/api/settings/data-provisioning-uploads/view?uploadId=${upload.id}&page=${page}&limit=${rowsPerPage}`;
+
                 try {
-                    const response = await fetch(`/api/settings/data-provisioning-uploads/view?uploadId=${upload.id}&page=${page}&limit=${rowsPerPage}`);
+                    const response = await fetch(endpoint);
                     if (!response.ok) {
                         throw new Error('Failed to fetch uploaded data');
                     }
                     const result = await response.json();
-                    setData(result.data);
-                    setTotalPages(result.totalPages);
-                    setTotalRows(result.totalRows);
+                    
+                    if (isEligibilityList) {
+                        setData(result.data);
+                        setTotalPages(1);
+                        setTotalRows(result.data.length);
+                        setPage(1);
+                    } else {
+                        setData(result.data);
+                        setTotalPages(result.totalPages);
+                        setTotalRows(result.totalRows);
+                    }
                 } catch (error) {
                     console.error(error);
                 } finally {
@@ -1948,7 +1963,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
             };
             fetchData();
         }
-    }, [upload, page]);
+    }, [upload, page, isEligibilityList]);
 
     if (!upload) return null;
     
@@ -2045,17 +2060,19 @@ function UploadDataViewerDialog({ upload, onClose }: {
                         </Table>
                     )}
                 </div>
-                <UIDialogFooter className="justify-between items-center pt-4">
-                    <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
-                            <ChevronLeft className="h-4 w-4 mr-2" /> Previous
-                        </Button>
-                        <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
-                            Next <ChevronRight className="h-4 w-4 ml-2" />
-                        </Button>
-                    </div>
-                </UIDialogFooter>
+                 {!isEligibilityList && (
+                    <UIDialogFooter className="justify-between items-center pt-4">
+                        <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                                <ChevronLeft className="h-4 w-4 mr-2" /> Previous
+                            </Button>
+                            <Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                                Next <ChevronRight className="h-4 w-4 ml-2" />
+                            </Button>
+                        </div>
+                    </UIDialogFooter>
+                )}
             </UIDialogContent>
         </UIDialog>
     );
@@ -2063,6 +2080,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
