@@ -112,7 +112,7 @@ async function applyEligibilityList(change: any, data: any) {
     const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
     if (!idColumnConfig) throw new Error('No identifier column found in config');
     const idColumnName = idColumnConfig.name;
-
+    
     const idList = jsonData.map(row => row[idColumnName]).filter(Boolean);
 
     if (idList.length === 0) {
@@ -127,7 +127,6 @@ async function applyEligibilityList(change: any, data: any) {
             fileName: fileName,
             rowCount: jsonData.length,
             uploadedBy: change.createdById,
-            fileContent: fileContent, // Add file content here
         }
     });
 
