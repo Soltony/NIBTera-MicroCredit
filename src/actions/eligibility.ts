@@ -156,19 +156,19 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     }
     
     const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId);
-    
-    if (product.dataProvisioningEnabled && product.eligibilityFilter) {
-        const filter = JSON.parse(product.eligibilityFilter as string);
-        const filterKeys = Object.keys(filter);
 
-        const isMatch = filterKeys.every(key => {
-            const filterValue = String(filter[key]).toLowerCase();
-            const borrowerValue = String(borrowerDataForScoring[toCamelCase(key)] || '').toLowerCase();
-            return filterValue.split(',').map(s => s.trim()).includes(borrowerValue);
+    // New eligibility list check
+    if (product.dataProvisioningEnabled) {
+        const isEligible = await prisma.eligibilityList.findUnique({
+            where: {
+                productId_borrowerId: {
+                    productId: productId,
+                    borrowerId: borrowerId,
+                },
+            },
         });
-
-        if (!isMatch) {
-            return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
+        if (!isEligible) {
+             return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
         }
     }
 
@@ -188,10 +188,33 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         }
     });
         
-    const productMaxLoan = applicableTier?.loanAmount || 0;
+    let productMaxLoan = applicableTier?.loanAmount || 0;
 
     if (productMaxLoan <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
+    }
+
+    // New: Loan Cycle Logic
+    const loanCycleConfig = await prisma.loanCycleConfig.findUnique({
+        where: { providerId },
+        include: { tiers: { orderBy: { threshold: 'asc' } } },
+    });
+
+    if (loanCycleConfig && loanCycleConfig.tiers.length > 0) {
+        const metricField = loanCycleConfig.cycleMetric as keyof typeof borrowerDataForScoring;
+        const metricValue = borrowerDataForScoring[metricField] || 0;
+
+        let applicableCycleTier = loanCycleConfig.tiers[0];
+        for (const tier of loanCycleConfig.tiers) {
+            if (metricValue >= tier.threshold) {
+                applicableCycleTier = tier;
+            } else {
+                break;
+            }
+        }
+        
+        const payoutPercentage = applicableCycleTier.payoutPercentage;
+        productMaxLoan = productMaxLoan * (payoutPercentage / 100);
     }
     
     const totalOutstandingPrincipal = allActiveLoans.reduce((sum, loan) => sum + loan.loanAmount - (loan.repaidAmount || 0), 0);

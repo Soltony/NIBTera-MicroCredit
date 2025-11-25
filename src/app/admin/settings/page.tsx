@@ -1,7 +1,7 @@
 
 
 import { SettingsClient } from '@/components/admin/settings-client';
-import type { LoanProvider as LoanProviderType, Tax } from '@/lib/types';
+import type { LoanProvider as LoanProviderType, Tax, LoanCycleConfig } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
 
@@ -21,7 +21,7 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             products: {
                 include: {
                     loanAmountTiers: true,
-                    eligibilityUpload: true, // <-- This is the critical addition
+                    eligibilityUpload: true,
                 },
                 orderBy: { name: 'asc' }
             },
@@ -29,6 +29,15 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
                 include: {
                     uploads: {
                         orderBy: { uploadedAt: 'desc' }
+                    }
+                }
+            },
+            loanCycleConfig: {
+                include: {
+                    tiers: {
+                        orderBy: {
+                            threshold: 'asc'
+                        }
                     }
                 }
             }
@@ -54,6 +63,10 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
             serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }),
             dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }),
             penaltyRules: safeJsonParse(prod.penaltyRules, []),
+        })),
+         dataProvisioningConfigs: (p.dataProvisioningConfigs || []).map(config => ({
+            ...config,
+            columns: safeJsonParse(config.columns as string, [])
         }))
     })) as LoanProviderType[];
 }
@@ -61,7 +74,6 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
 async function getTaxConfig(): Promise<Tax> {
     let config = await prisma.tax.findFirst();
     if (!config) {
-        // Provide a default structure if no tax config is found
         config = { id: 'default', name: 'Default Tax', rate: 0, appliedTo: '[]', status: 'ACTIVE' };
     }
     return {
@@ -82,8 +94,3 @@ export default async function AdminSettingsPage() {
 
     return <SettingsClient initialProviders={providers} initialTaxConfig={taxConfig} />;
 }
-
-
-
-
-
