@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -7,6 +8,7 @@ import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 import * as XLSX from 'xlsx';
+import { toCamelCase } from '@/lib/utils';
 
 const approvalSchema = z.object({
   changeId: z.string(),
@@ -33,12 +35,6 @@ const defaultLedgerAccounts = [
     { name: 'Penalty Income', type: 'Income', category: 'Penalty' },
 ];
 
-
-// Helper to convert strings to camelCase
-const toCamelCase = (str: string) => {
-    if (!str) return '';
-    return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
-};
 
 async function applyDataProvisioningUpload(change: any, data: any) {
     const { fileContent, fileName, configId } = data.created;
@@ -101,12 +97,60 @@ async function applyDataProvisioningUpload(change: any, data: any) {
 }
 
 
+async function applyEligibilityList(change: any, data: any) {
+    const { productId, fileContent, configId, fileName } = data.created;
+    
+    const config = await prisma.dataProvisioningConfig.findUnique({ where: { id: configId } });
+    if (!config) throw new Error('Data Provisioning Config not found.');
+
+    const buffer = Buffer.from(fileContent, 'base64');
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+    const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
+    if (!idColumnConfig) throw new Error('No identifier column found in config');
+    const idColumnName = idColumnConfig.name;
+
+    const idList = jsonData.map(row => row[idColumnName]).filter(Boolean);
+
+    if (idList.length === 0) {
+        throw new Error("No identifiers found in the uploaded file.");
+    }
+    
+    const filterString = idList.join(',');
+
+    const newUpload = await prisma.dataProvisioningUpload.create({
+        data: {
+            configId: configId,
+            fileName: fileName,
+            rowCount: jsonData.length,
+            uploadedBy: change.createdById,
+        }
+    });
+
+    await prisma.loanProduct.update({
+        where: { id: productId },
+        data: {
+            eligibilityUploadId: newUpload.id,
+            eligibilityFilter: filterString,
+        }
+    });
+}
+
+
 // Main function to apply an approved change
 async function applyChange(change: any) {
   const { entityType, entityId, changeType, payload } = change;
   const data = JSON.parse(payload);
 
   switch (entityType) {
+    case 'EligibilityList':
+        if (changeType === 'CREATE') {
+            await applyEligibilityList(change, data);
+        }
+        break;
     case 'DataProvisioningConfig':
         if (changeType === 'UPDATE') {
             await prisma.dataProvisioningConfig.update({

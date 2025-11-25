@@ -89,6 +89,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const { toast } = useToast();
     const [isUploading, setIsUploading] = useState(false);
     const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+    const [submitEligibility, setSubmitEligibility] = useState<DataProvisioningUpload | null>(null);
     
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -156,56 +157,77 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
         setIsUploading(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('configId', product.dataProvisioningConfigId);
-            formData.append('productFilter', 'true');
-            formData.append('productId', product.id);
-            
-            const response = await fetch('/api/settings/data-provisioning-uploads', {
-                method: 'POST',
-                body: formData,
-            });
+            const fileReader = new FileReader();
+            fileReader.readAsDataURL(file);
+            fileReader.onload = async (e) => {
+                const fileContentBase64 = (e.target?.result as string)?.split(',')[1];
+                if (!fileContentBase64) {
+                    throw new Error("Could not read file content.");
+                }
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to upload file.');
-            }
+                const tempUpload: DataProvisioningUpload = {
+                    id: `temp-${Date.now()}`,
+                    configId: product.dataProvisioningConfigId!,
+                    fileName: file.name,
+                    rowCount: 0, // Placeholder
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: 'you (unsaved)',
+                    status: 'PENDING_APPROVAL',
+                    // Store content for submission
+                    fileContent: fileContentBase64,
+                } as any;
 
-            const newUpload: DataProvisioningUpload = await response.json();
-            
-            // Create the filter object from the file headers
-            const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet);
-
-            if (json.length === 0) {
-                throw new Error("File is empty.");
-            }
-            
-            const headers = Object.keys(json[0] as object);
-            const filterObject = headers.reduce((acc, header) => {
-                const values = json.map(row => (row as any)[header]).filter(Boolean);
-                acc[header] = values.join(', ');
-                return acc;
-            }, {} as Record<string, string>);
-            
-            const updatedProductData: Partial<LoanProduct> = {
-                eligibilityFilter: JSON.stringify(filterObject, null, 2),
-                eligibilityUploadId: newUpload.id,
-                eligibilityUpload: newUpload,
+                onUpdate({ eligibilityUpload: tempUpload });
             };
-            onUpdate(updatedProductData);
-
-            toast({ title: "Filter Generated", description: `The eligibility list has been generated from ${file.name}. Remember to save changes.` });
 
         } catch (error: any) {
             toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
         } finally {
             setIsUploading(false);
             if (event.target) event.target.value = '';
+        }
+    };
+    
+    const handleEligibilitySubmitForApproval = async () => {
+        if (!product.eligibilityUpload || !(product.eligibilityUpload as any).fileContent) {
+            toast({ title: "No file to submit", description: "Please upload a file first.", variant: "destructive"});
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const { eligibilityUpload } = product;
+            const payload = {
+                created: {
+                    configId: eligibilityUpload.configId,
+                    fileName: eligibilityUpload.fileName,
+                    fileContent: (eligibilityUpload as any).fileContent,
+                    productId: product.id,
+                }
+            };
+             const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'EligibilityList',
+                    entityId: product.id,
+                    changeType: 'CREATE', // Using CREATE since it creates a new upload and filter
+                    payload: JSON.stringify(payload),
+                }),
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit eligibility list for approval.');
+            }
+            toast({ title: "Submitted for Approval", description: `The new eligibility list for "${product.name}" is pending review.` });
+
+            // Replace the temporary upload with a "pending" state placeholder
+            onUpdate({ eligibilityUpload: { ...product.eligibilityUpload, id: 'pending-approval', status: 'PENDING_APPROVAL' } as any });
+
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -219,8 +241,13 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 minLoan: parseFloat(String(formData.minLoan)) || 0,
                 maxLoan: parseFloat(String(formData.maxLoan)) || 0,
                 duration: parseInt(String(formData.duration)) || 30,
-                // Exclude status from the approval payload
+                // Exclude status and eligibility from the main product approval payload
                 status: undefined, 
+                dataProvisioningEnabled: undefined,
+                dataProvisioningConfigId: undefined,
+                eligibilityUpload: undefined,
+                eligibilityUploadId: undefined,
+                eligibilityFilter: undefined,
             };
 
             const originalProduct = provider.products.find(p => p.id === product.id);
@@ -263,7 +290,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         if (!product.eligibilityUploadId) return;
         setIsSaving(true);
         try {
-            // Call an API to delete the upload record and nullify the fields on the product
             const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
                 method: 'DELETE',
             });
@@ -274,7 +300,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             onUpdate({ eligibilityFilter: null, eligibilityUploadId: null, eligibilityUpload: undefined });
             toast({ title: "Filter Deleted", description: "Eligibility list has been removed." });
         } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: 'destructive' });
+             toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
             setIsSaving(false);
         }
@@ -350,83 +376,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 placeholder="e.g., 30"
                             />
                         </div>
-                    </div>
-                    
-                     <div className="space-y-4 border-t pt-6">
-                        <div className="flex items-center space-x-2">
-                            <Switch
-                                id={`dataProvisioningEnabled-${product.id}`}
-                                checked={!!formData.dataProvisioningEnabled}
-                                onCheckedChange={(checked) => onUpdate({ dataProvisioningEnabled: checked })}
-                                className="data-[state=checked]:bg-[--provider-color]"
-                                style={{'--provider-color': providerColor} as React.CSSProperties}
-                            />
-                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Eligibility Allow-List</Label>
-                        </div>
-                        {formData.dataProvisioningEnabled && (
-                            <div className="pl-8 space-y-4">
-                               <div className="space-y-2">
-                                    <Label>Link Data Source</Label>
-                                    <Select 
-                                        value={product.dataProvisioningConfigId || ''}
-                                        onValueChange={(value) => onUpdate({ dataProvisioningConfigId: value })}
-                                    >
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Select a data source to link..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {allDataConfigs.map(config => (
-                                                <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-muted-foreground">Select the data source this product's eligibility list will be based on.</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Upload List</Label>
-                                    <div className="flex items-center gap-4">
-                                        <Button asChild variant="outline" size="sm">
-                                             <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
-                                                <Upload className="h-4 w-4 mr-2"/>
-                                                {isUploading ? "Uploading..." : "Upload Excel File"}
-                                                <input
-                                                    ref={fileInputRef}
-                                                    id={`filter-upload-${product.id}`}
-                                                    type="file"
-                                                    accept=".xlsx, .xls"
-                                                    onChange={handleFilterFileUpload}
-                                                    className="hidden"
-                                                    disabled={isUploading || !product.dataProvisioningConfigId}
-                                                />
-                                            </label>
-                                        </Button>
-                                         <p className="text-xs text-muted-foreground">Upload a file to generate the filter. The headers must match the linked data source.</p>
-                                    </div>
-                                    {!product.dataProvisioningConfigId && <p className="text-xs text-destructive">A data source must be linked before uploading.</p>}
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Uploaded List</Label>
-                                    {product.eligibilityUpload ? (
-                                         <div className="border rounded-lg p-3">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="font-medium">{product.eligibilityUpload.fileName}</p>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        By {product.eligibilityUpload.uploadedBy} on {format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
-                                                    </p>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
-                                                    <Button variant="destructive" size="sm" onClick={handleDeleteFilter}>Delete List</Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
@@ -1351,6 +1300,238 @@ function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {
     )
 }
 
+function EligibilityTab({ providers, onProvidersChange }: { 
+    providers: LoanProvider[],
+    onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
+}) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+
+    const handleUpdateProduct = (providerId: string, updatedProduct: Partial<LoanProduct>) => {
+        onProvidersChange(produce(draft => {
+            const provider = draft.find(p => p.id === providerId);
+            if (provider) {
+                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                if (productIndex !== -1) {
+                    provider.products[productIndex] = { ...provider.products[productIndex], ...updatedProduct };
+                }
+            }
+        }));
+    };
+    
+    const handleFilterFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, product: LoanProduct) => {
+        const file = event.target.files?.[0];
+        if (!file || !product.dataProvisioningConfigId) return;
+
+        setIsSaving(true);
+        try {
+            const fileReader = new FileReader();
+            fileReader.readAsDataURL(file);
+            fileReader.onload = async (e) => {
+                const fileContentBase64 = (e.target?.result as string)?.split(',')[1];
+                if (!fileContentBase64) {
+                    throw new Error("Could not read file content.");
+                }
+                 const tempUpload: DataProvisioningUpload = {
+                    id: `temp-${Date.now()}`,
+                    configId: product.dataProvisioningConfigId!,
+                    fileName: file.name,
+                    rowCount: 0, 
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: 'you (unsaved)',
+                    status: 'PENDING_APPROVAL',
+                    fileContent: fileContentBase64,
+                } as any;
+                handleUpdateProduct(product.providerId, { id: product.id, eligibilityUpload: tempUpload });
+            };
+        } catch (error: any) {
+            toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
+        } finally {
+            setIsSaving(false);
+            if (event.target) event.target.value = '';
+        }
+    };
+    
+    const handleEligibilitySubmitForApproval = async (product: LoanProduct) => {
+        if (!product.eligibilityUpload || !(product.eligibilityUpload as any).fileContent) {
+            toast({ title: "No file to submit", description: "Please upload a file first.", variant: "destructive"});
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const { eligibilityUpload } = product;
+            const payload = {
+                created: {
+                    configId: eligibilityUpload.configId,
+                    fileName: eligibilityUpload.fileName,
+                    fileContent: (eligibilityUpload as any).fileContent,
+                    productId: product.id,
+                }
+            };
+             const response = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entityType: 'EligibilityList',
+                    entityId: product.id,
+                    changeType: 'CREATE',
+                    payload: JSON.stringify(payload),
+                }),
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit eligibility list for approval.');
+            }
+            toast({ title: "Submitted for Approval", description: `The new eligibility list for "${product.name}" is pending review.` });
+            
+            const finalUploadState = { ...product.eligibilityUpload, id: 'pending-approval', status: 'PENDING_APPROVAL', fileContent: undefined };
+            handleUpdateProduct(product.providerId, { id: product.id, eligibilityUpload: finalUploadState as any });
+
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    const handleDeleteFilter = async (product: LoanProduct) => {
+        if (!product.eligibilityUploadId) return;
+        setIsSaving(true);
+        try {
+            const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete filter.');
+            }
+            handleUpdateProduct(product.providerId, { id: product.id, eligibilityFilter: null, eligibilityUploadId: null, eligibilityUpload: undefined });
+            toast({ title: "Filter Deleted", description: "Eligibility list has been removed." });
+        } catch (error: any) {
+             toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <>
+            <Accordion type="multiple" className="w-full space-y-4">
+                {providers.map((provider) => (
+                    <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                        <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                            <div className="flex items-center gap-4">
+                                <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                                <div>
+                                    <div className="text-lg font-semibold">{provider.name}</div>
+                                    <p className="text-sm text-muted-foreground">Managing {(provider.products || []).length} products</p>
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="p-4 border-t space-y-6">
+                            {(provider.products || []).map(product => (
+                                <Card key={product.id}>
+                                    <CardHeader>
+                                        <CardTitle className="text-base">{product.name}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="flex items-center space-x-2">
+                                            <Switch
+                                                id={`dataProvisioningEnabled-${product.id}`}
+                                                checked={!!product.dataProvisioningEnabled}
+                                                onCheckedChange={(checked) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningEnabled: checked })}
+                                                className="data-[state=checked]:bg-[--provider-color]"
+                                                style={{ '--provider-color': provider.colorHex } as React.CSSProperties}
+                                            />
+                                            <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
+                                        </div>
+
+                                        {product.dataProvisioningEnabled && (
+                                            <div className="pl-8 space-y-4">
+                                                <div className="space-y-2">
+                                                    <Label>Link Data Source</Label>
+                                                    <Select
+                                                        value={product.dataProvisioningConfigId || ''}
+                                                        onValueChange={(value) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningConfigId: value })}
+                                                    >
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder="Select a data source..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {(provider.dataProvisioningConfigs || []).map(config => (
+                                                                <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Upload List</Label>
+                                                    <div className="flex items-center gap-4">
+                                                        <Button asChild variant="outline" size="sm">
+                                                            <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
+                                                                <Upload className="h-4 w-4 mr-2" />
+                                                                {isSaving ? "Uploading..." : "Upload Excel File"}
+                                                                <input
+                                                                    id={`filter-upload-${product.id}`}
+                                                                    type="file"
+                                                                    accept=".xlsx, .xls"
+                                                                    onChange={(e) => handleFilterFileUpload(e, product)}
+                                                                    className="hidden"
+                                                                    disabled={isSaving || !product.dataProvisioningConfigId}
+                                                                />
+                                                            </label>
+                                                        </Button>
+                                                        <p className="text-xs text-muted-foreground">The headers must match the linked data source.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Uploaded List</Label>
+                                                    {product.eligibilityUpload ? (
+                                                        <div className="border rounded-lg p-3">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <p className="font-medium">{product.eligibilityUpload.fileName}</p>
+                                                                    <p className="text-sm text-muted-foreground">
+                                                                        {product.eligibilityUpload.status === 'PENDING_APPROVAL' ? 'Pending Approval' : `By ${product.eligibilityUpload.uploadedBy} on ${format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}`}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex gap-2 items-center">
+                                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
+                                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteFilter(product)}>Delete List</Button>
+                                                                </div>
+                                                            </div>
+                                                            {(product.eligibilityUpload as any).fileContent && (
+                                                                <div className="mt-2 text-right">
+                                                                     <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving}>Submit Eligibility for Approval</Button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground">No eligibility list has been uploaded for this product.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
+             {viewingUpload && (
+                 <UploadDataViewerDialog
+                    upload={viewingUpload}
+                    onClose={() => setViewingUpload(null)}
+                />
+            )}
+        </>
+    );
+}
+
+
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
 
@@ -1391,6 +1572,7 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
                     <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
+                     <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
                     <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
                     <TabsTrigger value="tax">Tax</TabsTrigger>
                 </TabsList>
@@ -1399,6 +1581,9 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
                 </TabsContent>
                 <TabsContent value="configuration">
                      <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} taxConfig={initialTaxConfig} />
+                </TabsContent>
+                 <TabsContent value="eligibility">
+                     <EligibilityTab providers={providers} onProvidersChange={handleProvidersChange} />
                 </TabsContent>
                  <TabsContent value="agreement">
                     <Accordion type="multiple" className="w-full space-y-4">
@@ -1911,23 +2096,23 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
     // Special handling for temporary filter preview
     if (upload.id.startsWith('temp-')) {
-        const filterData = JSON.parse(upload.fileName); // Storing JSON in fileName for temp
-        const headers = Object.keys(filterData);
-        const maxRows = Math.max(0, ...Object.values(filterData).map((v: any) => v.split(',').length));
-        const rows = Array.from({ length: maxRows }).map((_, rowIndex) => {
-            return headers.map(header => {
-                const values = filterData[header].split(',').map((s:string) => s.trim());
-                return values[rowIndex] || '';
-            });
-        });
+        const fileContent = (upload as any).fileContent;
+        if (!fileContent) return null; // Should not happen
+
+        const workbook = XLSX.read(fileContent, { type: 'base64' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        const headers = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : [];
 
         return (
              <UIDialog open={!!upload} onOpenChange={onClose}>
                 <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <UIDialogHeader>
-                        <UIDialogTitle>Viewing Eligibility Criteria</UIDialogTitle>
+                        <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
                         <UIDialogDescription>
-                            This is the list of criteria generated from your uploaded file.
+                           This is a preview of the file you uploaded.
                         </UIDialogDescription>
                     </UIDialogHeader>
                     <div className="flex-grow overflow-auto border rounded-md">
@@ -1938,10 +2123,10 @@ function UploadDataViewerDialog({ upload, onClose }: {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {rows.map((row, rowIndex) => (
+                                {jsonData.map((row: any, rowIndex) => (
                                     <TableRow key={rowIndex}>
-                                        {row.map((cell, cellIndex) => (
-                                            <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
+                                        {headers.map((header) => (
+                                            <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
                                         ))}
                                     </TableRow>
                                 ))}
@@ -2008,6 +2193,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
