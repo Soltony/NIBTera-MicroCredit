@@ -135,8 +135,7 @@ async function applyEligibilityList(change: any, data: any) {
                 uploadedBy: change.createdById,
             }
         });
-
-        // Save each row of the eligibility list to the ProvisionedData table
+        
         for (const row of rows) {
             const borrowerId = String(row[idColumnIndex]);
             if (!borrowerId) continue;
@@ -146,8 +145,24 @@ async function applyEligibilityList(change: any, data: any) {
                 rowData[header] = row[index];
             });
 
-             await tx.provisionedData.create({
-                data: {
+             await tx.borrower.upsert({
+                where: { id: borrowerId },
+                update: {},
+                create: { id: borrowerId },
+            });
+             
+             await tx.provisionedData.upsert({
+                where: {
+                    borrowerId_configId: {
+                        borrowerId,
+                        configId
+                    }
+                },
+                update: {
+                    uploadId: newUpload.id,
+                    data: JSON.stringify(rowData)
+                },
+                create: {
                     borrowerId: borrowerId,
                     configId: configId,
                     uploadId: newUpload.id,
