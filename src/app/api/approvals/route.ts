@@ -157,8 +157,8 @@ async function applyEligibilityList(change: any, data: any) {
 
             // Using upsert to prevent unique constraint errors if the same list is uploaded again
              await tx.provisionedData.upsert({
-                 where: { borrowerId_configId_uploadId: { borrowerId, configId, uploadId: newUpload.id } },
-                 update: { data: JSON.stringify(rowData) },
+                 where: { borrowerId_configId: { borrowerId, configId } },
+                 update: { data: JSON.stringify(rowData), uploadId: newUpload.id },
                  create: {
                      borrowerId,
                      configId,
@@ -485,4 +485,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
-
