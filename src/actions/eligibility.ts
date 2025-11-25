@@ -134,6 +134,19 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     if (!product) {
         return { isEligible: false, reason: 'Loan product not found.', score: 0, maxLoanAmount: 0 };
     }
+
+    // Check if product uses eligibility list and if borrower is in it
+    if (product.dataProvisioningEnabled) {
+        const eligibilityCount = await prisma.eligibilityList.count({
+            where: {
+                productId: productId,
+                borrowerId: borrowerId,
+            },
+        });
+        if (eligibilityCount === 0) {
+            return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
+        }
+    }
     
     type LoanWithProduct = Loan & { product: LoanProduct };
     
@@ -154,24 +167,6 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         const otherProductNames = allActiveLoans.map(l => `"${l.product.name}"`).join(', ');
         return { isEligible: false, reason: `This is an exclusive loan product. You must repay your active loans (${otherProductNames}) before applying.`, score: 0, maxLoanAmount: 0 };
     }
-    
-    const borrowerDataForScoring = await getBorrowerDataForScoring(borrowerId, providerId);
-    
-    if (product.dataProvisioningEnabled && product.eligibilityFilter) {
-        const filter = JSON.parse(product.eligibilityFilter as string);
-        const filterKeys = Object.keys(filter);
-
-        const isMatch = filterKeys.every(key => {
-            const filterValue = String(filter[key]).toLowerCase();
-            const borrowerValue = String(borrowerDataForScoring[toCamelCase(key)] || '').toLowerCase();
-            return filterValue.split(',').map(s => s.trim()).includes(borrowerValue);
-        });
-
-        if (!isMatch) {
-            return { isEligible: false, reason: 'This loan product is not available for your profile.', score: 0, maxLoanAmount: 0 };
-        }
-    }
-
 
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {

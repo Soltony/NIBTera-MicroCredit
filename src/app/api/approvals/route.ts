@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,7 +37,6 @@ const defaultLedgerAccounts = [
 
 async function applyDataProvisioningUpload(change: any, data: any) {
     const { fileContent, fileName, configId } = data.created;
-    const user = await getSession();
 
     const config = await prisma.dataProvisioningConfig.findUnique({
         where: { id: configId }
@@ -119,16 +117,14 @@ async function applyEligibilityList(change: any, data: any) {
     const idColumnIndex = originalHeaders.findIndex(h => h === idColumnName);
     if (idColumnIndex === -1) throw new Error(`Identifier column "${idColumnName}" not found in uploaded file.`);
     
-    const idList = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
+    const borrowerIds = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
 
-    if (idList.length === 0) {
+    if (borrowerIds.length === 0) {
         throw new Error("No identifiers found in the uploaded file.");
     }
     
-    const filterString = idList.join(',');
-
     await prisma.$transaction(async (tx) => {
-        // Create the upload record for history, including the file content for viewing later.
+        // Create the upload record for history
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
                 configId: configId,
@@ -137,14 +133,22 @@ async function applyEligibilityList(change: any, data: any) {
                 uploadedBy: change.createdById,
             }
         });
+
+        // Clear any previous eligibility list for this product
+        await tx.eligibilityList.deleteMany({
+            where: { productId: productId }
+        });
         
-        // Update the product with the filter string and the link to the historic upload
-        await tx.loanProduct.update({
-            where: { id: productId },
-            data: {
-                eligibilityUploadId: newUpload.id,
-                eligibilityFilter: filterString,
-            }
+        // Create new eligibility list entries
+        const eligibilityData = borrowerIds.map(borrowerId => ({
+            productId: productId,
+            borrowerId: borrowerId,
+            uploadId: newUpload.id,
+        }));
+
+        await tx.eligibilityList.createMany({
+            data: eligibilityData,
+            skipDuplicates: true // Should not happen after deleteMany, but safe to have
         });
     });
 }
