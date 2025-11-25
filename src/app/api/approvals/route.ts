@@ -118,7 +118,7 @@ async function applyEligibilityList(change: any, data: any) {
     const idColumnIndex = originalHeaders.findIndex(h => h === idColumnName);
     if (idColumnIndex === -1) throw new Error(`Identifier column "${idColumnName}" not found in uploaded file.`);
     
-    const idList = rows.map(row => row[idColumnIndex]).filter(Boolean);
+    const idList = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
 
     if (idList.length === 0) {
         throw new Error("No identifiers found in the uploaded file.");
@@ -127,6 +127,7 @@ async function applyEligibilityList(change: any, data: any) {
     const filterString = idList.join(',');
 
     await prisma.$transaction(async (tx) => {
+        // Just create the upload record for history, but don't process its data rows against ProvisionedData
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
                 configId: configId,
@@ -136,41 +137,7 @@ async function applyEligibilityList(change: any, data: any) {
             }
         });
         
-        for (const row of rows) {
-            const borrowerId = String(row[idColumnIndex]);
-            if (!borrowerId) continue;
-            
-            const rowData: { [key: string]: any } = {};
-            originalHeaders.forEach((header, index) => {
-                rowData[header] = row[index];
-            });
-
-             await tx.borrower.upsert({
-                where: { id: borrowerId },
-                update: {},
-                create: { id: borrowerId },
-            });
-             
-             await tx.provisionedData.upsert({
-                where: {
-                    borrowerId_configId: {
-                        borrowerId,
-                        configId
-                    }
-                },
-                update: {
-                    uploadId: newUpload.id,
-                    data: JSON.stringify(rowData)
-                },
-                create: {
-                    borrowerId: borrowerId,
-                    configId: configId,
-                    uploadId: newUpload.id,
-                    data: JSON.stringify(rowData)
-                }
-             });
-        }
-        
+        // Update the product with the filter string and the link to the historic upload
         await tx.loanProduct.update({
             where: { id: productId },
             data: {
@@ -487,3 +454,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
+
