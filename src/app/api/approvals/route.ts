@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -119,61 +118,43 @@ async function applyEligibilityList(change: any, data: any) {
     const idColumnIndex = originalHeaders.findIndex(h => h === idColumnName);
     if (idColumnIndex === -1) throw new Error(`Identifier column "${idColumnName}" not found in uploaded file.`);
     
-    const idList = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
+    const borrowerIds = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
 
-    if (idList.length === 0) {
+    if (borrowerIds.length === 0) {
         throw new Error("No identifiers found in the uploaded file.");
     }
     
-    const filterString = idList.join(',');
-
     await prisma.$transaction(async (tx) => {
         // Create the upload record for history, and now include file content
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
                 configId: configId,
                 fileName: fileName,
+                fileContent: fileContent, // Save the file content
                 rowCount: rows.length,
                 uploadedBy: change.createdById,
             }
         });
 
-        // Now, iterate through the file and save the data for viewing later.
-        for (const row of rows) {
-             const rowData: { [key: string]: any } = {};
-             originalHeaders.forEach((header, index) => {
-                 rowData[header] = row[index];
-             });
+        // Clear the old eligibility list for this product
+        await tx.eligibilityList.deleteMany({
+            where: { productId: productId }
+        });
 
-            const borrowerId = String(rowData[idColumnName]);
-            if (!borrowerId) continue;
-            
-             // Ensure the borrower exists before linking data
-             await tx.borrower.upsert({
-                 where: { id: borrowerId },
-                 update: {},
-                 create: { id: borrowerId }
-             });
-
-            // Using upsert to prevent unique constraint errors if the same list is uploaded again
-             await tx.provisionedData.upsert({
-                 where: { borrowerId_configId_uploadId: { borrowerId, configId, uploadId: newUpload.id } },
-                 update: { data: JSON.stringify(rowData) },
-                 create: {
-                     borrowerId,
-                     configId,
-                     uploadId: newUpload.id,
-                     data: JSON.stringify(rowData)
-                 }
-             });
-        }
+        // Create new eligibility entries
+        await tx.eligibilityList.createMany({
+            data: borrowerIds.map(borrowerId => ({
+                productId: productId,
+                borrowerId: borrowerId,
+                uploadId: newUpload.id,
+            }))
+        });
         
-        // Update the product with the filter string and the link to the historic upload
+        // Update the product with the link to the historic upload
         await tx.loanProduct.update({
             where: { id: productId },
             data: {
                 eligibilityUploadId: newUpload.id,
-                eligibilityFilter: filterString,
             }
         });
     });
@@ -485,4 +466,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
-
