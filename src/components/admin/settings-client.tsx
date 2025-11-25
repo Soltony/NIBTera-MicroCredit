@@ -1304,8 +1304,57 @@ function EligibilityTab({ providers, onProvidersChange }: {
     onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
 }) {
     const { toast } = useToast();
-    const [isSaving, setIsSaving] = useState(false);
+    const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
     const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
+
+    const useInterval = (callback: () => void, delay: number | null) => {
+        const savedCallback = React.useRef<() => void>();
+
+        useEffect(() => {
+            savedCallback.current = callback;
+        }, [callback]);
+
+        useEffect(() => {
+            function tick() {
+                if (savedCallback.current) {
+                    savedCallback.current();
+                }
+            }
+            if (delay !== null) {
+                let id = setInterval(tick, delay);
+                return () => clearInterval(id);
+            }
+        }, [delay]);
+    };
+    
+    const [pollingProductId, setPollingProductId] = useState<string | null>(null);
+
+    useInterval(async () => {
+        if (!pollingProductId) return;
+        try {
+            const response = await fetch(`/api/settings/products/eligibility-list/${pollingProductId}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.id !== 'pending-approval') {
+                    onProvidersChange(produce(draft => {
+                        for (const provider of draft) {
+                            const product = provider.products.find(p => p.id === pollingProductId);
+                            if (product) {
+                                product.eligibilityUpload = data;
+                                product.eligibilityUploadId = data.id;
+                                break;
+                            }
+                        }
+                    }));
+                    setPollingProductId(null); // Stop polling
+                    toast({ title: "Eligibility List Approved", description: `The list for the product has been updated.` });
+                }
+            }
+        } catch (error) {
+            console.error("Polling error:", error);
+        }
+    }, pollingProductId ? 5000 : null); // Poll every 5 seconds if an ID is set
+
 
     const handleUpdateProduct = (providerId: string, updatedProduct: Partial<LoanProduct>) => {
         onProvidersChange(produce(draft => {
@@ -1323,7 +1372,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
         const file = event.target.files?.[0];
         if (!file || !product.dataProvisioningConfigId) return;
 
-        setIsSaving(true);
+        setIsSaving(prev => ({ ...prev, [product.id]: true }));
         try {
             const fileReader = new FileReader();
             fileReader.readAsDataURL(file);
@@ -1347,7 +1396,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
         } catch (error: any) {
             toast({ title: "Error reading file", description: error.message, variant: 'destructive'});
         } finally {
-            setIsSaving(false);
+            setIsSaving(prev => ({ ...prev, [product.id]: false }));
             if (event.target) event.target.value = '';
         }
     };
@@ -1358,7 +1407,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
             return;
         }
 
-        setIsSaving(true);
+        setIsSaving(prev => ({ ...prev, [product.id]: true }));
         try {
             const { eligibilityUpload } = product;
             const payload = {
@@ -1387,17 +1436,18 @@ function EligibilityTab({ providers, onProvidersChange }: {
             
             const finalUploadState = { ...product.eligibilityUpload, id: 'pending-approval', status: 'PENDING_APPROVAL', fileContent: undefined };
             handleUpdateProduct(product.providerId, { id: product.id, eligibilityUpload: finalUploadState as any });
+            setPollingProductId(product.id);
 
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
-            setIsSaving(false);
+            setIsSaving(prev => ({ ...prev, [product.id]: false }));
         }
     };
     
     const handleDeleteFilter = async (product: LoanProduct) => {
         if (!product.eligibilityUploadId) return;
-        setIsSaving(true);
+        setIsSaving(prev => ({ ...prev, [product.id]: true }));
         try {
             const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
                 method: 'DELETE',
@@ -1411,7 +1461,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
         } catch (error: any) {
              toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
-            setIsSaving(false);
+            setIsSaving(prev => ({ ...prev, [product.id]: false }));
         }
     };
 
@@ -1471,14 +1521,14 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                         <Button asChild variant="outline" size="sm">
                                                             <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
                                                                 <Upload className="h-4 w-4 mr-2" />
-                                                                {isSaving ? "Uploading..." : "Upload Excel File"}
+                                                                {isSaving[product.id] ? "Uploading..." : "Upload Excel File"}
                                                                 <input
                                                                     id={`filter-upload-${product.id}`}
                                                                     type="file"
                                                                     accept=".xlsx, .xls"
                                                                     onChange={(e) => handleFilterFileUpload(e, product)}
                                                                     className="hidden"
-                                                                    disabled={isSaving || !product.dataProvisioningConfigId}
+                                                                    disabled={isSaving[product.id] || !product.dataProvisioningConfigId}
                                                                 />
                                                             </label>
                                                         </Button>
@@ -1493,7 +1543,9 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                                 <div>
                                                                     <p className="font-medium">{product.eligibilityUpload.fileName}</p>
                                                                     <p className="text-sm text-muted-foreground">
-                                                                        {product.eligibilityUpload.status === 'PENDING_APPROVAL' ? 'Pending Approval' : `By ${product.eligibilityUpload.uploadedBy} on ${format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}`}
+                                                                        {product.eligibilityUpload.id === 'pending-approval' ? (
+                                                                            <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/>Pending Approval...</span>
+                                                                        ) : `By ${product.eligibilityUpload.uploadedBy} on ${format(new Date(product.eligibilityUpload.uploadedAt), "MMM d, yyyy 'at' h:mm a")}`}
                                                                     </p>
                                                                 </div>
                                                                 <div className="flex gap-2 items-center">
@@ -1503,7 +1555,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                             </div>
                                                              {(product.eligibilityUpload as any).fileContent && (
                                                                 <div className="mt-2 text-right">
-                                                                    <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving}>Submit Eligibility for Approval</Button>
+                                                                    <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving[product.id]}>Submit Eligibility for Approval</Button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -2011,6 +2063,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
