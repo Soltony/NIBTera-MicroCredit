@@ -180,7 +180,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                             <div className="grid grid-cols-3 gap-2 text-xs text-left">
                                 <span className="col-span-2">Principal Due:</span>
                                 <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.principal - (loan.repaidAmount || 0))}</span>
-                                
+
                                 <span className="col-span-2">Service Fee Due:</span>
                                 <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.serviceFee)}</span>
 
@@ -189,6 +189,9 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
 
                                 <span className="col-span-2">Penalty Due:</span>
                                 <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.penalty)}</span>
+
+                                <span className="col-span-2">Tax Due:</span>
+                                <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.tax)}</span>
                             </div>
                             <p className="font-bold text-foreground">Total amount to be repaid: {formatCurrency(totalBalanceDue)}</p>
                             <p>Remaining after this payment: {formatCurrency(remainingAmount)}</p>
