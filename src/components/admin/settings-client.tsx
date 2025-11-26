@@ -120,6 +120,11 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    // Keep a snapshot of the original product when the settings collapsible is opened
+    // so we can send correct "original" values for approval payloads even though
+    // edits are applied optimistically to the parent provider state via onUpdate.
+    const originalSnapshotRef = React.useRef<LoanProduct | null>(null);
+    const snapshotProductIdRef = React.useRef<string | null>(null);
     const { toast } = useToast();
     
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -138,6 +143,22 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         const { name, value } = e.target;
         onUpdate({ [name]: value === '' ? null : value });
     };
+
+    // Capture original snapshot when the editor opens so we can later
+    // use the original values when submitting a change request for approval.
+    useEffect(() => {
+        if (!isOpen) {
+            originalSnapshotRef.current = null;
+            snapshotProductIdRef.current = null;
+            return;
+        }
+
+        // Capture snapshot once per open session (or when switching products)
+        if (!snapshotProductIdRef.current || snapshotProductIdRef.current !== product.id) {
+            originalSnapshotRef.current = { ...product } as LoanProduct;
+            snapshotProductIdRef.current = product.id;
+        }
+    }, [isOpen, product]);
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
         if (name === 'status') {
@@ -276,7 +297,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 eligibilityFilter: undefined,
             };
 
-            const originalProduct = provider.products.find(p => p.id === product.id);
+            // Use the snapshot of the product captured when the editor was opened
+            // (falls back to provider state if snapshot is missing)
+            const originalProduct = originalSnapshotRef.current ?? provider.products.find(p => p.id === product.id);
             // Build a small original object that only contains keys that are being updated
             const keysToSend = Object.keys(productToSave).filter(k => (productToSave as any)[k] !== undefined);
             const pick = (obj: any, keys: string[]) => keys.reduce((acc: any, k: string) => { if (obj && (k in obj)) acc[k] = (obj as any)[k]; return acc; }, {});
