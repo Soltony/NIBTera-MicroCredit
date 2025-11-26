@@ -95,9 +95,10 @@ export async function POST(req: NextRequest) {
                 // 2. Now upsert the provisioned data which has a relation to Borrower
                 await tx.provisionedData.upsert({
                     where: {
-                        borrowerId_configId: {
+                        borrowerId_configId_uploadId: {
                             borrowerId: borrowerId,
-                            configId: configId
+                            configId: configId,
+                            uploadId: newUpload.id
                         }
                     },
                     update: {

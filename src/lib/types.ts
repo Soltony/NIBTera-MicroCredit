@@ -100,8 +100,35 @@ export interface LoanProduct {
   requiredDocuments: RequiredDocument[];
   tax?: number;
   dataProvisioningConfigId?: string | null;
+    loanCycleConfigId?: string | null;
+    loanCycleConfig?: LoanCycleConfig | null;
   eligibilityUploadId?: string | null;
   eligibilityUpload?: DataProvisioningUpload;
+}
+
+export interface LoanCycleRange {
+    label: string;
+    min: number;
+    max: number;
+}
+
+export interface LoanCycleGrade {
+    label: string;
+    minScore: number;
+    percentages: number[]; // Percent numbers, e.g. 35, 50
+}
+
+export interface LoanCycleConfig {
+    id: string;
+    productId: string;
+    enabled?: boolean;
+    metric: 'PAID_EARLY' | 'PAID_LATE' | 'TOTAL_COUNT' | 'PAID_ON_TIME';
+    cycleRanges?: LoanCycleRange[]; // ordered ranges matching grade percentages
+    grades?: LoanCycleGrade[]; // grid rows
+    // legacy fallback
+    cycles?: number[];
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface LoanApplication {

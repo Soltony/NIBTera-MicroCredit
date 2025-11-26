@@ -86,6 +86,10 @@ model LoanProduct {
   dataProvisioningConfigId    String?
   dataProvisioningConfig      DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   eligibilityFilter           String?                       @db.Text // JSON object for filtering borrowers
+  // Optional Loan Cycle configuration id - controls how much of a tier a borrower can access
+  // loanCycleConfigId and explicit FK were removed to avoid duplicate FKs.
+  // LoanCycleConfig.productId is the single-source foreign key for the relation.
+  loanCycleConfig             LoanCycleConfig?
   eligibilityUploadId         String?
   eligibilityUpload           DataProvisioningUpload?       @relation(fields: [eligibilityUploadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   loans                       Loan[]
@@ -95,6 +99,25 @@ model LoanProduct {
   requiredDocuments           RequiredDocument[]
 
   @@unique([name, providerId])
+}
+
+model LoanCycleConfig {
+  id          String    @id @default(cuid())
+  productId   String    @unique
+  product     LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // Metric controlling cycle progression: 'PAID_EARLY' | 'PAID_LATE' | 'TOTAL_COUNT' | 'PAID_ON_TIME'
+  metric      String
+  // Whether product-level cycle feature is enabled
+  enabled     Boolean   @default(true)
+  // JSON array of cycle range descriptors or objects. Example: [{"label":"0-1","min":0,"max":1},{"label":"1-4","min":1,"max":4}]
+  cycleRanges String?    @db.NVarChar(Max)
+  // JSON array of grade rows. Each row should include label, minScore and `percentages` array aligned with cycleRanges.
+  // Example: [{"label":"A","minScore":700,"percentages":[35,50,80]}]
+  grades      String?    @db.NVarChar(Max)
+  // (backwards-compatible) legacy flat cycles list -- preserved for older deployments
+  cycles      String?   @db.NVarChar(Max)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Loan {
@@ -225,7 +248,9 @@ model ProvisionedData {
     createdAt   DateTime    @default(now())
     updatedAt   DateTime    @updatedAt
 
-    @@unique([borrowerId, configId])
+    // Make provisioned data unique per-upload so we can retain previous uploads
+    // and avoid overwriting older uploaded lists when a new upload is processed.
+    @@unique([borrowerId, configId, uploadId])
 }
 
 

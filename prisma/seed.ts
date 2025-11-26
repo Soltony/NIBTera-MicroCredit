@@ -308,21 +308,60 @@ async function main() {
       });
   }
 
+  // Add default LoanCycleConfig for personalLoan (if not exists)
+  try {
+    const existingCycle = await prisma.loanCycleConfig.findFirst({ where: { productId: personalLoan.id } });
+    if (!existingCycle) {
+      // Create a grade-based loan cycle config for the product (product-scoped)
+      await prisma.loanCycleConfig.create({
+        data: {
+          productId: personalLoan.id,
+          metric: 'TOTAL_COUNT',
+          enabled: true,
+          cycleRanges: JSON.stringify([
+            { label: '0-1', min: 0, max: 1 },
+            { label: '2-4', min: 2, max: 4 },
+            { label: '5-10', min: 5, max: 10 }
+          ]),
+          grades: JSON.stringify([
+            { label: 'A', minScore: 700, percentages: [35, 50, 80] },
+            { label: 'B', minScore: 600, percentages: [30, 45, 70] },
+            { label: 'C', minScore: 450, percentages: [20, 35, 60] },
+            { label: 'D', minScore: 300, percentages: [10, 20, 40] }
+          ])
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to create default loan cycle config during seed:', e);
+  }
 
-  // Seed provisioned data for the test borrower
+
+  // Seed provisioned data for the test borrower - create a small upload so seed data is tied to an upload
+  const seedUpload = await prisma.dataProvisioningUpload.create({
+    data: {
+      configId: dataConfig.id,
+      fileName: 'seed-upload',
+      rowCount: 1,
+      uploadedBy: 'seed',
+    }
+  });
+
   await prisma.provisionedData.upsert({
-      where: { borrowerId_configId: { borrowerId: testBorrower.id, configId: dataConfig.id } },
+      where: { borrowerId_configId_uploadId: { borrowerId: testBorrower.id, configId: dataConfig.id, uploadId: seedUpload.id } },
       update: {
         data: JSON.stringify({
             id: 'borrower-123',
             'Full Name': 'Test Borrower',
             'Monthly Income': 15000,
             'Employment Status': 'Employed'
-        })
+        }),
+        uploadId: seedUpload.id
       },
       create: {
           borrowerId: testBorrower.id,
           configId: dataConfig.id,
+          uploadId: seedUpload.id,
           data: JSON.stringify({
             id: 'borrower-123',
             'Full Name': 'Test Borrower',

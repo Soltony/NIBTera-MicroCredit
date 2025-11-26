@@ -35,7 +35,9 @@ model Role {
   users       User[]
 }
 
-// ================================================= //
+    // Make provisioned data unique per-upload so we can retain previous uploads
+    // and avoid overwriting older uploaded lists when a new upload is processed.
+    @@unique([customerId, configId, uploadId])
 //                 LOAN PROVIDERS                    //
 // ================================================= //
 

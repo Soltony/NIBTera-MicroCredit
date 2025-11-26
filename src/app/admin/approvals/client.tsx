@@ -23,23 +23,32 @@ import type { PendingChangeWithDetails } from './page';
 import type { User, LoanProvider } from '@/lib/types';
 import { diff as showDiff } from 'json-diff';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import * as XLSX from 'xlsx';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 
-const renderFieldValue = (value: any): string => {
+const renderFieldValue = (value: any): React.ReactNode => {
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) {
-    if (value.length === 0) return '[Empty]';
-    return `[${value.length} items]`;
+    if (value.length === 0) return <span className="text-muted-foreground">[Empty]</span>;
+    // show inline summary and full JSON on hover/expand
+    return (
+      <div>
+        <div className="text-sm text-muted-foreground">[{value.length} items]</div>
+        <pre className="mt-1 max-h-48 overflow-auto bg-muted p-2 rounded text-xs whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</pre>
+      </div>
+    );
   }
   if (typeof value === 'object') {
      // For simple objects like fees, format them
-    if (value.type && value.value !== undefined) {
-        return `${value.value}${value.type === 'percentage' ? '%' : ' ETB'}`;
+    // If it's a common fee-like object render nicely
+    if (value && value.type && value.value !== undefined) {
+      return `${value.value}${value.type === 'percentage' ? '%' : ' ETB'}`;
     }
-    return '{...}';
+    // Otherwise return a pretty JSON block for clarity
+    return <pre className="max-h-48 overflow-auto bg-muted p-2 rounded text-xs whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</pre>;
   }
   return String(value);
 };
@@ -130,6 +139,51 @@ const ChangeDetailsDialog = ({
   }, [change]);
 
 
+  // Helper: find a file content in payload (created/updated)
+  const getFileContentFromPayload = () => {
+    try {
+      const parsed = JSON.parse(change.payload);
+      // created or updated or original may contain fileContent fields
+      const candidate = parsed.created || parsed.updated || parsed.original || {};
+      // search nested objects for a field named fileContent (base64)
+      const searchForFileContent = (obj: any): string | null => {
+        if (!obj || typeof obj !== 'object') return null;
+        for (const k of Object.keys(obj)) {
+          const v = obj[k];
+          if (k === 'fileContent' && typeof v === 'string') return v;
+          if (typeof v === 'object') {
+            const nested = searchForFileContent(v);
+            if (nested) return nested;
+          }
+        }
+        return null;
+      };
+      return searchForFileContent(candidate);
+    } catch (e) { return null; }
+  };
+
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewRows, setPreviewRows] = React.useState<any[] | null>(null);
+  const [previewHeaders, setPreviewHeaders] = React.useState<string[] | null>(null);
+
+  const openPreviewFromPayload = async () => {
+    const fileContent = getFileContentFromPayload();
+    if (!fileContent) return;
+    try {
+      // parse base64 content
+      const workbook = XLSX.read(fileContent, { type: 'base64' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const headers = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : [];
+      setPreviewRows(jsonData as any[]);
+      setPreviewHeaders(headers);
+      setPreviewOpen(true);
+    } catch (err) {
+      console.error('Failed to parse file content preview:', err);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
@@ -203,6 +257,14 @@ const ChangeDetailsDialog = ({
                                 </div>
                             </div>
                         ))}
+                        {getFileContentFromPayload() && (
+                          <div className="grid grid-cols-3 gap-x-4 py-2">
+                            <div className="col-span-1 font-medium">Uploaded File</div>
+                            <div className="col-span-2 text-right">
+                              <Button variant="link" onClick={openPreviewFromPayload} size="sm">View file contents</Button>
+                            </div>
+                          </div>
+                        )}
                          {(!diffResult || diffResult.details.length === 0) && (
                             <p className="text-muted-foreground text-center py-4">No changes to display.</p>
                         )}
@@ -216,6 +278,35 @@ const ChangeDetailsDialog = ({
             Close
           </Button>
         </DialogFooter>
+        {previewOpen && previewRows && (
+          <Dialog open={previewOpen} onOpenChange={() => setPreviewOpen(false)}>
+            <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+              <DialogHeader>
+                <DialogTitle>Preview of uploaded file</DialogTitle>
+                <DialogDescription>Parsed rows from the uploaded file attached to this change</DialogDescription>
+              </DialogHeader>
+              <div className="flex-grow overflow-auto border rounded-md">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      {(previewHeaders || []).map(h => <TableHead key={h}>{h}</TableHead>)}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {previewRows.map((row, idx) => (
+                      <TableRow key={idx}>
+                        {(previewHeaders || []).map(h => <TableCell key={`${idx}-${h}`}>{String((row as any)[h])}</TableCell>)}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPreviewOpen(false)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );
