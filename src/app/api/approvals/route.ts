@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -120,9 +119,9 @@ async function applyEligibilityList(change: any, data: any) {
     const idColumnIndex = originalHeaders.findIndex(h => h === idColumnName);
     if (idColumnIndex === -1) throw new Error(`Identifier column "${idColumnName}" not found in uploaded file.`);
     
-    const idList = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
+    const borrowerIds = rows.map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
 
-    if (idList.length === 0) {
+    if (borrowerIds.length === 0) {
         throw new Error("No identifiers found in the uploaded file.");
     }
     
@@ -137,6 +136,7 @@ async function applyEligibilityList(change: any, data: any) {
             data: {
                 configId: configId,
                 fileName: fileName,
+                fileContent: fileContent, // Save the file content
                 rowCount: rows.length,
                 uploadedBy: change.createdById,
             }
@@ -174,7 +174,7 @@ async function applyEligibilityList(change: any, data: any) {
             });
         }
         
-        // Update the product with the filter string and the link to the historic upload
+        // Update the product with the link to the historic upload
         await tx.loanProduct.update({
             where: { id: productId },
             data: {
@@ -491,4 +491,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
-

@@ -121,16 +121,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
-    const [isUploading, setIsUploading] = useState(false);
-    const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
-    const [loanCycleConfig, setLoanCycleConfig] = useState<LoanCycleConfig | null>(null);
-    const [editingMetric, setEditingMetric] = useState<LoanCycleConfig['metric'] | null>(null);
-    const [editingEnabled, setEditingEnabled] = useState<boolean>(true);
-    const [editingCycleRanges, setEditingCycleRanges] = useState<Array<{ label: string; min: number | ''; max: number | '' }>>([]);
-    const [editingGrades, setEditingGrades] = useState<Array<{ label: string; minScore: number | ''; percentages: number[] }>>([]);
-    const [newCycleLabel, setNewCycleLabel] = useState<string>('');
-    const [isSavingLoanCycle, setIsSavingLoanCycle] = useState(false);
-    const [submitEligibility, setSubmitEligibility] = useState<DataProvisioningUpload | null>(null);
     
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -144,11 +134,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         };
     }, [product]);
     
-    const linkedConfig = useMemo(() => {
-        if (!product.dataProvisioningConfigId) return null;
-        return allDataConfigs.find(c => c.id === product.dataProvisioningConfigId);
-    }, [product.dataProvisioningConfigId, allDataConfigs]);
-
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         onUpdate({ [name]: value === '' ? null : value });
@@ -330,131 +315,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             setIsSaving(false);
         }
     }
-    
-    const handleDeleteFilter = async () => {
-        if (!product.eligibilityUploadId) return;
-        setIsSaving(true);
-        try {
-            const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
-                method: 'DELETE',
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to delete filter.');
-            }
-            onUpdate({ eligibilityFilter: null, eligibilityUploadId: null, eligibilityUpload: undefined });
-            toast({ title: "Filter Deleted", description: "Eligibility list has been removed." });
-        } catch (error: any) {
-             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    useEffect(() => {
-        // Fetch loan cycle config for this product when product changes
-        let mounted = true;
-        async function load() {
-            try {
-                const res = await fetch(`/api/settings/products/loan-cycle?productId=${product.id}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (!mounted) return;
-                if (!data) {
-                    setLoanCycleConfig(null);
-                    setEditingMetric(null);
-                    setEditingCycles([]);
-                    return;
-                }
-
-                // cycles might be stored as json string in DB
-                const cyclesParsed = typeof data.cycles === 'string' ? JSON.parse(data.cycles) : data.cycles;
-                const rangesParsed = typeof data.cycleRanges === 'string' ? JSON.parse(data.cycleRanges) : data.cycleRanges;
-                const gradesParsed = typeof data.grades === 'string' ? JSON.parse(data.grades) : data.grades;
-                setLoanCycleConfig({ ...data, cycles: cyclesParsed, cycleRanges: rangesParsed, grades: gradesParsed });
-                setEditingMetric(data.metric);
-                setEditingEnabled(typeof data.enabled === 'boolean' ? data.enabled : true);
-                setEditingCycleRanges(Array.isArray(rangesParsed) ? rangesParsed.map((r: any) => ({ label: r.label ?? `${r.min}-${r.max}`, min: r.min ?? '', max: r.max ?? '' })) : []);
-                setEditingGrades(Array.isArray(gradesParsed) ? gradesParsed.map((g: any) => ({ label: g.label ?? '', minScore: g.minScore ?? '', percentages: Array.isArray(g.percentages) ? g.percentages : [] })) : []);
-            } catch (err) {
-                // ignore errors for now
-            }
-        }
-
-        load();
-        return () => { mounted = false; };
-    }, [product.id]);
-
-    const addCycleRange = () => {
-        const label = newCycleLabel.trim() || `r${editingCycleRanges.length + 1}`;
-        setEditingCycleRanges(prev => [...prev, { label, min: '', max: '' }]);
-        setNewCycleLabel('');
-        // ensure each existing grade gets a placeholder percentage for the new column
-        setEditingGrades(prev => prev.map(g => ({ ...g, percentages: [...g.percentages, 0] })));
-    };
-
-    const removeCycleRange = (idx: number) => {
-        setEditingCycleRanges(prev => prev.filter((_, i) => i !== idx));
-        setEditingGrades(prev => prev.map(g => ({ ...g, percentages: g.percentages.filter((_, i) => i !== idx) })));
-    };
-
-    const updateCycleRangeField = (idx: number, field: 'label' | 'min' | 'max', value: string) => {
-        setEditingCycleRanges(prev => prev.map((r, i) => i === idx ? { ...r, [field]: field === 'label' ? value : (value === '' ? '' : Number(value)) } : r));
-    };
-
-    const updateGradeField = (idx: number, field: 'label' | 'minScore', value: string) => {
-        setEditingGrades(prev => prev.map((g, i) => i === idx ? { ...g, [field]: field === 'label' ? value : (value === '' ? '' : Number(value)) } : g));
-    };
-
-    const updateGradePercentage = (gradeIdx: number, colIdx: number, value: string) => {
-        setEditingGrades(prev => prev.map((g, i) => {
-            if (i !== gradeIdx) return g;
-            const newPercentages = g.percentages.slice();
-            newPercentages[colIdx] = Number(value || 0);
-            return { ...g, percentages: newPercentages };
-        }));
-    };
-
-    const addGrade = () => {
-        const cols = editingCycleRanges.length || 1;
-        setEditingGrades(prev => [...prev, { label: `Grade ${prev.length + 1}`, minScore: '', percentages: Array.from({ length: cols }, () => 0) }]);
-    };
-
-    const removeGrade = (idx: number) => {
-        setEditingGrades(prev => prev.filter((_, i) => i !== idx));
-    };
-
-    const handleSaveLoanCycle = async () => {
-        if (!product.id || !editingMetric) {
-            toast({ title: 'Error', description: 'Product and metric are required', variant: 'destructive' });
-            return;
-        }
-        setIsSavingLoanCycle(true);
-        try {
-            const body = { productId: product.id, metric: editingMetric, enabled: editingEnabled, cycleRanges: editingCycleRanges.map(r => ({ label: r.label, min: Number(r.min), max: Number(r.max) })), grades: editingGrades.map(g => ({ label: g.label, minScore: Number(g.minScore), percentages: g.percentages.map(p => Number(p)) })) };
-            const res = await fetch('/api/settings/products/loan-cycle', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to save loan-cycle config');
-            }
-            const saved = await res.json();
-            const savedCycles = typeof saved.cycles === 'string' ? JSON.parse(saved.cycles) : saved.cycles;
-            const savedRanges = typeof saved.cycleRanges === 'string' ? JSON.parse(saved.cycleRanges) : saved.cycleRanges;
-            const savedGrades = typeof saved.grades === 'string' ? JSON.parse(saved.grades) : saved.grades;
-            setLoanCycleConfig({ ...saved, cycles: savedCycles, cycleRanges: savedRanges, grades: savedGrades });
-            onUpdate({ loanCycleConfigId: saved.id });
-            toast({ title: 'Saved', description: 'Loan cycle configuration saved.' });
-        } catch (err: any) {
-            toast({ title: 'Error', description: err.message || String(err), variant: 'destructive' });
-        } finally {
-            setIsSavingLoanCycle(false);
-        }
-    }
-
 
     return (
        <>
@@ -527,109 +387,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                         </div>
                     </div>
 
-                    {/* Loan Cycle configuration */}
-                    <div className="border rounded-lg p-4 bg-muted/10">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h4 className="text-sm font-semibold">Loan Cycle</h4>
-                                <p className="text-xs text-muted-foreground">Control how much of a tier a borrower can access based on repayment behavior.</p>
-                            </div>
-                            <Badge variant={loanCycleConfig ? 'default' : 'secondary'}>{loanCycleConfig ? 'Configured' : 'Not configured'}</Badge>
-                        </div>
-
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                            <div className="space-y-2">
-                                <Label>Metric</Label>
-                                <Select onValueChange={(v) => setEditingMetric(v as LoanCycleConfig['metric'])}>
-                                    <SelectTrigger>
-                                        <SelectValue>{editingMetric ?? 'Select metric'}</SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="TOTAL_COUNT">Total Count</SelectItem>
-                                        <SelectItem value="PAID_ON_TIME">On-time Repayments</SelectItem>
-                                        <SelectItem value="PAID_EARLY">Paid Early</SelectItem>
-                                        <SelectItem value="PAID_LATE">Paid Late</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="md:col-span-3">
-                                <div className="flex items-center justify-between">
-                                    <Label>Enabled</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Switch checked={editingEnabled} onCheckedChange={(c) => setEditingEnabled(Boolean(c))} />
-                                    </div>
-                                </div>
-
-                                <div className="mt-3">
-                                    <Label>Cycle Ranges</Label>
-                                    <div className="space-y-2 mt-2">
-                                        {editingCycleRanges.length === 0 && <div className="text-xs text-muted-foreground">No cycle ranges defined yet. Add one below.</div>}
-                                        {editingCycleRanges.map((r, idx) => (
-                                            <div key={idx} className="flex items-center gap-2">
-                                                <Input placeholder="Label" value={r.label} onChange={(e) => updateCycleRangeField(idx, 'label', e.target.value)} className="w-32" />
-                                                <Input placeholder="min" type="number" value={String(r.min)} onChange={(e) => updateCycleRangeField(idx, 'min', e.target.value)} className="w-20" />
-                                                <div className="text-sm">-</div>
-                                                <Input placeholder="max" type="number" value={String(r.max)} onChange={(e) => updateCycleRangeField(idx, 'max', e.target.value)} className="w-20" />
-                                                <Button variant="ghost" size="sm" onClick={() => removeCycleRange(idx)}><Trash2 className="h-3 w-3"/></Button>
-                                            </div>
-                                        ))}
-
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <Input placeholder="New label" value={newCycleLabel} onChange={(e) => setNewCycleLabel(e.target.value)} className="w-32" />
-                                            <Button type="button" onClick={addCycleRange}><PlusCircle className="h-4 w-4"/></Button>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-4">
-                                        <Label className="mb-2">Grades & Percentages</Label>
-                                        <div className="overflow-auto border rounded">
-                                            <table className="min-w-full bg-background">
-                                                <thead>
-                                                    <tr className="text-left">
-                                                        <th className="px-2 py-2">Grade</th>
-                                                        <th className="px-2 py-2">Min Score</th>
-                                                        {editingCycleRanges.map((r, idx) => (
-                                                            <th key={idx} className="px-2 py-2">{r.label || `${r.min}-${r.max}`}</th>
-                                                        ))}
-                                                        <th className="px-2 py-2">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {editingGrades.map((g, gIdx) => (
-                                                        <tr key={gIdx} className="border-t">
-                                                            <td className="px-2 py-2"><Input value={g.label} onChange={(e) => updateGradeField(gIdx, 'label', e.target.value)} className="w-28" /></td>
-                                                            <td className="px-2 py-2"><Input type="number" value={String(g.minScore)} onChange={(e) => updateGradeField(gIdx, 'minScore', e.target.value)} className="w-24" /></td>
-                                                            {editingCycleRanges.map((r, cIdx) => (
-                                                                <td key={cIdx} className="px-2 py-2"><Input type="number" value={String(g.percentages[cIdx] ?? 0)} onChange={(e) => updateGradePercentage(gIdx, cIdx, e.target.value)} className="w-20" /></td>
-                                                            ))}
-                                                            <td className="px-2 py-2"><Button variant="ghost" size="sm" onClick={() => removeGrade(gIdx)}><Trash2 className="h-4 w-4"/></Button></td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <Button type="button" onClick={addGrade}><PlusCircle className="h-4 w-4"/> Add Grade</Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <div className="mt-4 flex justify-end space-x-2">
-                            <Button variant="outline" type="button" onClick={() => {
-                                setEditingMetric(loanCycleConfig?.metric ?? null);
-                                setEditingEnabled(typeof loanCycleConfig?.enabled === 'boolean' ? loanCycleConfig?.enabled : true);
-                                setEditingCycleRanges(Array.isArray(loanCycleConfig?.cycleRanges) ? loanCycleConfig!.cycleRanges.map((r: any) => ({ label: r.label ?? `${r.min}-${r.max}`, min: r.min ?? '', max: r.max ?? '' })) : []);
-                                setEditingGrades(Array.isArray(loanCycleConfig?.grades) ? loanCycleConfig!.grades.map((g: any) => ({ label: g.label ?? '', minScore: g.minScore ?? '', percentages: Array.isArray(g.percentages) ? g.percentages : [] })) : []);
-                            }}>Reset</Button>
-                            <Button type="button" onClick={handleSaveLoanCycle} disabled={isSavingLoanCycle || !editingMetric} style={{ backgroundColor: providerColor }} className="text-white">{isSavingLoanCycle ? 'Saving...' : 'Save Loan Cycle'}</Button>
-                        </div>
-                    </div>
-
                     <div className="flex items-center space-x-2 justify-end">
                         <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                         <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving || product.status === 'PENDING_APPROVAL'}>
@@ -640,12 +397,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 </form>
             </CollapsibleContent>
         </Collapsible>
-        {viewingUpload && (
-             <UploadDataViewerDialog
-                upload={viewingUpload}
-                onClose={() => setViewingUpload(null)}
-            />
-        )}
        </>
     )
 }
@@ -1589,29 +1340,38 @@ function EligibilityTab({ providers, onProvidersChange }: {
             const body: any = { id: updatedProduct.id };
             keysToPersist.forEach(k => { (body as any)[k] = (updatedProduct as any)[k]; });
 
-            const resp = await fetch('/api/settings/products', {
-                method: 'PUT',
+             // Submit this change for approval instead of a direct PUT
+            const originalProduct = previousState.find((p: LoanProvider) => p.id === providerId)?.products.find((p: LoanProduct) => p.id === updatedProduct.id);
+            const payload = { original: originalProduct, updated: { ...originalProduct, ...body } };
+
+            const resp = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: JSON.stringify({
+                    entityType: 'LoanProduct',
+                    entityId: updatedProduct.id,
+                    changeType: 'UPDATE',
+                    payload: JSON.stringify(payload)
+                }),
             });
 
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || 'Failed to update product');
+                throw new Error(err.error || 'Failed to submit changes for approval');
             }
 
-            const updatedFromServer = await resp.json();
+            toast({ title: "Submitted for Approval", description: "Your eligibility configuration change is pending review." });
 
-            // Merge server result into local state to ensure canonical values
+            // Update UI to show pending status
             onProvidersChange(produce(draft => {
-                const provider = draft.find(p => p.id === providerId);
-                if (provider) {
-                    const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
-                    if (productIndex !== -1) {
-                        provider.products[productIndex] = { ...provider.products[productIndex], ...updatedFromServer } as any;
-                    }
-                }
+                 const provider = draft.find(p => p.id === providerId);
+                 if (provider) {
+                     const product = provider.products.find(p => p.id === updatedProduct.id);
+                     if (product) (product as any).status = 'PENDING_APPROVAL';
+                 }
             }));
+
+
         } catch (error: any) {
             // Revert optimistic change
             onProvidersChange(previousState as any);
@@ -1746,6 +1506,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                 onCheckedChange={(checked) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningEnabled: checked })}
                                                 className="data-[state=checked]:bg-[--provider-color]"
                                                 style={{ '--provider-color': provider.colorHex } as React.CSSProperties}
+                                                disabled={product.status === 'PENDING_APPROVAL'}
                                             />
                                             <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
                                         </div>
@@ -1757,6 +1518,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                     <Select
                                                         value={product.dataProvisioningConfigId || ''}
                                                         onValueChange={(value) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningConfigId: value })}
+                                                        disabled={product.status === 'PENDING_APPROVAL'}
                                                     >
                                                         <SelectTrigger className="w-full">
                                                             <SelectValue placeholder="Select a data source..." />
@@ -1833,22 +1595,268 @@ function EligibilityTab({ providers, onProvidersChange }: {
     );
 }
 
+function LoanCycleTab({ providers, onProviderUpdate }: {
+    providers: LoanProvider[],
+    onProviderUpdate: (providerId: string, productId: string, update: Partial<LoanProduct>) => void;
+}) {
+    if (providers.length === 0) {
+        return <Card><CardHeader><CardTitle>Loan Cycle Configuration</CardTitle><CardDescription>No providers available.</CardDescription></CardHeader></Card>;
+    }
+    return (
+        <Accordion type="multiple" className="w-full space-y-4">
+            {providers.map((provider) => (
+                 <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                     <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                        <div className="flex items-center gap-4">
+                            <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                            <div>
+                                <div className="text-lg font-semibold">{provider.name}</div>
+                                <p className="text-sm text-muted-foreground">Configuring {(provider.products || []).length} products</p>
+                            </div>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 border-t space-y-6">
+                        {(provider.products || []).map(product => (
+                             <LoanCycleForm 
+                                key={product.id}
+                                product={product} 
+                                onUpdate={(update) => onProviderUpdate(provider.id, product.id, update)}
+                                providerColor={provider.colorHex}
+                            />
+                        ))}
+                    </AccordionContent>
+                 </AccordionItem>
+            ))}
+        </Accordion>
+    )
+}
+
+function LoanCycleForm({ product, onUpdate, providerColor }: {
+    product: LoanProduct,
+    onUpdate: (update: Partial<LoanProduct>) => void,
+    providerColor?: string;
+}) {
+    const { toast } = useToast();
+    const [loanCycleConfig, setLoanCycleConfig] = useState<LoanCycleConfig | null>(null);
+    const [editingMetric, setEditingMetric] = useState<LoanCycleConfig['metric'] | null>(null);
+    const [editingEnabled, setEditingEnabled] = useState<boolean>(true);
+    const [editingCycleRanges, setEditingCycleRanges] = useState<Array<{ label: string; min: number | ''; max: number | '' }>>([]);
+    const [editingGrades, setEditingGrades] = useState<Array<{ label: string; minScore: number | ''; percentages: number[] }>>([]);
+    const [newCycleLabel, setNewCycleLabel] = useState<string>('');
+    const [isSavingLoanCycle, setIsSavingLoanCycle] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        let mounted = true;
+        async function load() {
+            try {
+                const res = await fetch(`/api/settings/products/loan-cycle?productId=${product.id}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!mounted) return;
+                if (!data) {
+                    setLoanCycleConfig(null);
+                    setEditingMetric(null);
+                    setEditingCycleRanges([]);
+                    setEditingGrades([]);
+                    return;
+                }
+                const rangesParsed = typeof data.cycleRanges === 'string' ? JSON.parse(data.cycleRanges) : data.cycleRanges;
+                const gradesParsed = typeof data.grades === 'string' ? JSON.parse(data.grades) : data.grades;
+                setLoanCycleConfig({ ...data, cycleRanges: rangesParsed, grades: gradesParsed });
+                setEditingMetric(data.metric);
+                setEditingEnabled(typeof data.enabled === 'boolean' ? data.enabled : true);
+                setEditingCycleRanges(Array.isArray(rangesParsed) ? rangesParsed.map((r: any) => ({ label: r.label ?? `${r.min}-${r.max}`, min: r.min ?? '', max: r.max ?? '' })) : []);
+                setEditingGrades(Array.isArray(gradesParsed) ? gradesParsed.map((g: any) => ({ label: g.label ?? '', minScore: g.minScore ?? '', percentages: Array.isArray(g.percentages) ? g.percentages : [] })) : []);
+            } catch (err) {
+                // ignore errors for now
+            }
+        }
+        load();
+        return () => { mounted = false; };
+    }, [product.id]);
+
+    const addCycleRange = () => {
+        const label = newCycleLabel.trim() || `r${editingCycleRanges.length + 1}`;
+        setEditingCycleRanges(prev => [...prev, { label, min: '', max: '' }]);
+        setNewCycleLabel('');
+        setEditingGrades(prev => prev.map(g => ({ ...g, percentages: [...g.percentages, 0] })));
+    };
+
+    const removeCycleRange = (idx: number) => {
+        setEditingCycleRanges(prev => prev.filter((_, i) => i !== idx));
+        setEditingGrades(prev => prev.map(g => ({ ...g, percentages: g.percentages.filter((_, i) => i !== idx) })));
+    };
+
+    const updateCycleRangeField = (idx: number, field: 'label' | 'min' | 'max', value: string) => {
+        setEditingCycleRanges(prev => prev.map((r, i) => i === idx ? { ...r, [field]: field === 'label' ? value : (value === '' ? '' : Number(value)) } : r));
+    };
+
+    const updateGradeField = (idx: number, field: 'label' | 'minScore', value: string) => {
+        setEditingGrades(prev => prev.map((g, i) => i === idx ? { ...g, [field]: field === 'label' ? value : (value === '' ? '' : Number(value)) } : g));
+    };
+
+    const updateGradePercentage = (gradeIdx: number, colIdx: number, value: string) => {
+        setEditingGrades(prev => prev.map((g, i) => {
+            if (i !== gradeIdx) return g;
+            const newPercentages = g.percentages.slice();
+            newPercentages[colIdx] = Number(value || 0);
+            return { ...g, percentages: newPercentages };
+        }));
+    };
+
+    const addGrade = () => {
+        const cols = editingCycleRanges.length || 1;
+        setEditingGrades(prev => [...prev, { label: `Grade ${prev.length + 1}`, minScore: '', percentages: Array.from({ length: cols }, () => 0) }]);
+    };
+
+    const removeGrade = (idx: number) => {
+        setEditingGrades(prev => prev.filter((_, i) => i !== idx));
+    };
+    
+    const handleSaveLoanCycle = async () => {
+        if (!product.id || !editingMetric) {
+            toast({ title: 'Error', description: 'Product and metric are required', variant: 'destructive' });
+            return;
+        }
+        setIsSavingLoanCycle(true);
+        try {
+            const body = { productId: product.id, metric: editingMetric, enabled: editingEnabled, cycleRanges: editingCycleRanges.map(r => ({ label: r.label, min: Number(r.min), max: Number(r.max) })), grades: editingGrades.map(g => ({ label: g.label, minScore: Number(g.minScore), percentages: g.percentages.map(p => Number(p)) })) };
+            const res = await fetch('/api/settings/products/loan-cycle', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to save loan-cycle config');
+            }
+            const saved = await res.json();
+            const savedRanges = typeof saved.cycleRanges === 'string' ? JSON.parse(saved.cycleRanges) : saved.cycleRanges;
+            const savedGrades = typeof saved.grades === 'string' ? JSON.parse(saved.grades) : saved.grades;
+            setLoanCycleConfig({ ...saved, cycleRanges: savedRanges, grades: savedGrades });
+            onUpdate({ loanCycleConfigId: saved.id, loanCycleConfig: saved });
+            toast({ title: 'Saved', description: 'Loan cycle configuration saved.' });
+        } catch (err: any) {
+            toast({ title: 'Error', description: err.message || String(err), variant: 'destructive' });
+        } finally {
+            setIsSavingLoanCycle(false);
+        }
+    }
+
+
+    return (
+         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+            <CollapsibleTrigger asChild>
+                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
+                    <h4 className="text-sm font-semibold">{product.name}</h4>
+                     <Badge variant={loanCycleConfig ? 'default' : 'secondary'}>{loanCycleConfig ? 'Configured' : 'Not configured'}</Badge>
+                </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="p-4 border rounded-lg bg-background mt-2">
+                <div className="flex items-center justify-end">
+                    <div className="flex items-center gap-2">
+                        <Label>Enabled</Label>
+                        <Switch checked={editingEnabled} onCheckedChange={(c) => setEditingEnabled(Boolean(c))} />
+                    </div>
+                </div>
+
+                 <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div className="space-y-2">
+                        <Label>Progression Metric</Label>
+                        <Select onValueChange={(v) => setEditingMetric(v as LoanCycleConfig['metric'])} value={editingMetric || undefined}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select metric" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="TOTAL_COUNT">Total Loans Count</SelectItem>
+                                <SelectItem value="PAID_ON_TIME">On-time Repayments</SelectItem>
+                                <SelectItem value="PAID_EARLY">Early Repayments</SelectItem>
+                                <SelectItem value="PAID_LATE">Late Repayments</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                <div className="mt-4">
+                    <Label>Cycle Ranges</Label>
+                    <div className="space-y-2 mt-2">
+                        {editingCycleRanges.length === 0 && <div className="text-xs text-muted-foreground">No cycle ranges defined.</div>}
+                        {editingCycleRanges.map((r, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <Input placeholder="Label" value={r.label} onChange={(e) => updateCycleRangeField(idx, 'label', e.target.value)} className="w-32" />
+                                <Input placeholder="min" type="number" value={String(r.min)} onChange={(e) => updateCycleRangeField(idx, 'min', e.target.value)} className="w-20" />
+                                <div className="text-sm">-</div>
+                                <Input placeholder="max" type="number" value={String(r.max)} onChange={(e) => updateCycleRangeField(idx, 'max', e.target.value)} className="w-20" />
+                                <Button variant="ghost" size="sm" onClick={() => removeCycleRange(idx)}><Trash2 className="h-3 w-3"/></Button>
+                            </div>
+                        ))}
+                        <div className="flex items-center gap-2 mt-1">
+                            <Input placeholder="New range label" value={newCycleLabel} onChange={(e) => setNewCycleLabel(e.target.value)} className="w-32" />
+                            <Button type="button" onClick={addCycleRange} size="sm"><PlusCircle className="h-4 w-4"/></Button>
+                        </div>
+                    </div>
+
+                    <div className="mt-4">
+                        <Label className="mb-2">Grades & Percentages</Label>
+                        <div className="overflow-auto border rounded">
+                            <table className="min-w-full bg-background text-sm">
+                                <thead>
+                                    <tr className="text-left">
+                                        <th className="px-2 py-2">Grade</th>
+                                        <th className="px-2 py-2">Min Score</th>
+                                        {editingCycleRanges.map((r, idx) => (
+                                            <th key={idx} className="px-2 py-2">{r.label || `${r.min}-${r.max}`}</th>
+                                        ))}
+                                        <th className="px-2 py-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {editingGrades.map((g, gIdx) => (
+                                        <tr key={gIdx} className="border-t">
+                                            <td className="px-2 py-2"><Input value={g.label} onChange={(e) => updateGradeField(gIdx, 'label', e.target.value)} className="w-28 h-8" /></td>
+                                            <td className="px-2 py-2"><Input type="number" value={String(g.minScore)} onChange={(e) => updateGradeField(gIdx, 'minScore', e.target.value)} className="w-24 h-8" /></td>
+                                            {editingCycleRanges.map((r, cIdx) => (
+                                                <td key={cIdx} className="px-2 py-2"><Input type="number" value={String(g.percentages[cIdx] ?? 0)} onChange={(e) => updateGradePercentage(gIdx, cIdx, e.target.value)} className="w-20 h-8" /></td>
+                                            ))}
+                                            <td className="px-2 py-2"><Button variant="ghost" size="sm" onClick={() => removeGrade(gIdx)}><Trash2 className="h-4 w-4"/></Button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                            <Button type="button" onClick={addGrade} size="sm"><PlusCircle className="h-4 w-4"/> Add Grade</Button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-4 flex justify-end space-x-2">
+                    <Button variant="outline" type="button" onClick={() => {
+                        setEditingMetric(loanCycleConfig?.metric ?? null);
+                        setEditingEnabled(typeof loanCycleConfig?.enabled === 'boolean' ? loanCycleConfig?.enabled : true);
+                        setEditingCycleRanges(Array.isArray(loanCycleConfig?.cycleRanges) ? loanCycleConfig!.cycleRanges.map((r: any) => ({ label: r.label ?? `${r.min}-${r.max}`, min: r.min ?? '', max: r.max ?? '' })) : []);
+                        setEditingGrades(Array.isArray(loanCycleConfig?.grades) ? loanCycleConfig!.grades.map((g: any) => ({ label: g.label ?? '', minScore: g.minScore ?? '', percentages: Array.isArray(g.percentages) ? g.percentages : [] })) : []);
+                    }}>Reset</Button>
+                    <Button type="button" onClick={handleSaveLoanCycle} disabled={isSavingLoanCycle || !editingMetric} style={{ backgroundColor: providerColor }} className="text-white">{isSavingLoanCycle ? 'Saving...' : 'Save Loan Cycle'}</Button>
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+    )
+}
+
 
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
 
-    const onProductUpdate = useCallback((providerId: string, updatedProduct: LoanProduct) => {
+    const onProductUpdate = useCallback((providerId: string, productId: string, updatedProduct: Partial<LoanProduct>) => {
         setProviders(produce(draft => {
             const provider = draft.find(p => p.id === providerId);
             if (provider) {
-                const productIndex = provider.products.findIndex(p => p.id === updatedProduct.id);
+                const productIndex = provider.products.findIndex(p => p.id === productId);
                 if (productIndex !== -1) {
-                    // Make sure to preserve the existing loanAmountTiers if they are not in the update
-                    const existingTiers = provider.products[productIndex].loanAmountTiers;
-                    provider.products[productIndex] = {
-                        ...updatedProduct,
-                        loanAmountTiers: updatedProduct.loanAmountTiers || existingTiers,
-                    };
+                    const existingProduct = provider.products[productIndex];
+                    provider.products[productIndex] = { ...existingProduct, ...updatedProduct };
                 }
             }
         }));
@@ -1874,6 +1882,7 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
                 <TabsList>
                     <TabsTrigger value="providers">Providers & Products</TabsTrigger>
                     <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
+                    <TabsTrigger value="loanCycles">Loan Cycle</TabsTrigger>
                      <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
                     <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
                     <TabsTrigger value="tax">Tax</TabsTrigger>
@@ -1882,7 +1891,10 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
                     <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
                 </TabsContent>
                 <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} onProductUpdate={onProductUpdate} taxConfig={initialTaxConfig} />
+                     <ConfigurationTab providers={providers} onProductUpdate={(providerId, product) => onProductUpdate(providerId, product.id, product)} taxConfig={initialTaxConfig} />
+                </TabsContent>
+                <TabsContent value="loanCycles">
+                    <LoanCycleTab providers={providers} onProviderUpdate={onProductUpdate} />
                 </TabsContent>
                  <TabsContent value="eligibility">
                      <EligibilityTab providers={providers} onProvidersChange={handleProvidersChange} />
@@ -2509,6 +2521,7 @@ function UploadDataViewerDialog({ upload, onClose }: {
     
 
     
+
 
 
 
