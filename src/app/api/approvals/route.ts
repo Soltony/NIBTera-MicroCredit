@@ -78,7 +78,8 @@ async function applyDataProvisioningUpload(change: any, data: any) {
             await tx.borrower.upsert({ where: { id: borrowerId }, update: {}, create: { id: borrowerId } });
 
             const existingData = await tx.provisionedData.findUnique({
-                where: { borrowerId_configId: { borrowerId: borrowerId, configId: configId } },
+                // find within the same upload so we preserve older uploads
+                where: { borrowerId_configId_uploadId: { borrowerId: borrowerId, configId: configId, uploadId: newUpload.id } },
             });
             
             let mergedData = newRowData;
@@ -87,7 +88,7 @@ async function applyDataProvisioningUpload(change: any, data: any) {
             }
 
             await tx.provisionedData.upsert({
-                where: { borrowerId_configId: { borrowerId: borrowerId, configId: configId } },
+                where: { borrowerId_configId_uploadId: { borrowerId: borrowerId, configId: configId, uploadId: newUpload.id } },
                 update: { data: JSON.stringify(mergedData), uploadId: newUpload.id },
                 create: { borrowerId: borrowerId, configId: configId, data: JSON.stringify(mergedData), uploadId: newUpload.id }
             });
@@ -124,6 +125,11 @@ async function applyEligibilityList(change: any, data: any) {
         throw new Error("No identifiers found in the uploaded file.");
     }
     
+    const filterString = idList.join(',');
+    // Store the filter as JSON mapping of identifier column -> CSV string
+    // so the eligibility check can parse and apply filters consistently.
+    const filterObject = JSON.stringify({ [idColumnName]: filterString });
+
     await prisma.$transaction(async (tx) => {
         // Create the upload record for history, and now include file content
         const newUpload = await tx.dataProvisioningUpload.create({
@@ -136,25 +142,44 @@ async function applyEligibilityList(change: any, data: any) {
             }
         });
 
-        // Clear the old eligibility list for this product
-        await tx.eligibilityList.deleteMany({
-            where: { productId: productId }
-        });
+        // Now, iterate through the file and save the data for viewing later.
+        for (const row of rows) {
+             const rowData: { [key: string]: any } = {};
+             originalHeaders.forEach((header, index) => {
+                 rowData[header] = row[index];
+             });
 
-        // Create new eligibility entries
-        await tx.eligibilityList.createMany({
-            data: borrowerIds.map(borrowerId => ({
-                productId: productId,
-                borrowerId: borrowerId,
-                uploadId: newUpload.id,
-            }))
-        });
+            const borrowerId = String(rowData[idColumnName]);
+            if (!borrowerId) continue;
+            
+             // Ensure the borrower exists before linking data
+             await tx.borrower.upsert({
+                 where: { id: borrowerId },
+                 update: {},
+                 create: { id: borrowerId }
+             });
+
+            // Using upsert to prevent unique constraint errors if the same list is uploaded again
+            // NOTE: The `ProvisionedData` model has a compound unique on [borrowerId, configId]
+            // so we upsert on that compound key (not including uploadId) and set uploadId in update/create
+            await tx.provisionedData.upsert({
+                where: { borrowerId_configId_uploadId: { borrowerId, configId, uploadId: newUpload.id } },
+                update: { data: JSON.stringify(rowData), uploadId: newUpload.id },
+                create: {
+                    borrowerId,
+                    configId,
+                    uploadId: newUpload.id,
+                    data: JSON.stringify(rowData)
+                }
+            });
+        }
         
         // Update the product with the link to the historic upload
         await tx.loanProduct.update({
             where: { id: productId },
             data: {
                 eligibilityUploadId: newUpload.id,
+                eligibilityFilter: filterObject,
             }
         });
     });

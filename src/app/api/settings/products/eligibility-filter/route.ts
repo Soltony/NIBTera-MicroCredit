@@ -35,6 +35,14 @@ export async function DELETE(req: NextRequest) {
                 }
             });
 
+            // Remove all provisioned data linked to that upload first. 
+            // When the upload is deleted, the ProvisionedData relation would otherwise
+            // try to set uploadId to NULL (onDelete: SetNull). Because we added a
+            // unique constraint that includes uploadId, setting uploadId to NULL
+            // can produce duplicate rows (two rows with same borrowerId+configId+NULL)
+            // which causes a unique-constraint failure. So delete the rows explicitly.
+            await tx.provisionedData.deleteMany({ where: { uploadId: product.eligibilityUploadId! } });
+
             // Then, delete the now-orphaned upload record
             await tx.dataProvisioningUpload.delete({
                 where: { id: product.eligibilityUploadId! }

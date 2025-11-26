@@ -190,15 +190,104 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
         
     const productMaxLoan = applicableTier?.loanAmount || 0;
 
+    // --- Loan Cycle logic (limits accessible amount based on cycle progression) ---
+    let cyclePercentage = 1; // default 100%
+    try {
+        const cycleConfig = await prisma.loanCycleConfig.findUnique({ where: { productId: productId } });
+        if (cycleConfig) {
+            // determine metric count
+            let metricCount = 0;
+            switch ((cycleConfig.metric || '').toUpperCase()) {
+                case 'PAID_EARLY':
+                    metricCount = borrowerDataForScoring['loansEarly'] || 0;
+                    break;
+                case 'PAID_LATE':
+                    metricCount = borrowerDataForScoring['loansLate'] || 0;
+                    break;
+                case 'PAID_ON_TIME':
+                    metricCount = borrowerDataForScoring['loansOnTime'] || 0;
+                    break;
+                case 'TOTAL_COUNT':
+                    metricCount = borrowerDataForScoring['totalLoansCount'] || 0;
+                    break;
+                default:
+                    metricCount = 0;
+            }
+
+            // Prefer new grade-based structure when present
+            if (cycleConfig.grades && cycleConfig.cycleRanges) {
+                const grades = typeof cycleConfig.grades === 'string' ? JSON.parse(cycleConfig.grades) as Array<{ label: string; minScore: number; percentages: number[] }> : (cycleConfig.grades as any[]);
+                const ranges = typeof cycleConfig.cycleRanges === 'string' ? JSON.parse(cycleConfig.cycleRanges) as Array<{ label?: string; min: number; max: number }> : (cycleConfig.cycleRanges as any[]);
+
+                // determine which range index the metricCount falls into
+                let idx = 0;
+                for (let i = 0; i < ranges.length; i++) {
+                    const r = ranges[i];
+                    if (typeof r?.min === 'number' && typeof r?.max === 'number') {
+                        if (metricCount >= r.min && metricCount <= r.max) {
+                            idx = i;
+                            break;
+                        }
+                    }
+                }
+
+                // find matching grade by score - choose highest minScore <= score
+                let matchedGrade = null as null | (typeof grades)[0];
+                const sortedGrades = (grades || []).slice().sort((a, b) => (b?.minScore ?? 0) - (a?.minScore ?? 0));
+                for (const g of sortedGrades) {
+                    if (typeof g?.minScore === 'number' && score >= g.minScore) {
+                        matchedGrade = g;
+                        break;
+                    }
+                }
+
+                if (matchedGrade && Array.isArray(matchedGrade.percentages)) {
+                    const pct = matchedGrade.percentages[Math.max(0, Math.min(matchedGrade.percentages.length - 1, idx))];
+                    if (typeof pct === 'number') {
+                        cyclePercentage = Math.max(0, Math.min(1, pct / 100));
+                    }
+                } else if (cycleConfig.cycles) {
+                    // fallback to legacy cycles if present
+                    try {
+                        const cyclesArr = typeof cycleConfig.cycles === 'string' ? JSON.parse(cycleConfig.cycles) as number[] : (cycleConfig.cycles as number[]);
+                        const legacyIdx = Math.min(metricCount + 1, Math.max(1, cyclesArr.length)) - 1;
+                        const pct = cyclesArr[Math.max(0, Math.min(cyclesArr.length - 1, legacyIdx))];
+                        if (typeof pct === 'number') {
+                            cyclePercentage = Math.max(0, Math.min(1, pct / 100));
+                        }
+                    } catch (e) {
+                        // ignore fallback errors
+                    }
+                }
+
+            } else if (cycleConfig.cycles) {
+                // legacy single-dimension cycles behavior
+                const cyclesArr = typeof cycleConfig.cycles === 'string' ? JSON.parse(cycleConfig.cycles) as number[] : (cycleConfig.cycles as number[]);
+                // progression rule: 0 -> cycle 1, 1 -> cycle 2, etc., capped to cycles length
+                const idx = Math.min(metricCount + 1, Math.max(1, cyclesArr.length)) - 1; // index in array
+                const pct = cyclesArr[Math.max(0, Math.min(cyclesArr.length - 1, idx))];
+                if (typeof pct === 'number') {
+                    cyclePercentage = Math.max(0, Math.min(1, pct / 100));
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to compute loan cycle for product', productId, e);
+    }
+
+    // accessible amount based on cycle
+    const accessibleByCycle = Math.floor(productMaxLoan * cyclePercentage);
+
     if (productMaxLoan <= 0) {
         return { isEligible: false, reason: 'Your credit score does not meet the minimum requirement for a loan with this provider.', score, maxLoanAmount: 0 };
     }
     
     const totalOutstandingPrincipal = allActiveLoans.reduce((sum, loan) => sum + loan.loanAmount - (loan.repaidAmount || 0), 0);
     
-    const maxLoanAmount = productMaxLoan;
-    
-    const availableToBorrow = Math.max(0, maxLoanAmount - totalOutstandingPrincipal);
+    // Effective cap for borrower is the cycle-limited amount
+    const effectiveMaxForBorrower = Math.min(productMaxLoan, accessibleByCycle);
+
+    const availableToBorrow = Math.max(0, effectiveMaxForBorrower - totalOutstandingPrincipal);
     
     if (availableToBorrow <= 0 && allActiveLoans.length > 0) {
          return { isEligible: true, reason: `You have reached your credit limit with this provider. Your current outstanding balance is ${totalOutstandingPrincipal}. Please repay your active loans to be eligible for more.`, score, maxLoanAmount: 0 };

@@ -58,7 +58,17 @@ export async function POST(req: NextRequest) {
         const camelCaseHeaders = originalHeaders.map(toCamelCase);
         
         const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
-        
+
+        // Determine identifier column up-front, validate and prepare lists used later
+        const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
+        if (!idColumnConfig) {
+            return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
+        }
+
+        const idColumnIndex = originalHeaders.findIndex(h => h === idColumnConfig.name);
+        const idList = idColumnIndex !== -1 ? rows.map(r => String(r[idColumnIndex]).trim()).filter(Boolean) : [];
+        const idColumnCamelCase = toCamelCase(idColumnConfig.name);
+
         const newUpload = await prisma.dataProvisioningUpload.create({
             data: {
                 configId: configId,
@@ -68,11 +78,7 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        const idColumnConfig = JSON.parse(config.columns as string).find((c: any) => c.isIdentifier);
-        if (!idColumnConfig) {
-            return NextResponse.json({ error: 'No identifier column found in config' }, { status: 400 });
-        }
-        const idColumnCamelCase = toCamelCase(idColumnConfig.name);
+        // we already determined idColumnConfig and idColumnCamelCase above
         
         // Use transaction to perform all upserts
         await prisma.$transaction(async (tx) => {
@@ -93,11 +99,13 @@ export async function POST(req: NextRequest) {
                 });
 
                 // 2. Now upsert the provisioned data, merging if it exists
+                // find provisioned data for this specific upload so we don't overwrite older uploads
                 const existingData = await tx.provisionedData.findUnique({
                      where: {
-                        borrowerId_configId: {
+                        borrowerId_configId_uploadId: {
                             borrowerId: borrowerId,
-                            configId: configId
+                            configId: configId,
+                            uploadId: newUpload.id
                         }
                     },
                 });
@@ -110,9 +118,10 @@ export async function POST(req: NextRequest) {
 
                 await tx.provisionedData.upsert({
                     where: {
-                        borrowerId_configId: {
+                        borrowerId_configId_uploadId: {
                             borrowerId: borrowerId,
-                            configId: configId
+                            configId: configId,
+                            uploadId: newUpload.id
                         }
                     },
                     update: {
@@ -130,10 +139,15 @@ export async function POST(req: NextRequest) {
         });
         
         if (isProductFilter && productId) {
+             // Save a product-scoped eligibility filter using the identifier column name
+             const filterString = idList.join(',');
+             const filterObj = JSON.stringify({ [idColumnConfig.name]: filterString });
+
              await prisma.loanProduct.update({
                 where: { id: productId },
                 data: {
                     eligibilityUploadId: newUpload.id,
+                    eligibilityFilter: filterObj,
                 },
              });
              await createAuditLog({
