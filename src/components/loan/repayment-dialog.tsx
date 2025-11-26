@@ -135,7 +135,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     const numberPadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
     
     const breakdown = useMemo(() => {
-        if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0 };
+        if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
         return calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
     }, [loan, taxConfigs]);
 
