@@ -31,6 +31,9 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
                         orderBy: { uploadedAt: 'desc' }
                     }
                 }
+            },
+            termsAndConditions: {
+                orderBy: { version: 'desc' }
             }
         },
         orderBy: {

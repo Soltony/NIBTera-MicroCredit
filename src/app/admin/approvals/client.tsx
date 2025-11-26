@@ -138,6 +138,36 @@ const ChangeDetailsDialog = ({
     return null;
   }, [change]);
 
+  const termsContent = useMemo(() => {
+    if (change.entityType !== 'TermsAndConditions') return null;
+    try {
+      const parsed = JSON.parse(change.payload);
+      return {
+        original: parsed.original?.content ?? '',
+        updated: parsed.updated?.content ?? '',
+      };
+    } catch {
+      return null;
+    }
+  }, [change]);
+
+  const loanProductExtras = useMemo(() => {
+    if (change.entityType !== 'LoanProduct') return null;
+    try {
+      const parsed = JSON.parse(change.payload);
+      const before = parsed.original || parsed.previous || {};
+      const after = parsed.updated || parsed.created || {};
+      return {
+        previousPenaltyRules: before.penaltyRules || [],
+        currentPenaltyRules: after.penaltyRules || [],
+        previousLoanAmountTiers: before.loanAmountTiers || [],
+        currentLoanAmountTiers: after.loanAmountTiers || [],
+      };
+    } catch {
+      return null;
+    }
+  }, [change]);
+
 
   // Helper: find a file content in payload (created/updated)
   const getFileContentFromPayload = () => {
@@ -164,6 +194,8 @@ const ChangeDetailsDialog = ({
     } catch (e) { return null; }
   };
 
+  const isTermsChange = change.entityType === 'TermsAndConditions';
+
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewRows, setPreviewRows] = React.useState<any[] | null>(null);
   const [previewHeaders, setPreviewHeaders] = React.useState<string[] | null>(null);
@@ -184,6 +216,66 @@ const ChangeDetailsDialog = ({
     } catch (err) {
       console.error('Failed to parse file content preview:', err);
     }
+  };
+
+  const renderPenaltyRulesTable = (rules: any[]) => {
+    if (!rules || rules.length === 0) {
+      return <p className="text-sm text-muted-foreground">No penalty rules defined.</p>;
+    }
+    return (
+      <div className="border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>From Day</TableHead>
+              <TableHead>To Day</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Value</TableHead>
+              <TableHead>Frequency</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rules.map((rule, idx) => (
+              <TableRow key={rule.id || idx}>
+                <TableCell>{rule.fromDay ?? '-'}</TableCell>
+                <TableCell>{rule.toDay ?? '-'}</TableCell>
+                <TableCell className="capitalize">{rule.type ?? '-'}</TableCell>
+                <TableCell>{rule.value ?? '-'}</TableCell>
+                <TableCell className="capitalize">{rule.frequency ?? '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderLoanTierTable = (tiers: any[]) => {
+    if (!tiers || tiers.length === 0) {
+      return <p className="text-sm text-muted-foreground">No loan amount tiers defined.</p>;
+    }
+    return (
+      <div className="border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>From Score</TableHead>
+              <TableHead>To Score</TableHead>
+              <TableHead>Loan Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tiers.map((tier, idx) => (
+              <TableRow key={tier.id || idx}>
+                <TableCell>{tier.fromScore ?? '-'}</TableCell>
+                <TableCell>{tier.toScore ?? '-'}</TableCell>
+                <TableCell>{tier.loanAmount ?? '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
   };
 
   return (
@@ -219,7 +311,7 @@ const ChangeDetailsDialog = ({
                 </CardContent>
             </Card>
 
-            {diffResult && (
+            {diffResult && !isTermsChange && (
                  <Card>
                     <CardHeader>
                         <CardTitle className="text-base">Summary of Changes</CardTitle>
@@ -247,33 +339,90 @@ const ChangeDetailsDialog = ({
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                     <div className="border border-t-0 rounded-b-lg p-4 text-sm">
-                        <div className="grid grid-cols-3 gap-x-4 mb-2 font-semibold">
-                            <div className="col-span-1">Field</div>
-                            <div className="col-span-1">Before</div>
-                            <div className="col-span-1">After</div>
-                        </div>
-                        <Separator />
-                        {diffResult?.details.map((item, index) => (
-                             <div key={index} className="grid grid-cols-3 gap-x-4 py-2 border-b last:border-none">
-                                <div className="col-span-1 font-medium capitalize">{item.field}</div>
-                                <div className="col-span-1 text-red-600 line-through">
-                                    {item.type !== 'added' ? renderFieldValue(item.before) : ''}
-                                </div>
-                                <div className="col-span-1 text-green-600">
-                                    {item.type !== 'removed' ? renderFieldValue(item.after) : ''}
-                                </div>
+                        {isTermsChange && termsContent ? (
+                          <div className="space-y-6">
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Previous Content</p>
+                              <div className="border rounded-md p-4 text-sm max-h-64 overflow-auto whitespace-pre-wrap bg-muted/40">
+                                {termsContent.original || <span className="text-muted-foreground">No prior terms.</span>}
+                              </div>
                             </div>
-                        ))}
-                        {getFileContentFromPayload() && (
-                          <div className="grid grid-cols-3 gap-x-4 py-2">
-                            <div className="col-span-1 font-medium">Uploaded File</div>
-                            <div className="col-span-2 text-right">
-                              <Button variant="link" onClick={openPreviewFromPayload} size="sm">View file contents</Button>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase mb-2">New Content</p>
+                              <div className="border rounded-md p-4 text-sm max-h-64 overflow-auto whitespace-pre-wrap bg-muted/20">
+                                {termsContent.updated || <span className="text-muted-foreground">No new content provided.</span>}
+                              </div>
                             </div>
                           </div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-3 gap-x-4 mb-2 font-semibold">
+                                <div className="col-span-1">Field</div>
+                                <div className="col-span-1">Before</div>
+                                <div className="col-span-1">After</div>
+                            </div>
+                            <Separator />
+                            {diffResult?.details.map((item, index) => (
+                                 <div key={index} className="grid grid-cols-3 gap-x-4 py-2 border-b last:border-none">
+                                    <div className="col-span-1 font-medium capitalize">{item.field}</div>
+                                    <div className="col-span-1 text-red-600 line-through">
+                                        {item.type !== 'added' ? renderFieldValue(item.before) : ''}
+                                    </div>
+                                    <div className="col-span-1 text-green-600">
+                                        {item.type !== 'removed' ? renderFieldValue(item.after) : ''}
+                                    </div>
+                                </div>
+                            ))}
+                            {getFileContentFromPayload() && (
+                              <div className="grid grid-cols-3 gap-x-4 py-2">
+                                <div className="col-span-1 font-medium">Uploaded File</div>
+                                <div className="col-span-2 text-right">
+                                  <Button variant="link" onClick={openPreviewFromPayload} size="sm">View file contents</Button>
+                                </div>
+                              </div>
+                            )}
+                             {(!diffResult || diffResult.details.length === 0) && (
+                                <p className="text-muted-foreground text-center py-4">No changes to display.</p>
+                            )}
+                          </>
                         )}
-                         {(!diffResult || diffResult.details.length === 0) && (
-                            <p className="text-muted-foreground text-center py-4">No changes to display.</p>
+
+                        {loanProductExtras && (
+                          <div className="mt-8 space-y-6">
+                            {(loanProductExtras.previousPenaltyRules.length > 0 ||
+                              loanProductExtras.currentPenaltyRules.length > 0) && (
+                              <div className="space-y-4">
+                                <p className="text-sm font-semibold">Penalty Rules</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Before</p>
+                                    {renderPenaltyRulesTable(loanProductExtras.previousPenaltyRules)}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">After</p>
+                                    {renderPenaltyRulesTable(loanProductExtras.currentPenaltyRules)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {(loanProductExtras.previousLoanAmountTiers.length > 0 ||
+                              loanProductExtras.currentLoanAmountTiers.length > 0) && (
+                              <div className="space-y-4">
+                                <p className="text-sm font-semibold">Loan Amount Tiers</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Before</p>
+                                    {renderLoanTierTable(loanProductExtras.previousLoanAmountTiers)}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">After</p>
+                                    {renderLoanTierTable(loanProductExtras.currentLoanAmountTiers)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
                     </div>
                 </CollapsibleContent>
