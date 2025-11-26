@@ -194,7 +194,7 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     let cyclePercentage = 1; // default 100%
     try {
         const cycleConfig = await prisma.loanCycleConfig.findUnique({ where: { productId: productId } });
-        if (cycleConfig) {
+        if (cycleConfig && (cycleConfig.enabled === undefined || cycleConfig.enabled === true)) {
             // determine metric count
             let metricCount = 0;
             switch ((cycleConfig.metric || '').toUpperCase()) {
