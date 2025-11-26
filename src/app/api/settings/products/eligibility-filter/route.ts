@@ -43,10 +43,11 @@ export async function DELETE(req: NextRequest) {
             // which causes a unique-constraint failure. So delete the rows explicitly.
             await tx.provisionedData.deleteMany({ where: { uploadId: product.eligibilityUploadId! } });
 
-            // Then, delete the now-orphaned upload record
-            await tx.dataProvisioningUpload.delete({
-                where: { id: product.eligibilityUploadId! }
-            });
+            // Then, delete the now-orphaned upload record (use deleteMany to avoid P2025 if already removed)
+            const deletedUploads = await tx.dataProvisioningUpload.deleteMany({ where: { id: product.eligibilityUploadId! } });
+            if (deletedUploads.count === 0) {
+                console.warn(`Eligibility upload ${product.eligibilityUploadId} for product ${productId} was not found (may have been already deleted).`);
+            }
         });
 
         return NextResponse.json({ message: 'Eligibility filter and list deleted successfully.' });

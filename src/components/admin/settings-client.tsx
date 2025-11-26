@@ -75,6 +75,40 @@ const safeParseJson = (data: any, field: string, defaultValue: any) => {
     return data?.[field] ?? defaultValue;
 };
 
+// Sanitize product object for inclusion in pending change payloads
+// Removes large/secret fields (notably eligibility upload fileContent) while
+// keeping useful metadata (id, fileName, status) so diffs remain meaningful.
+const sanitizeProductForPayload = (p: any) => {
+    if (!p) return p;
+    // shallow copy
+    const copy: any = { ...p };
+    if (copy.eligibilityUpload) {
+        const eu = copy.eligibilityUpload;
+        copy.eligibilityUpload = {
+            id: eu.id,
+            fileName: eu.fileName,
+            status: eu.status,
+            uploadedAt: eu.uploadedAt,
+            uploadedBy: eu.uploadedBy,
+        } as any;
+    }
+    // Clear any embedded large data that should not be part of product change diffs
+    if (copy.eligibilityUpload && (copy.eligibilityUpload as any).fileContent) {
+        delete (copy.eligibilityUpload as any).fileContent;
+    }
+    return copy;
+};
+
+const sanitizeProviderForPayload = (prov: any) => {
+    if (!prov) return prov;
+    const c = { ...prov };
+    if (Array.isArray(c.products)) {
+        c.products = c.products.map((pp: any) => sanitizeProductForPayload(pp));
+    }
+    // avoid including any nested uploads with large content
+    return c;
+};
+
 const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelete, onUpdate, allDataConfigs }: {
     provider: LoanProvider;
     product: LoanProduct;
@@ -212,7 +246,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                     productId: product.id,
                 }
             };
-             const response = await fetch('/api/settings/pending-changes', {
+                 const response = await fetch(`/api/settings/pending-changes`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -258,13 +292,17 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             };
 
             const originalProduct = provider.products.find(p => p.id === product.id);
+            // Build a small original object that only contains keys that are being updated
+            const keysToSend = Object.keys(productToSave).filter(k => (productToSave as any)[k] !== undefined);
+            const pick = (obj: any, keys: string[]) => keys.reduce((acc: any, k: string) => { if (obj && (k in obj)) acc[k] = (obj as any)[k]; return acc; }, {});
+            const originalSubset = pick(originalProduct, keysToSend);
 
             const payload = {
-                original: originalProduct,
-                updated: productToSave
+                original: sanitizeProductForPayload(originalSubset),
+                updated: sanitizeProductForPayload(productToSave)
             };
 
-            const response = await fetch('/api/settings/pending-changes', {
+                const response = await fetch(`/api/settings/pending-changes`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -753,7 +791,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     entityType: 'LoanProvider',
                     entityId: providerId,
                     changeType: 'DELETE',
-                    payload: JSON.stringify({ original: providerToDelete })
+                    payload: JSON.stringify({ original: sanitizeProviderForPayload(providerToDelete) })
                 }),
             });
             if (!response.ok) {
@@ -785,7 +823,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     entityType: 'LoanProduct',
                     entityId: productId,
                     changeType: 'DELETE',
-                    payload: JSON.stringify({ original: productToDelete })
+                    payload: JSON.stringify({ original: sanitizeProductForPayload(productToDelete) })
                  }),
              });
              if (!response.ok) {
@@ -1259,9 +1297,14 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Only include original fields for keys that are present in the updated config
+            const updateKeys = Object.keys(config).filter(k => (config as any)[k] !== undefined);
+            const pick = (obj: any, keys: string[]) => keys.reduce((acc: any, k: string) => { if (obj && (k in obj)) acc[k] = (obj as any)[k]; return acc; }, {});
+            const originalSubset = pick(product, updateKeys);
+
             const payload = {
-                original: product, // The original product state before edits
-                updated: config,   // The new state from the form
+                original: sanitizeProductForPayload(originalSubset), // The original product state before edits (sanitized)
+                updated: sanitizeProductForPayload(config),   // The new state from the form (sanitized)
             };
             const response = await fetch('/api/settings/pending-changes', {
                 method: 'POST',

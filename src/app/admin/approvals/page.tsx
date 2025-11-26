@@ -42,7 +42,34 @@ async function getPendingChanges(): Promise<PendingChangeWithDetails[]> {
     });
     const providerMap = new Map(providers.map(p => [p.id, p.name]));
 
+    const sanitizePayloadForDisplay = (entityType: string, payloadStr: string) => {
+        try {
+            if (entityType === 'EligibilityList' || entityType === 'DataProvisioningUpload') return payloadStr;
+            const parsed = JSON.parse(payloadStr);
+            const removeFileContent = (obj: any) => {
+                if (!obj || typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(removeFileContent);
+                const out: any = {};
+                for (const k of Object.keys(obj)) {
+                    if (k === 'fileContent') continue;
+                    const v = obj[k];
+                    out[k] = removeFileContent(v);
+                }
+                return out;
+            };
+            ['created', 'updated', 'original'].forEach((p) => {
+                if (parsed[p]) parsed[p] = removeFileContent(parsed[p]);
+            });
+            return JSON.stringify(parsed);
+        } catch (e) {
+            return payloadStr;
+        }
+    };
+
     const detailedChanges = changes.map(change => {
+        // sanitize payload for display so we don't show raw fileContent in product/provider diffs
+        change.payload = sanitizePayloadForDisplay(change.entityType, change.payload);
+
         let entityName = change.entityId || 'N/A';
         let providerName: string | undefined = undefined;
 

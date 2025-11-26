@@ -12,6 +12,50 @@ const changeSchema = z.object({
   payload: z.string(), // JSON string
 });
 
+// sanitize payload before storing - remove large fileContent fields for product/provider changes
+function removeFileContent(obj: any) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(removeFileContent);
+
+  const out: any = {};
+  for (const k of Object.keys(obj)) {
+    if (k === 'fileContent') {
+      // drop raw file content
+      continue;
+    }
+    const v = obj[k];
+    if (typeof v === 'object' && v !== null) {
+      // For nested objects, recurse
+      out[k] = removeFileContent(v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function sanitizePendingChangePayload(entityType: string, payloadStr: string) {
+  try {
+    // Keep EligibilityList and DataProvisioningUpload intact so their fileContent can be approved
+    if (entityType === 'EligibilityList' || entityType === 'DataProvisioningUpload') {
+      return payloadStr;
+    }
+
+    const parsed = JSON.parse(payloadStr);
+    // Traverse created/updated/original and remove any fileContent fields
+    ['created', 'updated', 'original'].forEach((p) => {
+      if (parsed[p]) {
+        parsed[p] = removeFileContent(parsed[p]);
+      }
+    });
+
+    return JSON.stringify(parsed);
+  } catch (e) {
+    // If parsing fails, just return original payload
+    return payloadStr;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.userId) {
@@ -35,12 +79,14 @@ export async function POST(req: NextRequest) {
     }
 
 
+    const sanitizedPayload = sanitizePendingChangePayload(entityType, payload);
+
     const newChange = await prisma.pendingChange.create({
       data: {
         entityType,
         entityId,
         changeType,
-        payload,
+        payload: sanitizedPayload,
         status: 'PENDING', // Explicitly set the status
         createdById: session.userId,
       },

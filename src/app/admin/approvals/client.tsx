@@ -142,6 +142,8 @@ const ChangeDetailsDialog = ({
   // Helper: find a file content in payload (created/updated)
   const getFileContentFromPayload = () => {
     try {
+      // Only allow file preview for explicit upload-type changes
+      if (!(change.entityType === 'EligibilityList' || change.entityType === 'DataProvisioningUpload')) return null;
       const parsed = JSON.parse(change.payload);
       // created or updated or original may contain fileContent fields
       const candidate = parsed.created || parsed.updated || parsed.original || {};
@@ -185,7 +187,12 @@ const ChangeDetailsDialog = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Change Request Details</DialogTitle>
