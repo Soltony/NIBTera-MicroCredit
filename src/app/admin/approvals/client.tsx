@@ -168,6 +168,25 @@ const ChangeDetailsDialog = ({
     }
   }, [change]);
 
+  const loanCycleExtras = useMemo(() => {
+    if (change.entityType !== 'LoanCycleConfig') return null;
+    try {
+      const parsed = JSON.parse(change.payload);
+      const before = parsed.original || parsed.previous || {};
+      const after = parsed.updated || parsed.created || {};
+      return {
+        previousConfig: before,
+        currentConfig: after,
+        previousRanges: before.cycleRanges || [],
+        currentRanges: after.cycleRanges || [],
+        previousGrades: before.grades || [],
+        currentGrades: after.grades || [],
+      };
+    } catch {
+      return null;
+    }
+  }, [change]);
+
 
   // Helper: find a file content in payload (created/updated)
   const getFileContentFromPayload = () => {
@@ -270,6 +289,66 @@ const ChangeDetailsDialog = ({
                 <TableCell>{tier.fromScore ?? '-'}</TableCell>
                 <TableCell>{tier.toScore ?? '-'}</TableCell>
                 <TableCell>{tier.loanAmount ?? '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderCycleRangesTable = (ranges: any[]) => {
+    if (!ranges || ranges.length === 0) {
+      return <p className="text-sm text-muted-foreground">No cycle ranges defined.</p>;
+    }
+    return (
+      <div className="border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Label</TableHead>
+              <TableHead>Min</TableHead>
+              <TableHead>Max</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ranges.map((range, idx) => (
+              <TableRow key={range.label || idx}>
+                <TableCell>{range.label ?? '-'}</TableCell>
+                <TableCell>{range.min ?? '-'}</TableCell>
+                <TableCell>{range.max ?? '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderCycleGradesTable = (grades: any[]) => {
+    if (!grades || grades.length === 0) {
+      return <p className="text-sm text-muted-foreground">No grades defined.</p>;
+    }
+    return (
+      <div className="border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Grade</TableHead>
+              <TableHead>Min Score</TableHead>
+              <TableHead>Percentages</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {grades.map((grade, idx) => (
+              <TableRow key={grade.label || idx}>
+                <TableCell>{grade.label ?? '-'}</TableCell>
+                <TableCell>{grade.minScore ?? '-'}</TableCell>
+                <TableCell>
+                  {Array.isArray(grade.percentages) && grade.percentages.length > 0
+                    ? grade.percentages.join(', ')
+                    : '—'}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -418,6 +497,75 @@ const ChangeDetailsDialog = ({
                                   <div>
                                     <p className="text-xs font-medium text-muted-foreground uppercase mb-2">After</p>
                                     {renderLoanTierTable(loanProductExtras.currentLoanAmountTiers)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {loanCycleExtras && (
+                          <div className="mt-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <Card>
+                                <CardHeader className="py-3">
+                                  <CardTitle className="text-sm font-semibold">Previous Config</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2 text-sm text-muted-foreground">
+                                  <div className="flex justify-between">
+                                    <span>Metric</span>
+                                    <span className="font-medium text-foreground">{loanCycleExtras.previousConfig?.metric || '—'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Enabled</span>
+                                    <span className="font-medium text-foreground">{loanCycleExtras.previousConfig?.enabled === false ? 'No' : 'Yes'}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                              <Card>
+                                <CardHeader className="py-3">
+                                  <CardTitle className="text-sm font-semibold">New Config</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2 text-sm text-muted-foreground">
+                                  <div className="flex justify-between">
+                                    <span>Metric</span>
+                                    <span className="font-medium text-foreground">{loanCycleExtras.currentConfig?.metric || '—'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Enabled</span>
+                                    <span className="font-medium text-foreground">{loanCycleExtras.currentConfig?.enabled === false ? 'No' : 'Yes'}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+
+                            {(loanCycleExtras.previousRanges.length > 0 || loanCycleExtras.currentRanges.length > 0) && (
+                              <div className="space-y-4">
+                                <p className="text-sm font-semibold">Cycle Ranges</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Before</p>
+                                    {renderCycleRangesTable(loanCycleExtras.previousRanges)}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">After</p>
+                                    {renderCycleRangesTable(loanCycleExtras.currentRanges)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {(loanCycleExtras.previousGrades.length > 0 || loanCycleExtras.currentGrades.length > 0) && (
+                              <div className="space-y-4">
+                                <p className="text-sm font-semibold">Grades</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Before</p>
+                                    {renderCycleGradesTable(loanCycleExtras.previousGrades)}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">After</p>
+                                    {renderCycleGradesTable(loanCycleExtras.currentGrades)}
                                   </div>
                                 </div>
                               </div>
