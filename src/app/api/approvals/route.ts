@@ -125,18 +125,18 @@ async function applyEligibilityList(change: any, data: any) {
         throw new Error("No identifiers found in the uploaded file.");
     }
     
-    const filterString = idList.join(',');
+    const filterString = borrowerIds.join(',');
     // Store the filter as JSON mapping of identifier column -> CSV string
     // so the eligibility check can parse and apply filters consistently.
     const filterObject = JSON.stringify({ [idColumnName]: filterString });
 
     await prisma.$transaction(async (tx) => {
         // Create the upload record for history, and now include file content
+        // Create upload metadata (don't store raw file content in DB model)
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
                 configId: configId,
                 fileName: fileName,
-                fileContent: fileContent, // Save the file content
                 rowCount: rows.length,
                 uploadedBy: change.createdById,
             }
