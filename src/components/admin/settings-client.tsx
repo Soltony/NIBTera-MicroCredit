@@ -1744,22 +1744,26 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
         }
         setIsSavingLoanCycle(true);
         try {
-            const body = { productId: product.id, metric: editingMetric, enabled: editingEnabled, cycleRanges: editingCycleRanges.map(r => ({ label: r.label, min: Number(r.min), max: Number(r.max) })), grades: editingGrades.map(g => ({ label: g.label, minScore: Number(g.minScore), percentages: g.percentages.map(p => Number(p)) })) };
-            const res = await fetch('/api/settings/products/loan-cycle', {
-                method: 'PUT',
+            const updated = { productId: product.id, metric: editingMetric, enabled: editingEnabled, cycleRanges: editingCycleRanges.map(r => ({ label: r.label, min: Number(r.min), max: Number(r.max) })), grades: editingGrades.map(g => ({ label: g.label, minScore: Number(g.minScore), percentages: g.percentages.map(p => Number(p)) })) };
+
+            const changeType = loanCycleConfig ? 'UPDATE' : 'CREATE';
+            const payload = loanCycleConfig ? { original: loanCycleConfig, updated } : { created: updated };
+
+            const resp = await fetch('/api/settings/pending-changes', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({ entityType: 'LoanCycleConfig', entityId: product.id, changeType, payload: JSON.stringify(payload) })
             });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to save loan-cycle config');
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to submit loan-cycle config for approval');
             }
-            const saved = await res.json();
-            const savedRanges = typeof saved.cycleRanges === 'string' ? JSON.parse(saved.cycleRanges) : saved.cycleRanges;
-            const savedGrades = typeof saved.grades === 'string' ? JSON.parse(saved.grades) : saved.grades;
-            setLoanCycleConfig({ ...saved, cycleRanges: savedRanges, grades: savedGrades });
-            onUpdate({ loanCycleConfigId: saved.id, loanCycleConfig: saved });
-            toast({ title: 'Saved', description: 'Loan cycle configuration saved.' });
+
+            // Mark locally as pending (so UI reflects that change was submitted)
+            toast({ title: 'Submitted', description: 'Loan cycle configuration has been submitted for approval.' });
+            // Optionally mark product as pending approval similar to other product updates
+            onUpdate({ loanCycleConfigId: loanCycleConfig?.id || null });
         } catch (err: any) {
             toast({ title: 'Error', description: err.message || String(err), variant: 'destructive' });
         } finally {

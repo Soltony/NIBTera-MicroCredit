@@ -308,6 +308,32 @@ async function applyChange(change: any) {
             await prisma.loanProduct.delete({ where: { id: entityId } });
         }
       break;
+    case 'LoanCycleConfig':
+        if (changeType === 'UPDATE') {
+            // entityId is productId in our pending change for loan cycles
+            const prodId = entityId;
+            const updated = data.updated || {};
+            await prisma.loanCycleConfig.updateMany({ where: { productId: prodId }, data: {
+                metric: updated.metric,
+                enabled: typeof updated.enabled === 'boolean' ? updated.enabled : true,
+                cycleRanges: updated.cycleRanges ? JSON.stringify(updated.cycleRanges) : undefined,
+                grades: updated.grades ? JSON.stringify(updated.grades) : undefined,
+            }});
+        } else if (changeType === 'CREATE') {
+            const prodId = entityId;
+            const created = data.created || {};
+            await prisma.loanCycleConfig.create({ data: {
+                productId: prodId as string,
+                metric: created.metric,
+                enabled: typeof created.enabled === 'boolean' ? created.enabled : true,
+                cycleRanges: created.cycleRanges ? JSON.stringify(created.cycleRanges) : JSON.stringify([]),
+                grades: created.grades ? JSON.stringify(created.grades) : JSON.stringify([]),
+            }});
+        } else if (changeType === 'DELETE') {
+            // Delete by productId
+            await prisma.loanCycleConfig.deleteMany({ where: { productId: entityId } });
+        }
+      break;
     case 'ScoringRules':
         await prisma.$transaction(async (tx) => {
             const historyRecord = await tx.scoringConfigurationHistory.create({
