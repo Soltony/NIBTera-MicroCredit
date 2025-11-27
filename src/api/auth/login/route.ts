@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
             details: logDetails
         });
         console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
-        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+        // Return a clear client-facing error for inactive accounts so admins and users
+        // can understand the login failure reason. Use 403 Forbidden as this is
+        // an authenticated-action denial due to account state.
+        return NextResponse.json({ error: 'Your account has been deactivated. Please contact the administrator.' }, { status: 403 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);

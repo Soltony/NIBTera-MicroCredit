@@ -272,6 +272,17 @@ async function applyChange(change: any) {
             });
         }
         else if (changeType === 'DELETE') {
+            // Do not allow deleting a provider if it still has products.
+            // This mirrors the runtime /api/settings/providers delete handler
+            // which prevents deletion while a provider still has associated
+            // loan products. Approving a delete while products exist can
+            // cause foreign key errors or accidental data loss for product
+            // approval metadata; block it and return a helpful error instead.
+            const productCount = await prisma.loanProduct.count({ where: { providerId: entityId } });
+            if (productCount > 0) {
+                throw new Error('Cannot delete provider with associated products. Remove or reassign products before approving deletion.');
+            }
+
             await prisma.loanProvider.delete({
                 where: { id: entityId }
             });
