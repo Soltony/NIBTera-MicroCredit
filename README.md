@@ -1,40 +1,110 @@
+# LoanFlow - Advanced Micro-Credit Platform
 
-# LoanFlow - Micro-Credit Platform
+LoanFlow is a comprehensive, multi-provider micro-credit platform built with a modern technology stack. It provides a robust solution for managing the entire loan lifecycle, from initial provider configuration and dynamic credit scoring to borrower application, automated processing, and final repayment. The platform features distinct interfaces for administrators and borrowers, a maker-checker approval workflow for critical changes, and a sophisticated Loan Cycle feature to manage credit progression.
 
-This application is a multi-provider micro-credit platform built with Next.js, Prisma, and Tailwind CSS. It provides a comprehensive solution for managing the entire loan lifecycle, from provider configuration to borrower application and repayment.
+## ✨ Key Features
 
-## Key Features
+*   **Admin & Borrower Interfaces**: A secure, feature-rich admin dashboard for management and a separate, simplified flow for borrowers to apply for loans.
+*   **Multi-Provider & Product Management**: Administrators can create and configure multiple loan providers (e.g., different banks) and define various loan products with unique rules, fees, and interest rates.
+*   **Dynamic Credit Scoring Engine**: Each provider can build their own weighted credit scoring model using a powerful rules engine. This allows them to weigh different data points (like income or employment status) to automatically determine a borrower's eligibility and maximum loan amount.
+*   **Loan Cycle Progression**: A sophisticated feature that manages a borrower's access to their full credit limit based on their repayment history. This encourages good behavior and mitigates risk by gradually increasing trust.
+*   **End-to-End Loan Lifecycle**: Borrowers can check eligibility, apply for a loan, and receive funds. The system tracks the entire lifecycle, including disbursement, daily fee accrual, penalties, repayments, and overdue statuses.
+*   **Maker-Checker (Approval) Workflow**: Critical administrative actions, such as changing product rules, provider settings, or tax configurations, are submitted for approval by a designated "Approver" role, ensuring data integrity and operational control.
+*   **Automated Backend Processes**: The application includes scheduled background services for processing automated loan repayments from borrower accounts and for identifying and flagging Non-Performing Loans (NPLs) based on configurable rules.
+*   **Comprehensive Reporting & Auditing**: Admins have access to a detailed, exportable reporting suite to monitor key metrics like portfolio health, collections, income, and fund utilization. All critical actions are logged for compliance and security.
+*   **Role-Based Access Control (RBAC)**: The platform features a granular access control system, allowing administrators to define roles and permissions for different user types, restricting access to sensitive data and features.
 
-*   **Admin & Borrower Interfaces**: The app has a secure admin dashboard for management and a separate, simplified flow for borrowers to apply for loans.
+---
 
-*   **Multi-Provider & Product Management**: Administrators can create and configure multiple loan providers (e.g., different banks) and define various loan products for each, such as personal loans with unique rules, fees, and interest rates.
+## 🛠️ Technology Stack
 
-*   **Dynamic Credit Scoring Engine**: Each provider can build their own credit scoring model using a powerful rules engine. This allows them to weigh different data points (like income or employment status from uploaded data) to automatically determine a borrower's eligibility and maximum loan amount.
+*   **Framework**: [Next.js](https://nextjs.org/) (App Router)
+*   **Language**: [TypeScript](https://www.typescriptlang.org/)
+*   **UI Library**: [React](https://reactjs.org/)
+*   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+*   **UI Components**: [ShadCN UI](https://ui.shadcn.com/)
+*   **Database ORM**: [Prisma](https://www.prisma.io/)
+*   **Database**: SQL Server
+*   **Authentication**: Custom session management using [jose](https://github.com/panva/jose) for JWTs
+*   **Password Hashing**: [bcryptjs](https://github.com/dcodeIO/bcrypt.js)
+*   **File Parsing**: [xlsx](https://github.com/SheetJS/sheetjs) for Excel data uploads
 
-*   **End-to-End Loan Lifecycle**: Borrowers can check their eligibility, apply for a loan, and receive funds. The system tracks the entire lifecycle, including disbursement, daily fee accrual, penalties, repayments, and overdue statuses.
+---
 
-*   **Automated Backend Processes**: The application includes backend services for processing automated loan repayments from borrower accounts and for identifying and flagging Non-Performing Loans (NPLs) based on configurable rules.
+## 🚀 Getting Started
 
-*   **Comprehensive Reporting & Auditing**: Admins have access to a detailed reporting suite to monitor key metrics like portfolio health, collections, income, and fund utilization. All critical actions are logged for compliance and security.
+Follow these instructions to get the project up and running on your local machine for development and testing purposes.
 
-*   **Role-Based Access Control**: The platform features a robust access control system, allowing administrators to define granular roles and permissions for different user types.
+### Prerequisites
 
-## The Loan Process
+*   [Node.js](https://nodejs.org/) (v18 or later recommended)
+*   [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
+*   A running instance of [SQL Server](https://www.microsoft.com/en-us/sql-server/)
 
-The loan lifecycle follows a clear, structured path from initial eligibility check to final repayment.
+### 1. Installation
 
-1.  **Eligibility Check**: A borrower's journey begins by selecting their profile from a list of provisioned customer data. The system then automatically runs an eligibility check for each available loan provider, calculating the borrower's credit score based on the provider's unique rules and determining their maximum loan limit.
+Clone the repository and install the project dependencies.
 
-2.  **Product Selection**: The borrower is presented with a dashboard showing available loan products from different providers. They can see their specific credit limit for each product and choose the one that best suits their needs.
+```bash
+git clone <your-repository-url>
+cd LoanFlow
+npm install
+```
 
-3.  **Application & Calculation**: After selecting a product, the borrower is taken to a calculator where they can enter their desired loan amount. The system instantly calculates the total repayable amount, including any service fees.
+### 2. Environment Configuration
 
-4.  **Disbursement**: Upon accepting the terms in the calculator, the loan is disbursed immediately. The backend records the transaction, creates the necessary ledger entries for accounting, and decrements the provider's available capital. The disbursed `Loan` is linked to its originating `LoanApplication` via the `loanApplicationId`.
+Create a `.env` file in the root of the project and add your SQL Server database connection string.
 
-5.  **Loan Monitoring**: The system automatically tracks the loan's status. Daily fees are accrued based on the product's rules. If the loan becomes overdue, penalties are applied according to the configured penalty tiers.
+```env
+# Example for SQL Server
+DATABASE_URL="sqlserver://USER:PASSWORD@HOST:PORT;database=DATABASE_NAME;trustServerCertificate=true"
+```
 
-6.  **Repayment**: The borrower can make repayments at any time. The system prioritizes payments, settling any outstanding penalties and fees before applying the remainder to the principal.
+Replace the placeholders with your actual database credentials.
 
-7.  **Automated Services**:
-    *   **Automated Repayment**: A background service runs periodically to attempt to deduct payments for overdue loans from the borrower's account (simulated via provisioned data).
-    *   **NPL Flagging**: Another service identifies loans that have been overdue for a configurable period (e.g., 60 days) and flags the borrower's account as a Non-Performing Loan (NPL), restricting them from taking new loans.
+### 3. Database Setup
+
+Run the Prisma commands to create the database schema and apply any pending migrations.
+
+```bash
+npx prisma migrate dev --name init
+```
+
+This will synchronize your database schema with the `prisma/schema.prisma` file.
+
+### 4. Seed the Database
+
+Run the seed script to populate your database with initial data, including default roles, users, providers, and products.
+
+```bash
+npx prisma db seed
+```
+
+**Default Admin Credentials:**
+*   **Phone Number**: `0900000000`
+*   **Password**: `password123`
+
+### 5. Run the Development Server
+
+Start the Next.js development server to run the application.
+
+```bash
+npm run dev
+```
+
+The application will be available at [http://localhost:9002](http://localhost:9002).
+
+---
+
+## ⚙️ Background Worker
+
+The project includes a worker script for handling scheduled tasks like automated repayments and NPL flagging.
+
+*   **To run the NPL status update once:**
+    ```bash
+    npm run run:worker -- npl
+    ```
+*   **To start the automated repayment service (long-running process):**
+    ```bash
+    npm run run:worker -- repayment-service
+    ```
