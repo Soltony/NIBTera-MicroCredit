@@ -66,6 +66,40 @@ async function getBorrowerDataForScoring(
     combinedData['loansLate'] = previousLoans.filter(l => l.repaymentBehavior === 'LATE').length;
     combinedData['loansEarly'] = previousLoans.filter(l => l.repaymentBehavior === 'EARLY').length;
     
+    // Fetch the latest Top-5 repayment transactions (combined across loans) and compute counts by category
+    try {
+        const recentPayments = await prisma.payment.findMany({
+            where: { loan: { is: { customerId: borrowerId } } },
+            include: { loan: { select: { dueDate: true } } },
+            orderBy: { date: 'desc' },
+            take: 5,
+        });
+
+        const recentCounts = { loansOnTimeTop5: 0, loansLateTop5: 0, loansEarlyTop5: 0 };
+        recentPayments.forEach(p => {
+            try {
+                const due = p.loan?.dueDate ? startOfDay(new Date(p.loan.dueDate)) : null;
+                const paid = startOfDay(new Date(p.date));
+                if (due) {
+                    if (isBefore(paid, due)) recentCounts.loansEarlyTop5++;
+                    else if (isEqual(paid, due)) recentCounts.loansOnTimeTop5++;
+                    else recentCounts.loansLateTop5++;
+                }
+            } catch (e) {
+                // ignore malformed dates for a single payment
+            }
+        });
+
+        combinedData['loansOnTimeTop5'] = recentCounts.loansOnTimeTop5;
+        combinedData['loansLateTop5'] = recentCounts.loansLateTop5;
+        combinedData['loansEarlyTop5'] = recentCounts.loansEarlyTop5;
+    } catch (e) {
+        console.error('Failed to fetch recent payments for top-5 scoring:', e);
+        combinedData['loansOnTimeTop5'] = 0;
+        combinedData['loansLateTop5'] = 0;
+        combinedData['loansEarlyTop5'] = 0;
+    }
+    
     return combinedData;
 }
 
@@ -96,8 +130,16 @@ async function calculateScoreForProvider(
         
         relevantRules.forEach(rule => {
             const fieldNameInCamelCase = toCamelCase(rule.field);
-            const inputValue = borrowerDataForScoring[fieldNameInCamelCase];
-            
+            // For repayment-type fields, prefer Top-5 counts when available
+            let inputValue = borrowerDataForScoring[fieldNameInCamelCase];
+            if (fieldNameInCamelCase === 'loansOnTime' && typeof borrowerDataForScoring['loansOnTimeTop5'] !== 'undefined') {
+                inputValue = borrowerDataForScoring['loansOnTimeTop5'];
+            } else if (fieldNameInCamelCase === 'loansLate' && typeof borrowerDataForScoring['loansLateTop5'] !== 'undefined') {
+                inputValue = borrowerDataForScoring['loansLateTop5'];
+            } else if (fieldNameInCamelCase === 'loansEarly' && typeof borrowerDataForScoring['loansEarlyTop5'] !== 'undefined') {
+                inputValue = borrowerDataForScoring['loansEarlyTop5'];
+            }
+
             if (evaluateCondition(inputValue, rule.condition, rule.value)) {
                 if (rule.score > maxScoreForParam) {
                     maxScoreForParam = rule.score;
