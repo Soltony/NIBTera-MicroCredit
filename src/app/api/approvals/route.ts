@@ -215,7 +215,25 @@ async function applyChange(change: any) {
                 }
             });
         } else if (changeType === 'DELETE') {
-            await prisma.dataProvisioningConfig.delete({ where: { id: entityId } });
+            // deleting a data provisioning config must remove or unlink all dependent
+            // objects first (loan products referencing the config, any provisioned
+            // data rows and uploads) to avoid foreign key constraint violations.
+            await prisma.$transaction(async (tx: any) => {
+                // 1) Unlink config from any products (clear config and any eligibility pointers)
+                await tx.loanProduct.updateMany({
+                    where: { dataProvisioningConfigId: entityId },
+                    data: { dataProvisioningConfigId: null, eligibilityUploadId: null, eligibilityFilter: null }
+                });
+
+                // 2) Remove provisioned data tied to this config
+                await tx.provisionedData.deleteMany({ where: { configId: entityId } });
+
+                // 3) Remove any uploads linked to this config (they will have had provisionedData removed above)
+                await tx.dataProvisioningUpload.deleteMany({ where: { configId: entityId } });
+
+                // 4) Finally delete the config
+                await tx.dataProvisioningConfig.delete({ where: { id: entityId } });
+            });
         }
       break;
     case 'DataProvisioningUpload':
@@ -231,7 +249,7 @@ async function applyChange(change: any) {
                 data: { ...providerData, status: 'ACTIVE' }
             });
         } else if (changeType === 'CREATE') {
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: any) => {
                 const providerToCreate = {
                     ...data.created,
                     initialBalance: data.created.startingCapital,

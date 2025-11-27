@@ -77,7 +77,85 @@ const ChangeDetailsDialog = ({
         };
 
         if (change.changeType === 'UPDATE') {
-            const diff = showDiff(original, updated, { full: true, keepUnchangedValues: false });
+          // Special-case DataProvisioningConfig updates to give reviewers a
+          // concise column-level summary instead of a raw JSON diff.
+          if (change.entityType === 'DataProvisioningConfig') {
+            const before = original || {};
+            const after = updated || {};
+            const details: any[] = [];
+            let added = 0, removed = 0, updatedCount = 0;
+
+            // Name change
+            if ((before.name || '') !== (after.name || '')) {
+              updatedCount++;
+              details.push({ field: 'Name', before: before.name ?? 'N/A', after: after.name ?? 'N/A', type: 'updated' });
+            }
+
+            // Provider change (unlikely, but include)
+            if ((before.providerId || '') !== (after.providerId || '')) {
+              updatedCount++;
+              details.push({ field: 'Provider Id', before: before.providerId ?? 'N/A', after: after.providerId ?? 'N/A', type: 'updated' });
+            }
+
+            // Columns: parse into structured objects { name, type, isIdentifier }
+            const parseCols = (c: any): { name: string; type?: string; isIdentifier?: boolean }[] => {
+              if (!c) return [];
+              try {
+                const raw = typeof c === 'string' ? JSON.parse(c || '[]') : Array.isArray(c) ? c : [];
+                return (raw || []).map((x: any) => ({ name: String(x?.name ?? x?.id ?? ''), type: x?.type ?? String(x?.type ?? ''), isIdentifier: !!x?.isIdentifier }));
+              } catch (e) {
+                return [];
+              }
+            };
+
+            const beforeColsObj = parseCols(before.columns);
+            const afterColsObj = parseCols(after.columns);
+            const beforeCols = beforeColsObj.map(c => c.name);
+            const afterCols = afterColsObj.map(c => c.name);
+
+                // Calculate added/removed column names
+            const beforeSet = new Set(beforeColsObj.map(c => c.name));
+            const afterSet = new Set(afterColsObj.map(c => c.name));
+              const addedCols = afterColsObj.filter((n: any) => !beforeSet.has(n.name));
+              const removedCols = beforeColsObj.filter((n: any) => !afterSet.has(n.name));
+
+            if (addedCols.length > 0) {
+              added += addedCols.length;
+                    details.push({ field: 'Columns added', after: addedCols.map((c: any) => `${c.name} (${c.type || 'unknown'})${c.isIdentifier ? ' [ID]' : ''}`), type: 'added' });
+            }
+            if (removedCols.length > 0) {
+              removed += removedCols.length;
+                    details.push({ field: 'Columns removed', before: removedCols.map((c: any) => `${c.name} (${c.type || 'unknown'})${c.isIdentifier ? ' [ID]' : ''}`), type: 'removed' });
+            }
+
+                // Also provide a compact before/after snapshot for Columns
+            if (beforeCols.length || afterCols.length) {
+              // Only include as updated if the arrays differ
+                    const arraysEqual = beforeCols.length === afterCols.length && beforeCols.every((v: string, i: number) => v === afterCols[i]);
+              if (!arraysEqual) updatedCount++;
+                    details.push({ field: 'Columns', before: beforeColsObj.map(c => `${c.name} (${c.type || 'unknown'})${c.isIdentifier ? ' [ID]' : ''}`), after: afterColsObj.map(c => `${c.name} (${c.type || 'unknown'})${c.isIdentifier ? ' [ID]' : ''}`), type: arraysEqual ? 'unchanged' : 'updated' });
+            }
+
+            // Uploads summary
+            const beforeUploads = Array.isArray(before.uploads) ? before.uploads.map((u: any) => u.fileName || u.id) : [];
+            const afterUploads = Array.isArray(after.uploads) ? after.uploads.map((u: any) => u.fileName || u.id) : [];
+            if (JSON.stringify(beforeUploads) !== JSON.stringify(afterUploads)) {
+              updatedCount++;
+              details.push({ field: 'Uploads', before: beforeUploads, after: afterUploads, type: 'updated' });
+            }
+
+            // Identifier columns: detect changes and show explicit identifier info
+            const beforeIds = beforeColsObj.filter((c: { isIdentifier?: boolean }) => !!c.isIdentifier).map((c: any) => c.name);
+            const afterIds = afterColsObj.filter((c: { isIdentifier?: boolean }) => !!c.isIdentifier).map((c: any) => c.name);
+            if (JSON.stringify(beforeIds) !== JSON.stringify(afterIds)) {
+                updatedCount++;
+                details.push({ field: 'Identifier', before: beforeIds.length ? beforeIds : 'N/A', after: afterIds.length ? afterIds : 'N/A', type: 'updated' });
+            }
+
+            return { added, removed, updated: updatedCount, details };
+          }
+
+          const diff = showDiff(original, updated, { full: true, keepUnchangedValues: false });
             const fields = { added: 0, removed: 0, updated: 0, details: [] as any[] };
 
             const flattenDiff = (obj: any, path: string = ''): any[] => {
@@ -115,20 +193,83 @@ const ChangeDetailsDialog = ({
                     fields.updated++;
                     fields.details.push({ field: formatFieldName(item.path), before: item.__old, after: item.__new, type: 'updated' });
                 }
+
+                
             });
             
             return fields;
 
         } else if (change.changeType === 'CREATE') {
-            return {
-                added: Object.keys(created).length, removed: 0, updated: 0,
-                details: Object.entries(created).map(([key, value]) => ({ field: formatFieldName(key), after: value, type: 'added' }))
-            };
+          // For DataProvisioningConfig creates, present a short, readable summary
+          // showing provider, name and a friendly column name list instead of
+          // raw nested JSON so approvers can quickly understand the change.
+          if (change.entityType === 'DataProvisioningConfig') {
+            const createdObj = created || {};
+            let cols: any[] = [];
+            try {
+              if (typeof createdObj.columns === 'string') cols = JSON.parse(createdObj.columns as string) || [];
+              else if (Array.isArray(createdObj.columns)) cols = createdObj.columns;
+            } catch (e) { cols = []; }
+
+            const columnLabels = cols.map((c: any) => `${c?.name ?? c?.id ?? String(c)} (${c?.type ?? 'unknown'})${c?.isIdentifier ? ' [ID]' : ''}`).slice(0, 200);
+            const identifierCols = cols.filter((c: any) => !!c?.isIdentifier).map((c: any) => c?.name ?? c?.id ?? String(c));
+                const details = [
+              { field: 'Id', after: createdObj.id ?? 'N/A', type: 'added' },
+                  { field: 'Identifier', after: identifierCols.length ? identifierCols : 'N/A', type: 'added' },
+              { field: 'Provider Id', after: createdObj.providerId ?? (createdObj.providerName ?? 'N/A'), type: 'added' },
+              { field: 'Name', after: createdObj.name ?? 'N/A', type: 'added' },
+                    { field: 'Columns', after: columnLabels, type: 'added' },
+            ];
+
+            if (Array.isArray(createdObj.uploads) && createdObj.uploads.length) {
+              details.push({ field: 'Uploads', after: createdObj.uploads.map((u: any) => u.fileName || u.id), type: 'added' });
+            }
+
+            return { added: details.length, removed: 0, updated: 0, details };
+          }
+
+          return {
+            added: Object.keys(created).length, removed: 0, updated: 0,
+            details: Object.entries(created).map(([key, value]) => ({ field: formatFieldName(key), after: value, type: 'added' }))
+          };
         } else if (change.changeType === 'DELETE') {
-            return {
-                added: 0, removed: Object.keys(original).length, updated: 0,
-                details: Object.entries(original).map(([key, value]) => ({ field: formatFieldName(key), before: value, type: 'removed' }))
-            };
+          // For DataProvisioningConfig removals, present a concise, human-friendly
+          // summary rather than dumping the whole object. This shows only core
+          // fields and a simple list of column names for easier review.
+          if (change.entityType === 'DataProvisioningConfig') {
+            const before = original || {};
+            // columns may be stored as a JSON string or an array
+            let cols: any[] = [];
+            try {
+              if (typeof before.columns === 'string') cols = JSON.parse(before.columns as string) || [];
+              else if (Array.isArray(before.columns)) cols = before.columns;
+            } catch (e) {
+              cols = [];
+            }
+
+            const columnNames = cols.map((c: any) => `${c?.name ?? c?.id ?? String(c)} (${c?.type ?? 'unknown'})${c?.isIdentifier ? ' [ID]' : ''}`).slice(0, 200);
+            const identifierCols = cols.filter((c: any) => !!c?.isIdentifier).map((c: any) => c?.name ?? c?.id ?? String(c));
+            const uploads = Array.isArray(before.uploads) ? before.uploads : [];
+
+                const details = [
+              { field: 'Id', before: before.id, type: 'removed' },
+                  { field: 'Identifier', before: identifierCols.length ? identifierCols : 'N/A', type: 'removed' },
+              { field: 'Provider Id', before: before.providerId || change.providerName || 'N/A', type: 'removed' },
+              { field: 'Name', before: before.name, type: 'removed' },
+              { field: 'Columns', before: columnNames, type: 'removed' },
+            ];
+
+            if (uploads.length > 0) {
+              details.push({ field: 'Uploads', before: uploads.map((u: any) => u.fileName || u.id), type: 'removed' });
+            }
+
+            return { added: 0, removed: details.length, updated: 0, details };
+          }
+
+          return {
+            added: 0, removed: Object.keys(original).length, updated: 0,
+            details: Object.entries(original).map(([key, value]) => ({ field: formatFieldName(key), before: value, type: 'removed' }))
+          };
         }
 
     } catch (e) {
