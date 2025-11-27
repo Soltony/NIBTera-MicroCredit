@@ -69,7 +69,7 @@ async function getBorrowerDataForScoring(
     // Fetch the latest Top-5 repayment transactions (combined across loans) and compute counts by category
     try {
         const recentPayments = await prisma.payment.findMany({
-            where: { loan: { is: { customerId: borrowerId } } },
+            where: { loan: { is: { borrowerId: borrowerId } } },
             include: { loan: { select: { dueDate: true } } },
             orderBy: { date: 'desc' },
             take: 5,
@@ -78,6 +78,7 @@ async function getBorrowerDataForScoring(
         const recentCounts = { loansOnTimeTop5: 0, loansLateTop5: 0, loansEarlyTop5: 0 };
         recentPayments.forEach(p => {
             try {
+                const { startOfDay, isBefore, isEqual } = require('date-fns');
                 const due = p.loan?.dueDate ? startOfDay(new Date(p.loan.dueDate)) : null;
                 const paid = startOfDay(new Date(p.date));
                 if (due) {
@@ -262,7 +263,7 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
                 const ranges = typeof cycleConfig.cycleRanges === 'string' ? JSON.parse(cycleConfig.cycleRanges) as Array<{ label?: string; min: number; max: number }> : (cycleConfig.cycleRanges as any[]);
 
                 // determine which range index the metricCount falls into
-                let idx = 0;
+                let idx = -1;
                 for (let i = 0; i < ranges.length; i++) {
                     const r = ranges[i];
                     if (typeof r?.min === 'number' && typeof r?.max === 'number') {
@@ -271,6 +272,10 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
                             break;
                         }
                     }
+                }
+                
+                if (idx === -1 && ranges.length > 0) {
+                    idx = ranges.length - 1;
                 }
 
                 // find matching grade by score - choose highest minScore <= score
