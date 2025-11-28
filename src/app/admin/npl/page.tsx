@@ -6,9 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, UserCheck } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { updateNplStatus } from '@/actions/npl';
 
 interface NplBorrower {
@@ -33,8 +32,6 @@ export default function NplManagementPage() {
     const [borrowers, setBorrowers] = useState<NplBorrower[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
-    const [isReverting, setIsReverting] = useState(false);
-    const [selectedBorrower, setSelectedBorrower] = useState<NplBorrower | null>(null);
     const { toast } = useToast();
 
     const fetchBorrowers = async () => {
@@ -81,35 +78,7 @@ export default function NplManagementPage() {
         }
     };
     
-    const handleRevertStatus = async () => {
-        if (!selectedBorrower) return;
-        setIsReverting(true);
-        try {
-             const response = await fetch('/api/borrowers', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ borrowerId: selectedBorrower.id, status: 'Active' }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to revert status.');
-            }
-            toast({
-                title: 'Status Reverted',
-                description: `Borrower ${selectedBorrower.id.slice(0, 8)} has been set to Active.`,
-            });
-            await fetchBorrowers();
-        } catch (error: any) {
-             toast({
-                title: 'Error',
-                description: error.message,
-                variant: 'destructive',
-            });
-        } finally {
-            setIsReverting(false);
-            setSelectedBorrower(null);
-        }
-    };
+    // Manual revert action removed: borrowers should not be reverted from NPL via UI
 
 
     return (
@@ -139,13 +108,12 @@ export default function NplManagementPage() {
                                     <TableHead>Borrower ID</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Overdue Loan Count</TableHead>
-                                    <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="h-24 text-center">
+                                        <TableCell colSpan={3} className="h-24 text-center">
                                             <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
                                         </TableCell>
                                     </TableRow>
@@ -157,17 +125,11 @@ export default function NplManagementPage() {
                                                 <Badge variant="destructive">{borrower.status}</Badge>
                                             </TableCell>
                                             <TableCell>{borrower.loans.length}</TableCell>
-                                            <TableCell>
-                                                <Button variant="outline" size="sm" onClick={() => setSelectedBorrower(borrower)}>
-                                                    <UserCheck className="mr-2 h-4 w-4" />
-                                                    Revert to Active
-                                                </Button>
-                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="h-24 text-center">
+                                        <TableCell colSpan={3} className="h-24 text-center">
                                             No NPL borrowers found.
                                         </TableCell>
                                     </TableRow>
@@ -177,23 +139,7 @@ export default function NplManagementPage() {
                     </CardContent>
                 </Card>
             </div>
-            <AlertDialog open={!!selectedBorrower} onOpenChange={(isOpen) => !isOpen && setSelectedBorrower(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Revert Borrower Status?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This will manually change the status of borrower <span className="font-mono">{selectedBorrower?.id}</span> from NPL back to Active. This should only be done if the loan has been settled or if an error was made.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleRevertStatus} disabled={isReverting}>
-                             {isReverting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Confirm Revert
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* Manual revert dialog removed to prevent removing borrowers from NPL via the UI. */}
         </>
     );
 }
