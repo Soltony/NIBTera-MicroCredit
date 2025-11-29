@@ -66,7 +66,32 @@ const defaultLedgerAccounts = [
 async function main() {
   console.log('Start seeding...');
 
-  // Seed Roles
+  const desiredColumns = [
+    { id: 'col-ext-0', name: 'AccountNumber', type: 'string', isIdentifier: true, options: [] },
+    { id: 'col-ext-1', name: 'AccountOpeningDate', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-2', name: 'CustomerName', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-3', name: 'Country', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-4', name: 'Street', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-5', name: 'City', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-6', name: 'Nationality', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-7', name: 'Residence', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-8', name: 'NationalId', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-9', name: 'ResidenceRegion', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-10', name: 'Gender', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-11', name: 'DateOfBirth', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-12', name: 'MaritalStatus', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-13', name: 'Occupation', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-14', name: 'EmployersName', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-15', name: 'NetMonthlyIncome', type: 'number', isIdentifier: false, options: [] },
+    { id: 'col-ext-16', name: 'Woreda', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-17', name: 'MotherName', type: 'string', isIdentifier: false, options: [] },
+    { id: 'col-ext-18', name: 'SubCity', type: 'string', isIdentifier: false, options: [] }
+  ];
+
+  // NOTE: Instead of creating a global/sentinel provider to host a shared DataProvisioningConfig,
+  // we attach a provider-scoped `ExternalCustomerInfo` config to each provider. The provider
+  // create endpoints also ensure this config exists for newly created providers.
+
   const superAdminRole = await prisma.role.upsert({
     where: { name: 'Super Admin' },
     update: {
@@ -81,7 +106,7 @@ async function main() {
   const loanProviderRole = await prisma.role.upsert({
     where: { name: 'Loan Provider' },
     update: {
-       permissions: JSON.stringify(permissions.loanProvider),
+      permissions: JSON.stringify(permissions.loanProvider),
     },
     create: {
       name: 'Loan Provider',
@@ -181,6 +206,17 @@ async function main() {
       console.log('Ledger accounts for NIb Bank seeded.');
   }
 
+  // Ensure ExternalCustomerInfo provisioning config exists for NIb Bank
+  try {
+    const existingExt = await prisma.dataProvisioningConfig.findFirst({ where: { providerId: nibBank.id, name: 'ExternalCustomerInfo' } });
+    if (!existingExt) {
+      const created = await prisma.dataProvisioningConfig.create({ data: { providerId: nibBank.id, name: 'ExternalCustomerInfo', columns: JSON.stringify(desiredColumns) } });
+      console.log('Created ExternalCustomerInfo config for NIb Bank:', created.id);
+    }
+  } catch (e) {
+    console.warn('Could not ensure ExternalCustomerInfo for NIb Bank during seed:', e);
+  }
+
   let personalLoan = await prisma.loanProduct.findFirst({
       where: { name: 'Personal Loan', providerId: nibBank.id }
   });
@@ -251,6 +287,17 @@ async function main() {
       console.log('Ledger accounts for Abyssinia Bank seeded.');
   }
 
+  // Ensure ExternalCustomerInfo provisioning config exists for Abyssinia Bank
+  try {
+    const existingExtAbby = await prisma.dataProvisioningConfig.findFirst({ where: { providerId: abyssiniaBank.id, name: 'ExternalCustomerInfo' } });
+    if (!existingExtAbby) {
+      const createdAbby = await prisma.dataProvisioningConfig.create({ data: { providerId: abyssiniaBank.id, name: 'ExternalCustomerInfo', columns: JSON.stringify(desiredColumns) } });
+      console.log('Created ExternalCustomerInfo config for Abyssinia Bank:', createdAbby.id);
+    }
+  } catch (e) {
+    console.warn('Could not ensure ExternalCustomerInfo for Abyssinia Bank during seed:', e);
+  }
+
   let mortgageLoan = await prisma.loanProduct.findFirst({
       where: { name: 'Mortgage Loan', providerId: abyssiniaBank.id }
   });
@@ -279,6 +326,8 @@ async function main() {
   }
 
   console.log('Loan Providers and Products seeded.');
+
+  // (Previously there was a duplicate shared-config creation path here; the shared config is created above and attached to the sentinel provider.)
 
   // Seed a test borrower
   const testBorrower = await prisma.borrower.upsert({

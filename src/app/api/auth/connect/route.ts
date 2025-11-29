@@ -46,9 +46,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Phone number not found in validation response." }, { status: 400 });
         }
         
-        if (typeof phone === 'string' && phone.startsWith('251') && phone.length === 12) {
-            phone = phone.substring(3);
-        }
+        // if (typeof phone === 'string' && phone.startsWith('251') && phone.length === 12) {
+        //     phone = phone.substring(3);
+        // }
 
         // Create the session and set the cookie
         await createSession(phone, token); // Pass raw token to session

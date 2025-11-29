@@ -268,6 +268,35 @@ async function applyChange(change: any) {
                     data: accountsToCreate,
                 });
 
+                // Create provider-scoped ExternalCustomerInfo data provisioning config with desired columns
+                const desiredColumns = [
+                    { id: 'col-ext-0', name: 'AccountNumber', type: 'string', isIdentifier: true, options: [] },
+                    { id: 'col-ext-1', name: 'AccountOpeningDate', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-2', name: 'CustomerName', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-3', name: 'Country', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-4', name: 'Street', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-5', name: 'City', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-6', name: 'Nationality', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-7', name: 'Residence', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-8', name: 'NationalId', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-9', name: 'ResidenceRegion', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-10', name: 'Gender', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-11', name: 'DateOfBirth', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-12', name: 'MaritalStatus', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-13', name: 'Occupation', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-14', name: 'EmployersName', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-15', name: 'NetMonthlyIncome', type: 'number', isIdentifier: false, options: [] },
+                    { id: 'col-ext-16', name: 'Woreda', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-17', name: 'MotherName', type: 'string', isIdentifier: false, options: [] },
+                    { id: 'col-ext-18', name: 'SubCity', type: 'string', isIdentifier: false, options: [] }
+                ];
+
+                try {
+                    await tx.dataProvisioningConfig.create({ data: { providerId: newProvider.id, name: 'ExternalCustomerInfo', columns: JSON.stringify(desiredColumns) } });
+                } catch (e) {
+                    // ignore create conflicts
+                }
+
                 return newProvider;
             });
         }

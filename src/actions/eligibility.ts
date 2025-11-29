@@ -25,13 +25,14 @@ async function getBorrowerDataForScoring(
     providerId: string, 
 ): Promise<Record<string, any>> {
 
+    // Load provisioned data for the borrower across all providers' ExternalCustomerInfo configs.
+    // This allows any provider to access fetched external customer info for scoring.
     const provisionedDataEntries = await prisma.provisionedData.findMany({
-        where: { 
+        where: {
             borrowerId,
-            config: {
-                providerId: providerId,
-            }
+            config: { name: 'ExternalCustomerInfo' },
         },
+        include: { config: true },
         orderBy: { createdAt: 'desc' },
     });
 
@@ -40,10 +41,24 @@ async function getBorrowerDataForScoring(
     
     for (const entry of provisionedDataEntries) {
         try {
-            const data = JSON.parse(entry.data as string);
+            const parsed = JSON.parse(entry.data as string);
+            // Some payloads are stored as { detail: { ...fields } } (from external API)
+            // while others may be flat objects. Normalize by preferring `detail` when present.
+            const sourceContent = (parsed && typeof parsed === 'object' && parsed.detail && typeof parsed.detail === 'object') ? parsed.detail : parsed;
+
             const standardizedData: Record<string, any> = {};
-            for (const key in data) {
-                standardizedData[toCamelCase(key)] = data[key];
+            for (const key in sourceContent) {
+                if (!Object.prototype.hasOwnProperty.call(sourceContent, key)) continue;
+                let val = sourceContent[key];
+                // Convert numeric-like strings to numbers so rules comparing numbers work.
+                if (typeof val === 'string' && val.trim() !== '' && !isNaN(Number(val))) {
+                    const maybeNum = Number(val);
+                    // Only coerce if the string is an integer or float representation
+                    if (String(maybeNum) === val.trim() || /^\d+(\.\d+)?$/.test(val.trim())) {
+                        val = maybeNum;
+                    }
+                }
+                standardizedData[toCamelCase(key)] = val;
             }
 
             for (const key in standardizedData) {
@@ -54,6 +69,26 @@ async function getBorrowerDataForScoring(
         } catch (e) {
             console.error(`Failed to parse data for entry ${entry.id}:`, e);
         }
+    }
+    // Merge latest account statement metrics for borrower (if any)
+    try {
+        const metric = await prisma.accountStatementMetrics.findFirst({ where: { borrowerId }, orderBy: { computedAt: 'desc' } });
+        if (metric) {
+            // Expose metric fields as top-level properties for scoring rules
+            const m = metric as any;
+            combinedData['monthsAtEbirr'] = m.monthsAtEbirr ?? combinedData['monthsAtEbirr'];
+            combinedData['txCountRelevant'] = m.txCountRelevant ?? combinedData['txCountRelevant'];
+            combinedData['billPaymentsCount'] = m.billPaymentsCount ?? combinedData['billPaymentsCount'];
+            combinedData['avgMonthlyDeposit'] = m.avgMonthlyDeposit ?? combinedData['avgMonthlyDeposit'];
+            combinedData['avgUniqueDepositSources'] = m.avgUniqueDepositSources ?? combinedData['avgUniqueDepositSources'];
+            combinedData['avgMonthlyAirtimeCount'] = m.avgMonthlyAirtimeCount ?? combinedData['avgMonthlyAirtimeCount'];
+            combinedData['avgMonthlyAirtimeValue'] = m.avgMonthlyAirtimeValue ?? combinedData['avgMonthlyAirtimeValue'];
+            combinedData['withdrawalToDepositRatio'] = m.withdrawalToDepositRatio ?? combinedData['withdrawalToDepositRatio'];
+            combinedData['avgBalance'] = m.avgBalance ?? combinedData['avgBalance'];
+            try { combinedData['accountMetricsRaw'] = JSON.parse(m.derived || '{}'); } catch(e) { combinedData['accountMetricsRaw'] = m.derived || {}; }
+        }
+    } catch (e) {
+        console.error('Failed to load account statement metrics for scoring:', e);
     }
     
     const previousLoans = await prisma.loan.findMany({

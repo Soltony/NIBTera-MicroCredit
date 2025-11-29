@@ -50,6 +50,16 @@ export function ApplyClient({ provider, taxConfigs }: { provider: LoanProvider, 
                 const active = items && items.find((i: any) => i.isActive);
                 if (active) {
                     setSelectedAccount(active);
+                    // Ensure customer info is provisioned for this active account
+                    try {
+                        fetch('/api/phone-accounts/fetch-customer', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: active.accountNumber, providerId: provider?.id })
+                        }).then(() => {/* fire-and-forget */}).catch(() => {/* ignore */});
+                    } catch (e) {
+                        // ignore
+                    }
                 } else {
                     setShowAccountModal(true);
                 }
@@ -190,8 +200,25 @@ export function ApplyClient({ provider, taxConfigs }: { provider: LoanProvider, 
                             {borrowerId && (
                                 <div className="mt-4">
                                     <AccountSelector phoneNumber={borrowerId} onSelected={(acc) => {
-                                        setSelectedAccount(acc);
-                                        setShowAccountModal(false);
+                                        (async () => {
+                                            setSelectedAccount(acc);
+                                            try {
+                                                const res = await fetch('/api/phone-accounts/fetch-customer', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: acc.accountNumber, providerId: provider?.id })
+                                                });
+                                                const data = await res.json();
+                                                if (!res.ok) {
+                                                    toast({ title: 'Provisioning failed', description: data?.error || JSON.stringify(data), variant: 'destructive' });
+                                                } else {
+                                                    toast({ title: 'Customer data saved', description: 'Customer details were saved for scoring.', });
+                                                }
+                                            } catch (err: any) {
+                                                toast({ title: 'Provisioning error', description: String(err?.message ?? err), variant: 'destructive' });
+                                            }
+                                            setShowAccountModal(false);
+                                        })();
                                     }} />
                                 </div>
                             )}

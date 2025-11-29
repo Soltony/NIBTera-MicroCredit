@@ -126,8 +126,9 @@ async function getTaxConfigs(): Promise<Tax[]> {
 }
 
 
-export default async function LoanPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
-    const borrowerId = searchParams['borrowerId'] as string;
+export default async function LoanPage({ searchParams }: { searchParams: any }) {
+    const params = await searchParams;
+    const borrowerId = params?.borrowerId as string;
     
     const [providers, loanHistory, taxConfigs] = await Promise.all([
         getProviders(),

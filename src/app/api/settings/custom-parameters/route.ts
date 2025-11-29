@@ -40,6 +40,16 @@ export async function GET(req: NextRequest) {
             { value: 'loansOnTime', label: 'Loans Paid On Time', type: 'number', options: [] },
             { value: 'loansLate', label: 'Loans Paid Late', type: 'number', options: [] },
             { value: 'loansEarly', label: 'Loans Paid Early', type: 'number', options: [] },
+            // Account statement derived metrics
+            { value: 'monthsAtEbirr', label: 'Months with eBirr Activity', type: 'number', options: [] },
+            { value: 'txCountRelevant', label: 'Relevant Transaction Count', type: 'number', options: [] },
+            { value: 'billPaymentsCount', label: 'Bill Payments Count', type: 'number', options: [] },
+            { value: 'avgMonthlyDeposit', label: 'Avg Monthly Deposit', type: 'number', options: [] },
+            { value: 'avgUniqueDepositSources', label: 'Avg Unique Deposit Sources / Month', type: 'number', options: [] },
+            { value: 'avgMonthlyAirtimeCount', label: 'Avg Monthly Airtime Purchases', type: 'number', options: [] },
+            { value: 'avgMonthlyAirtimeValue', label: 'Avg Monthly Airtime Value', type: 'number', options: [] },
+            { value: 'withdrawalToDepositRatio', label: 'Withdrawal-to-Deposit Ratio', type: 'number', options: [] },
+            { value: 'avgBalance', label: 'Avg Balance', type: 'number', options: [] },
         ];
         
         customParameters = customParameters.concat(behavioralParameters);

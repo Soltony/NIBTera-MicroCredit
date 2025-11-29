@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../ui/dialog';
+import AccountSelector from '@/components/loan/account-selector';
 import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
@@ -64,6 +65,8 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
   const [eligibility, setEligibility] = useState<EligibilityState>({ limits: {}, reasons: {} });
   
   const [agreementState, setAgreementState] = useState<AgreementState>({});
+    const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
+    const [showAccountModal, setShowAccountModal] = useState(false);
   const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
   const [productToApply, setProductToApply] = useState<LoanProduct | null>(null);
   const [agreementChecked, setAgreementChecked] = useState(false);
@@ -148,6 +151,38 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
   }, [initialLoanHistory]);
+
+    useEffect(() => {
+        // If borrowerId provided, check for active account and show selector before any action
+        const checkActive = async () => {
+            if (!borrowerId) return;
+            try {
+                const res = await fetch(`/api/phone-accounts?phoneNumber=${encodeURIComponent(borrowerId)}`);
+                if (!res.ok) {
+                    setShowAccountModal(true);
+                    return;
+                }
+                const items = await res.json();
+                const active = items && items.find((i: any) => i.isActive);
+                if (active) {
+                    setSelectedAccount(active);
+                    // Provision customer info in background (attach to selected provider)
+                    const providerIdToUse = providerIdFromUrl || providers[0]?.id;
+                    fetch('/api/phone-accounts/fetch-customer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: active.accountNumber, providerId: providerIdToUse })
+                    }).catch(() => {});
+                } else {
+                    setShowAccountModal(true);
+                }
+            } catch (err) {
+                setShowAccountModal(true);
+            }
+        };
+
+        checkActive();
+    }, [borrowerId]);
 
   useEffect(() => {
     if (providers.length > 0 && borrowerId) {
@@ -421,6 +456,45 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+            {/* Blocking account selection modal: appears when super-app provides borrowerId and no active account exists */}
+            <Dialog open={showAccountModal} onOpenChange={(open) => {
+                // prevent closing unless an account is selected
+                if (!open && !selectedAccount) return;
+                setShowAccountModal(open);
+            }}>
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Select disbursement account</DialogTitle>
+                        <DialogDescription>Please choose the account to receive disbursements for this loan. This selection is required.</DialogDescription>
+                    </DialogHeader>
+                        {borrowerId && (
+                        <div className="mt-4">
+                            <AccountSelector phoneNumber={borrowerId} onSelected={(acc) => {
+                                (async () => {
+                                    setSelectedAccount(acc);
+                                    try {
+                                        const providerIdToUse = selectedProviderId || providerIdFromUrl || providers[0]?.id;
+                                        const res = await fetch('/api/phone-accounts/fetch-customer', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: acc.accountNumber, providerId: providerIdToUse })
+                                        });
+                                        const data = await res.json();
+                                        if (!res.ok) {
+                                            toast({ title: 'Provisioning failed', description: data?.error || JSON.stringify(data), variant: 'destructive' });
+                                        } else {
+                                            toast({ title: 'Customer data saved', description: 'Customer details were saved for scoring.' });
+                                        }
+                                    } catch (err: any) {
+                                        toast({ title: 'Provisioning error', description: String(err?.message ?? err), variant: 'destructive' });
+                                    }
+                                    setShowAccountModal(false);
+                                })();
+                            }} />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
     </>
   );
 }
