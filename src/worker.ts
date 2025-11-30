@@ -14,6 +14,7 @@
 
 import { processAutomatedRepayments } from './actions/repayment';
 import { updateNplStatus } from './actions/npl';
+import { sendDueDateReminders } from './actions/repayment';
 
 const REPAYMENT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -21,6 +22,13 @@ async function runRepaymentServiceLoop() {
     console.log(`[${new Date().toISOString()}] Automated repayment service started. Will run every ${REPAYMENT_INTERVAL_MS / 1000 / 60} minutes.`);
     while (true) {
         try {
+          // Send due-date reminders for loans due today
+          try {
+            const reminders = await sendDueDateReminders();
+            console.log(`[${new Date().toISOString()}] Sent ${reminders.sent} due-date reminders.`);
+          } catch (e) {
+            console.error(`[${new Date().toISOString()}] Error sending due-date reminders:`, e);
+          }
             console.log(`[${new Date().toISOString()}] Starting automated repayment cycle...`);
             await processAutomatedRepayments();
             console.log(`[${new Date().toISOString()}] Repayment cycle finished successfully.`);

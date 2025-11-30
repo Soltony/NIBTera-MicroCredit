@@ -6,6 +6,7 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay, isBefore, isEqual } from 'date-fns';
 import type { RepaymentBehavior } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit-log';
+import sendSms from '@/lib/sms';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -191,15 +192,27 @@ export async function POST(req: NextRequest) {
                 }
             });
             
-             const logDetails = {
-                loanId: loan.id,
-                paymentId: newPayment.id,
-                amount: paymentAmount,
-                repaymentStatus: finalLoan.repaymentStatus,
-             };
-             await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
-             console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_SUCCESS' }));
-            
+            const logDetails = {
+               loanId: loan.id,
+               paymentId: newPayment.id,
+               amount: paymentAmount,
+               repaymentStatus: finalLoan.repaymentStatus,
+            };
+            await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
+            console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_SUCCESS' }));
+
+            // Send SMS notification to borrower for manual repayment
+            (async () => {
+                try {
+                    const phone = loan.borrowerId;
+                    const msg = `Payment of ${paymentAmount} ETB received for loan ${loan.id}. Thank you.`;
+                    const smsRes = await sendSms(String(phone), msg);
+                    if (!smsRes.ok) console.warn('[payments] sms send failed', smsRes);
+                } catch (e) {
+                    console.error('[payments] sms notify error', e);
+                }
+            })();
+
             return finalLoan;
         });
 

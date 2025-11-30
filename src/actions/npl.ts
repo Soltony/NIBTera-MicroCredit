@@ -8,6 +8,7 @@
 
 import prisma from '@/lib/prisma';
 import { subDays } from 'date-fns';
+import sendSms from '@/lib/sms';
 
 export async function updateNplStatus(): Promise<{ success: boolean; message: string; updatedCount: number }> {
     console.log('Starting NPL status update process...');
@@ -59,22 +60,28 @@ export async function updateNplStatus(): Promise<{ success: boolean; message: st
         const borrowerIdsToFlag = [...new Set(overdueLoans.map(loan => loan.borrowerId))];
         
         try {
-            const { count } = await prisma.borrower.updateMany({
-                where: {
-                    id: {
-                        in: borrowerIdsToFlag,
-                    },
-                    status: {
-                        not: 'NPL',
-                    },
-                },
-                data: {
-                    status: 'NPL',
-                },
-            });
-            
+            // Find borrowers to flag (exclude those already NPL)
+            const borrowersToFlag = await prisma.borrower.findMany({ where: { id: { in: borrowerIdsToFlag }, status: { not: 'NPL' } }, select: { id: true } });
+            if (borrowersToFlag.length === 0) continue;
+
+            const idsToUpdate = borrowersToFlag.map(b => b.id);
+            const { count } = await prisma.borrower.updateMany({ where: { id: { in: idsToUpdate } }, data: { status: 'NPL' } });
             totalUpdatedCount += count;
             console.log(`For provider ${provider.id}, updated ${count} borrowers to NPL status.`);
+
+            // Send SMS notification to each borrower updated
+            for (const b of borrowersToFlag) {
+                (async () => {
+                    try {
+                        const phone = b.id; // borrowerId stored as id
+                        const msg = `Your loan account has been flagged as Non-Performing Loan (NPL). Please contact support to regularize your account.`;
+                        const smsRes = await sendSms(String(phone), msg);
+                        if (!smsRes.ok) console.warn('[npl] sms send failed', smsRes);
+                    } catch (e) {
+                        console.error('[npl] sms notify error', e);
+                    }
+                })();
+            }
 
         } catch (error) {
             console.error(`Failed to update NPL statuses for provider ${provider.id}:`, error);

@@ -446,6 +446,24 @@ model PaymentTransaction {
   receivedAt    DateTime @default(now())
 }
 
+// Records disbursement requests sent to the external payment/disbursement service
+model DisbursementTransaction {
+  id               String   @id @default(cuid())
+  transactionId    String?  // transaction id returned by upstream, if any
+  providerId       String
+  originalProviderId String? // provider id received from caller before any forced override
+  creditAccount    String
+  amount           Float?
+  requestPayload   String   @db.NVarChar(Max)
+  responsePayload  String?  @db.NVarChar(Max)
+  rawResponse      String?  @db.NVarChar(Max)
+  statusCode       Int?
+  createdAt        DateTime @default(now())
+
+  @@index([providerId])
+  @@index([transactionId])
+}
+
 // Maps phone numbers to external bank account numbers returned by the
 // external 'get-accounts' service. A phoneNumber can have multiple
 // account entries; at most one may be marked as active for loan use.

@@ -10,6 +10,7 @@ import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay } from 'date-fns';
 import { createAuditLog } from '@/lib/audit-log';
+import sendSms from '@/lib/sms';
 
 async function getBorrowerBalance(borrowerId: string): Promise<number> {
     const provisionedData = await prisma.provisionedData.findFirst({
@@ -187,6 +188,8 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     details: logDetails
                 }));
 
+                // (no SMS for automated repayments)
+
             } catch (error) {
                 const failureDetails = {
                     loanId: loan.id,
@@ -199,6 +202,8 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     actorId: 'system',
                     details: failureDetails
                 }));
+
+                // (no SMS for automated repayment failures)
             }
         } else {
             const skipDetails = {
@@ -214,9 +219,40 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 reason: 'Insufficient funds',
                 details: skipDetails
             }));
+
+            // (no SMS for automated repayment skipped)
         }
     }
     
     console.log(`Automated repayment process finished. Processed ${processedCount} loans.`);
     return { success: true, message: `Processed ${overdueLoans.length} overdue loans, successfully repaid ${processedCount}.`, processedCount };
+}
+
+// Send due-date reminders for loans that are due today
+export async function sendDueDateReminders(): Promise<{ sent: number }> {
+    const today = startOfDay(new Date());
+    // Find loans due today and unpaid
+    const dueLoans = await prisma.loan.findMany({
+        where: {
+            repaymentStatus: 'Unpaid',
+            dueDate: {
+                gte: today,
+                lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+            }
+        }
+    });
+
+    let sent = 0;
+    for (const loan of dueLoans) {
+        try {
+            const phone = loan.borrowerId; // borrowerId is phone in this app
+            const msg = `Reminder: Loan ${loan.id} of amount ${loan.loanAmount} is due today (${loan.dueDate.toISOString().split('T')[0]}). Please repay to avoid penalties.`;
+            const res = await sendSms(String(phone), msg);
+            if (res.ok) sent++;
+        } catch (e) {
+            console.error('[repayment][dueReminder] failed to send sms', { loanId: loan.id, error: e });
+        }
+    }
+
+    return { sent };
 }
