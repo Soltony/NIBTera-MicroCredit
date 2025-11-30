@@ -65,8 +65,8 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
   const [eligibility, setEligibility] = useState<EligibilityState>({ limits: {}, reasons: {} });
   
   const [agreementState, setAgreementState] = useState<AgreementState>({});
-    const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
-    const [showAccountModal, setShowAccountModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
   const [productToApply, setProductToApply] = useState<LoanProduct | null>(null);
   const [agreementChecked, setAgreementChecked] = useState(false);
@@ -153,7 +153,8 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
   }, [initialLoanHistory]);
 
     useEffect(() => {
-        // If borrowerId provided, check for active account and show selector before any action
+        // When the super-app provides a borrowerId (phone), check for an active associated account.
+        // If none exists, open a blocking modal to force the user to select one.
         const checkActive = async () => {
             if (!borrowerId) return;
             try {
@@ -166,13 +167,17 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                 const active = items && items.find((i: any) => i.isActive);
                 if (active) {
                     setSelectedAccount(active);
-                    // Provision customer info in background (attach to selected provider)
-                    const providerIdToUse = providerIdFromUrl || providers[0]?.id;
-                    fetch('/api/phone-accounts/fetch-customer', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: active.accountNumber, providerId: providerIdToUse })
-                    }).catch(() => {});
+                    // Ensure customer info is provisioned for this active account
+                    try {
+                        const providerIdToUse = providerIdFromUrl || providers[0]?.id;
+                        fetch('/api/phone-accounts/fetch-customer', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: active.accountNumber, providerId: providerIdToUse })
+                        }).then(() => {/* fire-and-forget */}).catch(() => {/* ignore */});
+                    } catch (e) {
+                        // ignore
+                    }
                 } else {
                     setShowAccountModal(true);
                 }
@@ -182,7 +187,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
         };
 
         checkActive();
-    }, [borrowerId]);
+    }, [borrowerId, providerIdFromUrl, providers]);
 
   useEffect(() => {
     if (providers.length > 0 && borrowerId) {
@@ -345,6 +350,13 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                       </div>
                   </div>
 
+                  {selectedAccount && (
+                        <div className="my-4 p-3 border rounded-lg bg-secondary/50">
+                            <div className="text-sm font-medium text-secondary-foreground">Selected Account</div>
+                            <div className="font-mono text-foreground">{selectedAccount.accountNumber} — {selectedAccount.customerName}</div>
+                        </div>
+                  )}
+
                   <div className="mt-2">
                     <LoanSummaryCard
                         maxLoanLimit={overallMaxLimit}
@@ -456,9 +468,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-            {/* Blocking account selection modal: appears when super-app provides borrowerId and no active account exists */}
             <Dialog open={showAccountModal} onOpenChange={(open) => {
-                // prevent closing unless an account is selected
                 if (!open && !selectedAccount) return;
                 setShowAccountModal(open);
             }}>
@@ -498,7 +508,3 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
     </>
   );
 }
-
-    
-
-    

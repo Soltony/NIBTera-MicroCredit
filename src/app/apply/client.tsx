@@ -9,7 +9,6 @@ import { LoanOfferAndCalculator } from '@/components/loan/loan-offer-and-calcula
 import { LoanDetailsView } from '@/components/loan/loan-details-view';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import AccountSelector from '@/components/loan/account-selector';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 
@@ -32,44 +31,6 @@ export function ApplyClient({ provider, taxConfigs }: { provider: LoanProvider, 
     
     const [step, setStep] = useState<Step>(initialStep);
     const [loanDetails, setLoanDetails] = useState<LoanDetails | null>(null);
-    const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
-    const [showAccountModal, setShowAccountModal] = useState(false);
-
-    useEffect(() => {
-        // When the super-app provides a borrowerId (phone), check for an active associated account.
-        // If none exists, open a blocking modal to force the user to select one.
-        const checkActive = async () => {
-            if (!borrowerId) return;
-            try {
-                const res = await fetch(`/api/phone-accounts?phoneNumber=${encodeURIComponent(borrowerId)}`);
-                if (!res.ok) {
-                    setShowAccountModal(true);
-                    return;
-                }
-                const items = await res.json();
-                const active = items && items.find((i: any) => i.isActive);
-                if (active) {
-                    setSelectedAccount(active);
-                    // Ensure customer info is provisioned for this active account
-                    try {
-                        fetch('/api/phone-accounts/fetch-customer', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: active.accountNumber, providerId: provider?.id })
-                        }).then(() => {/* fire-and-forget */}).catch(() => {/* ignore */});
-                    } catch (e) {
-                        // ignore
-                    }
-                } else {
-                    setShowAccountModal(true);
-                }
-            } catch (err) {
-                setShowAccountModal(true);
-            }
-        };
-
-        checkActive();
-    }, [borrowerId]);
 
     const eligibilityResult = useMemo(() => {
         const min = searchParams.get('min');
@@ -175,55 +136,7 @@ export function ApplyClient({ provider, taxConfigs }: { provider: LoanProvider, 
         <div className="flex flex-col min-h-screen bg-background">
             <main className="flex-1">
                 <div className="container py-8 md:py-12">
-                    {/* If borrowerId is provided by the super-app, automatically show account selector */}
-                    {/* Show selected account summary when available */}
-                    {selectedAccount ? (
-                        <div className="mb-6">
-                            <div className="text-sm">Selected account for disbursement:</div>
-                            <div className="font-mono">{selectedAccount.accountNumber} — {selectedAccount.customerName}</div>
-                        </div>
-                    ) : null}
-
                     {renderStep()}
-
-                    {/* Blocking modal: forces account selection when there is no active account */}
-                    <Dialog open={showAccountModal} onOpenChange={(open) => {
-                        // prevent closing unless an account is selected
-                        if (!open && !selectedAccount) return;
-                        setShowAccountModal(open);
-                    }}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Select disbursement account</DialogTitle>
-                                <DialogDescription>Please choose the account to receive disbursements for this loan. This selection is required.</DialogDescription>
-                            </DialogHeader>
-                            {borrowerId && (
-                                <div className="mt-4">
-                                    <AccountSelector phoneNumber={borrowerId} onSelected={(acc) => {
-                                        (async () => {
-                                            setSelectedAccount(acc);
-                                            try {
-                                                const res = await fetch('/api/phone-accounts/fetch-customer', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ phoneNumber: borrowerId, accountNumber: acc.accountNumber, providerId: provider?.id })
-                                                });
-                                                const data = await res.json();
-                                                if (!res.ok) {
-                                                    toast({ title: 'Provisioning failed', description: data?.error || JSON.stringify(data), variant: 'destructive' });
-                                                } else {
-                                                    toast({ title: 'Customer data saved', description: 'Customer details were saved for scoring.', });
-                                                }
-                                            } catch (err: any) {
-                                                toast({ title: 'Provisioning error', description: String(err?.message ?? err), variant: 'destructive' });
-                                            }
-                                            setShowAccountModal(false);
-                                        })();
-                                    }} />
-                                </div>
-                            )}
-                        </DialogContent>
-                    </Dialog>
                 </div>
             </main>
         </div>
