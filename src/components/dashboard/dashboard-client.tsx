@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement, Tax } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History } from 'lucide-react';
+import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History, Users, Landmark } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -350,12 +350,31 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                       </div>
                   </div>
 
-                  {selectedAccount && (
-                        <div className="my-4 p-3 border rounded-lg bg-secondary/50">
-                            <div className="text-sm font-medium text-secondary-foreground">Selected Account</div>
-                            <div className="font-mono text-foreground">{selectedAccount.accountNumber} — {selectedAccount.customerName}</div>
-                        </div>
+                 {selectedAccount && (
+                    <Card className="my-4 cursor-pointer" onClick={() => setShowAccountModal(true)}>
+                        <CardContent className="p-4 relative">
+                            <Badge className="absolute -top-2 right-2 bg-green-500 hover:bg-green-500">Active</Badge>
+                            <div className="flex items-center">
+                                <div className="flex items-center gap-3 pr-4 mr-4 border-r">
+                                    <Users className="h-5 w-5 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Holder Name</p>
+                                        <p className="font-semibold">{selectedAccount.customerName}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Landmark className="h-5 w-5 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Account</p>
+                                        <p className="font-semibold">{selectedAccount.accountNumber}</p>
+                                    </div>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-muted-foreground ml-auto"/>
+                            </div>
+                        </CardContent>
+                    </Card>
                   )}
+
 
                   <div className="mt-2">
                     <LoanSummaryCard
