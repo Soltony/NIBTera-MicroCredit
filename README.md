@@ -5,6 +5,7 @@ LoanFlow is a comprehensive, multi-provider micro-credit platform built with a m
 ## ✨ Key Features
 
 *   **Admin & Borrower Interfaces**: A secure, feature-rich admin dashboard for management and a separate, simplified flow for borrowers to apply for loans.
+*   **User Account Association**: When a user first enters the mini-app, they are prompted to select one of their bank accounts retrieved from an external API. This selected account is then used for all loan disbursements and repayments, ensuring a clear and consistent financial linkage.
 *   **Multi-Provider & Product Management**: Administrators can create and configure multiple loan providers (e.g., different banks) and define various loan products with unique rules, fees, and interest rates.
 *   **Dynamic Credit Scoring Engine**: Each provider can build their own weighted credit scoring model using a powerful rules engine. This allows them to weigh different data points (like income or employment status) to automatically determine a borrower's eligibility and maximum loan amount.
 *   **Loan Cycle Progression**: A sophisticated, grade-based feature that manages a borrower's access to their full credit limit. The system encourages good repayment behavior by gradually increasing a borrower's trust and access to capital based on their performance across multiple loans. Administrators can configure the progression metric (e.g., total loans taken, on-time repayments) and the payout percentages for each cycle.
@@ -53,14 +54,35 @@ npm install
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the root of the project and add your SQL Server database connection string.
+Create a `.env` file in the root of the project and add your SQL Server database connection string and the external API credentials.
 
 ```env
 # Example for SQL Server
 DATABASE_URL="sqlserver://USER:PASSWORD@HOST:PORT;database=DATABASE_NAME;trustServerCertificate=true"
+
+# External API for fetching customer accounts
+EXTERNAL_API_URL="http://192.168.100.56:8280/nibtera-loan/get-accounts"
+EXTERNAL_API_USERNAME="nibLoan"
+EXTERNAL_API_PASSWORD="your_password_here"
+
+# External API for loan disbursements
+EXTERNAL_DISBURSEMENT_URL="http://your-disbursement-api-endpoint"
+
+# External API for customer information
+EXTERNAL_CUSTOMER_INFO_URL="http://your-customer-info-api-endpoint"
+
+# SuperApp Token Validation Endpoint
+TOKEN_VALIDATION_API_URL="http://your-superapp-token-validation-endpoint"
+
+# NIB Payment Gateway Configuration
+ACCOUNT_NO="your_account_number"
+CALLBACK_URL="http://your_app_url/api/payment-callback"
+COMPANY_NAME="Your Company Name"
+NIB_PAYMENT_KEY="your_payment_gateway_secret_key"
+NIB_PAYMENT_URL="http://your_payment_gateway_url"
 ```
 
-Replace the placeholders with your actual database credentials.
+Replace the placeholders with your actual database credentials and API endpoints.
 
 ### 3. Database Setup
 
@@ -92,7 +114,7 @@ Start the Next.js development server to run the application.
 npm run dev
 ```
 
-The application will be available at [http://localhost:9002](http://localhost:9002).
+The application will be available at [http://localhost:9002](http://localhost:9002). To run the application and log all console output to a file named `webapp.log`, use `npm start`.
 
 ---
 
