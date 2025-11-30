@@ -56,7 +56,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         <div className="text-left">
             <div className="flex items-center gap-2">
                 <p className="text-sm opacity-80 mb-1">Max Limit</p>
-                <button onClick={toggleMaxLimitVisibility} className="text-primary-foreground focus:outline-none">
+                <button onClick={(e) => { e.stopPropagation(); toggleMaxLimitVisibility(); }} className="text-primary-foreground focus:outline-none">
                     {isMaxLimitVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
                 </button>
             </div>
@@ -67,7 +67,7 @@ export function LoanSummaryCard({ maxLoanLimit, availableToBorrow, color = '#fdb
         <div className="text-right">
             <div className="flex items-center gap-2 justify-end">
                 <p className="text-sm opacity-80 mb-1">Available</p>
-                 <button onClick={toggleAvailableVisibility} className="text-primary-foreground focus:outline-none">
+                 <button onClick={(e) => { e.stopPropagation(); toggleAvailableVisibility(); }} className="text-primary-foreground focus:outline-none">
                     {isAvailableVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
                 </button>
             </div>

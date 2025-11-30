@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, LoanProduct, Payment, FeeRule, PenaltyRule, TermsAndConditions, BorrowerAgreement, Tax } from '@/lib/types';
 import { Logo, IconDisplay } from '@/components/icons';
 import { format, differenceInDays } from 'date-fns';
-import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History, Users, Landmark } from 'lucide-react';
+import { CreditCard, Wallet, ChevronDown, ArrowLeft, ChevronRight, AlertCircle, ChevronUp, Loader2, History, Users, Landmark, Eye, EyeOff } from 'lucide-react';
 import { LoanSummaryCard } from '@/components/loan/loan-summary-card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,6 +28,7 @@ import AccountSelector from '@/components/loan/account-selector';
 import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { Skeleton } from '../ui/skeleton';
 
 const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined || isNaN(amount)) return '0.00 ETB';
@@ -70,6 +71,9 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
   const [isAgreementDialogOpen, setIsAgreementDialogOpen] = useState(false);
   const [productToApply, setProductToApply] = useState<LoanProduct | null>(null);
   const [agreementChecked, setAgreementChecked] = useState(false);
+
+  const [isMaxLimitVisible, setIsMaxLimitVisible] = useState(true);
+  const [isAvailableVisible, setIsAvailableVisible] = useState(true);
 
   
   const checkAgreement = useCallback(async (providerId: string) => {
@@ -320,6 +324,13 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
     }
   }
 
+  const renderAmount = (amount: number, isVisible: boolean) => {
+    if (!isVisible) {
+        return '******';
+    }
+    return formatCurrency(amount);
+  };
+
   return (
     <>
       <div className="flex flex-col min-h-screen bg-background">
@@ -350,41 +361,57 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                       </div>
                   </div>
 
-                 {selectedAccount && (
-                    <Card className="my-4 cursor-pointer" onClick={() => setShowAccountModal(true)}>
-                        <CardContent className="p-4 relative">
-                            <Badge className="absolute -top-2 right-2 bg-green-500 hover:bg-green-500">Active</Badge>
-                            <div className="flex items-center">
-                                <div className="flex items-center gap-3 pr-4 mr-4 border-r">
-                                    <Users className="h-5 w-5 text-muted-foreground" />
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">Holder Name</p>
-                                        <p className="font-semibold">{selectedAccount.customerName}</p>
-                                    </div>
+                  {selectedAccount && (
+                    <Card 
+                        className="my-4 cursor-pointer relative overflow-hidden" 
+                        onClick={() => setShowAccountModal(true)}
+                        style={{ backgroundColor: selectedProvider?.colorHex, color: '#ffffff' }}
+                    >
+                        <div className="absolute inset-0 z-0 opacity-10">
+                            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <pattern id="hex-pattern" patternUnits="userSpaceOnUse" width="40" height="69.28" patternTransform="scale(1) rotate(0)">
+                                <polygon points="20,0 40,17.32 40,51.96 20,69.28 0,51.96 0,17.32" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                                </pattern>
+                            </defs>
+                            <rect width="100%" height="100%" fill="url(#hex-pattern)"/>
+                            </svg>
+                        </div>
+                        <CardContent className="p-4 relative z-10">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs opacity-80">{selectedAccount.customerName}</p>
+                                    <p className="font-semibold">{selectedAccount.accountNumber}</p>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <Landmark className="h-5 w-5 text-muted-foreground" />
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">Account</p>
-                                        <p className="font-semibold">{selectedAccount.accountNumber}</p>
-                                    </div>
+                                <div className="text-right">
+                                    <Badge className="bg-white/20 text-white border-none">Active</Badge>
                                 </div>
-                                <ChevronRight className="h-5 w-5 text-muted-foreground ml-auto"/>
+                            </div>
+                            <Separator className="my-3 bg-white/20"/>
+                            <div className="flex items-center justify-between w-full">
+                                <div className="text-left">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm opacity-80 mb-1">Max Limit</p>
+                                        <button onClick={(e) => { e.stopPropagation(); setIsMaxLimitVisible(v => !v); }} className="focus:outline-none">
+                                            {isMaxLimitVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
+                                        </button>
+                                    </div>
+                                    {isRecalculating ? <Skeleton className="h-7 w-32 bg-white/20" /> : <p className="text-xl font-semibold tracking-tight">{renderAmount(overallMaxLimit, isMaxLimitVisible)}</p>}
+                                </div>
+                                <div className="text-right">
+                                    <div className="flex items-center gap-2 justify-end">
+                                        <p className="text-sm opacity-80 mb-1">Available</p>
+                                        <button onClick={(e) => { e.stopPropagation(); setIsAvailableVisible(v => !v); }} className="focus:outline-none">
+                                            {isAvailableVisible ? <Eye className="h-4 w-4 opacity-80" /> : <EyeOff className="h-4 w-4 opacity-80" />}
+                                        </button>
+                                    </div>
+                                    {isRecalculating ? <Skeleton className="h-7 w-32 bg-white/20" /> : <p className="text-xl font-semibold tracking-tight">{renderAmount(availableToBorrow, isAvailableVisible)}</p>}
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
                   )}
-
-
-                  <div className="mt-2">
-                    <LoanSummaryCard
-                        maxLoanLimit={overallMaxLimit}
-                        availableToBorrow={availableToBorrow}
-                        color={selectedProvider?.colorHex}
-                        isLoading={isRecalculating}
-                    />
-                  </div>
-              
+                  
                   <div className="flex justify-end mt-4">
                     <Link
                         href={`/history?${searchParams.toString()}`}
