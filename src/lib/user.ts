@@ -1,7 +1,8 @@
 
+
 'use server';
 
-import { getSession } from './session';
+import { getSession, deleteSession } from './session';
 import prisma from './prisma';
 import type { User as AuthUser, Permissions } from '@/lib/types';
 import { Prisma } from '@prisma/client';
@@ -29,7 +30,7 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
     // Check if user is inactive
     if (user.status === 'Inactive') {
         // Invalidate session for inactive users
-        cookies().set('session', '', { expires: new Date(0), httpOnly: true });
+        await deleteSession();
         return null;
     }
     
@@ -56,3 +57,4 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
 // Re-export cookies from next/headers to be used in server components
 import { cookies } from 'next/headers';
 export { cookies };
+

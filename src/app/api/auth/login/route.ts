@@ -49,9 +49,9 @@ export async function POST(req: NextRequest) {
             userAgent,
             details: logDetails
         });
-        
-        // Return a clearer response for deactivated users so the client can
-        // show a useful message (HTTP 403 Forbidden is appropriate here).
+        // Return a clear client-facing error for inactive accounts so admins and users
+        // can understand the login failure reason. Use 403 Forbidden as this is
+        // an authenticated-action denial due to account state.
         return NextResponse.json({ error: 'Your account has been deactivated. Please contact the administrator.' }, { status: 403 });
     }
 
@@ -70,7 +70,6 @@ export async function POST(req: NextRequest) {
            userAgent,
            details: logDetails
        });
-       
        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
@@ -87,7 +86,6 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails
     });
-    
 
     return NextResponse.json({ message: 'Login successful' }, { status: 200 });
 
