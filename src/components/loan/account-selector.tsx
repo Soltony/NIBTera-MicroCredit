@@ -181,7 +181,7 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
         {associations.length === 0 ? (
           <div className="text-sm text-muted-foreground">No saved accounts</div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-2 overflow-y-auto max-h-56 pr-2">
             {associations.map((a) => (
               <li key={a.id} className="flex items-center justify-between">
                 <div>
@@ -202,14 +202,14 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
       </div>
 
       <div>
-        <h4 className="font-medium">External accounts</h4>
+        <h4 className="font-medium">Accounts</h4>
         {error && <div className="text-red-600 text-sm">{error}</div>}
         {externalAccounts === null ? (
           <div className="text-sm text-muted-foreground">Loading...</div>
         ) : externalAccounts.length === 0 ? (
           <div className="text-sm text-muted-foreground">No accounts found for this phone</div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-2 overflow-y-auto max-h-56 pr-2">
             {externalAccounts.map((ea, idx) => {
               const accNum = String(ea.AccountNumber);
               const associated = associations.find((s) => s.accountNumber === accNum);

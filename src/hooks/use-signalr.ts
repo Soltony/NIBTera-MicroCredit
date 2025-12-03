@@ -22,7 +22,7 @@ export const useSignalR = (hubUrl: string) => {
         if (connectionRef.current && connectionRef.current.state === signalR.HubConnectionState.Disconnected) {
             try {
                 await connectionRef.current.start();
-                console.log('SignalR Connected.');
+                // connection established (log removed to reduce console noise)
             } catch (err) {
                 console.error('SignalR Connection Error: ', err);
             }
@@ -32,7 +32,7 @@ export const useSignalR = (hubUrl: string) => {
     const stopConnection = () => {
         if (connectionRef.current && connectionRef.current.state === signalR.HubConnectionState.Connected) {
             connectionRef.current.stop();
-            console.log('SignalR Disconnected.');
+            // connection stopped (log removed to reduce console noise)
         }
     };
 

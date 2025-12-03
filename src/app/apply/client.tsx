@@ -122,10 +122,29 @@ export function ApplyClient({ provider, taxConfigs }: { provider: LoanProvider, 
             }
             setLoanDetails(displayLoan);
             setStep('details');
-                toast({
-                title: 'Success!',
-                description: 'Your loan has been successfully disbursed.',
-            });
+            // Inform user and attempt to call external disbursement proxy if an account was selected
+            toast({ title: 'Success!', description: 'Your loan has been saved.' });
+
+            try {
+                if (selectedAccount && selectedAccount.accountNumber) {
+                    const disRes = await fetch('/api/external/disbursement', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ creditAccount: selectedAccount.accountNumber, providerId: provider.id, amount: savedLoan.loanAmount }),
+                    });
+
+                    if (!disRes.ok) {
+                        const err = await disRes.json().catch(() => null);
+                        toast({ title: 'Disbursement failed', description: err?.error || JSON.stringify(err) || 'Upstream disbursement failed', variant: 'destructive' });
+                    } else {
+                        toast({ title: 'Disbursement sent', description: 'External disbursement request was sent.' });
+                    }
+                } else {
+                    toast({ title: 'No account selected', description: 'No disbursement account was selected; external transfer was not attempted.', variant: 'warning' });
+                }
+            } catch (err: any) {
+                toast({ title: 'Disbursement error', description: String(err?.message ?? err), variant: 'destructive' });
+            }
 
         } catch (error: any) {
             toast({

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
+import { Prisma } from '@prisma/client';
 import statementUtils, { StatementLine } from '@/lib/statement-utils';
 
 type Body = {
@@ -17,7 +18,22 @@ export async function POST(req: Request) {
 
     // Ensure borrower exists
     const borrowerId = String(phoneNumber);
-    await prisma.borrower.upsert({ where: { id: borrowerId }, update: { status: 'Active' }, create: { id: borrowerId, status: 'Active' } });
+    // Use create with a fallback update to avoid SQL Server race-condition where
+    // concurrent upserts can trigger unique constraint failures.
+    try {
+      await prisma.borrower.create({ data: { id: borrowerId, status: 'Active' } });
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // Another concurrent request created the borrower first — ensure status is set
+        try {
+          await prisma.borrower.update({ where: { id: borrowerId }, data: { status: 'Active' } });
+        } catch (err) {
+          // swallow update errors — we'll continue
+        }
+      } else {
+        throw e;
+      }
+    }
 
     const apiUrl = process.env.EXTERNAL_STATEMENT_URL || process.env.EXTERNAL_CUSTOMER_STATEMENT_URL;
     const user = process.env.EXTERNAL_API_USERNAME;

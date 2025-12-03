@@ -33,7 +33,7 @@ async function getBorrowerBalance(borrowerId: string): Promise<number> {
 }
 
 export async function processAutomatedRepayments(): Promise<{ success: boolean; message: string; processedCount: number }> {
-    console.log('Starting automated repayment process...');
+    // Automated repayment process started (log removed to reduce console noise)
     const today = startOfDay(new Date());
 
     const taxConfigs = await prisma.tax.findMany();
@@ -60,7 +60,6 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
     });
 
     if (overdueLoans.length === 0) {
-        console.log('No overdue loans found.');
         return { success: true, message: 'No overdue loans to process.', processedCount: 0 };
     }
 
@@ -188,11 +187,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     amount: totalDue
                 };
                 await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
-                console.log(JSON.stringify({
-                    action: 'AUTOMATED_REPAYMENT_SUCCESS',
-                    actorId: 'system',
-                    details: logDetails
-                }));
+             
 
             } catch (error) {
                 const failureDetails = {
@@ -201,7 +196,7 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                     error: (error as Error).message
                 };
                 await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_FAILURE', entity: 'LOAN', entityId: loan.id, details: failureDetails });
-                 console.error(JSON.stringify({
+                console.error(JSON.stringify({
                     action: 'AUTOMATED_REPAYMENT_FAILURE',
                     actorId: 'system',
                     details: failureDetails
@@ -215,15 +210,10 @@ export async function processAutomatedRepayments(): Promise<{ success: boolean; 
                 amountDue: totalDue
             };
             await createAuditLog({ actorId: 'system', action: 'AUTOMATED_REPAYMENT_SKIPPED', entity: 'LOAN', entityId: loan.id, details: { reason: 'Insufficient funds', ...skipDetails } });
-             console.log(JSON.stringify({
-                action: 'AUTOMATED_REPAYMENT_SKIPPED',
-                actorId: 'system',
-                reason: 'Insufficient funds',
-                details: skipDetails
-            }));
+     
         }
     }
     
-    console.log(`Automated repayment process finished. Processed ${processedCount} loans.`);
+    // Automated repayment process finished (log removed to reduce console noise)
     return { success: true, message: `Processed ${overdueLoans.length} overdue loans, successfully repaid ${processedCount}.`, processedCount };
 }

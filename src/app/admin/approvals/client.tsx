@@ -23,7 +23,7 @@ import type { PendingChangeWithDetails } from './page';
 import type { User, LoanProvider } from '@/lib/types';
 import { diff as showDiff } from 'json-diff';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
@@ -364,13 +364,44 @@ const ChangeDetailsDialog = ({
     const fileContent = getFileContentFromPayload();
     if (!fileContent) return;
     try {
-      // parse base64 content
-      const workbook = XLSX.read(fileContent, { type: 'base64' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-      const headers = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : [];
-      setPreviewRows(jsonData as any[]);
+      // parse base64 content using ExcelJS
+      const base64ToArrayBuffer = (base64: string) => {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+      };
+
+      const arrayBuffer = base64ToArrayBuffer(fileContent);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer as any);
+      const worksheet = workbook.worksheets[0];
+      const columnCount = worksheet.columnCount || 0;
+      const headers: string[] = [];
+      const headerRow = worksheet.getRow(1);
+      for (let i = 1; i <= columnCount; i++) {
+        const cell = headerRow.getCell(i);
+        const text = (cell.text ?? cell.value) as any;
+        headers.push(text?.toString?.() || `Column${i}`);
+      }
+
+      const rows: any[] = [];
+      for (let r = 2; r <= worksheet.rowCount; r++) {
+        const row = worksheet.getRow(r);
+        const obj: any = {};
+        let empty = true;
+        for (let c = 1; c <= columnCount; c++) {
+          const val = row.getCell(c).value;
+          if (val !== null && val !== undefined && String(val).trim() !== '') empty = false;
+          obj[headers[c - 1]] = val;
+        }
+        if (!empty) rows.push(obj);
+      }
+
+      setPreviewRows(rows);
       setPreviewHeaders(headers);
       setPreviewOpen(true);
     } catch (err) {

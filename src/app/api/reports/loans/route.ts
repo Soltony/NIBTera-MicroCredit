@@ -21,6 +21,25 @@ const getDates = (timeframe: string, from?: string, to?: string) => {
             return { gte: startOfWeek(now, { weekStartsOn: 1 }), lte: endOfWeek(now, { weekStartsOn: 1 }) };
         case 'monthly':
             return { gte: startOfMonth(now), lte: endOfMonth(now) };
+        case 'quarterly': {
+            const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+            const qStart = startOfMonth(new Date(now.getFullYear(), qStartMonth, 1));
+            const qEnd = endOfMonth(new Date(now.getFullYear(), qStartMonth + 2, 1));
+            return { gte: qStart, lte: qEnd };
+        }
+        case 'semiAnnually': {
+            const year = now.getFullYear();
+            if (now.getMonth() < 6) {
+                const s = startOfMonth(new Date(year, 0, 1));
+                const e = endOfMonth(new Date(year, 5, 1));
+                return { gte: s, lte: e };
+            } else {
+                const s = startOfMonth(new Date(year, 6, 1));
+                const e = endOfMonth(new Date(year, 11, 1));
+                return { gte: s, lte: e };
+            }
+        }
+        case 'annually':
         case 'yearly':
             return { gte: startOfYear(now), lte: endOfYear(now) };
         case 'overall':

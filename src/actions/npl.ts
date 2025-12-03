@@ -11,7 +11,7 @@ import { subDays } from 'date-fns';
 import sendSms from '@/lib/sms';
 
 export async function updateNplStatus(): Promise<{ success: boolean; message: string; updatedCount: number }> {
-    console.log('Starting NPL status update process...');
+    // NPL status update started (log removed to reduce console noise)
     
     // Get all providers and their NPL thresholds
     const providers = await prisma.loanProvider.findMany({
@@ -27,7 +27,6 @@ export async function updateNplStatus(): Promise<{ success: boolean; message: st
     });
 
     if (providers.length === 0) {
-        console.log('No providers found to process for NPL.');
         return { success: true, message: 'No providers to process.', updatedCount: 0 };
     }
 
@@ -67,7 +66,6 @@ export async function updateNplStatus(): Promise<{ success: boolean; message: st
             const idsToUpdate = borrowersToFlag.map(b => b.id);
             const { count } = await prisma.borrower.updateMany({ where: { id: { in: idsToUpdate } }, data: { status: 'NPL' } });
             totalUpdatedCount += count;
-            console.log(`For provider ${provider.id}, updated ${count} borrowers to NPL status.`);
 
             // Send SMS notification to each borrower updated
             for (const b of borrowersToFlag) {
@@ -89,6 +87,6 @@ export async function updateNplStatus(): Promise<{ success: boolean; message: st
         }
     }
 
-    console.log(`NPL status update process finished. Updated a total of ${totalUpdatedCount} borrowers.`);
+    // NPL status update finished (log removed to reduce console noise)
     return { success: true, message: `Successfully updated a total of ${totalUpdatedCount} borrowers to NPL status.`, updatedCount: totalUpdatedCount };
 }

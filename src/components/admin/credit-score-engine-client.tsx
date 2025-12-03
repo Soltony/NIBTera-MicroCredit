@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   Card,
   CardContent,
@@ -1079,21 +1079,31 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
-            
-            setColumns(headers.map((header, index) => ({
-                id: `col-${Date.now()}-${index}`,
-                name: header,
-                type: 'string', // default type
-                isIdentifier: index === 0, // default first column as identifier
-                options: [],
-                optionsString: '',
-            })));
+        reader.onload = async (e) => {
+            const arrayBuffer = e.target?.result as ArrayBuffer;
+            try {
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+                const worksheet = workbook.worksheets[0];
+                const headers: string[] = [];
+                const headerRow = worksheet.getRow(1);
+                headerRow.eachCell((cell, colNumber) => {
+                    const text = (cell.text ?? cell.value) as any;
+                    headers.push(text?.toString?.() || '');
+                });
+
+                setColumns(headers.map((header, index) => ({
+                    id: `col-${Date.now()}-${index}`,
+                    name: header,
+                    type: 'string', // default type
+                    isIdentifier: index === 0, // default first column as identifier
+                    options: [],
+                    optionsString: '',
+                })));
+            } catch (err) {
+                console.error('Failed to parse Excel file', err);
+                toast({ title: 'Error', description: 'Could not parse the uploaded file.', variant: 'destructive' });
+            }
         };
         reader.readAsArrayBuffer(file);
     };

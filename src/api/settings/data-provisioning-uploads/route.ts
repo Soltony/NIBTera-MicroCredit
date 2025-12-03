@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { createAuditLog } from '@/lib/audit-log';
 
 
@@ -47,15 +47,24 @@ export async function POST(req: NextRequest) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-        
-        const originalHeaders = jsonData[0].map(h => String(h));
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
+        const worksheet = workbook.worksheets[0];
+
+        const columnCount = worksheet.columnCount || 0;
+        const jsonData: any[][] = [];
+        worksheet.eachRow((row) => {
+            const rowArr: any[] = [];
+            for (let i = 1; i <= columnCount; i++) {
+                rowArr.push(row.getCell(i).value);
+            }
+            jsonData.push(rowArr);
+        });
+
+        const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
         const camelCaseHeaders = originalHeaders.map(toCamelCase);
-        
-        const rows = jsonData.slice(1);
+
+        const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
         const configColumns = JSON.parse(config.columns as string);
         const idColumnConfig = configColumns.find((c: any) => c.isIdentifier);
 
@@ -160,15 +169,24 @@ export async function DELETE(req: NextRequest) {
             where: { id: uploadId },
         });
 
-        if (!uploadToDelete) {
-             return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
-        }
+                    const workbook = new ExcelJS.Workbook();
+                    await workbook.xlsx.load(buffer);
+                    const worksheet = workbook.worksheets[0];
 
-        await prisma.$transaction(async (tx) => {
-            // Delete all provisioned data associated with this upload
-            await tx.provisionedData.deleteMany({
-                where: { uploadId: uploadId }
-            });
+                    const columnCount = worksheet.columnCount || 0;
+                    const jsonData: any[][] = [];
+                    worksheet.eachRow((row) => {
+                        const rowArr: any[] = [];
+                        for (let i = 1; i <= columnCount; i++) {
+                            rowArr.push(row.getCell(i).value);
+                        }
+                        jsonData.push(rowArr);
+                    });
+
+                    const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
+                    const camelCaseHeaders = originalHeaders.map(toCamelCase);
+
+                    const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
 
             // Delete the upload record itself
             await tx.dataProvisioningUpload.delete({

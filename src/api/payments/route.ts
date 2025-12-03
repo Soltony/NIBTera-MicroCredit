@@ -24,11 +24,6 @@ export async function POST(req: NextRequest) {
         borrowerIdForLogging = loanForBorrowerId?.borrowerId || null;
 
         await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
-        console.log(JSON.stringify({
-            action: 'REPAYMENT_INITIATED',
-            actorId: borrowerIdForLogging,
-            details: paymentDetailsForLogging
-        }));
 
         const [loan, taxConfig] = await Promise.all([
             prisma.loan.findUnique({
@@ -212,7 +207,6 @@ export async function POST(req: NextRequest) {
                 repaymentStatus: finalLoan.repaymentStatus,
              };
              await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
-             console.log(JSON.stringify({ ...logDetails, action: 'REPAYMENT_SUCCESS' }));
             
             return finalLoan;
         });

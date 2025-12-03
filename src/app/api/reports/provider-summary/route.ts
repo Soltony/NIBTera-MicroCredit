@@ -19,6 +19,25 @@ const getDates = (timeframe: string, from?: string, to?: string) => {
             return { gte: startOfWeek(now, { weekStartsOn: 1 }), lte: endOfWeek(now, { weekStartsOn: 1 }) };
         case 'monthly':
             return { gte: startOfMonth(now), lte: endOfMonth(now) };
+        case 'quarterly': {
+            const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+            const qStart = startOfMonth(new Date(now.getFullYear(), qStartMonth, 1));
+            const qEnd = endOfMonth(new Date(now.getFullYear(), qStartMonth + 2, 1));
+            return { gte: qStart, lte: qEnd };
+        }
+        case 'semiAnnually': {
+            const year = now.getFullYear();
+            if (now.getMonth() < 6) {
+                const s = startOfMonth(new Date(year, 0, 1));
+                const e = endOfMonth(new Date(year, 5, 1));
+                return { gte: s, lte: e };
+            } else {
+                const s = startOfMonth(new Date(year, 6, 1));
+                const e = endOfMonth(new Date(year, 11, 1));
+                return { gte: s, lte: e };
+            }
+        }
+        case 'annually':
         case 'yearly':
             return { gte: startOfYear(now), lte: endOfYear(now) };
         case 'overall':
@@ -127,34 +146,161 @@ export async function GET(req: NextRequest) {
         const totalDisbursedEver = (await prisma.loan.aggregate({ _sum: { loanAmount: true }, where: { product: { providerId } } }))._sum.loanAmount || 0;
         const fundUtilization = provider && provider.startingCapital > 0 ? (totalDisbursedEver / provider.startingCapital) * 100 : 0;
 
-        // 5. Aging Report (snapshot as of today)
+        // 5. Aging Report (snapshot as of today) - borrower level amounts and provider classification
         const today = startOfDay(new Date());
         const overdueLoans = await prisma.loan.findMany({
             where: {
                 product: { providerId },
                 repaymentStatus: 'Unpaid',
                 dueDate: { lt: today }
+            },
+            include: { borrower: { include: { provisionedData: { orderBy: { createdAt: 'desc' }, take: 1 } } } },
+        });
+
+        const classifications = [
+            { key: 'Pass', min: 0, max: 29 },
+            { key: 'Special Mention', min: 30, max: 89 },
+            { key: 'Substandard', min: 90, max: 179 },
+            { key: 'Doubtful', min: 180, max: 359 },
+            { key: 'Loss', min: 360, max: Infinity },
+        ];
+
+        const classify = (days: number) => {
+            for (const c of classifications) {
+                if (days >= c.min && days <= c.max) return c.key;
             }
-        });
+            return 'Unknown';
+        };
 
-        const agingBuckets = { '1-30': 0, '31-60': 0, '61-90': 0, '91+': 0 };
-        overdueLoans.forEach(loan => {
+        // Initialize provider-level counters
+        const providerBuckets = {
+            Pass: 0,
+            'Special Mention': 0,
+            Substandard: 0,
+            Doubtful: 0,
+            Loss: 0,
+        };
+        let providerTotalOverdue = 0;
+
+        // Preload phoneAccount active mappings for borrowers to avoid N+1
+        const borrowerIds = Array.from(new Set(overdueLoans.map(l => l.borrowerId)));
+        const phoneAccounts = borrowerIds.length > 0 ? await prisma.phoneAccount.findMany({ where: { phoneNumber: { in: borrowerIds }, isActive: true } }) : [];
+        const phoneMap = new Map(phoneAccounts.map(p => [p.phoneNumber, p.accountNumber]));
+
+        // Helper: extract borrower name from provisionedData payload
+        const getBorrowerNameFromProvisioned = (pdRaw: string | undefined | null) => {
+            if (!pdRaw) return null;
+            try {
+                const pd = JSON.parse(pdRaw as string);
+                const nameKeys = ['FullName', 'fullName', 'fullname', 'name', 'customerName', 'CustomerName'];
+                for (const k of nameKeys) {
+                    if (pd[k]) return String(pd[k]);
+                }
+                // fallback: try first string value
+                for (const v of Object.values(pd)) {
+                    if (typeof v === 'string' && v.length > 2) return v;
+                }
+            } catch (e) {
+                return null;
+            }
+            return null;
+        };
+
+        // Per-borrower aggregation
+        const byBorrower: Record<string, any> = {};
+
+        for (const loan of overdueLoans) {
             const daysOverdue = differenceInDays(today, loan.dueDate);
-            if (daysOverdue <= 30) agingBuckets['1-30']++;
-            else if (daysOverdue <= 60) agingBuckets['31-60']++;
-            else if (daysOverdue <= 90) agingBuckets['61-90']++;
-            else agingBuckets['91+']++;
-        });
+            const classification = classify(daysOverdue);
 
+            // Determine repaid amount (prefer stored repaidAmount, fallback to payments sum)
+            let repaid = loan.repaidAmount ?? 0;
+            if (!repaid || repaid === 0) {
+                const paymentAgg = await prisma.payment.aggregate({
+                    where: { loanId: loan.id },
+                    _sum: { amount: true }
+                });
+                repaid = paymentAgg._sum.amount || 0;
+            }
 
+            const overdueAmount = Math.max(0, (loan.loanAmount || 0) - repaid);
+            if (overdueAmount <= 0) continue;
+
+            // (provider-level counts are incremented later after borrower aggregation)
+
+            const borrowerKey = loan.borrowerId;
+            if (!byBorrower[borrowerKey]) {
+                // try to derive borrower name from provisionedData
+                const pdRaw = loan.borrower?.provisionedData?.[0]?.data;
+                const derivedName = getBorrowerNameFromProvisioned(pdRaw) || null;
+                byBorrower[borrowerKey] = {
+                    borrowerId: borrowerKey,
+                    borrowerName: derivedName || (loan.borrower ? (loan.borrower.id || '') : ''),
+                    borrowerAccount: '',
+                    provider: provider ? provider.name : '',
+                    maxDaysOverdue: daysOverdue,
+                    buckets: {
+                        Pass: 0,
+                        'Special Mention': 0,
+                        Substandard: 0,
+                        Doubtful: 0,
+                        Loss: 0,
+                    },
+                    totalOverdue: 0,
+                };
+            }
+            // update maxDaysOverdue for classification after aggregation
+            if (byBorrower[borrowerKey].maxDaysOverdue === undefined || daysOverdue > byBorrower[borrowerKey].maxDaysOverdue) {
+                byBorrower[borrowerKey].maxDaysOverdue = daysOverdue;
+            }
+            byBorrower[borrowerKey].buckets[classification] += overdueAmount;
+            byBorrower[borrowerKey].totalOverdue += overdueAmount;
+
+            // set borrower account if not yet set: prefer active phoneAccount mapping, fallback to provisionedData
+            if (!byBorrower[borrowerKey].borrowerAccount) {
+                const fromPhone = phoneMap.get(borrowerKey);
+                if (fromPhone) {
+                    byBorrower[borrowerKey].borrowerAccount = String(fromPhone);
+                } else {
+                    const pdRaw = loan.borrower?.provisionedData?.[0]?.data;
+                    if (pdRaw) {
+                        try {
+                            const pd = JSON.parse(pdRaw as string);
+                            const candidate = pd.AccountNumber ?? pd.accountNumber ?? pd.account_number ?? pd.accountNo ?? pd.account_no ?? null;
+                            if (candidate) byBorrower[borrowerKey].borrowerAccount = String(candidate);
+                        } catch (e) {
+                            // ignore parse errors
+                        }
+                    }
+                }
+            }
+
+            // increment provider-level counts (one loan = one count)
+            providerBuckets[classification] = (providerBuckets[classification] || 0) + 1;
+            providerTotalOverdue += 1;
+        }
+
+        // providerBuckets and providerTotalOverdue were accumulated per loan in the loop above
+        // Compute per-borrower classification (based on worst/max days overdue) and classificationAmount
+        for (const b of Object.values(byBorrower)) {
+            const maxDays = b.maxDaysOverdue ?? 0;
+            // expose daysOverdue for UI
+            b.daysOverdue = maxDays;
+            const borrowerClass = classify(maxDays);
+            b.classification = borrowerClass;
+            b.classificationAmount = b.buckets?.[borrowerClass] || 0;
+            // remove internal helper key
+            delete b.maxDaysOverdue;
+        }
         return NextResponse.json({
             portfolioSummary,
             collectionsReport: { ...collections, total: totalCollected },
             incomeStatement: { accrued: accruedIncome, collected: collectedIncome, net: netRealizedIncome },
             fundUtilization,
             agingReport: {
-                buckets: agingBuckets,
-                totalOverdue: overdueLoans.length
+                buckets: providerBuckets,
+                totalOverdue: providerTotalOverdue,
+                byBorrower: Object.values(byBorrower)
             }
         });
     } catch (error) {

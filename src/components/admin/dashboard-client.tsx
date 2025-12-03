@@ -334,7 +334,7 @@ export function DashboardClient({ dashboardData: initialDashboardData }: Dashboa
   useEffect(() => {
     if (connection) {
         connection.on('ReceiveDashboardUpdate', (providerId: string, updatedData: DashboardData) => {
-            console.log('SignalR update received for provider:', providerId, updatedData);
+            // SignalR update received (log removed to reduce console noise)
             setDashboardData(prevData => {
                 const newProviderSpecificData = {
                     ...prevData.providerSpecificData,

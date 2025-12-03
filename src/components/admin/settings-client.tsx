@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   Card,
   CardContent,
@@ -2269,21 +2269,31 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
-            
-            setColumns(headers.map((header, index) => ({
-                id: `col-${Date.now()}-${index}`,
-                name: header,
-                type: 'string', // default type
-                isIdentifier: index === 0, // default first column as identifier
-                options: [],
-                optionsString: '',
-            })));
+        reader.onload = async (e) => {
+            const arrayBuffer = e.target?.result as ArrayBuffer;
+            try {
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+                const worksheet = workbook.worksheets[0];
+                const headers: string[] = [];
+                const headerRow = worksheet.getRow(1);
+                headerRow.eachCell((cell) => {
+                    const text = (cell.text ?? cell.value) as any;
+                    headers.push(text?.toString?.() || '');
+                });
+
+                setColumns(headers.map((header, index) => ({
+                    id: `col-${Date.now()}-${index}`,
+                    name: header,
+                    type: 'string', // default type
+                    isIdentifier: index === 0, // default first column as identifier
+                    options: [],
+                    optionsString: '',
+                })));
+            } catch (err) {
+                console.error('Failed to parse Excel file', err);
+                toast({ title: 'Error', description: 'Could not parse the uploaded file.', variant: 'destructive' });
+            }
         };
         reader.readAsArrayBuffer(file);
     };
@@ -2409,6 +2419,9 @@ function UploadDataViewerDialog({ upload, onClose }: {
     const [totalPages, setTotalPages] = useState(1);
     const [totalRows, setTotalRows] = useState(0);
     const rowsPerPage = 100;
+    const [tempPreview, setTempPreview] = useState<any[] | null>(null);
+    const [tempHeaders, setTempHeaders] = useState<string[]>([]);
+    const [tempLoading, setTempLoading] = useState(false);
 
     useEffect(() => {
         if (upload && !upload.id.startsWith('temp-')) {
@@ -2435,67 +2448,118 @@ function UploadDataViewerDialog({ upload, onClose }: {
 
     if (!upload) return null;
     
-    // Special handling for temporary filter preview
+    // Special handling for temporary filter preview (async parse)
+    useEffect(() => {
+        let cancelled = false;
+        const parseTemp = async () => {
+            if (!upload || !upload.id.startsWith('temp-')) return;
+            const fileContent = (upload as any).fileContent;
+            if (!fileContent) return;
+            setTempLoading(true);
+            try {
+                const base64ToArrayBuffer = (base64: string) => {
+                    const binaryString = atob(base64);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    return bytes.buffer;
+                };
+
+                const arrayBuffer = base64ToArrayBuffer(fileContent);
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer as any);
+                const worksheet = workbook.worksheets[0];
+                const columnCount = worksheet.columnCount || 0;
+                const headers: string[] = [];
+                const headerRow = worksheet.getRow(1);
+                for (let i = 1; i <= columnCount; i++) {
+                    const cell = headerRow.getCell(i);
+                    const text = (cell.text ?? cell.value) as any;
+                    headers.push(text?.toString?.() || '');
+                }
+
+                const rows: any[] = [];
+                for (let r = 2; r <= worksheet.rowCount; r++) {
+                    const row = worksheet.getRow(r);
+                    const obj: any = {};
+                    let empty = true;
+                    for (let c = 1; c <= columnCount; c++) {
+                        const cell = row.getCell(c);
+                        const val = cell.value;
+                        if (val !== null && val !== undefined && String(val).trim() !== '') empty = false;
+                        obj[headers[c - 1] || `Column${c}`] = val;
+                    }
+                    if (!empty) rows.push(obj);
+                }
+
+                if (!cancelled) {
+                    setTempHeaders(headers);
+                    setTempPreview(rows);
+                }
+            } catch (err) {
+                console.error('Error parsing preview file:', err);
+                setTempPreview(null);
+            } finally {
+                setTempLoading(false);
+            }
+        };
+
+        parseTemp();
+        return () => { cancelled = true; };
+    }, [upload]);
+
+
+    // If this is a temporary upload preview, show parsed tempPreview
     if (upload.id.startsWith('temp-')) {
-        const fileContent = (upload as any).fileContent;
-        if (!fileContent) return null; // Should not happen
-
-        try {
-            const workbook = XLSX.read(fileContent, { type: 'base64' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
-            
-            const headers = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : [];
-
+        if (tempLoading) {
             return (
                 <UIDialog open={!!upload} onOpenChange={onClose}>
-                    <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                        <UIDialogHeader>
-                            <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
-                            <UIDialogDescription>
-                            This is a preview of the file you uploaded.
-                            </UIDialogDescription>
-                        </UIDialogHeader>
-                        <div className="flex-grow overflow-auto border rounded-md">
-                            <Table>
-                                <TableHeader className="sticky top-0 bg-background">
-                                    <TableRow>
-                                        {headers.map(header => <TableHead key={header}>{header}</TableHead>)}
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {jsonData.map((row: any, rowIndex) => (
-                                        <TableRow key={rowIndex}>
-                                            {headers.map((header) => (
-                                                <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        <UIDialogFooter className="pt-4">
-                            <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
-                        </UIDialogFooter>
-                    </UIDialogContent>
-                </UIDialog>
-            );
-        } catch (error) {
-            console.error("Error parsing preview file:", error);
-            return (
-                <UIDialog open={!!upload} onOpenChange={onClose}>
-                    <UIDialogContent>
-                         <UIDialogHeader>
-                            <UIDialogTitle>Preview Error</UIDialogTitle>
-                            <UIDialogDescription>Could not display a preview of the uploaded file.</UIDialogDescription>
-                        </UIDialogHeader>
+                    <UIDialogContent className="max-w-4xl h-[90vh] flex items-center justify-center">
+                        <div>Loading preview...</div>
                     </UIDialogContent>
                 </UIDialog>
             );
         }
-    }
 
+        const headersPreview = tempHeaders || [];
+        const rowsPreview = tempPreview || [];
+
+        return (
+            <UIDialog open={!!upload} onOpenChange={onClose}>
+                <UIDialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                    <UIDialogHeader>
+                        <UIDialogTitle>Viewing Upload: {upload.fileName}</UIDialogTitle>
+                        <UIDialogDescription>
+                            This is a preview of the file you uploaded.
+                        </UIDialogDescription>
+                    </UIDialogHeader>
+                    <div className="flex-grow overflow-auto border rounded-md">
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                                <TableRow>
+                                    {headersPreview.map(header => <TableHead key={header}>{header}</TableHead>)}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {rowsPreview.map((row: any, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {headersPreview.map((header) => (
+                                            <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <UIDialogFooter className="pt-4">
+                        <UIDialogClose asChild><Button type="button">Close</Button></UIDialogClose>
+                    </UIDialogFooter>
+                </UIDialogContent>
+            </UIDialog>
+        );
+    }
 
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 

@@ -126,8 +126,10 @@ export async function POST(req: Request) {
           message = `Disbursement to account ${creditAccount} failed: ${reason}`;
         }
 
+        console.info('[external][disbursement] sms notify', { phoneNumber, message });
         const smsRes = await sendSms(phoneNumber, message);
-        if (!smsRes.ok) console.warn('[external][disbursement] sms send result', smsRes);
+        console.info('[external][disbursement] sms send result', smsRes);
+        if (!smsRes.ok) console.warn('[external][disbursement] sms send failed', smsRes);
       } catch (e) {
         console.error('[external][disbursement] sms notify failed', e);
       }

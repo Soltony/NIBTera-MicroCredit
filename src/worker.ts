@@ -19,23 +19,22 @@ import { sendDueDateReminders } from './actions/repayment';
 const REPAYMENT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 async function runRepaymentServiceLoop() {
-    console.log(`[${new Date().toISOString()}] Automated repayment service started. Will run every ${REPAYMENT_INTERVAL_MS / 1000 / 60} minutes.`);
+    // startup log removed to reduce console noise
     while (true) {
         try {
           // Send due-date reminders for loans due today
-          try {
-            const reminders = await sendDueDateReminders();
-            console.log(`[${new Date().toISOString()}] Sent ${reminders.sent} due-date reminders.`);
-          } catch (e) {
-            console.error(`[${new Date().toISOString()}] Error sending due-date reminders:`, e);
-          }
-            console.log(`[${new Date().toISOString()}] Starting automated repayment cycle...`);
+            try {
+              await sendDueDateReminders();
+            } catch (e) {
+              console.error(`[${new Date().toISOString()}] Error sending due-date reminders:`, e);
+            }
+            // cycle start log removed to reduce console noise
             await processAutomatedRepayments();
-            console.log(`[${new Date().toISOString()}] Repayment cycle finished successfully.`);
+            // cycle finished log removed to reduce console noise
         } catch (error) {
             console.error(`[${new Date().toISOString()}] An error occurred during the repayment cycle:`, error);
         }
-        console.log(`[${new Date().toISOString()}] Waiting for next cycle...`);
+        // waiting log removed to reduce console noise
         await new Promise(resolve => setTimeout(resolve, REPAYMENT_INTERVAL_MS));
     }
 }
@@ -46,12 +45,10 @@ async function main() {
 
   if (!task) {
     console.error('Error: No task specified.');
-    console.log('Usage: npm run run:worker -- <task-name>');
-    console.log('Available tasks: repayment-service, npl');
     process.exit(1);
   }
 
-  console.log(`[${new Date().toISOString()}] Starting worker for task: ${task}`);
+  // start task log removed to reduce console noise
 
   try {
     switch (task) {
@@ -62,7 +59,6 @@ async function main() {
       case 'npl':
         // This is a one-off task.
         await updateNplStatus();
-        console.log(`[${new Date().toISOString()}] Finished task: ${task} successfully.`);
         process.exit(0);
         break;
       default:

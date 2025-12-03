@@ -61,16 +61,7 @@ export async function POST(req: NextRequest) {
             entityId: providerId,
             details: logDetails
         });
-
-        console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'SCORING_RULES_UPDATE_SUCCESS',
-            actorId: session.userId,
-            details: {
-                providerId: providerId,
-                parameterCount: parameters.length,
-            }
-        }));
+        
 
         return NextResponse.json(transaction, { status: 201 });
     } catch (error) {

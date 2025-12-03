@@ -7,11 +7,7 @@ export async function POST() {
   const session = await getSession();
   if (session?.userId) {
     await createAuditLog({ actorId: session.userId, action: 'USER_LOGOUT_SUCCESS' });
-    console.log(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        action: 'USER_LOGOUT_SUCCESS',
-        userId: session.userId,
-    }));
+   
   }
   
   deleteSession();

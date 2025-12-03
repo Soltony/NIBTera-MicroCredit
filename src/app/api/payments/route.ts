@@ -25,12 +25,7 @@ export async function POST(req: NextRequest) {
         borrowerIdForLogging = loanForBorrowerId?.borrowerId || null;
 
         await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
-        console.log(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            action: 'REPAYMENT_INITIATED',
-            actorId: borrowerIdForLogging,
-            details: paymentDetailsForLogging
-        }));
+       
 
         const [loan, taxConfigs] = await Promise.all([
             prisma.loan.findUnique({
@@ -199,7 +194,7 @@ export async function POST(req: NextRequest) {
                repaymentStatus: finalLoan.repaymentStatus,
             };
             await createAuditLog({ actorId: loan.borrowerId, action: 'REPAYMENT_SUCCESS', entity: 'LOAN', entityId: loan.id, details: logDetails });
-            console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'REPAYMENT_SUCCESS' }));
+           
 
             // Send SMS notification to borrower for manual repayment
             (async () => {

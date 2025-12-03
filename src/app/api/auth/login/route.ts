@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails,
       });
-      console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
@@ -50,7 +49,7 @@ export async function POST(req: NextRequest) {
             userAgent,
             details: logDetails
         });
-        console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+        
         // Return a clearer response for deactivated users so the client can
         // show a useful message (HTTP 403 Forbidden is appropriate here).
         return NextResponse.json({ error: 'Your account has been deactivated. Please contact the administrator.' }, { status: 403 });
@@ -71,7 +70,7 @@ export async function POST(req: NextRequest) {
            userAgent,
            details: logDetails
        });
-       console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_FAILURE', ipAddress, userAgent }));
+       
        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
@@ -88,7 +87,7 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails
     });
-    console.log(JSON.stringify({ ...logDetails, timestamp: new Date().toISOString(), action: 'USER_LOGIN_SUCCESS', userId: user.id, ipAddress, userAgent }));
+    
 
     return NextResponse.json({ message: 'Login successful' }, { status: 200 });
 

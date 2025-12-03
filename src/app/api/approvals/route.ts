@@ -6,7 +6,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { toCamelCase } from '@/lib/utils';
 
 const approvalSchema = z.object({
@@ -45,11 +45,20 @@ async function applyDataProvisioningUpload(change: any, data: any) {
     if (!config) throw new Error('Data Provisioning Config not found.');
 
     const buffer = Buffer.from(fileContent, 'base64');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-    
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const worksheet = workbook.worksheets[0];
+
+    const columnCount = worksheet.columnCount || 0;
+    const jsonData: any[][] = [];
+    worksheet.eachRow((row) => {
+        const rowArr: any[] = [];
+        for (let i = 1; i <= columnCount; i++) {
+            rowArr.push(row.getCell(i).value);
+        }
+        jsonData.push(rowArr);
+    });
+
     const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
     const camelCaseHeaders = originalHeaders.map(toCamelCase);
     const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
@@ -104,10 +113,19 @@ async function applyEligibilityList(change: any, data: any) {
     if (!config) throw new Error('Data Provisioning Config not found.');
 
     const buffer = Buffer.from(fileContent, 'base64');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const worksheet = workbook.worksheets[0];
+
+    const columnCount = worksheet.columnCount || 0;
+    const jsonData: any[][] = [];
+    worksheet.eachRow((row) => {
+        const rowArr: any[] = [];
+        for (let i = 1; i <= columnCount; i++) {
+            rowArr.push(row.getCell(i).value);
+        }
+        jsonData.push(rowArr);
+    });
 
     const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
     const rows = jsonData.length > 1 ? jsonData.slice(1) : [];

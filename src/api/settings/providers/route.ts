@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
         
         const logDetails = { providerName: restOfBody.name };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_INITIATED', entity: 'PROVIDER', details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, action: 'PROVIDER_CREATE_INITIATED', actorId: session.userId }));
 
         // Use a transaction to create the provider and its ledger accounts
         const newProvider = await prisma.$transaction(async (tx) => {
@@ -95,7 +94,6 @@ export async function POST(req: NextRequest) {
 
         const successLogDetails = { providerId: newProvider.id, providerName: newProvider.name };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_SUCCESS', entity: 'PROVIDER', entityId: newProvider.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, action: 'PROVIDER_CREATE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json(newProvider, { status: 201 });
     } catch (error) {
@@ -125,7 +123,6 @@ export async function PUT(req: NextRequest) {
         
         const logDetails = { providerId: id, updatedFields: Object.keys(dataToUpdate) };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, action: 'PROVIDER_UPDATE_INITIATED', actorId: session.userId }));
 
         // Do not allow startingCapital to be changed on update
         if ('startingCapital' in dataToUpdate) {
@@ -140,7 +137,6 @@ export async function PUT(req: NextRequest) {
 
         const successLogDetails = { providerId: updatedProvider.id, updatedFields: Object.keys(dataToUpdate) };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_SUCCESS', entity: 'PROVIDER', entityId: updatedProvider.id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, action: 'PROVIDER_UPDATE_SUCCESS', actorId: session.userId }));
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
@@ -170,7 +166,7 @@ export async function DELETE(req: NextRequest) {
 
         const logDetails = { providerId: id };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...logDetails, action: 'PROVIDER_DELETE_INITIATED', actorId: session.userId }));
+        
         
         const productCount = await prisma.loanProduct.count({ where: { providerId: id } });
         if (productCount > 0) {
@@ -185,7 +181,7 @@ export async function DELETE(req: NextRequest) {
 
         const successLogDetails = { deletedProviderId: id, deletedProviderName: providerToDelete?.name };
         await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_SUCCESS', entity: 'PROVIDER', entityId: id, details: successLogDetails, ipAddress, userAgent });
-        console.log(JSON.stringify({ ...successLogDetails, action: 'PROVIDER_DELETE_SUCCESS', actorId: session.userId }));
+      
 
         return NextResponse.json({ message: 'Provider deleted successfully' });
     } catch (error) {

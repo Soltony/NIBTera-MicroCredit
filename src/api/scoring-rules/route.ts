@@ -62,15 +62,6 @@ export async function POST(req: NextRequest) {
             details: logDetails
         });
 
-        console.log(JSON.stringify({
-            action: 'SCORING_RULES_UPDATE_SUCCESS',
-            actorId: session.userId,
-            details: {
-                providerId: providerId,
-                parameterCount: parameters.length,
-            }
-        }));
-
         return NextResponse.json(transaction, { status: 201 });
     } catch (error) {
         console.error('Error saving scoring rules:', error);

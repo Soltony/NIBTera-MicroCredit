@@ -7,7 +7,7 @@ import { createAuditLog } from '@/lib/audit-log';
 import { getSession } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
-    console.log('🟢 INITIATE PAYMENT REQUEST RECEIVED');
+    // initiate payment request received (log removed to reduce console noise)
 
     // --- Step 1: Environment Validation ---
     const ACCOUNT_NO = process.env.ACCOUNT_NO;
@@ -16,13 +16,7 @@ export async function POST(req: NextRequest) {
     const NIB_PAYMENT_KEY = process.env.NIB_PAYMENT_KEY;
     const NIB_PAYMENT_URL = process.env.NIB_PAYMENT_URL;
 
-    console.log('🧩 ENVIRONMENT VARIABLES: ', {
-        ACCOUNT_NO: !!ACCOUNT_NO,
-        CALLBACK_URL: !!CALLBACK_URL,
-        COMPANY_NAME: !!COMPANY_NAME,
-        NIB_PAYMENT_KEY: !!NIB_PAYMENT_KEY,
-        NIB_PAYMENT_URL: !!NIB_PAYMENT_URL,
-    });
+    // environment variables check (log removed to reduce console noise)
 
     if (!ACCOUNT_NO || !CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
         console.error('❌ Missing payment gateway environment variables.');
@@ -35,7 +29,6 @@ export async function POST(req: NextRequest) {
     try {
         // --- Step 2: Parse Request ---
         const body = await req.json();
-        console.log('📩 REQUEST BODY:', body);
 
         const { amount, loanId } = body;
         if (!amount || !loanId) {
@@ -48,7 +41,6 @@ export async function POST(req: NextRequest) {
             where: { id: loanId },
             select: { borrowerId: true },
         });
-        console.log('💾 LOAN DATA:', loan);
 
         if (!loan) {
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
@@ -56,10 +48,8 @@ export async function POST(req: NextRequest) {
 
         // --- Step 4: Retrieve Session ---
         const session = await getSession();
-        console.log('🧠 SESSION DATA:', session);
 
         const superAppToken = session?.superAppToken;
-        console.log('🔑 EXTRACTED superAppToken:', superAppToken);
 
         if (!superAppToken) {
             console.error('❌ Super App authorization token is missing or malformed.');
@@ -74,7 +64,6 @@ export async function POST(req: NextRequest) {
         }
 
         const token = superAppToken;
-        console.log('✅ TOKEN (without Bearer):', token);
 
         // --- Step 5: Generate Transaction Info ---
         const transactionId = randomUUID();
@@ -91,10 +80,10 @@ export async function POST(req: NextRequest) {
             `transactionTime=${transactionTime}`,
         ].join('&');
 
-        console.log('🧾 SIGNATURE STRING:', signatureString);
+        // signature string built (log removed to reduce console noise)
 
         const signature = createHash('sha256').update(signatureString, 'utf8').digest('hex');
-        console.log('🔐 GENERATED SIGNATURE:', signature);
+        // generated signature (log removed to reduce console noise)
 
         const payload = {
             accountNo: ACCOUNT_NO,
@@ -106,7 +95,7 @@ export async function POST(req: NextRequest) {
             transactionTime,
             signature,
         };
-        console.log('📦 FINAL PAYLOAD TO PAYMENT GATEWAY:', payload);
+        // final payload prepared for payment gateway (log removed to reduce console noise)
 
         // --- Step 6: Save Pending Payment ---
         await prisma.pendingPayment.create({
@@ -128,7 +117,6 @@ export async function POST(req: NextRequest) {
         });
 
         // --- Step 7: Send to Payment Gateway ---
-        console.log('🚀 SENDING TO PAYMENT GATEWAY:', NIB_PAYMENT_URL);
         const paymentResponse = await fetch(NIB_PAYMENT_URL, {
             method: 'POST',
             headers: {
@@ -138,7 +126,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify(payload),
         });
 
-        console.log('📨 PAYMENT GATEWAY RESPONSE STATUS:', paymentResponse.status);
+        // payment gateway response status (log removed)
 
         if (!paymentResponse.ok) {
             const errorData = await paymentResponse.text();
@@ -147,7 +135,7 @@ export async function POST(req: NextRequest) {
         }
 
         const responseData = await paymentResponse.json();
-        console.log('✅ PAYMENT GATEWAY RESPONSE BODY:', responseData);
+        // payment gateway response body received (log removed)
 
         const paymentToken = responseData.token;
 

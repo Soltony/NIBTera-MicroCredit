@@ -385,8 +385,14 @@ export interface ProviderReportData {
     };
     fundUtilization: number;
     agingReport: {
-        buckets: Record<'1-30' | '31-60' | '61-90' | '91+', number>;
+        buckets: Record<'Pass' | 'Special Mention' | 'Substandard' | 'Doubtful' | 'Loss', number>;
         totalOverdue: number;
+        byBorrower?: Array<{
+            borrowerId: string;
+            borrowerName: string;
+            buckets: Record<'Pass' | 'Special Mention' | 'Substandard' | 'Doubtful' | 'Loss', number>;
+            totalOverdue: number;
+        }>;
     };
 }
 

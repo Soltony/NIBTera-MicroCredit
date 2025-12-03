@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // POST { phoneNumber, accountNumber }
 export async function POST(req: Request) {
@@ -52,11 +53,21 @@ export async function POST(req: Request) {
 
     // Ensure Borrower exists. Use phoneNumber as borrower id (as used in auth/connect).
     const borrowerId = String(phoneNumber);
-    await prisma.borrower.upsert({
-      where: { id: borrowerId },
-      update: { status: 'Active' },
-      create: { id: borrowerId, status: 'Active' },
-    });
+    // Create borrower defensively. Prisma `upsert` on SQL Server can fail under
+    // concurrency (unique constraint) so we use create + catch fallback to update.
+    try {
+      await prisma.borrower.create({ data: { id: borrowerId, status: 'Active' } });
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        try {
+          await prisma.borrower.update({ where: { id: borrowerId }, data: { status: 'Active' } });
+        } catch (err) {
+          // ignore
+        }
+      } else {
+        throw e;
+      }
+    }
 
     // Try to reuse an existing provisioned payload for the same borrower+accountNumber
     // Search across all ExternalCustomerInfo configs for this borrower and look for a matching accountNumber
