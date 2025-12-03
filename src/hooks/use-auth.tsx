@@ -67,11 +67,9 @@ export const AuthProvider = ({ children, initialUser = null }: AuthProviderProps
       }
 
       // After successful login, refetch user data to update context
-      const userRes = await fetch('/api/auth/user');
-      if(userRes.ok) {
-        const user = await userRes.json();
-        setCurrentUser(user);
-      }
+      // This MUST be awaited to ensure the session is updated before redirection.
+      await refetchUser();
+      
       setIsLoading(false);
     },
     []
