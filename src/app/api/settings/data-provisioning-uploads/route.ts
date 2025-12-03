@@ -14,6 +14,9 @@ const toCamelCase = (str: string) => {
     return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
 };
 
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+const ALLOWED_FILE_TYPES = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']; // .xlsx
+
 // This is a simplified version and does not handle file storage.
 // It parses the file in memory, validates it, and stores the data.
 // For large files, a streaming approach and storing the file in a bucket would be better.
@@ -21,8 +24,8 @@ const toCamelCase = (str: string) => {
 export async function POST(req: NextRequest) {
     const session = await getSession();
     const user = await getUserFromSession();
-    if (!session?.userId || !user) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!session?.userId || !user || (!user.permissions['settings']?.create && !user.permissions['settings']?.update)) {
+        return NextResponse.json({ error: 'Not authorized for this action' }, { status: 403 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
@@ -36,6 +39,14 @@ export async function POST(req: NextRequest) {
 
         if (!file || !configId) {
             return NextResponse.json({ error: 'File and configId are required' }, { status: 400 });
+        }
+        
+        // **Security: File Type & Size Validation**
+        if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+            return NextResponse.json({ error: `Invalid file type. Only .xlsx files are allowed.` }, { status: 400 });
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json({ error: `File is too large. Maximum size is 100MB.` }, { status: 400 });
         }
 
         const config = await prisma.dataProvisioningConfig.findUnique({

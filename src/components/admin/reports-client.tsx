@@ -30,6 +30,15 @@ const formatCurrency = (amount: number | null | undefined) => {
     }).format(amount);
 };
 
+const sanitizeCellValue = (value: any): any => {
+    if (typeof value === 'string') {
+        if (['=', '+', '-', '@'].some(char => value.startsWith(char))) {
+            return `'${value}`;
+        }
+    }
+    return value;
+};
+
 
 const TIMEFRAMES = [
     { value: 'daily', label: 'Daily' },
@@ -175,6 +184,19 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         const wb = new ExcelJS.Workbook();
         const providerList = (providerId === 'all' ? providers : [providers.find(p => p.id === providerId)!]).filter(Boolean);
 
+        const addSanitizedRows = (worksheet: ExcelJS.Worksheet, data: any[]) => {
+            if (data.length > 0) {
+                worksheet.columns = Object.keys(data[0]).map(k => ({ header: k, key: k }));
+                data.forEach(row => {
+                    const sanitizedRow: { [key: string]: any } = {};
+                    for (const key in row) {
+                        sanitizedRow[key] = sanitizeCellValue(row[key]);
+                    }
+                    worksheet.addRow(sanitizedRow);
+                });
+            }
+        };
+
         // 1. Provider Loans
         if (loansData.length > 0) {
             const providerLoanData = loansData.map(d => ({
@@ -190,10 +212,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 Status: d.status,
             }));
             const wsProvider = wb.addWorksheet('Provider Loans');
-            if (providerLoanData.length > 0) {
-                wsProvider.columns = Object.keys(providerLoanData[0]).map(k => ({ header: k, key: k }));
-                providerLoanData.forEach(r => wsProvider.addRow(r));
-            }
+            addSanitizedRows(wsProvider, providerLoanData);
         }
 
         // 2. Collections
@@ -209,10 +228,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 'Total Collected': d.total,
             }));
             const ws = wb.addWorksheet('Collections');
-            if (collectionsExportData.length > 0) {
-                ws.columns = Object.keys(collectionsExportData[0]).map(k => ({ header: k, key: k }));
-                collectionsExportData.forEach(r => ws.addRow(r));
-            }
+            addSanitizedRows(ws, collectionsExportData);
         }
         
         // 3. Income
@@ -229,10 +245,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 'Total Collected': d.collectedInterest + d.collectedServiceFee + d.collectedPenalty,
             }));
             const ws = wb.addWorksheet('Income');
-            if (incomeExportData.length > 0) {
-                ws.columns = Object.keys(incomeExportData[0]).map(k => ({ header: k, key: k }));
-                incomeExportData.forEach(r => ws.addRow(r));
-            }
+            addSanitizedRows(ws, incomeExportData);
         }
         
         // 4. Fund Utilization
@@ -251,10 +264,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         }).filter(Boolean);
         if (utilizationExportData.length > 0) {
             const ws = wb.addWorksheet('Fund Utilization');
-            if (utilizationExportData.length > 0) {
-                ws.columns = Object.keys(utilizationExportData[0]).map(k => ({ header: k, key: k }));
-                utilizationExportData.forEach(r => ws.addRow(r));
-            }
+            addSanitizedRows(ws, utilizationExportData as any[]);
         }
 
         // 5. Disbursements
@@ -286,10 +296,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 };
             });
             const ws = wb.addWorksheet('Disbursements');
-            if (disbExport.length > 0) {
-                ws.columns = Object.keys(disbExport[0]).map(k => ({ header: k, key: k }));
-                disbExport.forEach((r: any) => ws.addRow(r));
-            }
+            addSanitizedRows(ws, disbExport);
         }
 
         // 6. Repayments
@@ -315,10 +322,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 Status: r.status,
             }));
             const ws = wb.addWorksheet('Repayments');
-            if (repExport.length > 0) {
-                ws.columns = Object.keys(repExport[0]).map(k => ({ header: k, key: k }));
-                repExport.forEach((r: any) => ws.addRow(r));
-            }
+            addSanitizedRows(ws, repExport);
         }
         
         // 5. Aging Report
@@ -338,10 +342,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         }).filter(Boolean);
         if (agingExportData.length > 0) {
             const ws = wb.addWorksheet('Aging Report');
-            if (agingExportData.length > 0) {
-                ws.columns = Object.keys(agingExportData[0]).map(k => ({ header: k, key: k }));
-                agingExportData.forEach((r: any) => ws.addRow(r));
-            }
+            addSanitizedRows(ws, agingExportData as any[]);
         }
 
         // Borrower-level Aging export (flattened across providers)
@@ -363,10 +364,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         });
         if (borrowerAgingExport.length > 0) {
             const wsB = wb.addWorksheet('Borrower Aging');
-            if (borrowerAgingExport.length > 0) {
-                wsB.columns = Object.keys(borrowerAgingExport[0]).map(k => ({ header: k, key: k }));
-                borrowerAgingExport.forEach(r => wsB.addRow(r));
-            }
+            addSanitizedRows(wsB, borrowerAgingExport);
         }
         
         // 6. Borrower Performance
@@ -384,10 +382,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                  'Status': d.status,
             }));
             const wsBorrower = wb.addWorksheet('Borrower Performance');
-            if (borrowerPerfData.length > 0) {
-                wsBorrower.columns = Object.keys(borrowerPerfData[0]).map(k => ({ header: k, key: k }));
-                borrowerPerfData.forEach(r => wsBorrower.addRow(r));
-            }
+            addSanitizedRows(wsBorrower, borrowerPerfData);
         }
 
         // If workbook has no worksheets (no data), inform the user
