@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
+import { allMenuItems } from './lib/menu-items';
 
 const protectedAdminRoutes = ['/admin'];
 const publicRoutes = ['/admin/login', '/loan/connect'];
@@ -46,16 +47,40 @@ export default async function middleware(req: NextRequest) {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 
-  // Admin authentication
-  if (!publicRoutes.includes(path)) {
-    const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
-    if (isProtected) {
+  // --- START PERMISSION-BASED ROUTE PROTECTION ---
+  const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
+
+  if (isProtected && !publicRoutes.includes(path)) {
       const session = await getSession();
+
+      // 1. If no session, redirect to login
       if (!session?.userId) {
-        return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+          return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
       }
-    }
+      
+      // 2. We have a session, now check page-specific permissions
+      const permissions = JSON.parse(session.permissions || '{}');
+
+      // Find the menu item corresponding to the current path
+      const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
+      
+      if (currentRouteConfig) {
+          const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
+          const hasPermission = permissions[moduleName]?.read;
+
+          // 3. If user does not have read permission for this route, redirect them
+          if (!hasPermission) {
+              // Redirect to the main admin dashboard, which will then handle
+              // redirecting to the first available page for that user.
+              return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+          }
+      } else if (path !== '/admin') {
+          // If the route is not in our menu config but is under /admin, it's a restricted or unknown path.
+          // Redirect them to the main dashboard as a fallback.
+          return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+      }
   }
+  // --- END PERMISSION-BASED ROUTE PROTECTION ---
 
   return response;
 }

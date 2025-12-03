@@ -1,5 +1,4 @@
 
-
 import { DashboardClient } from '@/components/admin/dashboard-client';
 import { getUserFromSession } from '@/lib/user';
 import { getDashboardData } from './dashboard/page';
