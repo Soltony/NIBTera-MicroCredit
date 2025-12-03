@@ -4,8 +4,9 @@
 import { getSession } from './session';
 import prisma from './prisma';
 import type { User as AuthUser, Permissions } from '@/lib/types';
+import { Prisma } from '@prisma/client';
 
-export async function getUserFromSession() {
+export async function getUserFromSession(): Promise<AuthUser | null> {
   try {
     const session = await getSession();
 
@@ -25,6 +26,13 @@ export async function getUserFromSession() {
       return null;
     }
     
+    // Check if user is inactive
+    if (user.status === 'Inactive') {
+        // Invalidate session for inactive users
+        cookies().set('session', '', { expires: new Date(0), httpOnly: true });
+        return null;
+    }
+    
     const { password, ...userWithoutPassword } = user;
     
     const authUser: AuthUser = {
@@ -37,7 +45,14 @@ export async function getUserFromSession() {
     return authUser;
 
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        // Handle specific prisma errors if needed
+    }
     console.error('Get User Error:', error);
     return null;
   }
 }
+
+// Re-export cookies from next/headers to be used in server components
+import { cookies } from 'next/headers';
+export { cookies };

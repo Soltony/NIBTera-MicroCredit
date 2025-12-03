@@ -1,8 +1,10 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import { getUserFromSession } from '@/lib/user';
 
 // Note: GET method is in /api/providers/route.ts to be public
 
@@ -12,11 +14,13 @@ const defaultLedgerAccounts = [
     { name: 'Interest Receivable', type: 'Receivable', category: 'Interest' },
     { name: 'Service Fee Receivable', type: 'Receivable', category: 'ServiceFee' },
     { name: 'Penalty Receivable', type: 'Receivable', category: 'Penalty' },
+    { name: 'Tax Receivable', type: 'Receivable', category: 'Tax' },
     // Cash / Received
     { name: 'Principal Received', type: 'Received', category: 'Principal' },
     { name: 'Interest Received', type: 'Received', category: 'Interest' },
     { name: 'Service Fee Received', type: 'Received', category: 'ServiceFee' },
     { name: 'Penalty Received', type: 'Received', category: 'Penalty' },
+    { name: 'Tax Received', type: 'Received', category: 'Tax' },
     // Income
     { name: 'Interest Income', type: 'Income', category: 'Interest' },
     { name: 'Service Fee Income', type: 'Income', category: 'ServiceFee' },
@@ -25,10 +29,15 @@ const defaultLedgerAccounts = [
 
 
 export async function POST(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.userId) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['settings']?.create) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
+    // Only Super Admins can create new providers
+    if (user.role !== 'Super Admin') {
+        return NextResponse.json({ error: 'Only Super Admins can create providers.' }, { status: 403 });
+    }
+
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
 
@@ -37,7 +46,7 @@ export async function POST(req: NextRequest) {
         const { startingCapital, ...restOfBody } = body;
         
         const logDetails = { providerName: restOfBody.name };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_INITIATED', entity: 'PROVIDER', details: logDetails, ipAddress, userAgent });
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_CREATE_INITIATED', entity: 'PROVIDER', details: logDetails, ipAddress, userAgent });
 
         // Use a transaction to create the provider and its ledger accounts
         const newProvider = await prisma.$transaction(async (tx) => {
@@ -91,22 +100,22 @@ export async function POST(req: NextRequest) {
         });
 
         const successLogDetails = { providerId: newProvider.id, providerName: newProvider.name };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_SUCCESS', entity: 'PROVIDER', entityId: newProvider.id, details: successLogDetails, ipAddress, userAgent });
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_CREATE_SUCCESS', entity: 'PROVIDER', entityId: newProvider.id, details: successLogDetails, ipAddress, userAgent });
 
         return NextResponse.json(newProvider, { status: 201 });
     } catch (error) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { error: errorMessage };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_CREATE_FAILED', entity: 'PROVIDER', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'PROVIDER_CREATE_FAILED', actorId: session.userId }));
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_CREATE_FAILED', entity: 'PROVIDER', details: failureLogDetails, ipAddress, userAgent });
+        console.error(JSON.stringify({ ...failureLogDetails, action: 'PROVIDER_CREATE_FAILED', actorId: user.id }));
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
 export async function PUT(req: NextRequest) {
-     const session = await getSession();
-    if (!session?.userId) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['settings']?.update) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
@@ -118,9 +127,14 @@ export async function PUT(req: NextRequest) {
         if (!id) {
             return NextResponse.json({ error: 'Provider ID is required for update.' }, { status: 400 });
         }
+
+        // Horizontal access control: non-super-admins can only update their own provider
+        if (user.role !== 'Super Admin' && user.loanProviderId !== id) {
+             return NextResponse.json({ error: 'You do not have permission to update this provider.' }, { status: 403 });
+        }
         
         const logDetails = { providerId: id, updatedFields: Object.keys(dataToUpdate) };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_UPDATE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
 
         // Do not allow startingCapital to be changed on update
         if ('startingCapital' in dataToUpdate) {
@@ -134,23 +148,27 @@ export async function PUT(req: NextRequest) {
         });
 
         const successLogDetails = { providerId: updatedProvider.id, updatedFields: Object.keys(dataToUpdate) };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_SUCCESS', entity: 'PROVIDER', entityId: updatedProvider.id, details: successLogDetails, ipAddress, userAgent });
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_UPDATE_SUCCESS', entity: 'PROVIDER', entityId: updatedProvider.id, details: successLogDetails, ipAddress, userAgent });
 
         return NextResponse.json(updatedProvider);
     } catch (error) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { error: errorMessage };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_UPDATE_FAILED', entity: 'PROVIDER', details: failureLogDetails, ipAddress, userAgent });
-        console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'PROVIDER_UPDATE_FAILED', actorId: session.userId }));
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_UPDATE_FAILED', entity: 'PROVIDER', details: failureLogDetails, ipAddress, userAgent });
+        console.error(JSON.stringify({ ...failureLogDetails, action: 'PROVIDER_UPDATE_FAILED', actorId: user.id }));
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
 export async function DELETE(req: NextRequest) {
-     const session = await getSession();
-    if (!session?.userId) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['settings']?.delete) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
+     if (user.role !== 'Super Admin') {
+        return NextResponse.json({ error: 'Only Super Admins can delete providers.' }, { status: 403 });
+    }
+
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
 
@@ -163,7 +181,8 @@ export async function DELETE(req: NextRequest) {
         }
 
         const logDetails = { providerId: id };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_DELETE_INITIATED', entity: 'PROVIDER', entityId: id, details: logDetails, ipAddress, userAgent });
+        
         
         const productCount = await prisma.loanProduct.count({ where: { providerId: id } });
         if (productCount > 0) {
@@ -177,14 +196,15 @@ export async function DELETE(req: NextRequest) {
         });
 
         const successLogDetails = { deletedProviderId: id, deletedProviderName: providerToDelete?.name };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_SUCCESS', entity: 'PROVIDER', entityId: id, details: successLogDetails, ipAddress, userAgent });
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_DELETE_SUCCESS', entity: 'PROVIDER', entityId: id, details: successLogDetails, ipAddress, userAgent });
+      
 
         return NextResponse.json({ message: 'Provider deleted successfully' });
     } catch (error) {
         const errorMessage = (error as Error).message;
         const failureLogDetails = { providerId: id, error: errorMessage };
-        await createAuditLog({ actorId: session.userId, action: 'PROVIDER_DELETE_FAILED', entity: 'PROVIDER', entityId: id || undefined, details: failureLogDetails, ipAddress, userAgent });
-         console.error(JSON.stringify({ ...failureLogDetails, timestamp: new Date().toISOString(), action: 'PROVIDER_DELETE_FAILED', actorId: session.userId }));
+        await createAuditLog({ actorId: user.id, action: 'PROVIDER_DELETE_FAILED', entity: 'PROVIDER', entityId: id || undefined, details: failureLogDetails, ipAddress, userAgent });
+         console.error(JSON.stringify({ ...failureLogDetails, action: 'PROVIDER_DELETE_FAILED', actorId: user.id }));
         return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
     }
 }

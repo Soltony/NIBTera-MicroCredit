@@ -1,11 +1,5 @@
-import { NextResponse } from 'next/server';
 
-// Proxy endpoint to call the external 'get-accounts' service.
-// Expects JSON body: { phoneNumber: string }
-// Environment variables:
-// - EXTERNAL_API_URL (default: http://192.168.100.56:8280/nibtera-loan/get-accounts)
-// - EXTERNAL_API_USERNAME (default: nibLoan)
-// - EXTERNAL_API_PASSWORD (default: 123456)
+import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
@@ -19,6 +13,7 @@ export async function POST(req: Request) {
     const user = process.env.EXTERNAL_API_USERNAME ?? 'nibLoan';
     const pass = process.env.EXTERNAL_API_PASSWORD ?? '123456';
     console.info(`[loan-accounts] proxy request phone=${phoneNumber} -> ${apiUrl}`);
+    
     const auth = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
 
     const res = await fetch(apiUrl, {
@@ -31,7 +26,6 @@ export async function POST(req: Request) {
     });
 
     const data = await res.json().catch(() => null);
-    // Return upstream status and body so caller can react accordingly
     try {
       const detailsCount = Array.isArray(data?.details) ? data.details.length : 0;
       console.info(`[loan-accounts] upstream status=${res.status} details=${detailsCount}`);

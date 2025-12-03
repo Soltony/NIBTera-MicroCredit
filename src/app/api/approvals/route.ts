@@ -1,13 +1,15 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getSession } from '@/lib/session';
+import { getSession, getUserFromSession } from '@/lib/user';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 import ExcelJS from 'exceljs';
 import { toCamelCase } from '@/lib/utils';
+import { Prisma } from '@prisma/client';
 
 const approvalSchema = z.object({
   changeId: z.string(),
@@ -86,9 +88,10 @@ async function applyDataProvisioningUpload(change: any, data: any) {
 
             await tx.borrower.upsert({ where: { id: borrowerId }, update: {}, create: { id: borrowerId } });
 
+            const compoundId = { borrowerId, configId, uploadId: newUpload.id };
+
             const existingData = await tx.provisionedData.findUnique({
-                // find within the same upload so we preserve older uploads
-                where: { borrowerId_configId_uploadId: { borrowerId: borrowerId, configId: configId, uploadId: newUpload.id } },
+                where: { borrowerId_configId_uploadId: compoundId },
             });
             
             let mergedData = newRowData;
@@ -97,9 +100,9 @@ async function applyDataProvisioningUpload(change: any, data: any) {
             }
 
             await tx.provisionedData.upsert({
-                where: { borrowerId_configId_uploadId: { borrowerId: borrowerId, configId: configId, uploadId: newUpload.id } },
-                update: { data: JSON.stringify(mergedData), uploadId: newUpload.id },
-                create: { borrowerId: borrowerId, configId: configId, data: JSON.stringify(mergedData), uploadId: newUpload.id }
+                where: { borrowerId_configId_uploadId: compoundId },
+                update: { data: JSON.stringify(mergedData) },
+                create: { ...compoundId, data: JSON.stringify(mergedData) }
             });
         }
     });
@@ -144,13 +147,9 @@ async function applyEligibilityList(change: any, data: any) {
     }
     
     const filterString = borrowerIds.join(',');
-    // Store the filter as JSON mapping of identifier column -> CSV string
-    // so the eligibility check can parse and apply filters consistently.
     const filterObject = JSON.stringify({ [idColumnName]: filterString });
 
     await prisma.$transaction(async (tx) => {
-        // Create the upload record for history, and now include file content
-        // Create upload metadata (don't store raw file content in DB model)
         const newUpload = await tx.dataProvisioningUpload.create({
             data: {
                 configId: configId,
@@ -160,7 +159,6 @@ async function applyEligibilityList(change: any, data: any) {
             }
         });
 
-        // Now, iterate through the file and save the data for viewing later.
         for (const row of rows) {
              const rowData: { [key: string]: any } = {};
              originalHeaders.forEach((header, index) => {
@@ -170,19 +168,15 @@ async function applyEligibilityList(change: any, data: any) {
             const borrowerId = String(rowData[idColumnName]);
             if (!borrowerId) continue;
             
-             // Ensure the borrower exists before linking data
              await tx.borrower.upsert({
                  where: { id: borrowerId },
                  update: {},
                  create: { id: borrowerId }
              });
 
-            // Using upsert to prevent unique constraint errors if the same list is uploaded again
-            // NOTE: The `ProvisionedData` model has a compound unique on [borrowerId, configId]
-            // so we upsert on that compound key (not including uploadId) and set uploadId in update/create
             await tx.provisionedData.upsert({
                 where: { borrowerId_configId_uploadId: { borrowerId, configId, uploadId: newUpload.id } },
-                update: { data: JSON.stringify(rowData), uploadId: newUpload.id },
+                update: { data: JSON.stringify(rowData) },
                 create: {
                     borrowerId,
                     configId,
@@ -192,7 +186,6 @@ async function applyEligibilityList(change: any, data: any) {
             });
         }
         
-        // Update the product with the link to the historic upload
         await tx.loanProduct.update({
             where: { id: productId },
             data: {
@@ -233,23 +226,14 @@ async function applyChange(change: any) {
                 }
             });
         } else if (changeType === 'DELETE') {
-            // deleting a data provisioning config must remove or unlink all dependent
-            // objects first (loan products referencing the config, any provisioned
-            // data rows and uploads) to avoid foreign key constraint violations.
-            await prisma.$transaction(async (tx: any) => {
-                // 1) Unlink config from any products (clear config and any eligibility pointers)
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 await tx.loanProduct.updateMany({
                     where: { dataProvisioningConfigId: entityId },
                     data: { dataProvisioningConfigId: null, eligibilityUploadId: null, eligibilityFilter: null }
                 });
 
-                // 2) Remove provisioned data tied to this config
                 await tx.provisionedData.deleteMany({ where: { configId: entityId } });
-
-                // 3) Remove any uploads linked to this config (they will have had provisionedData removed above)
                 await tx.dataProvisioningUpload.deleteMany({ where: { configId: entityId } });
-
-                // 4) Finally delete the config
                 await tx.dataProvisioningConfig.delete({ where: { id: entityId } });
             });
         }
@@ -267,7 +251,7 @@ async function applyChange(change: any) {
                 data: { ...providerData, status: 'ACTIVE' }
             });
         } else if (changeType === 'CREATE') {
-            await prisma.$transaction(async (tx: any) => {
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const providerToCreate = {
                     ...data.created,
                     initialBalance: data.created.startingCapital,
@@ -286,7 +270,6 @@ async function applyChange(change: any) {
                     data: accountsToCreate,
                 });
 
-                // Create provider-scoped ExternalCustomerInfo data provisioning config with desired columns
                 const desiredColumns = [
                     { id: 'col-ext-0', name: 'AccountNumber', type: 'string', isIdentifier: true, options: [] },
                     { id: 'col-ext-1', name: 'AccountOpeningDate', type: 'string', isIdentifier: false, options: [] },
@@ -319,12 +302,6 @@ async function applyChange(change: any) {
             });
         }
         else if (changeType === 'DELETE') {
-            // Do not allow deleting a provider if it still has products.
-            // This mirrors the runtime /api/settings/providers delete handler
-            // which prevents deletion while a provider still has associated
-            // loan products. Approving a delete while products exist can
-            // cause foreign key errors or accidental data loss for product
-            // approval metadata; block it and return a helpful error instead.
             const productCount = await prisma.loanProduct.count({ where: { providerId: entityId } });
             if (productCount > 0) {
                 throw new Error('Cannot delete provider with associated products. Remove or reassign products before approving deletion.');
@@ -386,7 +363,6 @@ async function applyChange(change: any) {
       break;
     case 'LoanCycleConfig':
         if (changeType === 'UPDATE') {
-            // entityId is productId in our pending change for loan cycles
             const prodId = entityId;
             const updated = data.updated || {};
             await prisma.loanCycleConfig.updateMany({ where: { productId: prodId }, data: {
@@ -406,7 +382,6 @@ async function applyChange(change: any) {
                 grades: created.grades ? JSON.stringify(created.grades) : JSON.stringify([]),
             }});
         } else if (changeType === 'DELETE') {
-            // Delete by productId
             await prisma.loanCycleConfig.deleteMany({ where: { productId: entityId } });
         }
       break;
@@ -452,20 +427,17 @@ async function applyChange(change: any) {
      case 'TermsAndConditions':
         await prisma.$transaction(async (tx) => {
             const { providerId, content } = data.updated;
-            // Deactivate previous versions
             await tx.termsAndConditions.updateMany({
                 where: { providerId },
                 data: { isActive: false },
             });
 
-            // Get the latest version number
             const latestVersion = await tx.termsAndConditions.findFirst({
                 where: { providerId },
                 orderBy: { version: 'desc' },
             });
             const newVersionNumber = (latestVersion?.version || 0) + 1;
 
-            // Create the new active version
             await tx.termsAndConditions.create({
                 data: {
                     providerId,
@@ -499,9 +471,9 @@ async function applyChange(change: any) {
 
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.userId) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const user = await getUserFromSession();
+  if (!user || !user.permissions?.['approvals']?.update) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
   try {
@@ -516,7 +488,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Change request not found.' }, { status: 404 });
     }
 
-    if (change.createdById === session.userId) {
+    if (change.createdById === user.id) {
       return NextResponse.json({ error: 'You cannot approve or reject your own changes.' }, { status: 403 });
     }
     
@@ -525,21 +497,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (approved) {
-      // Apply the change
       await applyChange(change);
 
-      // Update the status of the change request
       await prisma.pendingChange.update({
         where: { id: changeId },
         data: {
           status: 'APPROVED',
-          approvedById: session.userId,
+          approvedById: user.id,
           approvedAt: new Date(),
         },
       });
 
       await createAuditLog({
-        actorId: session.userId,
+        actorId: user.id,
         action: 'CHANGE_APPROVED',
         entity: change.entityType,
         entityId: change.entityId,
@@ -555,13 +525,12 @@ export async function POST(req: NextRequest) {
         where: { id: changeId },
         data: {
           status: 'REJECTED',
-          approvedById: session.userId,
+          approvedById: user.id,
           approvedAt: new Date(),
           rejectionReason,
         },
       });
 
-      // Also revert the status of the underlying entity if it was pending
       const entityId = change.entityId;
        if (entityId && change.changeType !== 'CREATE') {
             if (change.entityType === 'LoanProvider') {
@@ -575,7 +544,7 @@ export async function POST(req: NextRequest) {
         }
       
       await createAuditLog({
-        actorId: session.userId,
+        actorId: user.id,
         action: 'CHANGE_REJECTED',
         entity: change.entityType,
         entityId: change.entityId,
