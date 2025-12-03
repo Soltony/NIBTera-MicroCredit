@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getSession, deleteSession } from './session';
@@ -57,4 +56,3 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
 // Re-export cookies from next/headers to be used in server components
 import { cookies } from 'next/headers';
 export { cookies };
-
