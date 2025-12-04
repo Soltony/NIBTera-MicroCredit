@@ -20,7 +20,8 @@ export default async function AdminRootPage() {
     if (!hasDashboardAccess) {
         const firstAllowedPage = allMenuItems.find(item => {
             const moduleName = item.label.toLowerCase().replace(/\s+/g, '-');
-            return user.permissions[moduleName]?.read;
+            // Ensure permissions object and module entry exist before checking .read
+            return user.permissions && user.permissions[moduleName]?.read;
         });
 
         if (firstAllowedPage) {

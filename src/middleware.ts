@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { allMenuItems } from './lib/menu-items';
+import type { Permissions } from '@/lib/types';
 
 const protectedAdminRoutes = ['/admin'];
 const publicRoutes = ['/admin/login', '/loan/connect'];
@@ -51,47 +52,47 @@ export default async function middleware(req: NextRequest) {
   const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
 
   if (isProtected && !publicRoutes.includes(path)) {
-            const session = await getSession();
+    const session = await getSession();
 
-            // 1. If no session, redirect to login
-              if (!session?.userId) {
-                    return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
-            }
+    // 1. If no session, redirect to login
+    if (!session?.userId) {
+      return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+    }
 
-            // 2. Parse permissions from the session token if present. Keep this robust
-            // for malformed/absent data.
-            let permissions: any = {};
-            try {
-                if (session?.permissions) {
-                    permissions = typeof session.permissions === 'string' ? JSON.parse(session.permissions) : session.permissions;
-                }
-            } catch (e) {
-                console.error('Failed to parse session.permissions in middleware', e);
-                permissions = {};
-            }
+    // 2. Parse permissions from the session token
+    let permissions: Permissions = {};
+    try {
+        if (session?.permissions) {
+            permissions = typeof session.permissions === 'string' 
+                ? JSON.parse(session.permissions) 
+                : session.permissions;
+        }
+    } catch (e) {
+        console.error('Failed to parse session permissions in middleware', e);
+        // If permissions are corrupt, treat as if they have none and redirect to login
+        return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+    }
 
-      // Find the menu item corresponding to the current path
-      const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
-      
-      if (currentRouteConfig) {
-          const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
-          const hasPermission = !!permissions[moduleName]?.read;
+    // Find the menu item that corresponds to the path being accessed.
+    const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
+    
+    // If the path is a defined route in our menu system, check permissions.
+    if (currentRouteConfig) {
+      const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
+      const hasPermission = permissions[moduleName]?.read;
 
-          if (!hasPermission) {
-              const firstAllowedPage = allMenuItems.find(item => {
-                  const module = item.label.toLowerCase().replace(/\s+/g, '-');
-                  return permissions[module]?.read;
-              });
-
-              if (firstAllowedPage && firstAllowedPage.path !== path) {
-                  return NextResponse.redirect(new URL(firstAllowedPage.path, req.nextUrl.origin).toString());
-              }
-              
-              return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
-          }
-      } else if (path !== '/admin') {
-          return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+      // If the user does NOT have permission for this route...
+      if (!hasPermission) {
+        // ...redirect them to the base admin page. The admin page itself
+        // will then handle redirecting them to the first page they DO have access to.
+        // This prevents redirect loops.
+        return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
       }
+    } else if (path !== '/admin') {
+      // If the path is not the base '/admin' path and not found in our menu items,
+      // it's an invalid route, so redirect to the base admin page.
+      return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+    }
   }
 
   return response;
