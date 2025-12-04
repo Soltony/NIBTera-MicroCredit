@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRequirePermission } from '@/hooks/use-require-permission';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,7 @@ async function getNplBorrowers(): Promise<NplBorrower[]> {
 }
 
 export default function NplManagementPage() {
+    useRequirePermission('npl');
     const [borrowers, setBorrowers] = useState<NplBorrower[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import { validateBody, scoringRulesSchema } from '@/lib/validators';
 
 export async function POST(req: NextRequest) {
     if (req.method !== 'POST') {
@@ -13,10 +14,9 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const { providerId, parameters } = await req.json();
-        if (!providerId || !parameters) {
-            return NextResponse.json({ error: 'providerId and parameters are required' }, { status: 400 });
-        }
+        const validation = await validateBody(req, scoringRulesSchema);
+        if (!validation.ok) return validation.errorResponse;
+        const { providerId, parameters } = validation.data;
 
         // Use a transaction to delete old rules and create new ones
         const transaction = await prisma.$transaction(async (tx) => {

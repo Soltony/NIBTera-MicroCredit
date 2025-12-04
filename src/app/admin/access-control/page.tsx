@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRequirePermission } from '@/hooks/use-require-permission';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ const PERMISSION_MODULES = allMenuItems.map(item => item.label.toLowerCase().rep
 
 
 function UsersTab() {
+    useRequirePermission('access-control');
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [roles, setRoles] = useState<Role[]>([]);

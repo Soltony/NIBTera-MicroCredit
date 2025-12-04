@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRequirePermission } from '@/hooks/use-require-permission';
 import {
   Card,
   CardContent,
@@ -119,6 +120,7 @@ const RejectionDialog = ({ isOpen, onClose, onConfirm, isUpdating }: { isOpen: b
 
 
 export default function ApplicationsPage() {
+    useRequirePermission('approvals');
     const [applications, setApplications] = useState<LoanApplication[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);

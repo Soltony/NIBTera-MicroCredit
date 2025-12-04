@@ -110,6 +110,25 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
 
   }, [currentUser]);
 
+  // Check whether the current route is allowed for the user. If they don't
+  // have read permission for the current module, we'll redirect to the
+  // forbidden page to prevent client-side navigation to restricted pages.
+  const isCurrentRouteAllowed = React.useMemo(() => {
+    if (!currentUser || !currentUser.permissions) return false;
+    const current = allMenuItems.find(item => pathname.startsWith(item.path));
+    if (!current) return true; // allow non-admin menu routes (handled elsewhere)
+    const moduleName = current.label.toLowerCase().replace(/\s+/g, '-');
+    return !!currentUser.permissions[moduleName]?.read;
+  }, [currentUser, pathname]);
+
+  React.useEffect(() => {
+    if (isLoading) return;
+    if (!currentUser) return;
+    if (!isCurrentRouteAllowed && pathname !== '/admin/forbidden') {
+      router.replace('/admin/forbidden');
+    }
+  }, [isCurrentRouteAllowed, currentUser, isLoading, pathname, router]);
+
   const handleLogout = async () => {
     await logout();
     router.push('/admin/login');
@@ -198,10 +217,17 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           </header>
-          <main
-            className="flex-1 overflow-x-auto"
-          >
-            {children}
+          <main className="flex-1 overflow-x-auto">
+            {!isCurrentRouteAllowed ? (
+              <div className="p-8">
+                <h1 className="text-2xl font-semibold">Unauthorized</h1>
+                <p className="text-sm text-muted-foreground mb-4">
+                  You do not have permission to view this page.
+                </p>
+              </div>
+            ) : (
+              children
+            )}
           </main>
         </div>
       </div>

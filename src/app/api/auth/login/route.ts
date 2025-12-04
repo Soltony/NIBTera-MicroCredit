@@ -2,18 +2,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { createSession } from '@/lib/session';
+import { createSession, decryptJwt } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import crypto from 'crypto';
+import { validateBody, loginSchema } from '@/lib/validators';
+import { isBlocked, recordFailedAttempt, resetAttempts, getRemainingAttempts, getBackoffSeconds, getLockRemainingMs, MAX_ATTEMPTS, WINDOW_MS } from '@/lib/rate-limiter';
 
 export async function POST(req: NextRequest) {
   const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
   const userAgent = req.headers.get('user-agent') || 'N/A';
 
   try {
-    const { phoneNumber, password } = await req.json();
+    // Validate CSRF: require a valid signed CSRF assertion cookie and
+    // ensure the provided header matches the signed token.
+    const csrfHeader = req.headers.get('x-csrf-token');
+    const csrfSig = req.cookies.get('csrfSig')?.value;
+    if (!csrfHeader || !csrfSig) {
+      await createAuditLog({ actorId: 'anonymous', action: 'USER_LOGIN_CSRF_MISSING', ipAddress, userAgent, details: { reason: 'CSRF header or signed cookie missing' } });
+      return NextResponse.json({ error: 'Invalid or missing CSRF token.' }, { status: 403 });
+    }
 
-    if (!phoneNumber || !password) {
-      return NextResponse.json({ error: 'Phone number and password are required.' }, { status: 400 });
+    // Verify the signed CSRF token server-side (prevents client tampering).
+    const signedPayload = await decryptJwt(csrfSig);
+    const hash = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+    // For forensic logging we store masked fingerprints, not raw tokens.
+    const sigFingerprint = csrfSig ? hash(csrfSig).slice(0, 12) : null;
+    const headerFingerprint = csrfHeader ? hash(csrfHeader).slice(0, 12) : null;
+    if (!signedPayload || (signedPayload as any).t !== 'csrf' || (signedPayload as any).csrf !== csrfHeader) {
+      try {
+        await createAuditLog({ actorId: 'anonymous', action: 'USER_LOGIN_CSRF_MISMATCH', ipAddress, userAgent, details: { reason: 'CSRF signed token invalid or mismatch', sigFingerprint, headerFingerprint } });
+      } catch (e) {}
+      console.warn('CSRF verification failed', { sigFingerprint, headerFingerprint, signedPayloadExists: Boolean(signedPayload) });
+      return NextResponse.json({ error: 'Invalid CSRF token.' }, { status: 403 });
+    }
+    const validation = await validateBody(req, loginSchema);
+    if (!validation.ok) return validation.errorResponse;
+    const { phoneNumber, password } = validation.data;
+
+    // Use a rate-limiter key scoped to the phone number and IP to limit brute-force.
+    const ipAddressKey = req.ip || req.headers.get('x-forwarded-for') || 'unknown-ip';
+    const rateKey = `${phoneNumber}:${ipAddressKey}`;
+
+    if (isBlocked(rateKey)) {
+      const lockMs = getLockRemainingMs(rateKey);
+      const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+      const remaining = getRemainingAttempts(rateKey);
+      const backoff = getBackoffSeconds(rateKey);
+      return NextResponse.json({ error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff }, { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } });
     }
 
     const user = await prisma.user.findFirst({
@@ -33,7 +68,21 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails,
       });
-      return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+      // Record failed attempt against the rate limiter
+      recordFailedAttempt(rateKey);
+      // If this attempt caused a lockout, inform client
+      if (isBlocked(rateKey)) {
+        const lockMs = getLockRemainingMs(rateKey);
+        const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+        const remaining = getRemainingAttempts(rateKey);
+        const backoff = getBackoffSeconds(rateKey);
+        return NextResponse.json({ error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff }, { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } });
+      }
+      // Otherwise apply progressive delay and return unauthorized
+      const backoff = getBackoffSeconds(rateKey);
+      if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+      const remaining = getRemainingAttempts(rateKey);
+      return NextResponse.json({ error: 'Invalid credentials.', retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
     }
 
     if (user.status === 'Inactive') {
@@ -57,7 +106,7 @@ export async function POST(req: NextRequest) {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
+     if (!isPasswordValid) {
        const logDetails = {
             reason: 'Invalid password',
             userId: user.id,
@@ -70,8 +119,24 @@ export async function POST(req: NextRequest) {
            userAgent,
            details: logDetails
        });
-       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+       // increment failed attempt and respond
+       recordFailedAttempt(rateKey);
+       // If we hit lockout after this attempt, respond with 429
+       if (isBlocked(rateKey)) {
+         const lockMs = getLockRemainingMs(rateKey);
+         const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+         const remaining = getRemainingAttempts(rateKey);
+         const backoff = getBackoffSeconds(rateKey);
+         return NextResponse.json({ error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff }, { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } });
+       }
+       const backoff = getBackoffSeconds(rateKey);
+       if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+       const remaining = getRemainingAttempts(rateKey);
+       return NextResponse.json({ error: 'Invalid credentials.', retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
     }
+
+     // Successful login: clear any recorded failed attempts
+     resetAttempts(rateKey);
 
     // Create a session for the user and include their role permissions so
     // middleware (Edge runtime) can read permissions without a DB call.

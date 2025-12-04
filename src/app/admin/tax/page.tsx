@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRequirePermission } from '@/hooks/use-require-permission';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -166,6 +167,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
 
 
 export default function TaxSettingsPage() {
+    useRequirePermission('tax');
     const [taxes, setTaxes] = useState<TaxConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();

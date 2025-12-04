@@ -4,7 +4,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getSession, getUserFromSession } from '@/lib/user';
+import { getUserFromSession } from '@/lib/user';
+import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 import ExcelJS from 'exceljs';
@@ -39,7 +40,6 @@ const defaultLedgerAccounts = [
 
 async function applyDataProvisioningUpload(change: any, data: any) {
     const { fileContent, fileName, configId } = data.created;
-    const user = await getSession();
 
     const config = await prisma.dataProvisioningConfig.findUnique({
         where: { id: configId }
@@ -471,6 +471,9 @@ async function applyChange(change: any) {
 
 
 export async function POST(req: NextRequest) {
+    const { requireValidCsrf } = await import('@/lib/csrf');
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
   const user = await getUserFromSession();
   if (!user || !user.permissions?.['approvals']?.update) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });

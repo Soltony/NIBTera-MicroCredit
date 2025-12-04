@@ -92,10 +92,21 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     e.preventDefault();
     const submissionData: any = { ...formData };
     if (!user) { // Only require password for new users
-        if (!submissionData.password) {
-            alert('Password is required for new users.');
-            return;
-        }
+      const pw = submissionData.password || '';
+      // Client-side enforcement: minimum 8, mixed case, number and symbol, and block common passwords
+      const COMMON = new Set(['123456','123456789','qwerty','password','1234567','12345678','12345','111111','123123','password1','1234567890','1234','welcome','letmein','admin','iloveyou']);
+      if (!pw) {
+        alert('Password is required for new users.');
+        return;
+      }
+      if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) {
+        alert('Password must be at least 8 characters and include uppercase, lowercase, a number, and a symbol.');
+        return;
+      }
+      if (COMMON.has(pw.toLowerCase())) {
+        alert('This password is too common or compromised. Please choose a stronger password.');
+        return;
+      }
     } else {
         delete submissionData.password; // Don't send empty password on edit
     }

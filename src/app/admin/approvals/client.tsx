@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRequirePermission } from '@/hooks/use-require-permission';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -796,6 +797,7 @@ export function ApprovalsClient({
   pendingChanges: PendingChangeWithDetails[];
   currentUser: User;
 }) {
+  useRequirePermission('approvals');
   const [changes, setChanges] = useState(initialChanges);
   const [isLoading, setIsLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);

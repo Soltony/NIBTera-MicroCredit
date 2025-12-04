@@ -123,6 +123,10 @@ export async function POST(req: NextRequest) {
     if (req.method !== 'POST') {
         return new NextResponse(null, { status: 405, statusText: "Method Not Allowed" });
     }
+    // enforce CSRF for loan disbursement
+    const { requireValidCsrf } = await import('@/lib/csrf');
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
     let loanDetailsForLogging: any = {};
     try {
         const body = await req.json();

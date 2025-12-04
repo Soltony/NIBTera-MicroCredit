@@ -3,15 +3,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
+import { loginSchema } from '@/lib/validators';
+import { isBlocked, recordFailedAttempt, resetAttempts, getRemainingAttempts, getBackoffSeconds, getLockRemainingMs } from '@/lib/rate-limiter';
 import { createAuditLog } from '@/lib/audit-log';
 import { getUserFromSession } from '@/lib/user';
+import { getSession, deleteSession } from '@/lib/session';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Invalid email address'),
   phoneNumber: z.string().min(1, 'Phone number is required'),
-  password: z.string().min(6, 'Password must be at least 6 characters long').optional(),
+  // password is validated with the stronger shared login schema below
+  password: z.string().optional(),
   role: z.string(), // Role name, will be connected by ID
   providerId: z.string().nullable().optional(),
   status: z.enum(['Active', 'Inactive']),
@@ -64,6 +68,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
     const user = await getUserFromSession();
     if (!user || !user.permissions?.['access-control']?.create) {
         return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -71,10 +77,39 @@ export async function POST(req: NextRequest) {
 
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';
+    const ipAddressKey = req.ip || req.headers.get('x-forwarded-for') || 'unknown-ip';
+    const rateKey = `createUser:${user.id}:${ipAddressKey}`;
+
+    // Quick rate-limit check to avoid heavy processing when the caller is blocked
+    if (isBlocked(rateKey)) {
+      const lockMs = getLockRemainingMs(rateKey);
+      const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+      return NextResponse.json({ error: 'Too many attempts. Try again later.', retryAfter: retryAfterSeconds }, { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } });
+    }
   try {
 
     const body = await req.json();
     const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
+    // Validate password with the stronger shared login password rules
+    const passwordSchema = loginSchema.pick({ password: true });
+    try {
+      passwordSchema.parse({ password });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        // record failed attempt and apply the same lockout/backoff behavior as login
+        recordFailedAttempt(rateKey);
+        if (isBlocked(rateKey)) {
+          const lockMs = getLockRemainingMs(rateKey);
+          const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+          return NextResponse.json({ error: 'Too many attempts. Try again later.', retryAfter: retryAfterSeconds }, { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } });
+        }
+        const backoff = getBackoffSeconds(rateKey);
+        if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+        const remaining = getRemainingAttempts(rateKey);
+        return NextResponse.json({ error: 'Invalid password.', retriesLeft: remaining, delaySeconds: backoff, issues: err.errors }, { status: 400 });
+      }
+      throw err;
+    }
 
     const logDetails = { userEmail: userData.email, assignedRole: roleName };
     await createAuditLog({ actorId: user.id, action: 'USER_CREATE_INITIATED', entity: 'USER', details: logDetails, ipAddress, userAgent });
@@ -117,17 +152,20 @@ export async function POST(req: NextRequest) {
       data: dataToCreate,
     });
     
+    // Successful creation: clear recorded failed attempts for this creator+ip
+    try { resetAttempts(rateKey); } catch (e) { /* noop */ }
+
     const successLogDetails = { createdUserId: newUser.id, createdUserEmail: newUser.email, assignedRole: roleName };
     await createAuditLog({ actorId: user.id, action: 'USER_CREATE_SUCCESS', entity: 'USER', entityId: newUser.id, details: successLogDetails, ipAddress, userAgent });
 
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
-     const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
+    const errorMessage = (error instanceof ZodError) ? error.errors : (error as Error).message;
      const failureLogDetails = { error: errorMessage };
      await createAuditLog({ actorId: user.id, action: 'USER_CREATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
      console.error(JSON.stringify({ ...failureLogDetails, action: 'USER_CREATE_FAILED', actorId: user.id }));
-    if (error instanceof z.ZodError) {
+    if (error instanceof ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
     return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
@@ -135,6 +173,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
     const user = await getUserFromSession();
     if (!user || !user.permissions?.['access-control']?.update) {
         return NextResponse.json({ error: 'Not authorized' }, { status: 403 });

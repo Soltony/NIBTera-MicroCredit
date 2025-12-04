@@ -47,6 +47,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+    const { requireValidCsrf } = await import('@/lib/csrf');
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
     const user = await getUserFromSession();
     if (!user || !user.permissions?.['access-control']?.create) {
         return NextResponse.json({ error: 'Not authorized' }, { status: 403 });

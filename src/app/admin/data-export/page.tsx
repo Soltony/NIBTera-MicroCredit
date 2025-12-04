@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRequirePermission } from '@/hooks/use-require-permission';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
@@ -9,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { saveAs } from 'file-saver';
 
 export default function DataExportPage() {
+    useRequirePermission('reports');
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 

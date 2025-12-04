@@ -23,6 +23,7 @@ model User {
   status          String
   roleId          String
   role            Role            @relation(fields: [roleId], references: [id])
+  sessions        Session[]
   loanProviderId  String?
   loanProvider    LoanProvider?   @relation(fields: [loanProviderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdChanges  PendingChange[] @relation("CreatedBy")
@@ -36,6 +37,21 @@ model Role {
   name        String @unique
   permissions String // JSON string for permissions
   users       User[]
+}
+
+// Sessions for refresh-token management and revocation support
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  csrfToken    String?
+  revoked      Boolean  @default(false)
+  expiresAt    DateTime // refresh token expiry
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
 }
 
 // --------------------------------------

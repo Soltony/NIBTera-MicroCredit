@@ -7,6 +7,9 @@ import { createAuditLog } from '@/lib/audit-log';
 import { getSession } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
+    const { requireValidCsrf } = await import('@/lib/csrf');
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
     // initiate payment request received (log removed to reduce console noise)
 
     // --- Step 1: Environment Validation ---

@@ -1,6 +1,7 @@
 
 
 import { SettingsClient } from '@/components/admin/settings-client';
+import { requireServerPermission } from '@/lib/require-permission';
 import type { LoanProvider as LoanProviderType, Tax } from '@/lib/types';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
@@ -76,6 +77,7 @@ async function getTaxConfig(): Promise<Tax> {
 
 
 export default async function AdminSettingsPage() {
+    await requireServerPermission('settings');
     const user = await getUserFromSession();
     if (!user) {
         return <div>Not authenticated</div>;

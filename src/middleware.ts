@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { decryptJwt } from '@/lib/session';
 import { allMenuItems } from './lib/menu-items';
 import type { Permissions } from '@/lib/types';
 
@@ -52,7 +52,9 @@ export default async function middleware(req: NextRequest) {
   const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
 
   if (isProtected && !publicRoutes.includes(path)) {
-    const session = await getSession();
+    // Read access token from cookie and decrypt locally (Edge-safe)
+    const accessToken = req.cookies.get('accessToken')?.value;
+    const session = accessToken ? await decryptJwt(accessToken) : null;
 
     // 1. If no session, redirect to login
     if (!session?.userId) {
@@ -77,16 +79,14 @@ export default async function middleware(req: NextRequest) {
     const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
     
     // If the path is a defined route in our menu system, check permissions.
-    if (currentRouteConfig) {
+      if (currentRouteConfig) {
       const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
-      const hasPermission = permissions[moduleName]?.read;
+      const hasPermission = !!permissions[moduleName]?.read;
 
-      // If the user does NOT have permission for this route...
+      // If the user does NOT have permission for this route, redirect to
+      // a formal forbidden page that shows an Unauthorized message.
       if (!hasPermission) {
-        // ...redirect them to the base admin page. The admin page itself
-        // will then handle redirecting them to the first page they DO have access to.
-        // This prevents redirect loops.
-        return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+        return NextResponse.redirect(new URL('/admin/forbidden', req.nextUrl.origin).toString());
       }
     } else if (path !== '/admin') {
       // If the path is not the base '/admin' path and not found in our menu items,

@@ -140,10 +140,11 @@ async function main() {
   console.log('Roles seeded.');
 
   // Seed User
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  // Strong default password for seeded admin accounts (meets password policy)
+  const hashedPassword = await bcrypt.hash('SuperAdm!2025', 10);
   await prisma.user.upsert({
     where: { email: 'admin@example.com' },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       fullName: 'Super Admin',
       email: 'admin@example.com',
@@ -160,7 +161,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: 'approver@example.com' },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       fullName: 'Approver User',
       email: 'approver@example.com',

@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSession } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
+    const { requireValidCsrf } = await import('@/lib/csrf');
+    const check = await requireValidCsrf(req, { requireSession: true });
+    if (!check.ok) return check.response;
     const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
     
     if (!TOKEN_VALIDATION_API_URL) {

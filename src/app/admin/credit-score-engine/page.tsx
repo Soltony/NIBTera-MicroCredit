@@ -4,6 +4,7 @@ import { CreditScoreEngineClient } from '@/components/admin/credit-score-engine-
 import prisma from '@/lib/prisma';
 import type { LoanProvider, ScoringParameter } from '@/lib/types';
 import { getUserFromSession } from '@/lib/user';
+import { requireServerPermission } from '@/lib/require-permission';
 
 
 async function getProviders(userId: string): Promise<LoanProvider[]> {
@@ -78,6 +79,7 @@ async function getScoringParameters(providerIds: string[]): Promise<ScoringParam
 
 
 export default async function CreditScoreEnginePage() {
+    await requireServerPermission('scoring-engine');
     // Session fetching will be replaced with a real auth solution
     const user = await getUserFromSession();
     
