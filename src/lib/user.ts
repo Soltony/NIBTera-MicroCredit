@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getSession, deleteSession } from './session';
@@ -26,9 +27,7 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
       return null;
     }
     
-    // Check if user is inactive
     if (user.status === 'Inactive') {
-        // Invalidate session for inactive users
         await deleteSession();
         return null;
     }

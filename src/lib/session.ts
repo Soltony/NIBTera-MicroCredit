@@ -4,6 +4,7 @@
 
 import {SignJWT, jwtVerify} from 'jose';
 import {cookies} from 'next/headers';
+import prisma from './prisma';
 
 const secretKey =
   process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
@@ -32,7 +33,18 @@ export async function decrypt(input: string): Promise<any> {
 
 export async function createSession(userId: string, superAppToken?: string) {
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
-  const sessionPayload: { [key: string]: any } = { userId, expires };
+  
+  // Fetch user role and permissions to store in session
+  const userWithRole = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { role: true },
+  });
+
+  const sessionPayload: { [key: string]: any } = {
+    userId,
+    expires,
+    permissions: userWithRole?.role?.permissions || '{}', // Store permissions JSON string
+  };
   
   if (superAppToken) {
     sessionPayload.superAppToken = superAppToken;
