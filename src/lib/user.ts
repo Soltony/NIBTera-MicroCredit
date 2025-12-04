@@ -46,7 +46,12 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
     return authUser;
 
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    // Avoid using `instanceof Prisma.PrismaClientKnownRequestError` because
+    // `Prisma` may be undefined at runtime in some environments which causes
+    // the `instanceof` check to throw: "Function has non-object prototype 'undefined'".
+    // Detect Prisma errors by inspecting the error `name` or `code` instead.
+    const e = error as any;
+    if (e && (e.name === 'PrismaClientKnownRequestError' || typeof e.code === 'string')) {
         // Handle specific prisma errors if needed
     }
     console.error('Get User Error:', error);

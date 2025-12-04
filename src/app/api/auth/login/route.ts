@@ -73,8 +73,9 @@ export async function POST(req: NextRequest) {
        return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
 
-    // Create a session for the user
-    await createSession(user.id);
+    // Create a session for the user and include their role permissions so
+    // middleware (Edge runtime) can read permissions without a DB call.
+    await createSession(user.id, undefined, user.role.permissions);
     
     const logDetails = {
         role: user.role.name,

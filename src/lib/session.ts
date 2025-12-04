@@ -5,8 +5,7 @@
 import {SignJWT, jwtVerify} from 'jose';
 import {cookies} from 'next/headers';
 
-const secretKey =
-  process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
+const secretKey = process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
 const key = new TextEncoder().encode(secretKey);
 
 export async function encrypt(payload: any) {
@@ -30,12 +29,18 @@ export async function decrypt(input: string): Promise<any> {
   }
 }
 
-export async function createSession(userId: string, superAppToken?: string) {
+export async function createSession(userId: string, superAppToken?: string, permissions?: any) {
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
   const sessionPayload: { [key: string]: any } = { userId, expires };
-  
+
   if (superAppToken) {
     sessionPayload.superAppToken = superAppToken;
+  }
+
+  if (permissions) {
+    // Store permissions as a JSON string in the token so lightweight runtimes
+    // (like middleware) can parse them without DB access.
+    sessionPayload.permissions = typeof permissions === 'string' ? permissions : JSON.stringify(permissions);
   }
 
   const session = await encrypt(sessionPayload);
