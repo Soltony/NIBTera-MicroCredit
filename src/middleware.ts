@@ -77,7 +77,6 @@ export default async function middleware(req: NextRequest) {
           const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
           const hasPermission = !!permissions[moduleName]?.read;
 
-          // 3. If user does not have read permission for this route, find the first one they do have and redirect.
           if (!hasPermission) {
               const firstAllowedPage = allMenuItems.find(item => {
                   const module = item.label.toLowerCase().replace(/\s+/g, '-');
@@ -88,17 +87,12 @@ export default async function middleware(req: NextRequest) {
                   return NextResponse.redirect(new URL(firstAllowedPage.path, req.nextUrl.origin).toString());
               }
               
-              // If no allowed pages are found, or they are on the only page they can see (unlikely), prevent access.
-              // A simple redirect to login is a safe fallback.
               return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
           }
       } else if (path !== '/admin') {
-          // If the route is not in our menu config but is under /admin, it's a restricted or unknown path.
-          // Redirect them to the main dashboard as a fallback.
           return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
       }
   }
-  // --- END PERMISSION-BASED ROUTE PROTECTION ---
 
   return response;
 }

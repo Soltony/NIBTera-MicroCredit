@@ -27,9 +27,7 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
       return null;
     }
     
-    // Check if user is inactive
     if (user.status === 'Inactive') {
-        // Invalidate session for inactive users
         await deleteSession();
         return null;
     }
@@ -62,4 +60,3 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
 // Re-export cookies from next/headers to be used in server components
 import { cookies } from 'next/headers';
 export { cookies };
-
