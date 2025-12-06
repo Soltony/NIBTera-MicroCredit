@@ -4,9 +4,7 @@ import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
+    
     if (req.method !== 'POST') {
         return new NextResponse(null, { status: 405, statusText: "Method Not Allowed" });
     }

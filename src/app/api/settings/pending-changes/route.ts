@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
+import { hasPermissionForEntity } from '@/lib/require-permission';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 
@@ -57,9 +59,6 @@ function sanitizePendingChangePayload(entityType: string, payloadStr: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const { requireValidCsrf } = await import('@/lib/csrf');
-  const check = await requireValidCsrf(req, { requireSession: true });
-  if (!check.ok) return check.response;
   const session = await getSession();
   if (!session?.userId) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -68,6 +67,28 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { entityType, entityId, changeType, payload } = changeSchema.parse(body);
+
+      // Enforce RBAC: ensure the requesting user has permission to request this change
+      const user = await getUserFromSession();
+      if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+
+      const actionMap: Record<string, 'create' | 'update' | 'delete'> = {
+        CREATE: 'create',
+        UPDATE: 'update',
+        DELETE: 'delete',
+      };
+
+      const requiredAction = actionMap[changeType];
+      if (!requiredAction) {
+        return NextResponse.json({ error: 'Invalid change type' }, { status: 400 });
+      }
+
+      const allowed = hasPermissionForEntity(user, entityType, requiredAction);
+      if (!allowed) {
+        return NextResponse.json({ error: 'Not authorized to perform this action' }, { status: 403 });
+      }
 
     // Set the original entity to PENDING_APPROVAL status
     if (entityId && (changeType === 'UPDATE' || changeType === 'DELETE')) {

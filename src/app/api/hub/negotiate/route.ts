@@ -1,12 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// This is a placeholder for a real SignalR hub negotiation endpoint.
-// In a real application, this would be handled by a server that supports SignalR,
-// like an ASP.NET Core application.
-// For the purpose of this example, we'll return a mock negotiation response
-// to satisfy the client, although real-time communication won't be functional
-// without a proper SignalR server.
+// SignalR negotiation endpoint removed
 
 export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url);

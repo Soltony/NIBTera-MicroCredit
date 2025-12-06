@@ -1,11 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createSession } from '@/lib/session';
+import { createSession, createLegacySession } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
     const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
     
     if (!TOKEN_VALIDATION_API_URL) {
@@ -53,10 +50,20 @@ export async function POST(req: NextRequest) {
         //     phone = phone.substring(3);
         // }
 
-        // Create the session and set the cookie
-        await createSession(phone, token); // Pass raw token to session
-        
-        return NextResponse.json({ borrowerId: phone }, { status: 200 });
+        // Resolve the phone to a local DB user and create a DB-backed session
+        const { default: prisma } = await import('@/lib/prisma');
+        const user = await prisma.user.findUnique({ where: { phoneNumber: phone } });
+
+        if (!user) {
+            // No local user exists — create a legacy session cookie so the mini-app
+            // can log in using only the super app token (no provisioning required).
+            await createLegacySession(phone, token);
+            return NextResponse.json({ borrowerId: phone, userId: null, legacy: true }, { status: 200 });
+        }
+
+        await createSession(user.id, token); // Pass DB user id and raw token to session
+
+        return NextResponse.json({ borrowerId: phone, userId: user.id }, { status: 200 });
 
     } catch (error: any) {
         return NextResponse.json({ error: `An internal error occurred: ${error.message}` }, { status: 500 });

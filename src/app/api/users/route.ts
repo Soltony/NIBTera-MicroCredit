@@ -8,7 +8,6 @@ import { loginSchema } from '@/lib/validators';
 import { isBlocked, recordFailedAttempt, resetAttempts, getRemainingAttempts, getBackoffSeconds, getLockRemainingMs } from '@/lib/rate-limiter';
 import { createAuditLog } from '@/lib/audit-log';
 import { getUserFromSession } from '@/lib/user';
-import { getSession, deleteSession } from '@/lib/session';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -68,8 +67,6 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
     const user = await getUserFromSession();
     if (!user || !user.permissions?.['access-control']?.create) {
         return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -173,8 +170,6 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
     const user = await getUserFromSession();
     if (!user || !user.permissions?.['access-control']?.update) {
         return NextResponse.json({ error: 'Not authorized' }, { status: 403 });

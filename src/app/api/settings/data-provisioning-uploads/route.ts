@@ -22,9 +22,6 @@ const ALLOWED_FILE_TYPES = ['application/vnd.openxmlformats-officedocument.sprea
 // For large files, a streaming approach and storing the file in a bucket would be better.
 
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
     const session = await getSession();
     const user = await getUserFromSession();
     if (!session?.userId || !user || (!user.permissions['settings']?.create && !user.permissions['settings']?.update)) {

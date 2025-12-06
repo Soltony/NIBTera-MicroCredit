@@ -9,9 +9,6 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
 
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
     const user = await getUserFromSession();
     // In a real app, you'd check for a borrower session here. For now, we'll allow it.
     // For admin upload, check user permissions. Assuming admins might upload on behalf of users.

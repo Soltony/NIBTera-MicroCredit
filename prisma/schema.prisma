@@ -45,7 +45,6 @@ model Session {
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshToken String   @unique
-  csrfToken    String?
   revoked      Boolean  @default(false)
   expiresAt    DateTime // refresh token expiry
   lastActivity DateTime @default(now())

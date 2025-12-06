@@ -19,7 +19,6 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -30,59 +29,15 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const { toast } = useToast();
-  const [csrfReady, setCsrfReady] = useState<boolean | null>(null);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      try {
-        const detail = (e as CustomEvent).detail;
-        setCsrfReady(Boolean(detail?.ok));
-        setCsrfToken(detail?.token || null);
-      } catch {
-        setCsrfReady(false);
-        setCsrfToken(null);
-      }
-    };
-    window.addEventListener('csrf-ready', handler as EventListener);
-    // If nothing has produced the event, attempt to fetch ourselves by
-    // calling the CSRF endpoint (FetchCsrfOnMount will also do this;
-    // this is a noop fallback).
-    (async () => {
-      if (csrfReady === null) {
-        try {
-          const r = await fetch('/api/auth/csrf');
-          if (r.ok) {
-            const j = await r.json();
-            setCsrfReady(true);
-            setCsrfToken(j?.csrfToken || null);
-          } else {
-            setCsrfReady(false);
-            setCsrfToken(null);
-          }
-        } catch (e) {
-          setCsrfReady(false);
-          setCsrfToken(null);
-        }
-      }
-    })();
-
-    return () => window.removeEventListener('csrf-ready', handler as EventListener);
-  }, []);
   
   const nibBankColor = '#fdb913';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Ensure CSRF cookie/token was fetched earlier on page load
-    if (!csrfReady) {
-      setError('CSRF token missing. Refresh the page to obtain a session token.');
-      return;
-    }
     setIsLoading(true);
     setError(null);
     try {
-      await login(phoneNumber, password, csrfToken);
+      await login(phoneNumber, password);
       router.push('/admin');
       router.refresh(); // This is important to re-fetch server-side data
       toast({
@@ -117,15 +72,7 @@ export default function AdminLoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <FetchCsrfOnMount />
           <form onSubmit={handleLogin} className="space-y-4">
-            {csrfReady === false && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>CSRF Token Missing</AlertTitle>
-                <AlertDescription>Unable to obtain CSRF token. Login is disabled until the token is fetched.</AlertDescription>
-              </Alert>
-            )}
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -162,7 +109,7 @@ export default function AdminLoginPage() {
                 {isPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-             <Button type="submit" className="w-full text-white" disabled={isLoading || csrfReady === false || csrfReady === null} style={{ backgroundColor: nibBankColor }}>
+             <Button type="submit" className="w-full text-white" disabled={isLoading} style={{ backgroundColor: nibBankColor }}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In
              </Button>
@@ -171,31 +118,4 @@ export default function AdminLoginPage() {
       </Card>
     </div>
   );
-}
-
-// Fetch CSRF token on page mount so the cookie is set before login attempts.
-// This helps the mini-app and prevents logins without an authoritative CSRF cookie.
-function FetchCsrfOnMount() {
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/auth/csrf');
-        if (!mounted) return;
-        if (res.ok) {
-          const j = await res.json();
-          // token returned and cookie should be set by the API route
-          // signal readiness and include the raw token in the event detail
-          window.dispatchEvent(new CustomEvent('csrf-ready', { detail: { ok: true, token: j?.csrfToken || null } }));
-        } else {
-          window.dispatchEvent(new CustomEvent('csrf-ready', { detail: { ok: false, token: null } }));
-        }
-      } catch (e) {
-        if (!mounted) return;
-        window.dispatchEvent(new CustomEvent('csrf-ready', { detail: { ok: false, token: null } }));
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-  return null;
 }

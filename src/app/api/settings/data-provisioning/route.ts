@@ -52,9 +52,6 @@ export async function GET(req: NextRequest) {
 
 // POST a new config
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
     const session = await getSession();
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });

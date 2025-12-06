@@ -14,10 +14,7 @@ const paymentSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-    // enforce CSRF for repayment actions
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
+    // repayment actions
     let paymentDetailsForLogging: any = {};
     let borrowerIdForLogging: string | null = null;
     try {

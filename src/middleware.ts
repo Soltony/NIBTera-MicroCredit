@@ -4,11 +4,31 @@ import { decryptJwt } from '@/lib/session';
 import { allMenuItems } from './lib/menu-items';
 import type { Permissions } from '@/lib/types';
 
-const protectedAdminRoutes = ['/admin'];
+const protectedAdminRoutes = ['/admin', '/api/admin', '/api/audit-logs', '/api/approvals', '/api/roles', '/api/settings', '/api/providers', '/api/users', '/api/reports'];
 const publicRoutes = ['/admin/login', '/loan/connect'];
 
+// Only run the middleware for admin UI pages and selected admin API routes.
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/admin/:path*',
+    '/admin',
+    '/api/admin/:path*',
+    '/api/admin',
+    '/api/audit-logs/:path*',
+    '/api/audit-logs',
+    '/api/approvals/:path*',
+    '/api/approvals',
+    '/api/roles/:path*',
+    '/api/roles',
+    '/api/settings/:path*',
+    '/api/settings',
+    '/api/providers/:path*',
+    '/api/providers',
+    '/api/users/:path*',
+    '/api/users',
+    '/api/reports/:path*',
+    '/api/reports',
+  ],
 };
 
 export default async function middleware(req: NextRequest) {
@@ -58,6 +78,10 @@ export default async function middleware(req: NextRequest) {
 
     // 1. If no session, redirect to login
     if (!session?.userId) {
+      // If this is an API call, return JSON error; otherwise redirect to login page
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
       return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
     }
 
@@ -79,18 +103,20 @@ export default async function middleware(req: NextRequest) {
     const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
     
     // If the path is a defined route in our menu system, check permissions.
-      if (currentRouteConfig) {
+    if (currentRouteConfig) {
       const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
       const hasPermission = !!permissions[moduleName]?.read;
 
-      // If the user does NOT have permission for this route, redirect to
-      // a formal forbidden page that shows an Unauthorized message.
       if (!hasPermission) {
+        // For API calls return 403 JSON, for UI redirect to forbidden page
+        if (path.startsWith('/api/')) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
         return NextResponse.redirect(new URL('/admin/forbidden', req.nextUrl.origin).toString());
       }
-    } else if (path !== '/admin') {
+    } else if (path !== '/admin' && !path.startsWith('/api/')) {
       // If the path is not the base '/admin' path and not found in our menu items,
-      // it's an invalid route, so redirect to the base admin page.
+      // it's an invalid UI route, so redirect to the base admin page.
       return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
     }
   }

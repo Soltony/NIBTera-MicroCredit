@@ -52,26 +52,11 @@ export const AuthProvider = ({ children, initialUser = null }: AuthProviderProps
 
 
   const login = useCallback(
-    async (phoneNumber: string, password: string, csrfTokenParam?: string | null) => {
+    async (phoneNumber: string, password: string) => {
       setIsLoading(true);
-      // Use provided CSRF token if the caller passed one (pre-fetched by page).
-      // If not provided, fall back to fetching a fresh token (legacy behavior).
-      let csrfToken: string | null = csrfTokenParam ?? null;
-      if (!csrfToken) {
-        try {
-          const tRes = await fetch('/api/auth/csrf');
-          if (tRes.ok) {
-            const tJson = await tRes.json();
-            csrfToken = tJson?.csrfToken || null;
-          }
-        } catch (e) {
-          // ignore and proceed; request will fail if CSRF is required
-        }
-      }
-
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({phoneNumber, password}),
       });
 
@@ -121,17 +106,7 @@ export const AuthProvider = ({ children, initialUser = null }: AuthProviderProps
 
   const logout = useCallback(async () => {
     try {
-        // since csrf cookie is HttpOnly, fetch the token from the server endpoint
-        let csrf: string | null = null;
-        try {
-          const tRes = await fetch('/api/auth/csrf');
-          if (tRes.ok) {
-            const tJson = await tRes.json();
-            csrf = tJson?.csrfToken || null;
-          }
-        } catch (e) { csrf = null; }
-
-        await fetch('/api/auth/logout', { method: 'POST', headers: csrf ? { 'x-csrf-token': csrf } : {} });
+        await fetch('/api/auth/logout', { method: 'POST' });
     } catch (error) {
         console.error('Logout failed:', error)
     } finally {

@@ -471,9 +471,6 @@ async function applyChange(change: any) {
 
 
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
   const user = await getUserFromSession();
   if (!user || !user.permissions?.['approvals']?.update) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });

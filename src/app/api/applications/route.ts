@@ -10,9 +10,7 @@ const applicationSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-    const { requireValidCsrf } = await import('@/lib/csrf');
-    const check = await requireValidCsrf(req, { requireSession: true });
-    if (!check.ok) return check.response;
+    
     try {
         const body = await req.json();
         const { borrowerId, productId, loanAmount } = applicationSchema.parse(body);

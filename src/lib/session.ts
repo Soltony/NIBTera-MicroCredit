@@ -3,9 +3,8 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
 
-const secretKey = process.env.SESSION_SECRET || 'your-super-secret-key-change-me';
+const secretKey = process.env.SESSION_SECRET;
 const key = new TextEncoder().encode(secretKey);
 
 const ACCESS_TOKEN_EXP = '15m'; // access token expiry
@@ -47,14 +46,11 @@ export async function createSession(userId: string, superAppToken?: string, perm
   // create a random opaque refresh token (safer than storing long-lived JWTs client-side)
   const refreshToken = await encryptJwt({ userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);
 
-  // CSRF is issued and managed by the `/api/auth/csrf` endpoint as a signed cookie.
-
   const { default: prisma } = await import('./prisma');
   const sessionRecord = await prisma.session.create({
     data: {
       userId,
       refreshToken,
-      // Do NOT store csrfToken in the DB per new requirement.
       expiresAt: refreshExpiresAt,
       revoked: false,
     },
@@ -76,18 +72,38 @@ export async function createSession(userId: string, superAppToken?: string, perm
   const accessExpires = expiryDateFromMinutes(15);
   const refreshExpires = refreshExpiresAt;
 
-  // Mark cookies HttpOnly and Secure to reduce client-side access to tokens
-  cookies().set('accessToken', accessToken, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: accessExpires });
-  cookies().set('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: refreshExpires });
-  // Do not set a raw CSRF cookie here; the client should call `/api/auth/csrf`
-  // to receive the signed CSRF assertion and raw token if needed.
+  const cookiesStore = await cookies();
+  cookiesStore.set('accessToken', accessToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: accessExpires });
+  cookiesStore.set('refreshToken', refreshToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: refreshExpires });
+
+  // Backwards-compat: if a super app token is provided (used by the mini-app connect flow),
+  // create a legacy `session` cookie with the userId and the superAppToken inside so the
+  // mini-app can continue to read a single `session` cookie as before.
+  if (superAppToken) {
+    const sessionExpires = expiryDateFromDays(1);
+    const legacySessionPayload = { userId, expires: sessionExpires, superAppToken };
+    const legacySessionJwt = await encryptJwt(legacySessionPayload, '1d');
+    cookiesStore.set('session', legacySessionJwt, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: sessionExpires });
+  }
 
   return { accessToken, refreshToken, sessionId: sessionRecord.id };
 }
 
+// Create a legacy-only session cookie for flows where the external token
+// should log the user into the mini-app without creating a DB-backed session.
+export async function createLegacySession(phone: string, superAppToken: string) {
+  const cookiesStore = await cookies();
+  const sessionExpires = expiryDateFromDays(1);
+  const legacySessionPayload = { userId: phone, expires: sessionExpires, superAppToken };
+  const legacySessionJwt = await encryptJwt(legacySessionPayload, '1d');
+  cookiesStore.set('session', legacySessionJwt, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: sessionExpires });
+  return { session: legacySessionJwt };
+}
+
 export async function getSession() {
-  const access = cookies().get('accessToken')?.value;
-  const refresh = cookies().get('refreshToken')?.value;
+  const cookiesStore = await cookies();
+  const access = cookiesStore.get('accessToken')?.value;
+  const refresh = cookiesStore.get('refreshToken')?.value;
 
   // Try access token first
   if (access) {
@@ -119,7 +135,6 @@ export async function getSession() {
     const refreshExpiresAt = expiryDateFromDays(REFRESH_TOKEN_DAYS);
 
     // update DB session with rotated refresh token and activity
-    // preserve existing csrf token if present
     await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date() } });
 
     const accessPayload: any = {
@@ -131,10 +146,9 @@ export async function getSession() {
 
     const accessExpires = expiryDateFromMinutes(15);
 
-    cookies().set('accessToken', newAccessToken, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: accessExpires });
-    cookies().set('refreshToken', newRefreshToken, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: refreshExpiresAt });
-    // NOTE: CSRF is managed via the signed `csrfSig` cookie issued by
-    // `/api/auth/csrf`. We do not set a raw `csrfToken` cookie here.
+    const cookiesStore = await cookies();
+    cookiesStore.set('accessToken', newAccessToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: accessExpires });
+    cookiesStore.set('refreshToken', newRefreshToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: refreshExpiresAt });
 
     return accessPayload;
   }
@@ -144,8 +158,9 @@ export async function getSession() {
 
 export async function deleteSession() {
   // Revoke session by refresh token in DB and clear cookies
-  const refresh = cookies().get('refreshToken')?.value;
-  const access = cookies().get('accessToken')?.value;
+  const cookiesStore = await cookies();
+  const refresh = cookiesStore.get('refreshToken')?.value;
+  const access = cookiesStore.get('accessToken')?.value;
   if (refresh) {
     try {
       const { default: prisma } = await import('./prisma');
@@ -169,8 +184,8 @@ export async function deleteSession() {
 
   // clear cookies
   const expired = new Date(0);
-  cookies().set('accessToken', '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: expired });
-  cookies().set('refreshToken', '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', expires: expired });
-  // Do not clear a raw csrfToken cookie because we don't set it anymore.
-  // The signed `csrfSig` cookie is cleared by the CSRF endpoint or left to expire.
+  cookiesStore.set('accessToken', '', { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: expired });
+  cookiesStore.set('refreshToken', '', { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: expired });
+  // clear legacy session cookie for backwards compatibility
+  cookiesStore.set('session', '', { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: expired });
 }
