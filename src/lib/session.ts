@@ -1,8 +1,10 @@
 
+
  'use server';
 
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import type { Permissions } from './types';
 
 const secretKey = process.env.SESSION_SECRET;
 const key = new TextEncoder().encode(secretKey);
@@ -39,11 +41,9 @@ function expiryDateFromMinutes(minutes: number) {
   return new Date(Date.now() + minutes * 60 * 1000);
 }
 
-export async function createSession(userId: string, superAppToken?: string, permissions?: any) {
+export async function createSession(userId: string, superAppToken?: string, permissions?: Permissions, passwordChangeRequired?: boolean) {
   const { default: prisma } = await import('./prisma');
-  const userWithRole = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
-  if (!userWithRole) throw new Error("User not found during session creation.");
-
+  
   // Create a DB session (refresh token storage) and issue access + refresh tokens.
   const refreshExpiresAt = expiryDateFromDays(REFRESH_TOKEN_DAYS);
 
@@ -63,8 +63,8 @@ export async function createSession(userId: string, superAppToken?: string, perm
   const accessPayload: any = {
     userId,
     sessionId: sessionRecord.id,
-    permissions: userWithRole.role.permissions || '{}',
-    passwordChangeRequired: userWithRole.passwordChangeRequired,
+    permissions: permissions || '{}',
+    passwordChangeRequired: !!passwordChangeRequired,
   };
 
   if (superAppToken) accessPayload.superAppToken = superAppToken;

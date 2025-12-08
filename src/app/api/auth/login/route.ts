@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
@@ -62,25 +63,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials.', retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
     }
 
-    if (user.status === 'Inactive') {
-        const logDetails = {
-            reason: 'User account is inactive',
-            userId: user.id,
-            attemptedPhoneNumber: phoneNumber,
-        };
-        await createAuditLog({
-            actorId: user.id,
-            action: 'USER_LOGIN_FAILURE',
-            ipAddress,
-            userAgent,
-            details: logDetails
-        });
-        // Return a clear client-facing error for inactive accounts so admins and users
-        // can understand the login failure reason. Use 403 Forbidden as this is
-        // an authenticated-action denial due to account state.
-        return NextResponse.json({ error: 'Your account has been deactivated. Please contact the administrator.' }, { status: 403 });
-    }
-
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
      if (!isPasswordValid) {
@@ -117,7 +99,7 @@ export async function POST(req: NextRequest) {
 
     // Create a session for the user and include their role permissions so
     // middleware (Edge runtime) can read permissions without a DB call.
-    await createSession(user.id, undefined, user.role.permissions);
+    await createSession(user.id, undefined, JSON.parse(user.role.permissions), user.passwordChangeRequired);
     
     const logDetails = {
         role: user.role.name,
