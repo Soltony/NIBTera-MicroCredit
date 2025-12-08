@@ -82,7 +82,7 @@ npx prisma db seed
 
 **Default Admin Credentials:**
 *   **Phone Number**: `0900000000`
-*   **Password**: `password123`
+*   **Password**: `SuperAdm!2025`
 
 ### 5. Run the Development Server
 
