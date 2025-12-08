@@ -72,17 +72,27 @@ export default async function middleware(req: NextRequest) {
   const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
 
   if (isProtected && !publicRoutes.includes(path)) {
-    // Read access token from cookie and decrypt locally (Edge-safe)
-    const accessToken = req.cookies.get('accessToken')?.value;
-    const session = accessToken ? await decryptJwt(accessToken) : null;
-
-    // 1. If no session, redirect to login
-    if (!session?.userId) {
+    // Fetch authoritative session info from server API (for permissions & state)
+    const cookieHeader = req.headers.get('cookie') || '';
+    let sessionResp: Response | null = null;
+    try {
+      sessionResp = await fetch(new URL('/api/auth/session', req.nextUrl.origin).toString(), { headers: { cookie: cookieHeader } });
+    } catch (e) {
+      console.error('Failed to fetch session in middleware:', e);
       if (path.startsWith('/api/')) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
       }
       return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
     }
+
+    if (!sessionResp || !sessionResp.ok) {
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+      return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+    }
+
+    const session = await sessionResp.json();
 
     // 2. If password change is required, force redirect to change password page
     if (session.passwordChangeRequired && path !== '/admin/change-password' && !path.startsWith('/api/auth/change-password')) {
@@ -92,17 +102,16 @@ export default async function middleware(req: NextRequest) {
          return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
     }
 
-    // 3. Parse permissions from the session token
+    // Permissions are returned from the session API as an authoritative source
     let permissions: Permissions = {};
     try {
-        if (session?.permissions) {
-            permissions = typeof session.permissions === 'string' 
-                ? JSON.parse(session.permissions) 
-                : session.permissions;
-        }
+      permissions = session.permissions || {};
     } catch (e) {
-        console.error('Failed to parse session permissions in middleware', e);
-        return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+      console.error('Failed to parse permissions in middleware', e);
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+      return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
     }
 
     // Find the menu item that corresponds to the path being accessed.

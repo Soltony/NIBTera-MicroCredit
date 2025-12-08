@@ -63,7 +63,7 @@ export async function createSession(userId: string, superAppToken?: string, perm
   const accessPayload: any = {
     userId,
     sessionId: sessionRecord.id,
-    permissions: userWithRole.role.permissions || '{}',
+    // Keep only essential claims in access token. Permissions are authoritative from DB.
     passwordChangeRequired: userWithRole.passwordChangeRequired,
   };
 
@@ -116,6 +116,16 @@ export async function getSession() {
         const { default: prisma } = await import('./prisma');
         const sessionRecord = await prisma.session.findUnique({ where: { id: payload.sessionId } });
         if (sessionRecord && !sessionRecord.revoked && sessionRecord.expiresAt > new Date() && sessionRecord.userId === payload.userId) {
+          // Ensure the access token is bound to the same DB session as the refresh cookie.
+          // This prevents someone from swapping in an access token for another session
+          // while still holding a different refresh token cookie.
+          const currentRefresh = cookiesStore.get('refreshToken')?.value;
+          if (!currentRefresh || currentRefresh !== sessionRecord.refreshToken) {
+            // Access token does not match the refresh token on this client; treat as invalid
+            // so the refresh flow (if present) can continue using the client's refresh cookie.
+            return null;
+          }
+
           // update last activity timestamp
           await prisma.session.update({ where: { id: sessionRecord.id }, data: { lastActivity: new Date() } });
           return payload;
@@ -151,7 +161,7 @@ export async function getSession() {
       const accessPayload: any = {
         userId: sessionRecord.userId,
         sessionId: sessionRecord.id,
-        permissions: userWithRole.role.permissions || '{}',
+        // Do not include permissions in the token; fetch from DB for authoritative source.
         passwordChangeRequired: userWithRole.passwordChangeRequired,
       };
       const newAccessToken = await encryptJwt(accessPayload, ACCESS_TOKEN_EXP);
