@@ -53,7 +53,6 @@ export default function ChangePasswordPage() {
       // Log the user out and redirect to login
       await logout();
       router.push('/admin/login');
-      router.refresh();
 
     } catch (err: any) {
       setError(err.message);
