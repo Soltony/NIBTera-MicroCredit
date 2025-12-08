@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/use-auth';
@@ -26,6 +26,7 @@ export default function AdminLoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [lockSeconds, setLockSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const { toast } = useToast();
@@ -36,6 +37,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setLockSeconds(0);
     try {
       await login(phoneNumber, password);
       router.push('/admin');
@@ -45,19 +47,29 @@ export default function AdminLoginPage() {
         description: 'Welcome back!',
       });
     } catch (err: any) {
-      // If the error includes structured rate-limit info, build a clearer message
-      let msg = err.message || 'An unexpected error occurred.';
-      if (err.retriesLeft !== undefined) {
-        msg = `${msg} — ${err.retriesLeft} attempts left.`;
+      // Show server message as-is to avoid duplicated attempt/delay info.
+      const delay = typeof err.retryAfter === 'number'
+        ? err.retryAfter
+        : (typeof err.delaySeconds === 'number' ? err.delaySeconds : undefined);
+      if (typeof delay === 'number' && delay > 0) {
+        setLockSeconds(delay);
       }
-      if (err.delaySeconds !== undefined && err.delaySeconds > 0) {
-        msg = `${msg} (wait ${err.delaySeconds}s)`;
-      }
-      setError(msg);
+      setError(err.message || 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Countdown timer for lockout/backoff
+  useEffect(() => {
+    if (lockSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockSeconds((s) => (s > 1 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockSeconds]);
+
+  const disableSubmit = useMemo(() => isLoading || lockSeconds > 0, [isLoading, lockSeconds]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/40">
@@ -77,7 +89,14 @@ export default function AdminLoginPage() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Login Failed</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  <div>{error}</div>
+                  {lockSeconds > 0 && (
+                    <div className="text-sm mt-1">
+                      Please wait {lockSeconds}s before trying again.
+                    </div>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
             <div className="space-y-2">
@@ -109,7 +128,7 @@ export default function AdminLoginPage() {
                 {isPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-             <Button type="submit" className="w-full text-white" disabled={isLoading} style={{ backgroundColor: nibBankColor }}>
+             <Button type="submit" className="w-full text-white" disabled={disableSubmit} style={{ backgroundColor: nibBankColor }}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In
              </Button>
