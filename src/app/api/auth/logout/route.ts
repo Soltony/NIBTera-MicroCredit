@@ -10,6 +10,7 @@ export async function POST() {
    
   }
   
-  deleteSession();
+  // Ensure session is revoked and cookies cleared before responding
+  await deleteSession();
   return NextResponse.json({ success: true });
 }

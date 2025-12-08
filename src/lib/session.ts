@@ -105,52 +105,64 @@ export async function getSession() {
   const access = cookiesStore.get('accessToken')?.value;
   const refresh = cookiesStore.get('refreshToken')?.value;
 
-  // Try access token first
+  // 1) Validate access token if present and return if valid and bound to a DB session
   if (access) {
     const payload = await decryptJwt(access);
-    if (payload && payload.userId && payload.sessionId) {
-      // Update lastActivity on session record (idle timeout reset)
+    if (payload?.userId && payload?.sessionId) {
       try {
         const { default: prisma } = await import('./prisma');
-        await prisma.session.update({ where: { id: payload.sessionId }, data: { lastActivity: new Date() } });
+        const sessionRecord = await prisma.session.findUnique({ where: { id: payload.sessionId } });
+        if (sessionRecord && !sessionRecord.revoked && sessionRecord.expiresAt > new Date() && sessionRecord.userId === payload.userId) {
+          // update last activity timestamp
+          await prisma.session.update({ where: { id: sessionRecord.id }, data: { lastActivity: new Date() } });
+          return payload;
+        }
       } catch (e) {
-        // ignore DB errors here; session may not exist
+        console.error('Error validating access token session in getSession:', e);
+        return null;
       }
-      return payload;
     }
   }
 
-  // Access token missing or invalid/expired -> attempt refresh
+  // 2) Access token not valid/expired -> attempt refresh flow using httpOnly refresh token
   if (refresh) {
-    // Find session by refresh token
-    const { default: prisma } = await import('./prisma');
-    const sessionRecord = await prisma.session.findUnique({ where: { refreshToken: refresh } });
-    if (!sessionRecord) return null;
-    if (sessionRecord.revoked) return null;
-    if (sessionRecord.expiresAt < new Date()) return null;
+    try {
+      const { default: prisma } = await import('./prisma');
+      const sessionRecord = await prisma.session.findUnique({ where: { refreshToken: refresh } });
+      if (!sessionRecord) return null;
+      if (sessionRecord.revoked) return null;
+      if (sessionRecord.expiresAt < new Date()) return null;
 
-    // Issue new access token (rotate refresh token as well)
-    const userWithRole = await prisma.user.findUnique({ where: { id: sessionRecord.userId }, include: { role: true } });
-    const newRefreshToken = await encryptJwt({ userId: sessionRecord.userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);
-    const refreshExpiresAt = expiryDateFromDays(REFRESH_TOKEN_DAYS);
+      // rotate refresh token for additional security
+      const newRefreshToken = await encryptJwt({ userId: sessionRecord.userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);
+      const refreshExpiresAt = expiryDateFromDays(REFRESH_TOKEN_DAYS);
 
-    // update DB session with rotated refresh token and activity
-    await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date() } });
+      // fetch user role for authoritative permissions
+      const userWithRole = await prisma.user.findUnique({ where: { id: sessionRecord.userId }, include: { role: true } });
 
-    const accessPayload: any = {
-      userId: sessionRecord.userId,
-      sessionId: sessionRecord.id,
-      permissions: userWithRole?.role?.permissions || '{}',
-    };
-    const newAccessToken = await encryptJwt(accessPayload, ACCESS_TOKEN_EXP);
+      // update DB session with rotated refresh token and new expiry/lastActivity
+      await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date() } });
 
-    const accessExpires = expiryDateFromMinutes(15);
+      // issue a new short-lived access token bound to this session
+      const accessPayload: any = {
+        userId: sessionRecord.userId,
+        sessionId: sessionRecord.id,
+        permissions: userWithRole?.role?.permissions || '{}',
+      };
+      const newAccessToken = await encryptJwt(accessPayload, ACCESS_TOKEN_EXP);
 
-    const cookiesStore = await cookies();
-    cookiesStore.set('accessToken', newAccessToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: accessExpires });
-    cookiesStore.set('refreshToken', newRefreshToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: refreshExpiresAt });
+      const accessExpires = expiryDateFromMinutes(15);
 
-    return accessPayload;
+      // set rotated refresh token and new access token as httpOnly cookies
+      const cookiesStore2 = await cookies();
+      cookiesStore2.set('accessToken', newAccessToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: accessExpires });
+      cookiesStore2.set('refreshToken', newRefreshToken, { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: refreshExpiresAt });
+
+      return accessPayload;
+    } catch (e) {
+      console.error('Refresh flow failed in getSession:', e);
+      return null;
+    }
   }
 
   return null;
@@ -169,16 +181,18 @@ export async function deleteSession() {
         await prisma.session.update({ where: { id: sessionRecord.id }, data: { revoked: true } });
       }
     } catch (e) {
-      // ignore
+      console.error('Failed to revoke session by refresh token in deleteSession:', e);
     }
   } else if (access) {
-    // try to decode access token to find session id
+    // try to decode access token to find session id and revoke it
     const payload = await decryptJwt(access);
     if (payload?.sessionId) {
       try {
         const { default: prisma } = await import('./prisma');
         await prisma.session.update({ where: { id: payload.sessionId }, data: { revoked: true } });
-      } catch (e) { }
+      } catch (e) {
+        console.error('Failed to revoke session by access token in deleteSession:', e);
+      }
     }
   }
 
