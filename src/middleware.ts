@@ -5,7 +5,7 @@ import { allMenuItems } from './lib/menu-items';
 import type { Permissions } from '@/lib/types';
 
 const protectedAdminRoutes = ['/admin', '/api/admin', '/api/audit-logs', '/api/approvals', '/api/roles', '/api/settings', '/api/providers', '/api/users', '/api/reports'];
-const publicRoutes = ['/admin/login', '/loan/connect'];
+const publicRoutes = ['/admin/login', '/loan/connect', '/admin/change-password'];
 
 // Only run the middleware for admin UI pages and selected admin API routes.
 export const config = {
@@ -78,14 +78,21 @@ export default async function middleware(req: NextRequest) {
 
     // 1. If no session, redirect to login
     if (!session?.userId) {
-      // If this is an API call, return JSON error; otherwise redirect to login page
       if (path.startsWith('/api/')) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
       }
       return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
     }
 
-    // 2. Parse permissions from the session token
+    // 2. If password change is required, force redirect to change password page
+    if (session.passwordChangeRequired && path !== '/admin/change-password' && !path.startsWith('/api/auth/change-password')) {
+        return NextResponse.redirect(new URL('/admin/change-password', req.nextUrl.origin).toString());
+    }
+    if (!session.passwordChangeRequired && path === '/admin/change-password') {
+         return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+    }
+
+    // 3. Parse permissions from the session token
     let permissions: Permissions = {};
     try {
         if (session?.permissions) {
@@ -95,7 +102,6 @@ export default async function middleware(req: NextRequest) {
         }
     } catch (e) {
         console.error('Failed to parse session permissions in middleware', e);
-        // If permissions are corrupt, treat as if they have none and redirect to login
         return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
     }
 
@@ -108,11 +114,10 @@ export default async function middleware(req: NextRequest) {
       const hasPermission = !!permissions[moduleName]?.read;
 
       if (!hasPermission) {
-        // For API calls return 403 JSON, for UI redirect to forbidden page
         if (path.startsWith('/api/')) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        return NextResponse.redirect(new URL('/admin/forbidden', req.nextUrl.origin).toString());
+        return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
       }
     } else if (path !== '/admin' && !path.startsWith('/api/')) {
       // If the path is not the base '/admin' path and not found in our menu items,

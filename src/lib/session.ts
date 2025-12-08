@@ -40,13 +40,16 @@ function expiryDateFromMinutes(minutes: number) {
 }
 
 export async function createSession(userId: string, superAppToken?: string, permissions?: any) {
+  const { default: prisma } = await import('./prisma');
+  const userWithRole = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
+  if (!userWithRole) throw new Error("User not found during session creation.");
+
   // Create a DB session (refresh token storage) and issue access + refresh tokens.
   const refreshExpiresAt = expiryDateFromDays(REFRESH_TOKEN_DAYS);
 
   // create a random opaque refresh token (safer than storing long-lived JWTs client-side)
   const refreshToken = await encryptJwt({ userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);
 
-  const { default: prisma } = await import('./prisma');
   const sessionRecord = await prisma.session.create({
     data: {
       userId,
@@ -57,15 +60,15 @@ export async function createSession(userId: string, superAppToken?: string, perm
   });
 
   // Build access token payload including session id so we can track activity
-  const userWithRole = await (await import('./prisma')).default.user.findUnique({ where: { id: userId }, include: { role: true } });
   const accessPayload: any = {
     userId,
     sessionId: sessionRecord.id,
-    permissions: userWithRole?.role?.permissions || '{}',
+    permissions: userWithRole.role.permissions || '{}',
+    passwordChangeRequired: userWithRole.passwordChangeRequired,
   };
-  if (superAppToken) accessPayload.superAppToken = superAppToken;
-  if (permissions) accessPayload.permissions = typeof permissions === 'string' ? permissions : JSON.stringify(permissions);
 
+  if (superAppToken) accessPayload.superAppToken = superAppToken;
+  
   const accessToken = await encryptJwt(accessPayload, ACCESS_TOKEN_EXP);
 
   // set cookies: access token short-lived, refresh token long-lived
@@ -139,6 +142,7 @@ export async function getSession() {
 
       // fetch user role for authoritative permissions
       const userWithRole = await prisma.user.findUnique({ where: { id: sessionRecord.userId }, include: { role: true } });
+      if (!userWithRole) return null; // user might have been deleted
 
       // update DB session with rotated refresh token and new expiry/lastActivity
       await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date() } });
@@ -147,7 +151,8 @@ export async function getSession() {
       const accessPayload: any = {
         userId: sessionRecord.userId,
         sessionId: sessionRecord.id,
-        permissions: userWithRole?.role?.permissions || '{}',
+        permissions: userWithRole.role.permissions || '{}',
+        passwordChangeRequired: userWithRole.passwordChangeRequired,
       };
       const newAccessToken = await encryptJwt(accessPayload, ACCESS_TOKEN_EXP);
 

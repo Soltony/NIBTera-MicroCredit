@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
     const dataToCreate: any = {
         ...userData,
         password: hashedPassword,
+        passwordChangeRequired: true, // Force password change on first login
         roleId: role.id,
     };
     

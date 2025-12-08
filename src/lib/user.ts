@@ -39,18 +39,14 @@ export async function getUserFromSession(): Promise<AuthUser | null> {
       role: user.role.name as AuthUser['role'],
       providerName: user.loanProvider?.name,
       permissions: JSON.parse(user.role.permissions as string) as Permissions,
+      passwordChangeRequired: user.passwordChangeRequired,
     };
 
     return authUser;
 
   } catch (error) {
-    // Avoid using `instanceof Prisma.PrismaClientKnownRequestError` because
-    // `Prisma` may be undefined at runtime in some environments which causes
-    // the `instanceof` check to throw: "Function has non-object prototype 'undefined'".
-    // Detect Prisma errors by inspecting the error `name` or `code` instead.
     const e = error as any;
     if (e && (e.name === 'PrismaClientKnownRequestError' || typeof e.code === 'string')) {
-        // Handle specific prisma errors if needed
     }
     console.error('Get User Error:', error);
     return null;
