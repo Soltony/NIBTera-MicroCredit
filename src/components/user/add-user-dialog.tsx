@@ -45,7 +45,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         fullName: user.fullName,
         email: user.email,
         phoneNumber: user.phoneNumber,
-        password: '', // Password is not edited
+        password: '', // Password is not edited by default, but can be reset
         role: user.role,
         status: user.status,
         providerId: user.providerId || null,
@@ -91,24 +91,25 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    if (!user) { // Only require password for new users
-      const pw = submissionData.password || '';
-      // Client-side enforcement: minimum 8, mixed case, number and symbol, and block common passwords
-      const COMMON = new Set(['123456','123456789','qwerty','password','1234567','12345678','12345','111111','123123','password1','1234567890','1234','welcome','letmein','admin','iloveyou']);
-      if (!pw) {
+    
+    if (submissionData.password) {
+        // If a new password is set (for create or edit), validate it
+        const pw = submissionData.password;
+        const COMMON = new Set(['123456','123456789','qwerty','password','1234567','12345678','12345','111111','123123','password1','1234567890','1234','welcome','letmein','admin','iloveyou']);
+        if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) {
+            alert('New password must be at least 8 characters and include uppercase, lowercase, a number, and a symbol.');
+            return;
+        }
+        if (COMMON.has(pw.toLowerCase())) {
+            alert('This password is too common. Please choose a stronger one.');
+            return;
+        }
+    } else if (!user) { // Password is only required for brand new users
         alert('Password is required for new users.');
         return;
-      }
-      if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) {
-        alert('Password must be at least 8 characters and include uppercase, lowercase, a number, and a symbol.');
-        return;
-      }
-      if (COMMON.has(pw.toLowerCase())) {
-        alert('This password is too common or compromised. Please choose a stronger password.');
-        return;
-      }
     } else {
-        delete submissionData.password; // Don't send empty password on edit
+        // If editing and password field is empty, don't send it to the server
+        delete submissionData.password;
     }
     
     // Ensure providerId is null if the role is not provider-specific
@@ -150,14 +151,20 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
             </Label>
             <Input id="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className="col-span-3" required />
           </div>
-          {!user && (
-             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password" className="text-right">
-                Password
-                </Label>
-                <Input id="password" type="password" value={formData.password} onChange={handleChange} className="col-span-3" required />
-            </div>
-          )}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="password" className="text-right">
+                {user ? 'New Password' : 'Password'}
+            </Label>
+            <Input 
+                id="password" 
+                type="password" 
+                value={formData.password} 
+                onChange={handleChange} 
+                className="col-span-3" 
+                required={!user} // Only required for new users
+                placeholder={user ? 'Optional: Enter to reset' : ''}
+            />
+          </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="role" className="text-right">
               Role

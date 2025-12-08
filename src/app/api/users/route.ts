@@ -181,7 +181,7 @@ export async function PUT(req: NextRequest) {
   try {
 
     const body = await req.json();
-    const { id, role: roleName, providerId, ...userData } = body;
+    const { id, role: roleName, providerId, password, ...userData } = body;
 
     if (!id) {
         throw new Error('User ID is required for an update.');
@@ -215,6 +215,12 @@ export async function PUT(req: NextRequest) {
         dataToUpdate.roleId = role.id;
     }
     
+    if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        dataToUpdate.password = hashedPassword;
+        dataToUpdate.passwordChangeRequired = true; // Force user to change password on next login
+    }
+
     // Handle providerId relationship
     if (user.role === 'Super Admin') {
         if (providerId === null) {
@@ -236,7 +242,7 @@ export async function PUT(req: NextRequest) {
       data: dataToUpdate,
     });
     
-    const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(userData) };
+    const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(dataToUpdate) };
     await createAuditLog({ actorId: user.id, action: 'USER_UPDATE_SUCCESS', entity: 'USER', entityId: id, details: successLogDetails, ipAddress, userAgent });
 
     return NextResponse.json(updatedUser);
