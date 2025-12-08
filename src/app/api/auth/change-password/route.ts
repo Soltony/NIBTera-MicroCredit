@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { getSession } from '@/lib/session';
+import { getSession, deleteSession, createSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
 import { z, ZodError } from 'zod';
 import { loginSchema } from '@/lib/validators'; // Use the same strong password validation
@@ -56,7 +56,9 @@ export async function POST(req: NextRequest) {
             actorId: user.id,
             action: 'PASSWORD_CHANGE_SUCCESS',
         });
-        
+
+        await deleteSession();    
+    
         return NextResponse.json({ message: 'Password changed successfully.' }, { status: 200 });
 
     } catch (error) {
