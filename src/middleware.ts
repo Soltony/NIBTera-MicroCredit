@@ -4,6 +4,36 @@ import { decryptJwt } from '@/lib/session';
 import { allMenuItems } from './lib/menu-items';
 import type { Permissions } from '@/lib/types';
 
+// Helper: resolve allowed roles for a given path. First try menu item config,
+// then fall back to a small API-prefix -> menu path mapping for common admin APIs.
+function getAllowedRolesForPath(path: string): string[] | undefined {
+  const route = allMenuItems.find(item => path.startsWith(item.path));
+  const maybe = (route as any)?.allowedRoles;
+  if (maybe && Array.isArray(maybe) && maybe.length > 0) return maybe.map((r: any) => String(r));
+
+  // Fallback mapping for API prefixes to menu paths (so APIs can inherit menu's allowedRoles)
+  const apiPrefixToMenuPath: Record<string, string> = {
+    '/api/audit-logs': '/admin/audit-logs',
+    '/api/approvals': '/admin/approvals',
+    '/api/roles': '/admin/access-control',
+    '/api/settings': '/admin/settings',
+    '/api/providers': '/admin/providers',
+    '/api/users': '/admin/users',
+    '/api/reports': '/admin/reports',
+  };
+
+  for (const prefix in apiPrefixToMenuPath) {
+    if (path.startsWith(prefix)) {
+      const menuPath = apiPrefixToMenuPath[prefix];
+      const menuItem = allMenuItems.find(item => item.path === menuPath);
+      const ar = (menuItem as any)?.allowedRoles;
+      if (ar && Array.isArray(ar) && ar.length > 0) return ar.map((r: any) => String(r));
+    }
+  }
+
+  return undefined;
+}
+
 const protectedAdminRoutes = ['/admin', '/api/admin', '/api/audit-logs', '/api/approvals', '/api/roles', '/api/settings', '/api/providers', '/api/users', '/api/reports'];
 const publicRoutes = ['/admin/login', '/loan/connect', '/admin/change-password'];
 
@@ -116,6 +146,28 @@ export default async function middleware(req: NextRequest) {
 
     // Find the menu item that corresponds to the path being accessed.
     const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
+    // --- Dynamic role enforcement: if the menu item defines `allowedRoles`, ensure
+    // the current user's role is included. `session.role` is expected to be a string
+    // such as 'Logger', 'Admin', etc. If not allowed, block the request.
+    try {
+      const userRole = (session && session.role) ? String(session.role) : undefined;
+      const allowedRoles: string[] | undefined = (currentRouteConfig as any)?.allowedRoles;
+      if (allowedRoles && allowedRoles.length > 0) {
+        // Normalize role strings for comparison
+        const normalizedAllowed = allowedRoles.map(r => String(r).trim().toLowerCase());
+        const normalizedUserRole = userRole ? userRole.trim().toLowerCase() : undefined;
+        const roleAllowed = !!(normalizedUserRole && normalizedAllowed.includes(normalizedUserRole));
+        if (!roleAllowed) {
+          if (path.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+          }
+          return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+        }
+      }
+    } catch (e) {
+      console.error('Error enforcing allowedRoles in middleware', e);
+      // Fall through to existing permission checks; do not block on failure here.
+    }
     
     // If the path is a defined route in our menu system, check permissions.
     if (currentRouteConfig) {
