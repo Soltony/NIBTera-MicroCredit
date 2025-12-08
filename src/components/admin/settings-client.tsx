@@ -118,6 +118,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
     allDataConfigs: DataProvisioningConfig[];
 }) => {
+    const { currentUser } = useAuth();
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     // Keep a snapshot of the original product when the settings collapsible is opened
@@ -144,6 +145,11 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         onUpdate({ [name]: value === '' ? null : value });
     };
 
+    const canEditSettings = useMemo(() => {
+        const perms = currentUser?.permissions?.['settings'];
+        return !!(perms?.create || perms?.update || perms?.delete);
+    }, [currentUser]);
+
     // Capture original snapshot when the editor opens so we can later
     // use the original values when submitting a change request for approval.
     useEffect(() => {
@@ -161,6 +167,10 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     }, [isOpen, product]);
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
+        if (!canEditSettings) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Settings.', variant: 'destructive' });
+            return;
+        }
         if (name === 'status') {
             handleStatusChange(checked);
         } else {
@@ -169,6 +179,10 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     }
 
     const handleStatusChange = async (checked: boolean) => {
+        if (!canEditSettings) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Settings.', variant: 'destructive' });
+            return;
+        }
         const newStatus = checked ? 'Active' : 'Disabled';
         // Optimistically update the UI
         onUpdate({ status: newStatus }); 

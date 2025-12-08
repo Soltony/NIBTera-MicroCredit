@@ -11,22 +11,42 @@ function pascalOrCamelToKebab(name: string) {
   return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
+const MODULE_KEYS = allMenuItems.map((i) => i.label.toLowerCase().replace(/\s+/g, '-'));
+
+// Explicit map from entity types to the module permission keys exposed in the UI.
+const ENTITY_TO_MODULE: Record<string, string[]> = {
+  loanprovider: ['settings'],
+  loanproduct: ['settings'],
+  tax: ['tax', 'settings'],
+  approval: ['approvals'],
+  approvals: ['approvals'],
+  pendingchange: ['approvals'],
+  eligibilitylist: ['settings'],
+  dataprovisioningupload: ['settings'],
+  loancycleconfig: ['settings'],
+};
+
 export function entityTypeToPermissionKeys(entityType: string) {
   const kebab = pascalOrCamelToKebab(entityType || '');
   const flat = (entityType || '').toLowerCase();
-  const keys = [kebab, flat];
+  const keys = new Set<string>();
 
-  // common fallbacks
-  if (flat.includes('product')) keys.push('products');
-  if (flat.includes('provider')) keys.push('providers', 'settings');
-  if (flat.includes('tax')) keys.push('tax');
-  if (flat.includes('approval') || flat.includes('approvals')) keys.push('approvals');
+  // First, apply explicit mappings
+  ENTITY_TO_MODULE[flat]?.forEach((k) => keys.add(k));
 
-  // include UI menu-based modules
-  keys.push(...allMenuItems.map(i => i.label.toLowerCase().replace(/\s+/g, '-')));
+  // Heuristics limited to known module keys
+  if (flat.includes('product') && MODULE_KEYS.includes('settings')) keys.add('settings');
+  if (flat.includes('provider') && MODULE_KEYS.includes('settings')) keys.add('settings');
+  if (flat.includes('tax') && MODULE_KEYS.includes('tax')) keys.add('tax');
+  if ((flat.includes('approval') || flat.includes('approvals')) && MODULE_KEYS.includes('approvals')) {
+    keys.add('approvals');
+  }
 
-  // unique
-  return Array.from(new Set(keys));
+  // Only allow direct matches that are valid module keys
+  if (MODULE_KEYS.includes(kebab)) keys.add(kebab);
+  if (MODULE_KEYS.includes(flat)) keys.add(flat);
+
+  return Array.from(keys);
 }
 
 export function hasPermission(user: { permissions?: Permissions }, moduleKey: string, action: PermissionSet) {
