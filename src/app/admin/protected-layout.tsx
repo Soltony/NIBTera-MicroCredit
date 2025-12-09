@@ -203,7 +203,6 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
                 >
                   <Avatar>
                     <AvatarImage
-                      src={`https://github.com/shadcn.png`}
                       alt={currentUser?.fullName || ''}
                     />
                     <AvatarFallback>

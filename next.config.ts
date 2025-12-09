@@ -10,8 +10,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co', pathname: '/**' },
       { protocol: 'https', hostname: 'play-lh.googleusercontent.com', pathname: '/**' },
-      { protocol: 'https', hostname: 'github.com', pathname: '/**' },
-      { protocol: 'https', hostname: 'avatars.githubusercontent.com', pathname: '/**' },
+      // Removed GitHub hosts to avoid direct browser requests to GitHub
     ],
   },
 
@@ -33,7 +32,7 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Origin', value: '*' }, // replace '*' with your domain in production
+          { key: 'Access-Control-Allow-Origin', value: 'nibteraloan.nibbank.com.et' },
           { key: 'Access-Control-Allow-Methods', value: 'GET,DELETE,PATCH,POST,PUT' },
           {
             key: 'Access-Control-Allow-Headers',

@@ -46,12 +46,16 @@ model Session {
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshToken String   @unique
+  // JTI (JWT ID) of the currently issued access token bound to this DB session.
+  // Used to revoke access tokens by invalidating the stored JTI on logout/rotation.
+  jti          String?
   revoked      Boolean  @default(false)
   expiresAt    DateTime // refresh token expiry
   lastActivity DateTime @default(now())
   createdAt    DateTime @default(now())
 
   @@index([userId])
+  @@index([jti])
 }
 
 // --------------------------------------

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, differenceInDays, isValid } from 'date-fns';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import type { Loan, LoanProduct, Payment, ProvisionedData } from '@prisma/client';
+import { getUserFromSession } from '@/lib/user';
 
 const getDates = (timeframe: string, from?: string, to?: string) => {
     if (from && to) {
@@ -65,7 +66,7 @@ const getBorrowerName = (borrower: { provisionedData: ProvisionedData[] }): stri
     for (const entry of borrower.provisionedData) {
          try {
             const data = JSON.parse(entry.data as string);
-            const fullNameKey = Object.keys(data).find(k => k.toLowerCase() === 'fullname' || k.toLowerCase() === 'full name');
+            const fullNameKey = Object.keys(data).find(k => k.toLowerCase() === 'fullname' || k.toLowerCase() === 'full name' || k.toLowerCase() === 'customername');
             if (fullNameKey && data[fullNameKey]) {
                 return data[fullNameKey];
             }
@@ -78,8 +79,13 @@ const getBorrowerName = (borrower: { provisionedData: ProvisionedData[] }): stri
 
 
 export async function GET(req: NextRequest) {
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['reports']?.read) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
-    const providerId = searchParams.get('providerId');
+    let providerId = searchParams.get('providerId');
     const timeframe = searchParams.get('timeframe') || 'overall';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -93,9 +99,19 @@ export async function GET(req: NextRequest) {
             lte: dateRange.lte,
         };
     }
+    
+    const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
 
-    if (providerId && providerId !== 'all') {
+    if (!isSuperAdminOrRecon) {
+        providerId = user.loanProviderId || 'none';
+    }
+    
+    if (providerId && providerId !== 'all' && providerId !== 'none') {
         whereClause.product = { providerId };
+    }
+
+    if (providerId === 'none') {
+        return NextResponse.json([]);
     }
 
     try {

@@ -1,7 +1,9 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, differenceInDays, isValid } from 'date-fns';
+import { getUserFromSession } from '@/lib/user';
 
 const getDates = (timeframe: string, from?: string, to?: string) => {
     if (from && to) {
@@ -86,6 +88,11 @@ async function getAggregatedLedgerEntries(providerId: string, timeframe: string,
 }
 
 export async function GET(req: NextRequest) {
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['reports']?.read) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const providerId = searchParams.get('providerId');
     const timeframe = searchParams.get('timeframe') || 'daily';
@@ -94,6 +101,12 @@ export async function GET(req: NextRequest) {
 
     if (!providerId) {
         return NextResponse.json({ error: 'Provider ID is required' }, { status: 400 });
+    }
+    
+    // Authorization check
+    const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
+    if (!isSuperAdminOrRecon && user.loanProviderId !== providerId) {
+        return NextResponse.json({ error: 'Forbidden: You can only access reports for your own provider.' }, { status: 403 });
     }
 
     try {

@@ -80,8 +80,7 @@ Run the seed script to populate your database with initial data, including defau
 npx prisma db seed
 ```
 
-After seeding, you can log in with the default administrator credentials:
-
+#### Default Admin Credentials:
 *   **Phone Number**: `0900000000`
 *   **Password**: `SuperAdm!2025`
 
