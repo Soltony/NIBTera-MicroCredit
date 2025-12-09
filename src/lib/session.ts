@@ -3,6 +3,7 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { randomUUID } from 'crypto';
 
 const secretKey = process.env.SESSION_SECRET;
 const key = new TextEncoder().encode(secretKey);
@@ -50,10 +51,14 @@ export async function createSession(userId: string, superAppToken?: string, perm
   // create a random opaque refresh token (safer than storing long-lived JWTs client-side)
   const refreshToken = await encryptJwt({ userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);
 
+  // generate a JTI (JWT ID) for the access token and persist it on the DB session
+  const jti = randomUUID();
+
   const sessionRecord = await prisma.session.create({
     data: {
       userId,
       refreshToken,
+      jti,
       expiresAt: refreshExpiresAt,
       revoked: false,
     },
@@ -63,6 +68,7 @@ export async function createSession(userId: string, superAppToken?: string, perm
   const accessPayload: any = {
     userId,
     sessionId: sessionRecord.id,
+    jti: jti,
     // Keep only essential claims in access token. Permissions are authoritative from DB.
     passwordChangeRequired: userWithRole.passwordChangeRequired,
   };
@@ -116,6 +122,10 @@ export async function getSession() {
         const { default: prisma } = await import('./prisma');
         const sessionRecord = await prisma.session.findUnique({ where: { id: payload.sessionId } });
         if (sessionRecord && !sessionRecord.revoked && sessionRecord.expiresAt > new Date() && sessionRecord.userId === payload.userId) {
+            // Ensure access token JTI matches the one stored on the DB session.
+            if (payload?.jti && sessionRecord.jti && payload.jti !== sessionRecord.jti) {
+              return null;
+            }
           // Ensure the access token is bound to the same DB session as the refresh cookie.
           // This prevents someone from swapping in an access token for another session
           // while still holding a different refresh token cookie.
@@ -154,13 +164,27 @@ export async function getSession() {
       const userWithRole = await prisma.user.findUnique({ where: { id: sessionRecord.userId }, include: { role: true } });
       if (!userWithRole) return null; // user might have been deleted
 
-      // update DB session with rotated refresh token and new expiry/lastActivity
-      await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date() } });
+      // generate new jti for the rotated access token and persist it
+      const newJti = randomUUID();
+
+      // update DB session with rotated refresh token, new jti and new expiry/lastActivity
+      await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date(), jti: newJti } });
 
       // issue a new short-lived access token bound to this session
       const accessPayload: any = {
         userId: sessionRecord.userId,
         sessionId: sessionRecord.id,
+        // include the new jti so access tokens can be revoked by comparing against DB
+        jti: await (async () => {
+          // fetch the updated session to get the persisted new jti (defensive)
+          try {
+            const { default: prisma2 } = await import('./prisma');
+            const updated = await prisma2.session.findUnique({ where: { id: sessionRecord.id } });
+            return updated?.jti;
+          } catch (e) {
+            return undefined;
+          }
+        })(),
         // Do not include permissions in the token; fetch from DB for authoritative source.
         passwordChangeRequired: userWithRole.passwordChangeRequired,
       };
@@ -193,7 +217,8 @@ export async function deleteSession() {
       const { default: prisma } = await import('./prisma');
       const sessionRecord = await prisma.session.findUnique({ where: { refreshToken: refresh } });
       if (sessionRecord) {
-        await prisma.session.update({ where: { id: sessionRecord.id }, data: { revoked: true } });
+        // mark revoked and clear stored jti so access tokens cannot be validated anymore
+        await prisma.session.update({ where: { id: sessionRecord.id }, data: { revoked: true, jti: null } });
       }
     } catch (e) {
       console.error('Failed to revoke session by refresh token in deleteSession:', e);
@@ -201,10 +226,11 @@ export async function deleteSession() {
   } else if (access) {
     // try to decode access token to find session id and revoke it
     const payload = await decryptJwt(access);
-    if (payload?.sessionId) {
+      if (payload?.sessionId) {
       try {
         const { default: prisma } = await import('./prisma');
-        await prisma.session.update({ where: { id: payload.sessionId }, data: { revoked: true } });
+        // mark revoked and clear stored jti so this access token is no longer valid
+        await prisma.session.update({ where: { id: payload.sessionId }, data: { revoked: true, jti: null } });
       } catch (e) {
         console.error('Failed to revoke session by access token in deleteSession:', e);
       }

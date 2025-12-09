@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Origin', value: '*' }, // replace '*' with your domain in production
+          { key: 'Access-Control-Allow-Origin', value: 'nibteraloan.nibbank.com.et' },
           { key: 'Access-Control-Allow-Methods', value: 'GET,DELETE,PATCH,POST,PUT' },
           {
             key: 'Access-Control-Allow-Headers',

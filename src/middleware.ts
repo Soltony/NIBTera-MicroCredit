@@ -144,8 +144,64 @@ export default async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
     }
 
+    // Derive a permission map from menu items: pathPrefix -> moduleKey
+    const PERMISSION_MAP: Record<string, string> = {};
+    const ORDERED_ADMIN_PAGES: string[] = [];
+    for (const item of allMenuItems) {
+      const moduleKey = item.label.toLowerCase().replace(/\s+/g, '-');
+      PERMISSION_MAP[item.path] = moduleKey;
+      ORDERED_ADMIN_PAGES.push(item.path);
+    }
+
+    // Build a set of permission keys the user has (any truthy action)
+    const userPermissions = new Set<string>();
+    try {
+      for (const [k, v] of Object.entries(permissions || {})) {
+        if (v && Object.values(v as any).some(Boolean)) {
+          userPermissions.add(k.toLowerCase());
+        }
+      }
+    } catch (e) {
+      // ignore malformed permissions; leave set empty
+    }
+
     // Find the menu item that corresponds to the path being accessed.
     const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
+
+    // If user is not a Super Admin, enforce page-level access using the PERMISSION_MAP
+    try {
+      const isSuperAdmin = session?.role === 'Super Admin';
+      if (!isSuperAdmin) {
+        // Find required permission by longest-matching path prefix in PERMISSION_MAP
+        let requiredPermission: string | undefined;
+        let longestMatch = '';
+        for (const [prefix, perm] of Object.entries(PERMISSION_MAP)) {
+          if (path.startsWith(prefix) && prefix.length >= longestMatch.length) {
+            longestMatch = prefix;
+            requiredPermission = perm;
+          }
+        }
+
+        if (requiredPermission && !userPermissions.has(requiredPermission.toLowerCase())) {
+          // Find first allowed page for this user
+          const firstAllowedPage = ORDERED_ADMIN_PAGES.find((pagePath) => {
+            const perm = PERMISSION_MAP[pagePath];
+            return perm && userPermissions.has(perm.toLowerCase());
+          });
+
+          if (path.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+          }
+
+          const redirectUrl = new URL((firstAllowedPage && firstAllowedPage !== '') ? firstAllowedPage : '/admin', req.nextUrl.origin);
+          redirectUrl.searchParams.set('error', 'Access Denied');
+          return NextResponse.redirect(redirectUrl);
+        }
+      }
+    } catch (e) {
+      console.error('Error enforcing page-permission map in middleware', e);
+      // fall through to existing permission logic
+    }
     // --- Dynamic role enforcement: if the menu item defines `allowedRoles`, ensure
     // the current user's role is included. `session.role` is expected to be a string
     // such as 'Logger', 'Admin', etc. If not allowed, block the request.
