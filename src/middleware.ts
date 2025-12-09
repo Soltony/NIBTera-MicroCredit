@@ -72,7 +72,7 @@ export default async function middleware(req: NextRequest) {
     script-src 'self' 'nonce-${nonce}';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
-    img-src 'self' data: blob: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
+    img-src 'self' data: blob: https://placehold.co https://play-lh.googleusercontent.com;
     connect-src 'self';
     frame-ancestors 'self';
     media-src 'self';
