@@ -25,7 +25,7 @@ export function isCommonPassword(pw: string) {
 export async function validateBody<T>(req: NextRequest, schema: ZodSchema<T>) {
   try {
     const body = await req.json();
-    const parsed = schema.parse(body);
+    const parsed = await schema.parseAsync(body);
     return { ok: true as const, data: parsed };
   } catch (err) {
     if (err instanceof ZodError) {
@@ -48,6 +48,8 @@ export async function validateBody<T>(req: NextRequest, schema: ZodSchema<T>) {
 // - Must contain uppercase, lowercase, digit and symbol
 // - Must not be a common password
 
+
+// Login schema: only basic password requirements (no breach check)
 export const loginSchema = z.object({
   phoneNumber: z.string().min(3),
   password: z.string().min(8)
@@ -55,16 +57,24 @@ export const loginSchema = z.object({
     .regex(/(?=.*[A-Z])/, 'must contain an uppercase letter')
     .regex(/(?=.*\d)/, 'must contain a number')
     .regex(/(?=.*[^A-Za-z0-9])/, 'must contain a symbol')
-    .refine((pw) => !isCommonPassword(pw), { message: 'password is too common or compromised' })
-    .superRefine(async (pw, ctx) => {
-      if (await isPwnedPassword(pw)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Password has been found in a data breach. Please choose a more secure password.'
-        });
-      }
-    }),
+    .refine((pw) => !isCommonPassword(pw), { message: 'password is too common or compromised' }),
 });
+
+// Password schema for registration/change: includes breach check
+export const passwordSchema = z.string().min(8)
+  .regex(/(?=.*[a-z])/, 'must contain a lowercase letter')
+  .regex(/(?=.*[A-Z])/, 'must contain an uppercase letter')
+  .regex(/(?=.*\d)/, 'must contain a number')
+  .regex(/(?=.*[^A-Za-z0-9])/, 'must contain a symbol')
+  .refine((pw) => !isCommonPassword(pw), { message: 'password is too common or compromised' })
+  .superRefine(async (pw, ctx) => {
+    if (await isPwnedPassword(pw)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Password has been found in a data breach. Please choose a more secure password.'
+      });
+    }
+  });
 
 export const scoringRulesSchema = z.object({
   providerId: z.string().min(1),

@@ -69,7 +69,7 @@ export default async function middleware(req: NextRequest) {
   // Build CSP header
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+    script-src 'self' 'nonce-${nonce}';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' data: blob: https://placehold.co https://play-lh.googleusercontent.com https://github.com;
@@ -81,6 +81,7 @@ export default async function middleware(req: NextRequest) {
     form-action 'self';
     worker-src 'self';
     manifest-src 'self';
+    upgrade-insecure-requests;
   `.replace(/\s{2,}/g, ' ').trim();
 
   // Clone request headers and add nonce
