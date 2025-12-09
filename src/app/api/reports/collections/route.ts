@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, format, isValid } from 'date-fns';
+import { getUserFromSession } from '@/lib/user';
 
 const getDates = (timeframe: string, from?: string, to?: string) => {
     if (from && to) {
@@ -49,8 +50,13 @@ const getDates = (timeframe: string, from?: string, to?: string) => {
 };
 
 export async function GET(req: NextRequest) {
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['reports']?.read) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
-    const providerId = searchParams.get('providerId');
+    let providerId = searchParams.get('providerId');
     const timeframe = searchParams.get('timeframe') || 'overall';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -67,8 +73,18 @@ export async function GET(req: NextRequest) {
         }
     };
     
-    if (providerId && providerId !== 'all') {
+    const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
+
+    if (!isSuperAdminOrRecon) {
+        providerId = user.loanProviderId || 'none';
+    }
+
+    if (providerId && providerId !== 'all' && providerId !== 'none') {
         whereClause.journalEntry.providerId = providerId;
+    }
+    
+    if (providerId === 'none') {
+        return NextResponse.json([]);
     }
 
     try {

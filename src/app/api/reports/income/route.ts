@@ -1,7 +1,9 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isValid } from 'date-fns';
+import { getUserFromSession } from '@/lib/user';
 
 const getDates = (timeframe: string, from?: string, to?: string) => {
     if (from && to) {
@@ -103,21 +105,34 @@ async function getIncomeData(providerIdFilter: any, dateFilter: any) {
 
 
 export async function GET(req: NextRequest) {
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['reports']?.read) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
-    const providerId = searchParams.get('providerId');
+    let providerId = searchParams.get('providerId');
     const timeframe = searchParams.get('timeframe') || 'overall';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
+    const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
+
     try {
-        const allProviders = await prisma.loanProvider.findMany({
-            where: providerId && providerId !== 'all' ? { id: providerId } : {}
-        });
+        let providersToQuery;
+        if (!isSuperAdminOrRecon) {
+            providersToQuery = user.loanProviderId ? [await prisma.loanProvider.findUnique({ where: { id: user.loanProviderId } })].filter(Boolean) : [];
+        } else if (providerId && providerId !== 'all') {
+            providersToQuery = [await prisma.loanProvider.findUnique({ where: { id: providerId } })].filter(Boolean);
+        } else {
+            providersToQuery = await prisma.loanProvider.findMany();
+        }
 
         const reportData = [];
 
-        for (const provider of allProviders) {
+        for (const provider of providersToQuery) {
+            if(!provider) continue;
             const providerIdFilter = { journalEntry: { providerId: provider.id } };
             const dateFilter = {
                 journalEntry: {

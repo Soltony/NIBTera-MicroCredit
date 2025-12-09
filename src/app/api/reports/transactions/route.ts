@@ -1,22 +1,38 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { subDays, isValid } from 'date-fns';
+import { getUserFromSession } from '@/lib/user';
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getUserFromSession();
+    if (!user || !user.permissions?.['reports']?.read) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const url = new URL(request.url);
-    const providerId = url.searchParams.get('providerId'); // optional, 'all' for all
+    let providerId = url.searchParams.get('providerId'); // optional, 'all' for all
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
+
+    const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
+    if (!isSuperAdminOrRecon) {
+        providerId = user.loanProviderId || 'none';
+    }
 
     const taxConfig = await prisma.tax.findMany();
 
     // Fetch journal entries that relate to loans
     const whereAny: any = { loanId: { not: null } };
-    if (providerId && providerId !== 'all') {
+    if (providerId && providerId !== 'all' && providerId !== 'none') {
       whereAny.providerId = providerId;
     }
+    if (providerId === 'none') {
+        return NextResponse.json([]);
+    }
+
     if (from || to) {
       whereAny.date = {};
       if (from) whereAny.date.gte = new Date(from);
