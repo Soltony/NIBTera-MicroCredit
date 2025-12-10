@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import { getSession, deleteSession, createSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
 import { z, ZodError } from 'zod';
-import { loginSchema } from '@/lib/validators'; // Use the same strong password validation
+import { passwordSchema } from '@/lib/validators'; // Use the strong password validation (includes breach check)
 
 export async function POST(req: NextRequest) {
     const session = await getSession();
@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { currentPassword, newPassword } = body;
         
-        // Validate the new password against security policies
-        const passwordValidation = loginSchema.pick({ password: true }).safeParse({ password: newPassword });
+        // Validate the new password against security policies (includes breach check)
+        const passwordValidation = await passwordSchema.safeParseAsync(newPassword);
         if (!passwordValidation.success) {
             const errorMessages = passwordValidation.error.errors.map(e => e.message).join(', ');
             return NextResponse.json({ error: `Invalid new password: ${errorMessages}` }, { status: 400 });
