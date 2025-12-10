@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/user';
 import { getSession } from '@/lib/session';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
+import { validationErrorResponse, handleApiError } from '@/lib/error-utils';
 import { createAuditLog } from '@/lib/audit-log';
 import ExcelJS from 'exceljs';
 import { toCamelCase } from '@/lib/utils';
@@ -245,17 +246,26 @@ async function applyChange(change: any) {
       break;
     case 'LoanProvider':
         if (changeType === 'UPDATE') {
-            const { id, products, dataProvisioningConfigs, ...providerData } = data.updated;
+            const { id, products, dataProvisioningConfigs, termsAndConditions, ledgerAccounts, ...providerData } = data.updated;
+
+            // Remove nested relation arrays or other non-scalar fields before updating
+            const updateData: any = { ...providerData, status: 'Active' };
+            for (const k of Object.keys(updateData)) {
+                if (Array.isArray(updateData[k])) {
+                    delete updateData[k];
+                }
+            }
+
             await prisma.loanProvider.update({
                 where: { id: entityId },
-                data: { ...providerData, status: 'ACTIVE' }
+                data: updateData,
             });
         } else if (changeType === 'CREATE') {
             await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const providerToCreate = {
                     ...data.created,
                     initialBalance: data.created.startingCapital,
-                    status: 'ACTIVE',
+                    status: 'Active',
                 };
                 const newProvider = await tx.loanProvider.create({
                     data: providerToCreate,
@@ -307,15 +317,31 @@ async function applyChange(change: any) {
                 throw new Error('Cannot delete provider with associated products. Remove or reassign products before approving deletion.');
             }
 
-            await prisma.loanProvider.delete({
-                where: { id: entityId }
+            // Remove any DataProvisioningConfig and its dependent rows for this provider
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+                const configs = await tx.dataProvisioningConfig.findMany({ where: { providerId: entityId }, select: { id: true } });
+                const configIds = configs.map(c => c.id);
+
+                if (configIds.length > 0) {
+                    await tx.loanProduct.updateMany({
+                        where: { dataProvisioningConfigId: { in: configIds } },
+                        data: { dataProvisioningConfigId: null, eligibilityUploadId: null, eligibilityFilter: null }
+                    });
+
+                    await tx.provisionedData.deleteMany({ where: { configId: { in: configIds } } });
+                    await tx.dataProvisioningUpload.deleteMany({ where: { configId: { in: configIds } } });
+                    await tx.dataProvisioningConfig.deleteMany({ where: { id: { in: configIds } } });
+                }
+
+                await tx.loanProvider.delete({ where: { id: entityId } });
             });
         }
       break;
     case 'LoanProduct':
         if (changeType === 'UPDATE') {
             const { loanAmountTiers, eligibilityUpload, ...restOfUpdateData } = data.updated;
-            const updateData = { ...restOfUpdateData, status: 'ACTIVE' };
+            // Keep product disabled even after an approved update per requested policy
+            const updateData = { ...restOfUpdateData, status: 'Disabled' };
 
             if (updateData.serviceFee && typeof updateData.serviceFee === 'object') {
                 updateData.serviceFee = JSON.stringify(updateData.serviceFee);
@@ -349,7 +375,7 @@ async function applyChange(change: any) {
         } else if (changeType === 'CREATE') {
             const productToCreate = {
                 ...data.created,
-                status: 'ACTIVE',
+                status: 'Disabled',
                 serviceFee: JSON.stringify(data.created.serviceFee || { type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify(data.created.dailyFee || { type: 'percentage', value: 0, calculationBase: 'principal' }),
                 penaltyRules: JSON.stringify(data.created.penaltyRules || []),
@@ -453,12 +479,12 @@ async function applyChange(change: any) {
         if (changeType === 'UPDATE') {
              await prisma.tax.update({
                 where: { id: entityId },
-                data: { ...data.updated, status: 'ACTIVE' }
+                data: { ...data.updated, status: 'Active' }
             });
         } else if (changeType === 'CREATE') {
             const { id, ...creationData } = data.created;
             await prisma.tax.create({
-                data: { ...creationData, status: 'ACTIVE' }
+                data: { ...creationData, status: 'Active' }
             });
         } else if (changeType === 'DELETE') {
             await prisma.tax.delete({ where: { id: entityId } });
@@ -516,49 +542,57 @@ export async function POST(req: NextRequest) {
         details: { changeId },
       });
 
-    } else { // Rejected
-      if (!rejectionReason) {
-        return NextResponse.json({ error: 'A reason is required for rejection.' }, { status: 400 });
-      }
-
-      await prisma.pendingChange.update({
-        where: { id: changeId },
-        data: {
-          status: 'REJECTED',
-          approvedById: user.id,
-          approvedAt: new Date(),
-          rejectionReason,
-        },
-      });
-
-      const entityId = change.entityId;
-       if (entityId && change.changeType !== 'CREATE') {
-            if (change.entityType === 'LoanProvider') {
-                await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
-            } else if (change.entityType === 'LoanProduct') {
-                await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
+        } else { // Rejected
+            if (!rejectionReason) {
+                return NextResponse.json({ error: 'A reason is required for rejection.' }, { status: 400 });
             }
-             else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
-                 await prisma.tax.update({ where: { id: entityId }, data: { status: 'ACTIVE' } });
+
+            await prisma.pendingChange.update({
+                where: { id: changeId },
+                data: {
+                    status: 'REJECTED',
+                    approvedById: user.id,
+                    approvedAt: new Date(),
+                    rejectionReason,
+                },
+            });
+
+            const entityId = change.entityId;
+            if (entityId && change.changeType !== 'CREATE') {
+                // Try to restore the original status if present in the pending-change payload
+                let originalStatus: string | null = null;
+                try {
+                    const parsed = JSON.parse(change.payload || '{}');
+                    originalStatus = parsed.original?.status ?? parsed.created?.status ?? null;
+                } catch (e) {
+                    // ignore
+                }
+
+                if (change.entityType === 'LoanProvider') {
+                    await prisma.loanProvider.update({ where: { id: entityId }, data: { status: originalStatus || 'Active' } });
+                } else if (change.entityType === 'LoanProduct') {
+                    await prisma.loanProduct.update({ where: { id: entityId }, data: { status: originalStatus || 'Active' } });
+                } else if (change.entityType === 'Tax' && change.changeType !== 'CREATE') {
+                    await prisma.tax.update({ where: { id: entityId }, data: { status: originalStatus || 'Active' } });
+                }
             }
+
+            await createAuditLog({
+                actorId: user.id,
+                action: 'CHANGE_REJECTED',
+                entity: change.entityType,
+                entityId: change.entityId,
+                details: { changeId, reason: rejectionReason },
+            });
         }
-      
-      await createAuditLog({
-        actorId: user.id,
-        action: 'CHANGE_REJECTED',
-        entity: change.entityType,
-        entityId: change.entityId,
-        details: { changeId, reason: rejectionReason },
-      });
-    }
 
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
-    console.error("Error processing change request:", error);
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+    } catch (error: any) {
+        console.error("Error processing change request:", error);
+        if (error instanceof ZodError) {
+            return validationErrorResponse(error);
+        }
+        return handleApiError(error, { operation: 'POST /api/approvals' });
     }
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
-  }
 }

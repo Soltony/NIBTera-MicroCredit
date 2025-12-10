@@ -47,7 +47,7 @@ export interface DataProvisioningConfig {
     name: string;
     columns: DataColumn[];
     uploads?: DataProvisioningUpload[];
-    status?: 'ACTIVE' | 'PENDING_APPROVAL';
+    status?: 'Active' | 'PENDING_APPROVAL';
 }
 
 export interface LoanAmountTier {

@@ -340,7 +340,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 throw new Error(errorData.error || 'Failed to submit product changes for approval.');
             }
 
-            onUpdate({ status: 'PENDING_APPROVAL' });
+            onUpdate({ status: 'Disabled', _optimisticPending: true } as any);
 
             toast({
                 title: 'Submitted for Approval',
@@ -360,8 +360,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
                         <h4 className="text-sm font-semibold">{product.name}</h4>
-                        {product.status === 'PENDING_APPROVAL' && <Badge variant="outline">Pending Approval</Badge>}
-                        {product.status !== 'PENDING_APPROVAL' && <Badge variant={product.status === 'Active' ? 'default' : 'destructive'} className={cn(product.status === 'Active' && 'bg-green-600')}>{product.status}</Badge>}
+                        {(((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL') && <Badge variant="outline">Pending Approval</Badge>}
+                        {!(((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL') && <Badge variant={product.status === 'Active' ? 'default' : 'destructive'} className={cn(product.status === 'Active' && 'bg-green-600')}>{product.status}</Badge>}
                     </div>
                     <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
                 </button>
@@ -426,9 +426,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
                     <div className="flex items-center space-x-2 justify-end">
                         <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving || product.status === 'PENDING_APPROVAL'}>
+                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving || (((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL')}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {product.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
+                            {(((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL') ? 'Pending Approval' : 'Submit for Approval'}
                         </Button>
                     </div>
                 </form>
@@ -623,7 +623,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                 const provider = draft.find(p => p.id === providerId);
                 if (provider) {
                     const product = provider.products.find(p => p.id === productId);
-                    if (product) product.status = 'PENDING_APPROVAL';
+                    if (product) { product.status = 'Disabled'; (product as any)._optimisticPending = true; }
                 }
             }));
             toast({ title: "Deletion Submitted", description: "Product deletion is pending approval." });
@@ -1085,6 +1085,40 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Validate loan amount tiers before submitting, in case the user
+            // edited tiers but didn't click the dedicated "Update Tiers" button.
+            const tiersToValidate = (config.loanAmountTiers || []) as any[];
+            for (let i = 0; i < tiersToValidate.length; i++) {
+                const tier = tiersToValidate[i];
+                const fromScore = Number(tier.fromScore);
+                const toScore = Number(tier.toScore);
+                const loanAmount = Number(tier.loanAmount);
+
+                if (isNaN(fromScore) || isNaN(toScore) || isNaN(loanAmount)) {
+                    toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, all fields must be valid numbers.`, variant: 'destructive'});
+                    throw new Error('Invalid tier data');
+                }
+                if (loanAmount <= 0) {
+                    toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount must be positive.`, variant: 'destructive'});
+                    throw new Error('Invalid loan amount');
+                }
+                if (config.maxLoan != null && !isNaN(Number(config.maxLoan)) && loanAmount > Number(config.maxLoan)) {
+                    toast({ title: 'Invalid Loan Amount', description: `In tier #${i + 1}, the loan amount cannot exceed the product's maximum of ${config.maxLoan}.`, variant: 'destructive'});
+                    throw new Error('Invalid loan amount');
+                }
+                if (fromScore > toScore) {
+                    toast({ title: 'Invalid Tier', description: `In tier #${i + 1}, the "From Score" cannot be greater than the "To Score".`, variant: 'destructive'});
+                    throw new Error('Invalid tier data');
+                }
+                if (i > 0) {
+                    const prevToScore = Number(tiersToValidate[i-1].toScore);
+                    if (fromScore <= prevToScore) {
+                        toast({ title: 'Overlapping Tiers', description: `Tier #${i + 1} overlaps with the previous tier. "From Score" must be greater than the previous "To Score".`, variant: 'destructive'});
+                        throw new Error('Overlapping Tiers');
+                    }
+                }
+            }
+
             // Only include original fields for keys that are present in the updated config
             const updateKeys = Object.keys(config).filter(k => (config as any)[k] !== undefined);
             const pick = (obj: any, keys: string[]) => keys.reduce((acc: any, k: string) => { if (obj && (k in obj)) acc[k] = (obj as any)[k]; return acc; }, {});
@@ -1111,7 +1145,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
             }
 
             // Update the parent state to reflect pending status
-            onProductUpdate({ ...config, status: 'PENDING_APPROVAL' });
+            onProductUpdate({ ...config, status: 'Disabled', _optimisticPending: true } as any);
             
             toast({
                 title: 'Submitted for Approval',
@@ -1129,7 +1163,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
             <CollapsibleTrigger asChild>
                  <button className="flex items-center justify-between w-full space-x-4 px-4 py-2 border rounded-lg bg-background hover:bg-muted/50 transition-colors">
                     <h4 className="text-sm font-semibold">{product.name}</h4>
-                    {config.status === 'PENDING_APPROVAL' ? (
+                    {(config as any)._optimisticPending || config.status === 'PENDING_APPROVAL' ? (
                         <Badge variant="outline">Pending Approval</Badge>
                     ) : (
                         <ChevronDown className="h-4 w-4 transition-transform duration-200 data-[state=open]:rotate-180" />
@@ -1225,10 +1259,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                             size="sm"
                             style={{ backgroundColor: providerColor }}
                             className="text-white ml-auto"
-                            disabled={isSaving || config.status === 'PENDING_APPROVAL'}
+                            disabled={isSaving || ((config as any)._optimisticPending || config.status === 'PENDING_APPROVAL')}
                         >
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            {config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
+                            {(config as any)._optimisticPending || config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
                         </Button>
                 </CardFooter>
             </Card>
@@ -1366,19 +1400,31 @@ function EligibilityTab({ providers, onProvidersChange }: {
             }
         }));
 
-        // If the change requires persistence (e.g. toggling dataProvisioningEnabled or linking a data config), persist it immediately
-        const persistKeys = ['dataProvisioningEnabled', 'dataProvisioningConfigId'];
-        const keysToPersist = Object.keys(updatedProduct).filter(k => persistKeys.includes(k));
+        // Previously we auto-submitted changes to eligibility configuration (enable/link data source).
+        // New behaviour:
+        // - Selecting a data source or enabling eligibility does NOT auto-submit — admin can finish
+        //   the workflow (upload list, review) and then click "Submit for Approval".
+        // - Disabling eligibility (turning `dataProvisioningEnabled` from true -> false) *does*
+        //   require approval, so create a pending-change when the user disables it.
 
-        if (keysToPersist.length === 0) return; // nothing to persist
+        const originalProduct = previousState.find((p: LoanProvider) => p.id === providerId)?.products.find((p: LoanProduct) => p.id === updatedProduct.id);
 
+        // If we don't have the original product context, just return (no auto-persist).
+        if (!originalProduct) return;
+
+        const isDisablingEligibility = typeof (updatedProduct as any).dataProvisioningEnabled !== 'undefined'
+            && originalProduct.dataProvisioningEnabled === true
+            && (updatedProduct as any).dataProvisioningEnabled === false;
+
+        if (!isDisablingEligibility) {
+            // No automatic persistence for other eligibility edits — user must explicitly submit.
+            return;
+        }
+
+        // Create a pending change for disabling eligibility
         setIsSaving(true);
         try {
-            const body: any = { id: updatedProduct.id };
-            keysToPersist.forEach(k => { (body as any)[k] = (updatedProduct as any)[k]; });
-
-             // Submit this change for approval instead of a direct PUT
-            const originalProduct = previousState.find((p: LoanProvider) => p.id === providerId)?.products.find((p: LoanProduct) => p.id === updatedProduct.id);
+            const body: any = { id: updatedProduct.id, dataProvisioningEnabled: false };
             const payload = { original: originalProduct, updated: { ...originalProduct, ...body } };
 
             const resp = await fetch('/api/settings/pending-changes', {
@@ -1397,22 +1443,20 @@ function EligibilityTab({ providers, onProvidersChange }: {
                 throw new Error(err.error || 'Failed to submit changes for approval');
             }
 
-            toast({ title: "Submitted for Approval", description: "Your eligibility configuration change is pending review." });
+            toast({ title: 'Submitted for Approval', description: 'Disabling eligibility has been submitted for review.' });
 
-            // Update UI to show pending status
+            // Mark product as pending in the UI
             onProvidersChange(produce(draft => {
-                 const provider = draft.find(p => p.id === providerId);
-                 if (provider) {
-                     const product = provider.products.find(p => p.id === updatedProduct.id);
-                     if (product) (product as any).status = 'PENDING_APPROVAL';
-                 }
+                const provider = draft.find(p => p.id === providerId);
+                if (provider) {
+                    const product = provider.products.find(p => p.id === updatedProduct.id);
+                    if (product) { (product as any).status = 'Disabled'; (product as any)._optimisticPending = true; }
+                }
             }));
-
 
         } catch (error: any) {
             // Revert optimistic change
             onProvidersChange(previousState as any);
-            // Show error
             toast({ title: 'Error', description: error.message || 'Failed to update product', variant: 'destructive' });
         } finally {
             setIsSaving(false);
@@ -1543,7 +1587,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                 onCheckedChange={(checked) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningEnabled: checked })}
                                                 className="data-[state=checked]:bg-[--provider-color]"
                                                 style={{ '--provider-color': provider.colorHex } as React.CSSProperties}
-                                                disabled={product.status === 'PENDING_APPROVAL'}
+                                                disabled={((product as any)._optimisticPending || product.status === 'PENDING_APPROVAL')}
                                             />
                                             <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
                                         </div>
@@ -1555,7 +1599,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                     <Select
                                                         value={product.dataProvisioningConfigId || ''}
                                                         onValueChange={(value) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningConfigId: value })}
-                                                        disabled={product.status === 'PENDING_APPROVAL'}
+                                                        disabled={((product as any)._optimisticPending || product.status === 'PENDING_APPROVAL')}
                                                     >
                                                         <SelectTrigger className="w-full">
                                                             <SelectValue placeholder="Select a data source..." />

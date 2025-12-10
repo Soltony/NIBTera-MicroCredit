@@ -90,16 +90,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Not authorized to perform this action' }, { status: 403 });
       }
 
-    // Set the original entity to PENDING_APPROVAL status
+    // For update/delete requests we change the original entity state to prevent
+    // it from being used while the change is pending. For products we disable
+    // them immediately so they cannot be selected; providers remain PENDING_APPROVAL.
     if (entityId && (changeType === 'UPDATE' || changeType === 'DELETE')) {
-        if (entityType === 'LoanProvider') {
-            await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'PENDING_APPROVAL' }});
-        } else if (entityType === 'LoanProduct') {
-            await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'PENDING_APPROVAL' }});
-        } else if (entityType === 'Tax') {
-            await prisma.tax.update({ where: { id: entityId }, data: { status: 'PENDING_APPROVAL' }});
-        }
-        // Scoring rules don't have a status on a single entity, it's a collection.
+      if (entityType === 'LoanProvider') {
+        await prisma.loanProvider.update({ where: { id: entityId }, data: { status: 'PENDING_APPROVAL' }});
+      } else if (entityType === 'LoanProduct') {
+        await prisma.loanProduct.update({ where: { id: entityId }, data: { status: 'Disabled' }});
+      } else if (entityType === 'Tax') {
+        await prisma.tax.update({ where: { id: entityId }, data: { status: 'PENDING_APPROVAL' }});
+      }
+      // Scoring rules don't have a status on a single entity, it's a collection.
     }
 
 

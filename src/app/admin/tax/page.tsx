@@ -201,7 +201,7 @@ export default function TaxSettingsPage() {
             name: 'New Tax',
             rate: 0,
             appliedTo: '[]',
-            status: 'ACTIVE',
+            status: 'Active',
         };
         setTaxes(prev => [...prev, newTax]);
     }

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
                 minLoan: productData.minLoan,
                 maxLoan: productData.maxLoan,
                 duration: productData.duration,
-                status: 'Active',
+                status: 'Disabled',
                 // Default fee structures
                 serviceFee: JSON.stringify({ type: 'percentage', value: 0 }),
                 dailyFee: JSON.stringify({ type: 'percentage', value: 0 }),

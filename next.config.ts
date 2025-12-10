@@ -10,13 +10,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co', pathname: '/**' },
       { protocol: 'https', hostname: 'play-lh.googleusercontent.com', pathname: '/**' },
-      // Removed GitHub hosts to avoid direct browser requests to GitHub
     ],
   },
 
   async headers() {
     return [
-      // ✅ Apply to all routes
       {
         source: '/:path*',
         headers: [
@@ -24,9 +22,12 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains; preload",
+          },
         ],
       },
-      // ✅ Apply to API routes
       {
         source: '/api/:path*',
         headers: [

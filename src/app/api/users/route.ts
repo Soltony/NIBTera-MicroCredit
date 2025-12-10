@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z, ZodError } from 'zod';
-import { loginSchema } from '@/lib/validators';
+import { loginSchema, passwordSchema } from '@/lib/validators';
+import { validationErrorResponse, handleApiError } from '@/lib/error-utils';
 import { isBlocked, recordFailedAttempt, resetAttempts, getRemainingAttempts, getBackoffSeconds, getLockRemainingMs } from '@/lib/rate-limiter';
 import { createAuditLog } from '@/lib/audit-log';
 import { getUserFromSession } from '@/lib/user';
@@ -87,10 +88,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { password, role: roleName, providerId, ...userData } = userSchema.parse(body);
-    // Validate password with the stronger shared login password rules
-    const passwordSchema = loginSchema.pick({ password: true });
+    // Validate password with the stronger shared password rules (includes breach check)
     try {
-      passwordSchema.parse({ password });
+      // Use the exported `passwordSchema` which includes the async HaveIBeenPwned check.
+      // Wrap into an object so we can pass the same shape as before.
+      const pwWrapper = z.object({ password: passwordSchema });
+      await pwWrapper.parseAsync({ password });
     } catch (err) {
       if (err instanceof ZodError) {
         // record failed attempt and apply the same lockout/backoff behavior as login
@@ -103,9 +106,11 @@ export async function POST(req: NextRequest) {
         const backoff = getBackoffSeconds(rateKey);
         if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
         const remaining = getRemainingAttempts(rateKey);
+        // Return sanitized validation issues
         return NextResponse.json({ error: 'Invalid password.', retriesLeft: remaining, delaySeconds: backoff, issues: err.errors }, { status: 400 });
       }
-      throw err;
+      // Unexpected error: log & return generic message
+      return handleApiError(err, { operation: 'POST /api/users' });
     }
 
     const logDetails = { userEmail: userData.email, assignedRole: roleName };
@@ -164,9 +169,9 @@ export async function POST(req: NextRequest) {
      await createAuditLog({ actorId: user.id, action: 'USER_CREATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
      console.error(JSON.stringify({ ...failureLogDetails, action: 'USER_CREATE_FAILED', actorId: user.id }));
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request', issues: error.errors }, { status: 400 });
     }
-    return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
+    return handleApiError(error, { operation: 'POST /api/users' });
   }
 }
 
@@ -216,9 +221,19 @@ export async function PUT(req: NextRequest) {
     }
     
     if (password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        dataToUpdate.password = hashedPassword;
-        dataToUpdate.passwordChangeRequired = true; // Force user to change password on next login
+      try {
+        const pwWrapper = z.object({ password: passwordSchema });
+        await pwWrapper.parseAsync({ password });
+      } catch (err) {
+        if (err instanceof ZodError) {
+          return NextResponse.json({ error: 'Invalid password', issues: err.errors }, { status: 400 });
+        }
+        throw err;
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      dataToUpdate.password = hashedPassword;
+      dataToUpdate.passwordChangeRequired = true; // Force user to change password on next login
     }
 
     // Handle providerId relationship
@@ -251,6 +266,6 @@ export async function PUT(req: NextRequest) {
     const failureLogDetails = { error: errorMessage };
     await createAuditLog({ actorId: user.id, action: 'USER_UPDATE_FAILED', entity: 'USER', details: failureLogDetails, ipAddress, userAgent });
     console.error(JSON.stringify({ ...failureLogDetails, action: 'USER_UPDATE_FAILED', actorId: user.id }));
-    return NextResponse.json({ error: errorMessage || 'Internal Server Error' }, { status: 500 });
+    return handleApiError(error, { operation: 'PUT /api/users', info: { userId: body?.id } });
   }
 }

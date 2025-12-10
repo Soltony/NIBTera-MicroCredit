@@ -66,7 +66,7 @@ async function getTaxConfig(): Promise<Tax> {
     let config = await prisma.tax.findFirst();
     if (!config) {
         // Provide a default structure if no tax config is found
-        config = { id: 'default', name: 'Default Tax', rate: 0, appliedTo: '[]', status: 'ACTIVE' };
+        config = { id: 'default', name: 'Default Tax', rate: 0, appliedTo: '[]', status: 'Active' };
     }
     return {
         ...config,

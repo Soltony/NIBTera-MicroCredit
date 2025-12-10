@@ -6,6 +6,7 @@ import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
 import ExcelJS from 'exceljs';
 import { createAuditLog } from '@/lib/audit-log';
+import { handleApiError } from '@/lib/error-utils';
 
 
 // Helper to convert strings to camelCase
@@ -201,9 +202,9 @@ export async function POST(req: NextRequest) {
              return NextResponse.json({ error: 'Duplicate data entry found in file. Please ensure identifiers are unique within the file.' }, { status: 400 });
         }
         if (error.code === 'P2003') { // Foreign key constraint
-            return NextResponse.json({ error: `Foreign key constraint failed. This may be because a borrower ID in your file does not exist. The system tried to create it but failed. Please check your data.` }, { status: 400 });
+            return NextResponse.json({ error: 'Foreign key constraint failed. Please verify identifier values in the uploaded file.' }, { status: 400 });
         }
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error, { operation: 'POST /api/settings/data-provisioning-uploads' });
     }
 }
 

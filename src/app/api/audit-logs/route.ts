@@ -1,16 +1,20 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.userId) {
+    const user = await getUserFromSession();
+    if (!user) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // You might want to add role-based access control here
-    // For example, only allow 'Super Admin' or 'Auditor' to see logs.
+    // Only allow users with audit-logs.read permission or Super Admin/Auditor role
+    const canReadAuditLogs = user.permissions?.['audit-logs']?.read || user.role === 'Super Admin' || user.role === 'Auditor';
+    if (!canReadAuditLogs) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -29,8 +33,14 @@ export async function GET(req: NextRequest) {
             prisma.auditLog.count(),
         ]);
 
+        // For non-super-admin/auditor, filter sensitive fields
+        let filteredLogs = logs;
+        if (user.role !== 'Super Admin' && user.role !== 'Auditor') {
+            filteredLogs = logs.map(({ id, actorId, action, entity, entityId, createdAt }) => ({ id, actorId, action, entity, entityId, createdAt }));
+        }
+
         return NextResponse.json({
-            logs,
+            logs: filteredLogs,
             totalPages: Math.ceil(totalCount / limit),
             currentPage: page,
         });
@@ -39,3 +49,4 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

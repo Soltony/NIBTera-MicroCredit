@@ -10,7 +10,7 @@ export default function HomePage() {
 
   useEffect(() => {
     // Redirect to the connection page as the primary entry point for the mini app
-    router.replace('/loan/connect');
+    router.replace('/admin/login');
   }, [router]);
 
   return (

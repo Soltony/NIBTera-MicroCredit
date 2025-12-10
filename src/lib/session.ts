@@ -242,6 +242,5 @@ export async function deleteSession() {
   const expired = new Date(0);
   cookiesStore.set('accessToken', '', { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: expired });
   cookiesStore.set('refreshToken', '', { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: expired });
-  // clear legacy session cookie for backwards compatibility
   cookiesStore.set('session', '', { httpOnly: true, secure: isProd(), sameSite: 'lax', path: '/', expires: expired });
 }
