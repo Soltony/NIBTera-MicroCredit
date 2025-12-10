@@ -134,7 +134,7 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
     router.push('/admin/login');
   };
 
-  if (pathname === '/admin/login') {
+  if (pathname === '/admin/login' || pathname?.startsWith('/admin/change-password')) {
     return <>{children}</>;
   }
 
