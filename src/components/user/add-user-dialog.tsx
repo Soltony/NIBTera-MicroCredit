@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,22 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
     providerId: '' as string | null,
   });
 
+  const [pwChecks, setPwChecks] = useState({
+    length: false,
+    lower: false,
+    upper: false,
+    number: false,
+    symbol: false,
+    common: true, // true means it's common (we'll invert when displaying)
+  });
+  const [pwned, setPwned] = useState<boolean | null>(null);
+  const [pwnedLoading, setPwnedLoading] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const pwnedAbort = useRef<AbortController | null>(null);
+  const [pwFocused, setPwFocused] = useState(false);
+
+  const COMMON = new Set(['123456','123456789','qwerty','password','1234567','12345678','12345','111111','123123','password1','1234567890','1234','welcome','letmein','admin','iloveyou']);
+
   useEffect(() => {
     const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
     if (user) {
@@ -62,6 +78,71 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
       });
     }
   }, [user, isOpen, providers, roles]);
+
+  // Validate password client-side and run debounced pwned-password check
+  useEffect(() => {
+    const pw = formData.password || '';
+    const checks = {
+      length: pw.length >= 8,
+      lower: /[a-z]/.test(pw),
+      upper: /[A-Z]/.test(pw),
+      number: /\d/.test(pw),
+      symbol: /[^A-Za-z0-9]/.test(pw),
+      common: COMMON.has(pw.toLowerCase()),
+    };
+    setPwChecks(checks as any);
+    setPwned(null);
+    setPwError(null);
+
+    // Only run pwned check if password is non-empty and meets basic composition
+    const shouldCheckPwned = pw.length > 0 && checks.length && checks.lower && checks.upper && checks.number && checks.symbol && !checks.common;
+
+    if (!shouldCheckPwned) {
+      if (pwnedAbort.current) {
+        pwnedAbort.current.abort();
+        pwnedAbort.current = null;
+      }
+      setPwned(null);
+      setPwnedLoading(false);
+      return;
+    }
+
+    setPwnedLoading(true);
+    const ac = new AbortController();
+    pwnedAbort.current = ac;
+    const id = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/utils/pwned-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw }),
+          signal: ac.signal,
+        });
+        if (!res.ok) {
+          setPwned(false);
+        } else {
+          const data = await res.json();
+          setPwned(Boolean(data?.pwned));
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('pwned check failed', err);
+        setPwError('Could not verify password breach status');
+        setPwned(null);
+      } finally {
+        setPwnedLoading(false);
+        pwnedAbort.current = null;
+      }
+    }, 600);
+
+    return () => {
+      clearTimeout(id);
+      if (pwnedAbort.current) {
+        pwnedAbort.current.abort();
+        pwnedAbort.current = null;
+      }
+    };
+  }, [formData.password]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -91,26 +172,33 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
-    
+    // Inline validation: ensure client checks pass and pwned check is clear
     if (submissionData.password) {
-        // If a new password is set (for create or edit), validate it
-        const pw = submissionData.password;
-        const COMMON = new Set(['123456','123456789','qwerty','password','1234567','12345678','12345','111111','123123','password1','1234567890','1234','welcome','letmein','admin','iloveyou']);
-        if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) {
-            alert('New password must be at least 8 characters and include uppercase, lowercase, a number, and a symbol.');
-            return;
-        }
-        if (COMMON.has(pw.toLowerCase())) {
-            alert('This password is too common. Please choose a stronger one.');
-            return;
-        }
-    } else if (!user) { // Password is only required for brand new users
-        alert('Password is required for new users.');
+      const pw = submissionData.password;
+      if (!pwChecks.length || !pwChecks.lower || !pwChecks.upper || !pwChecks.number || !pwChecks.symbol) {
+        setPwError('Password does not meet complexity requirements.');
         return;
+      }
+      if (pwChecks.common) {
+        setPwError('Password is too common.');
+        return;
+      }
+      if (pwned === true) {
+        setPwError('This password has appeared in a data breach. Choose a different password.');
+        return;
+      }
+      if (pwnedLoading) {
+        setPwError('Password breach check is still running. Please wait.');
+        return;
+      }
+    } else if (!user) { // Password is only required for brand new users
+      setPwError('Password is required for new users.');
+      return;
     } else {
-        // If editing and password field is empty, don't send it to the server
-        delete submissionData.password;
+      // If editing and password field is empty, don't send it to the server
+      delete submissionData.password;
     }
+    setPwError(null);
     
     // Ensure providerId is null if the role is not provider-specific
     if (submissionData.role !== 'Loan Provider' && submissionData.role !== 'Loan Manager') {
@@ -160,11 +248,42 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
                 type="password" 
                 value={formData.password} 
                 onChange={handleChange} 
+                onFocus={() => setPwFocused(true)}
+                onBlur={() => setPwFocused(false)}
                 className="col-span-3" 
                 required={!user} // Only required for new users
                 placeholder={user ? 'Optional: Enter to reset' : ''}
             />
           </div>
+          {/* Inline password validation UI (show on focus or when there's content) */}
+          {(pwFocused || (formData.password && formData.password.length > 0)) && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <div />
+              <div className="col-span-3 mt-2 mb-2">
+                <div className="rounded-md border p-3 bg-yellow-50">
+                  <div className="mb-2 font-semibold">Password must contain:</div>
+                  <ul className="space-y-1 text-sm">
+                    <li>{pwChecks.length ? '✅' : '❌'} At least 8 characters long</li>
+                    <li>{pwChecks.lower ? '✅' : '❌'} At least one lowercase letter</li>
+                    <li>{pwChecks.upper ? '✅' : '❌'} At least one uppercase letter</li>
+                    <li>{pwChecks.number ? '✅' : '❌'} At least one number</li>
+                    <li>{pwChecks.symbol ? '✅' : '❌'} At least one special character (@$!%*?&)</li>
+                    <li>{!pwChecks.common ? '✅' : '❌'} Not a commonly used password</li>
+                  </ul>
+                  <div className="mt-2 text-sm">
+                    {pwnedLoading ? (
+                      <span>Checking breach database…</span>
+                    ) : pwned === true ? (
+                      <span className="text-red-700">This password was found in a data breach.</span>
+                    ) : pwned === false ? (
+                      <span className="text-green-700">Not found in known breaches.</span>
+                    ) : null}
+                    {pwError ? <div className="text-red-700 mt-1">{pwError}</div> : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="role" className="text-right">
               Role
@@ -217,7 +336,10 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" style={{ backgroundColor: primaryColor }} className="text-white">
+            <Button type="submit" disabled={
+              ( !user && !formData.password ) ||
+              (formData.password && (!pwChecks.length || !pwChecks.lower || !pwChecks.upper || !pwChecks.number || !pwChecks.symbol || pwChecks.common || pwned === true || pwnedLoading))
+            } style={{ backgroundColor: primaryColor }} className="text-white">
               {user ? 'Save Changes' : 'Add User'}
             </Button>
           </DialogFooter>
