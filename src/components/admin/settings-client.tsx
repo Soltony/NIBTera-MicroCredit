@@ -48,6 +48,7 @@ import {
   DialogDescription as UIDialogDescription,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { postPendingChange } from '@/lib/fetch-utils';
 import { produce } from 'immer';
 import { IconDisplay } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -266,20 +267,12 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                     productId: product.id,
                 }
             };
-                 const response = await fetch(`/api/settings/pending-changes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                await postPendingChange({
                     entityType: 'EligibilityList',
                     entityId: product.id,
                     changeType: 'CREATE', // Using CREATE since it creates a new upload and filter
                     payload: JSON.stringify(payload),
-                }),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit eligibility list for approval.');
-            }
+                }, 'Failed to submit eligibility list for approval.');
             toast({ title: "Submitted for Approval", description: `The new eligibility list for "${product.name}" is pending review.` });
 
             // Replace the temporary upload with a "pending" state placeholder
@@ -324,21 +317,12 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 updated: sanitizeProductForPayload(productToSave)
             };
 
-                const response = await fetch(`/api/settings/pending-changes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                await postPendingChange({
                     entityType: 'LoanProduct',
                     entityId: product.id,
                     changeType: 'UPDATE',
                     payload: JSON.stringify(payload)
-                }),
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit product changes for approval.');
-            }
+                }, 'Failed to submit product changes for approval.');
 
             onUpdate({ status: 'Disabled', _optimisticPending: true } as any);
 
@@ -485,21 +469,12 @@ function ProvidersTab({ providers, onProvidersChange }: {
                 created: !isEditing ? providerData : undefined,
             };
 
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProvider',
-                    entityId,
-                    changeType,
-                    payload: JSON.stringify(payload)
-                }),
-            });
-
-            if (!response.ok) {
-                 const errorData = await response.json();
-                 throw new Error(errorData.error?.message || `Failed to submit provider changes`);
-            }
+            await postPendingChange({
+                entityType: 'LoanProvider',
+                entityId,
+                changeType,
+                payload: JSON.stringify(payload)
+            }, 'Failed to submit provider changes');
 
             onProvidersChange(produce(draft => {
                 if (isEditing && entityId) {
@@ -523,19 +498,11 @@ function ProvidersTab({ providers, onProvidersChange }: {
         if (!selectedProviderId) return;
 
         try {
-             const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    changeType: 'CREATE',
-                    payload: JSON.stringify({ created: { ...newProductData, providerId: selectedProviderId } })
-                })
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit new product for approval');
-            }
+            await postPendingChange({
+                entityType: 'LoanProduct',
+                changeType: 'CREATE',
+                payload: JSON.stringify({ created: { ...newProductData, providerId: selectedProviderId } })
+            }, 'Failed to submit new product for approval');
             // Note: The product is not added to the local state, as it will only appear after approval.
             toast({ title: "Submitted for Approval", description: `${newProductData.name} has been submitted for review.` });
         } catch (error: any) {
@@ -572,20 +539,12 @@ function ProvidersTab({ providers, onProvidersChange }: {
              const providerToDelete = providers.find(p => p.id === providerId);
              if (!providerToDelete) throw new Error('Provider not found');
 
-            const response = await fetch(`/api/settings/pending-changes`, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProvider',
-                    entityId: providerId,
-                    changeType: 'DELETE',
-                    payload: JSON.stringify({ original: sanitizeProviderForPayload(providerToDelete) })
-                }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Could not submit deletion for approval.');
-            }
+             await postPendingChange({
+                entityType: 'LoanProvider',
+                entityId: providerId,
+                changeType: 'DELETE',
+                payload: JSON.stringify({ original: sanitizeProviderForPayload(providerToDelete) })
+            }, 'Could not submit deletion for approval.');
             
             onProvidersChange(produce(draft => {
                 const index = draft.findIndex(p => p.id === providerId);
@@ -604,20 +563,12 @@ function ProvidersTab({ providers, onProvidersChange }: {
             const productToDelete = provider?.products.find(p => p.id === productId);
             if (!productToDelete) throw new Error("Product not found");
 
-             const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+             await postPendingChange({ 
                     entityType: 'LoanProduct',
                     entityId: productId,
                     changeType: 'DELETE',
                     payload: JSON.stringify({ original: sanitizeProductForPayload(productToDelete) })
-                 }),
-             });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Could not submit product deletion for approval.');
-            }
+                 }, 'Could not submit product deletion for approval.');
             
              onProvidersChange(produce(draft => {
                 const provider = draft.find(p => p.id === providerId);
@@ -1128,21 +1079,12 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                 original: sanitizeProductForPayload(originalSubset), // The original product state before edits (sanitized)
                 updated: sanitizeProductForPayload(config),   // The new state from the form (sanitized)
             };
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    entityId: product.id,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit changes for approval.');
-            }
+            await postPendingChange({
+                entityType: 'LoanProduct',
+                entityId: product.id,
+                changeType: 'UPDATE',
+                payload: JSON.stringify(payload)
+            }, 'Failed to submit changes for approval.');
 
             // Update the parent state to reflect pending status
             onProductUpdate({ ...config, status: 'Disabled', _optimisticPending: true } as any);
@@ -1427,21 +1369,12 @@ function EligibilityTab({ providers, onProvidersChange }: {
             const body: any = { id: updatedProduct.id, dataProvisioningEnabled: false };
             const payload = { original: originalProduct, updated: { ...originalProduct, ...body } };
 
-            const resp = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'LoanProduct',
-                    entityId: updatedProduct.id,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
-            });
-
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || 'Failed to submit changes for approval');
-            }
+            await postPendingChange({
+                entityType: 'LoanProduct',
+                entityId: updatedProduct.id,
+                changeType: 'UPDATE',
+                payload: JSON.stringify(payload)
+            }, 'Failed to submit changes for approval');
 
             toast({ title: 'Submitted for Approval', description: 'Disabling eligibility has been submitted for review.' });
 
@@ -1513,20 +1446,12 @@ function EligibilityTab({ providers, onProvidersChange }: {
                     productId: product.id,
                 }
             };
-             const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'EligibilityList',
-                    entityId: product.id,
-                    changeType: 'CREATE',
-                    payload: JSON.stringify(payload),
-                }),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit eligibility list for approval.');
-            }
+             await postPendingChange({
+                entityType: 'EligibilityList',
+                entityId: product.id,
+                changeType: 'CREATE',
+                payload: JSON.stringify(payload),
+            }, 'Failed to submit eligibility list for approval.');
             toast({ title: "Submitted for Approval", description: `The new eligibility list for "${product.name}" is pending review.` });
             
             const finalUploadState = { ...product.eligibilityUpload, id: 'pending-approval', status: 'PENDING_APPROVAL', fileContent: undefined };
@@ -1807,16 +1732,7 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
             const changeType = loanCycleConfig ? 'UPDATE' : 'CREATE';
             const payload = loanCycleConfig ? { original: loanCycleConfig, updated } : { created: updated };
 
-            const resp = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entityType: 'LoanCycleConfig', entityId: product.id, changeType, payload: JSON.stringify(payload) })
-            });
-
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || 'Failed to submit loan-cycle config for approval');
-            }
+            await postPendingChange({ entityType: 'LoanCycleConfig', entityId: product.id, changeType, payload: JSON.stringify(payload) }, 'Failed to submit loan-cycle config for approval');
 
             // Mark locally as pending (so UI reflects that change was submitted)
             toast({ title: 'Submitted', description: 'Loan cycle configuration has been submitted for approval.' });
@@ -2045,21 +1961,12 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
                 updated: { providerId: provider.id, content: terms.content }
             }
 
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'TermsAndConditions',
-                    entityId: originalTerms?.id || provider.id, // Use provider ID for new terms
-                    changeType: 'UPDATE', // Always an update/new version
-                    payload: JSON.stringify(payload)
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to submit new terms for approval.");
-            }
+            await postPendingChange({
+                entityType: 'TermsAndConditions',
+                entityId: originalTerms?.id || provider.id, // Use provider ID for new terms
+                changeType: 'UPDATE', // Always an update/new version
+                payload: JSON.stringify(payload)
+            }, 'Failed to submit new terms for approval.');
             
             toast({ title: "Submitted for Approval", description: `A new version of the terms has been submitted for review.` });
 

@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScorePreview } from '@/components/loan/score-preview';
 import { useToast } from '@/hooks/use-toast';
+import { postPendingChange } from '@/lib/fetch-utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { LoanProduct, LoanProvider } from '@/lib/types';
@@ -354,17 +355,12 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                 updated: currentParameters,
                 appliedProductIds: appliedProductIds,
             };
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'ScoringRules',
-                    entityId: selectedProviderId,
-                    changeType: 'UPDATE',
-                    payload: JSON.stringify(payload)
-                }),
-            });
-            if (!response.ok) throw new Error((await response.json()).error || 'Failed to submit changes for approval.');
+            await postPendingChange({
+                entityType: 'ScoringRules',
+                entityId: selectedProviderId,
+                changeType: 'UPDATE',
+                payload: JSON.stringify(payload)
+            }, 'Failed to submit changes for approval.');
             
             toast({
                 title: 'Submitted for Approval',
@@ -699,20 +695,12 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             const configToDelete = configs.find(c => c.id === configId);
             if (!configToDelete) throw new Error("Config not found");
 
-            const response = await fetch(`/api/settings/pending-changes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'DataProvisioningConfig',
-                    entityId: configId,
-                    changeType: 'DELETE',
-                    payload: JSON.stringify({ original: configToDelete })
-                }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit deletion for approval.');
-            }
+            await postPendingChange({
+                entityType: 'DataProvisioningConfig',
+                entityId: configId,
+                changeType: 'DELETE',
+                payload: JSON.stringify({ original: configToDelete })
+            }, 'Failed to submit deletion for approval.');
             toast({ title: "Deletion Submitted", description: `Deletion of "${configToDelete.name}" is pending approval.` });
             
             const newConfigs = produce(configs, draft => {
@@ -742,21 +730,12 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 created: !isEditing ? { ...config, providerId } : null,
             };
 
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'DataProvisioningConfig',
-                    entityId,
-                    changeType,
-                    payload: JSON.stringify(payload),
-                })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit changes for approval.');
-            }
+            await postPendingChange({
+                entityType: 'DataProvisioningConfig',
+                entityId,
+                changeType,
+                payload: JSON.stringify(payload),
+            }, 'Failed to submit changes for approval.');
             toast({ title: "Submitted for Approval", description: `Changes for "${config.name}" have been submitted.` });
 
              if (isEditing) {
@@ -800,21 +779,12 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                     }
                 };
 
-                const response = await fetch('/api/settings/pending-changes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        entityType: 'DataProvisioningUpload',
-                        entityId: config.id, // Use configId as entityId for context
-                        changeType: 'CREATE',
-                        payload: JSON.stringify(payload),
-                    }),
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to submit file for approval.');
-                }
+                await postPendingChange({
+                    entityType: 'DataProvisioningUpload',
+                    entityId: config.id, // Use configId as entityId for context
+                    changeType: 'CREATE',
+                    payload: JSON.stringify(payload),
+                }, 'Failed to submit file for approval.');
                 
                 toast({
                     title: 'Submitted for Approval',

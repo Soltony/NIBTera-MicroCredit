@@ -1,17 +1,14 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { decryptJwt } from '@/lib/session';
 import { allMenuItems } from './lib/menu-items';
 import type { Permissions } from '@/lib/types';
 
-// Helper: resolve allowed roles for a given path. First try menu item config,
-// then fall back to a small API-prefix -> menu path mapping for common admin APIs.
+// Helper: resolve allowed roles for a given path
 function getAllowedRolesForPath(path: string): string[] | undefined {
   const route = allMenuItems.find(item => path.startsWith(item.path));
   const maybe = (route as any)?.allowedRoles;
-  if (maybe && Array.isArray(maybe) && maybe.length > 0) return maybe.map((r: any) => String(r));
+  if (Array.isArray(maybe) && maybe.length > 0) return maybe.map((r: any) => String(r));
 
-  // Fallback mapping for API prefixes to menu paths (so APIs can inherit menu's allowedRoles)
   const apiPrefixToMenuPath: Record<string, string> = {
     '/api/audit-logs': '/admin/audit-logs',
     '/api/approvals': '/admin/approvals',
@@ -27,17 +24,31 @@ function getAllowedRolesForPath(path: string): string[] | undefined {
       const menuPath = apiPrefixToMenuPath[prefix];
       const menuItem = allMenuItems.find(item => item.path === menuPath);
       const ar = (menuItem as any)?.allowedRoles;
-      if (ar && Array.isArray(ar) && ar.length > 0) return ar.map((r: any) => String(r));
+      if (Array.isArray(ar) && ar.length > 0) return ar.map((r: any) => String(r));
     }
   }
 
   return undefined;
 }
 
-const protectedAdminRoutes = ['/admin', '/api/admin', '/api/audit-logs', '/api/approvals', '/api/roles', '/api/settings', '/api/providers', '/api/users', '/api/reports'];
+// Add CSP + Security headers to ANY response (HTML or JSON)
+function withSecurityHeaders(res: NextResponse, csp: string, nonce: string) {
+  res.headers.set('Content-Security-Policy', csp);
+  res.headers.set('x-nonce', nonce);
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+  res.headers.set('X-Frame-Options', 'DENY');
+  res.headers.set('Referrer-Policy', 'no-referrer');
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  return res;
+}
+
+const protectedAdminRoutes = [
+  '/admin', '/api/admin', '/api/audit-logs', '/api/approvals', '/api/roles',
+  '/api/settings', '/api/providers', '/api/users', '/api/reports'
+];
 const publicRoutes = ['/admin/login', '/loan/connect', '/admin/change-password'];
 
-// Only run the middleware for admin UI pages and selected admin API routes.
 export const config = {
   matcher: [
     '/admin/:path*',
@@ -63,10 +74,11 @@ export const config = {
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  // ✅ Edge-safe nonce using Web Crypto
-  const nonce = btoa(self.crypto.randomUUID()); // base64 encode UUID
 
-  // Build CSP header
+  // Generate nonce
+  const nonce = btoa(self.crypto.randomUUID());
+
+  // Build CSP
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'nonce-${nonce}';
@@ -84,68 +96,84 @@ export default async function middleware(req: NextRequest) {
     upgrade-insecure-requests;
   `.replace(/\s{2,}/g, ' ').trim();
 
-  // Clone request headers and add nonce
+  // Clone request headers for NextResponse.next()
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', cspHeader);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  // Set security headers
-  response.headers.set('Content-Security-Policy', cspHeader);
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set('Referrer-Policy', 'no-referrer');
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  // ----------------------------------------
+  // START ACCESS CONTROL ENFORCEMENT
+  // ----------------------------------------
 
-  // --- START PERMISSION-BASED ROUTE PROTECTION ---
-  const isProtected = protectedAdminRoutes.some((prefix) => path.startsWith(prefix));
+  const isProtected = protectedAdminRoutes.some(prefix => path.startsWith(prefix));
 
   if (isProtected && !publicRoutes.includes(path)) {
-    // Fetch authoritative session info from server API (for permissions & state)
     const cookieHeader = req.headers.get('cookie') || '';
     let sessionResp: Response | null = null;
+
     try {
-      sessionResp = await fetch(new URL('/api/auth/session', req.nextUrl.origin).toString(), { headers: { cookie: cookieHeader } });
+      sessionResp = await fetch(new URL('/api/auth/session', req.nextUrl.origin).toString(), {
+        headers: { cookie: cookieHeader }
+      });
     } catch (e) {
       console.error('Failed to fetch session in middleware:', e);
+
       if (path.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+        return withSecurityHeaders(
+          NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
+          cspHeader,
+          nonce
+        );
       }
-      return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+
+      return withSecurityHeaders(
+        NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin)),
+        cspHeader,
+        nonce
+      );
     }
 
     if (!sessionResp || !sessionResp.ok) {
       if (path.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+        return withSecurityHeaders(
+          NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
+          cspHeader,
+          nonce
+        );
       }
-      return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
+
+      return withSecurityHeaders(
+        NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin)),
+        cspHeader,
+        nonce
+      );
     }
 
     const session = await sessionResp.json();
 
-    // 2. If password change is required, force redirect to change password page
-    if (session.passwordChangeRequired && path !== '/admin/change-password' && !path.startsWith('/api/auth/change-password')) {
-        return NextResponse.redirect(new URL('/admin/change-password', req.nextUrl.origin).toString());
+    // Force password change
+    if (session.passwordChangeRequired &&
+        path !== '/admin/change-password' &&
+        !path.startsWith('/api/auth/change-password')) {
+      return withSecurityHeaders(
+        NextResponse.redirect(new URL('/admin/change-password', req.nextUrl.origin)),
+        cspHeader,
+        nonce
+      );
     }
+
     if (!session.passwordChangeRequired && path === '/admin/change-password') {
-         return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+      return withSecurityHeaders(
+        NextResponse.redirect(new URL('/admin', req.nextUrl.origin)),
+        cspHeader,
+        nonce
+      );
     }
 
-    // Permissions are returned from the session API as an authoritative source
-    let permissions: Permissions = {};
-    try {
-      permissions = session.permissions || {};
-    } catch (e) {
-      console.error('Failed to parse permissions in middleware', e);
-      if (path.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-      }
-      return NextResponse.redirect(new URL('/admin/login', req.nextUrl.origin).toString());
-    }
+    let permissions: Permissions = session.permissions || {};
 
-    // Derive a permission map from menu items: pathPrefix -> moduleKey
     const PERMISSION_MAP: Record<string, string> = {};
     const ORDERED_ADMIN_PAGES: string[] = [];
     for (const item of allMenuItems) {
@@ -154,95 +182,110 @@ export default async function middleware(req: NextRequest) {
       ORDERED_ADMIN_PAGES.push(item.path);
     }
 
-    // Build a set of permission keys the user has (any truthy action)
     const userPermissions = new Set<string>();
-    try {
-      for (const [k, v] of Object.entries(permissions || {})) {
-        if (v && Object.values(v as any).some(Boolean)) {
-          userPermissions.add(k.toLowerCase());
-        }
+    for (const [k, v] of Object.entries(permissions || {})) {
+      if (v && Object.values(v as any).some(Boolean)) {
+        userPermissions.add(k.toLowerCase());
       }
-    } catch (e) {
-      // ignore malformed permissions; leave set empty
     }
 
-    // Find the menu item that corresponds to the path being accessed.
     const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
 
-    // If user is not a Super Admin, enforce page-level access using the PERMISSION_MAP
-    try {
-      const isSuperAdmin = session?.role === 'Super Admin';
-      if (!isSuperAdmin) {
-        // Find required permission by longest-matching path prefix in PERMISSION_MAP
-        let requiredPermission: string | undefined;
-        let longestMatch = '';
-        for (const [prefix, perm] of Object.entries(PERMISSION_MAP)) {
-          if (path.startsWith(prefix) && prefix.length >= longestMatch.length) {
-            longestMatch = prefix;
-            requiredPermission = perm;
-          }
-        }
+    // Permission enforcement (non-super-admin)
+    const isSuperAdmin = session?.role === 'Super Admin';
 
-        if (requiredPermission && !userPermissions.has(requiredPermission.toLowerCase())) {
-          // Find first allowed page for this user
-          const firstAllowedPage = ORDERED_ADMIN_PAGES.find((pagePath) => {
-            const perm = PERMISSION_MAP[pagePath];
-            return perm && userPermissions.has(perm.toLowerCase());
-          });
+    if (!isSuperAdmin) {
+      let requiredPermission: string | undefined;
+      let longestMatch = '';
 
-          if (path.startsWith('/api/')) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-          }
-
-          const redirectUrl = new URL((firstAllowedPage && firstAllowedPage !== '') ? firstAllowedPage : '/admin', req.nextUrl.origin);
-          redirectUrl.searchParams.set('error', 'Access Denied');
-          return NextResponse.redirect(redirectUrl);
+      for (const [prefix, perm] of Object.entries(PERMISSION_MAP)) {
+        if (path.startsWith(prefix) && prefix.length >= longestMatch.length) {
+          longestMatch = prefix;
+          requiredPermission = perm;
         }
       }
-    } catch (e) {
-      console.error('Error enforcing page-permission map in middleware', e);
-      // fall through to existing permission logic
+
+      if (requiredPermission && !userPermissions.has(requiredPermission.toLowerCase())) {
+        const firstAllowedPage = ORDERED_ADMIN_PAGES.find(pagePath => {
+          const perm = PERMISSION_MAP[pagePath];
+          return perm && userPermissions.has(perm.toLowerCase());
+        });
+
+        if (path.startsWith('/api/')) {
+          return withSecurityHeaders(
+            NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+            cspHeader,
+            nonce
+          );
+        }
+
+        const redirectUrl = new URL(firstAllowedPage || '/admin', req.nextUrl.origin);
+        redirectUrl.searchParams.set('error', 'Access Denied');
+
+        return withSecurityHeaders(
+          NextResponse.redirect(redirectUrl),
+          cspHeader,
+          nonce
+        );
+      }
     }
-    // --- Dynamic role enforcement: if the menu item defines `allowedRoles`, ensure
-    // the current user's role is included. `session.role` is expected to be a string
-    // such as 'Logger', 'Admin', etc. If not allowed, block the request.
+
+    // allowedRoles enforcement
     try {
-      const userRole = (session && session.role) ? String(session.role) : undefined;
+      const userRole = session?.role ? String(session.role) : undefined;
       const allowedRoles: string[] | undefined = (currentRouteConfig as any)?.allowedRoles;
-      if (allowedRoles && allowedRoles.length > 0) {
-        // Normalize role strings for comparison
-        const normalizedAllowed = allowedRoles.map(r => String(r).trim().toLowerCase());
-        const normalizedUserRole = userRole ? userRole.trim().toLowerCase() : undefined;
-        const roleAllowed = !!(normalizedUserRole && normalizedAllowed.includes(normalizedUserRole));
-        if (!roleAllowed) {
+
+      if (allowedRoles?.length) {
+        const normAllowed = allowedRoles.map(r => r.toLowerCase());
+        const normUserRole = userRole?.toLowerCase();
+
+        if (!normUserRole || !normAllowed.includes(normUserRole)) {
           if (path.startsWith('/api/')) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return withSecurityHeaders(
+              NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+              cspHeader,
+              nonce
+            );
           }
-          return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+
+          return withSecurityHeaders(
+            NextResponse.redirect(new URL('/admin', req.nextUrl.origin)),
+            cspHeader,
+            nonce
+          );
         }
       }
-    } catch (e) {
-      console.error('Error enforcing allowedRoles in middleware', e);
-      // Fall through to existing permission checks; do not block on failure here.
-    }
-    
-    // If the path is a defined route in our menu system, check permissions.
+    } catch (_) {}
+
+    // menu permission read check
     if (currentRouteConfig) {
       const moduleName = currentRouteConfig.label.toLowerCase().replace(/\s+/g, '-');
       const hasPermission = !!permissions[moduleName]?.read;
 
       if (!hasPermission) {
         if (path.startsWith('/api/')) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+          return withSecurityHeaders(
+            NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+            cspHeader,
+            nonce
+          );
         }
-        return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+
+        return withSecurityHeaders(
+          NextResponse.redirect(new URL('/admin', req.nextUrl.origin)),
+          cspHeader,
+          nonce
+        );
       }
     } else if (path !== '/admin' && !path.startsWith('/api/')) {
-      // If the path is not the base '/admin' path and not found in our menu items,
-      // it's an invalid UI route, so redirect to the base admin page.
-      return NextResponse.redirect(new URL('/admin', req.nextUrl.origin).toString());
+      return withSecurityHeaders(
+        NextResponse.redirect(new URL('/admin', req.nextUrl.origin)),
+        cspHeader,
+        nonce
+      );
     }
   }
 
-  return response;
+  // FINAL RETURN WITH HEADERS APPLIED
+  return withSecurityHeaders(response, cspHeader, nonce);
 }

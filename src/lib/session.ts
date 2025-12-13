@@ -205,6 +205,27 @@ export async function getSession() {
     }
   }
 
+  // 3) Legacy mini-app support: check for a legacy `session` cookie which
+  // may contain the `superAppToken` (created by `createLegacySession`) or a
+  // direct `superAppToken` cookie (created by `save-token` redirect flows).
+  try {
+    const legacyJwt = cookiesStore.get('session')?.value;
+    if (legacyJwt) {
+      const legacyPayload = await decryptJwt(legacyJwt);
+      if (legacyPayload?.superAppToken) {
+        return legacyPayload;
+      }
+    }
+
+    const directToken = cookiesStore.get('superAppToken')?.value;
+    if (directToken) {
+      return { superAppToken: directToken };
+    }
+  } catch (e) {
+    console.error('Error reading legacy session or superAppToken cookie in getSession:', e);
+    return null;
+  }
+
   return null;
 }
 

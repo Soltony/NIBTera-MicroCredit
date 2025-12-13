@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { postPendingChange } from '@/lib/fetch-utils';
 import { Loader2, Save, PlusCircle, Trash2 } from 'lucide-react';
 import type { Tax as TaxConfig } from '@prisma/client';
 import {
@@ -221,21 +222,12 @@ export default function TaxSettingsPage() {
         };
 
         try {
-            const response = await fetch('/api/settings/pending-changes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    entityType: 'Tax',
-                    entityId,
-                    changeType,
-                    payload: JSON.stringify(payload),
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit changes for approval.');
-            }
+            await postPendingChange({
+                entityType: 'Tax',
+                entityId,
+                changeType,
+                payload: JSON.stringify(payload),
+            }, 'Failed to submit changes for approval.');
             
             toast({
                 title: 'Submitted for Approval',
@@ -259,20 +251,12 @@ export default function TaxSettingsPage() {
         }
 
         try {
-            const response = await fetch(`/api/settings/pending-changes`, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                await postPendingChange({
                     entityType: 'Tax',
                     entityId: taxToDelete.id,
                     changeType: 'DELETE',
                     payload: JSON.stringify({ original: taxToDelete })
-                }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Could not submit deletion for approval.');
-            }
+                }, 'Could not submit deletion for approval.');
             
             toast({ title: "Deletion Submitted", description: 'Tax configuration deletion is pending approval.' });
         } catch (error: any) {
