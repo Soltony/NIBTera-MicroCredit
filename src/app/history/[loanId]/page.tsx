@@ -84,8 +84,9 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
 }
 
 
-export default async function LoanDetailPage({ params }: { params: { loanId: string } }) {
-    const loanId = params.loanId;
+export default async function LoanDetailPage({ params }: { params: Promise<{ loanId: string }> }) {
+    const p = await params;
+    const loanId = p?.loanId;
     const loanDetails = await getLoanDetails(loanId);
 
     if (!loanDetails) {

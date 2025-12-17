@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Download, File as FileIcon, Loader2, Calendar as CalendarIcon } from 'lucide-react';
@@ -68,6 +68,59 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
     
     const isSuperAdminOrRecon = currentUser?.role === 'Super Admin' || currentUser?.role === 'Reconciliation';
+
+    type SortDir = 'asc' | 'desc';
+    type TableState = {
+        sortBy?: string;
+        sortDir: SortDir;
+        page: number;
+        pageSize: number;
+    };
+
+    const DEFAULT_PAGE_SIZE = 25;
+
+    function compareValues(a: any, b: any, dir: SortDir) {
+        if (a == null && b == null) return 0;
+        if (a == null) return dir === 'asc' ? -1 : 1;
+        if (b == null) return dir === 'asc' ? 1 : -1;
+
+        if (typeof a === 'number' && typeof b === 'number') {
+            return dir === 'asc' ? a - b : b - a;
+        }
+
+        const aDate = new Date(a);
+        const bDate = new Date(b);
+        if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+            return dir === 'asc' ? aDate.getTime() - bDate.getTime() : bDate.getTime() - aDate.getTime();
+        }
+
+        return dir === 'asc'
+            ? String(a).localeCompare(String(b))
+            : String(b).localeCompare(String(a));
+    }
+
+    const [tableStates, setTableStates] = useState<Record<string, TableState>>({
+        providerReport: { sortBy: 'provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        disbursementsReport: { sortBy: 'transactionDate', sortDir: 'desc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        repaymentsReport: { sortBy: 'transactionDate', sortDir: 'desc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        collectionsReport: { sortBy: 'date', sortDir: 'desc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        incomeReport: { sortBy: 'provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        utilizationReport: { sortBy: 'Provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        agingReport: { sortBy: 'Provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        borrowerReport: { sortBy: 'borrowerId', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+    });
+
+    const setTableState = (tab: string, updater: Partial<TableState> | ((s: TableState) => TableState)) => {
+        setTableStates(prev => {
+            const cur = prev[tab] ?? { sortBy: undefined, sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE };
+            const next = typeof updater === 'function' ? updater(cur) : { ...cur, ...updater };
+            return { ...prev, [tab]: next };
+        });
+    };
+
+    useEffect(() => {
+        setTableState(activeTab, { page: 1 });
+    }, [activeTab]);
 
 
     const fetchAllReportData = useCallback(async (currentProviderId: string, currentTimeframe: string, currentDateRange?: DateRange) => {
@@ -399,7 +452,103 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             toast({ title: 'Export Failed', description: 'Could not generate Excel file.', variant: 'destructive' });
         }
     }
-    
+
+    // Generic helpers: sort + paginate for current tab
+    const getTableState = (tab: string) => tableStates[tab] ?? { sortBy: undefined, sortDir: 'asc' as SortDir, page: 1, pageSize: DEFAULT_PAGE_SIZE };
+
+    const applySortAndPaginate = (tab: string, data: any[]) => {
+        const state = getTableState(tab);
+        const { sortBy, sortDir, page, pageSize } = state;
+        let sorted = [...data];
+        if (sortBy) {
+            sorted.sort((a, b) => compareValues(a?.[sortBy], b?.[sortBy], sortDir));
+        }
+        const total = sorted.length;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const currentPage = Math.min(Math.max(1, page), totalPages);
+        const start = (currentPage - 1) * pageSize;
+        const items = sorted.slice(start, start + pageSize);
+        return { items, total, totalPages, page: currentPage, pageSize };
+    };
+
+    const toggleSort = (tab: string, key: string) => {
+        const s = getTableState(tab);
+        if (s.sortBy === key) {
+            setTableState(tab, { sortDir: s.sortDir === 'asc' ? 'desc' : 'asc', page: 1 });
+        } else {
+            setTableState(tab, { sortBy: key, sortDir: 'asc', page: 1 });
+        }
+    };
+
+    const renderSortIcon = (tab: string, key: string) => {
+        const s = getTableState(tab);
+        if (s.sortBy !== key) return <span className="opacity-50 ml-2">↕</span>;
+        return s.sortDir === 'asc' ? <span className="ml-2">▲</span> : <span className="ml-2">▼</span>;
+    };
+
+    const PaginationControls = ({ tab, meta }: { tab: string; meta: { total: number; totalPages: number; page: number; pageSize: number } }) => {
+        if (meta.total === 0) return null;
+        return (
+            <div className="flex items-center justify-between p-2 border-t">
+                <div className="text-sm text-muted-foreground">Showing {(meta.page - 1) * meta.pageSize + 1} - {Math.min(meta.page * meta.pageSize, meta.total)} of {meta.total}</div>
+                <div className="flex items-center space-x-2">
+                    <select
+                        value={meta.pageSize}
+                        onChange={(e) => setTableState(tab, { pageSize: Number(e.target.value), page: 1 })}
+                        className="border rounded px-2 py-1"
+                    >
+                        {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
+                    </select>
+                    <div className="flex items-center space-x-1">
+                        <Button variant="outline" size="sm" onClick={() => setTableState(tab, s => ({ ...s, page: Math.max(1, s.page - 1) }))} disabled={meta.page <= 1}>Prev</Button>
+                        <div className="px-2">{meta.page} / {meta.totalPages}</div>
+                        <Button variant="outline" size="sm" onClick={() => setTableState(tab, s => ({ ...s, page: Math.min(meta.totalPages, s.page + 1) }))} disabled={meta.page >= meta.totalPages}>Next</Button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // derive processed datasets
+    const providerTable = useMemo(() => applySortAndPaginate('providerReport', loansData), [loansData, tableStates.providerReport]);
+    const disbursementTable = useMemo(() => applySortAndPaginate('disbursementsReport', disbursementsData), [disbursementsData, tableStates.disbursementsReport]);
+    const repaymentTable = useMemo(() => applySortAndPaginate('repaymentsReport', repaymentsData), [repaymentsData, tableStates.repaymentsReport]);
+    const collectionsTable = useMemo(() => applySortAndPaginate('collectionsReport', collectionsData), [collectionsData, tableStates.collectionsReport]);
+    const incomeTable = useMemo(() => applySortAndPaginate('incomeReport', incomeData), [incomeData, tableStates.incomeReport]);
+    const utilizationTable = useMemo(() => {
+        const rows = providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
+            const data = providerSummaryData[provider.id];
+            const availableFund = data ? provider.initialBalance - data.portfolioSummary.outstanding : 0;
+            return {
+                Provider: provider.name,
+                ProviderFund: provider.initialBalance,
+                LoansDisbursed: data?.portfolioSummary.disbursed || 0,
+                AvailableFund: availableFund,
+                Utilization: data?.fundUtilization || 0,
+                providerId: provider.id,
+            };
+        });
+        return applySortAndPaginate('utilizationReport', rows);
+    }, [providers, providerSummaryData, providerId, tableStates.utilizationReport]);
+    const agingTable = useMemo(() => {
+        const rows = providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
+            const data = providerSummaryData[provider.id];
+            const aging = data?.agingReport;
+            return {
+                Provider: provider.name,
+                Pass: aging?.buckets?.Pass || 0,
+                Special: aging?.buckets?.['Special Mention'] || 0,
+                Substandard: aging?.buckets?.Substandard || 0,
+                Doubtful: aging?.buckets?.Doubtful || 0,
+                Loss: aging?.buckets?.Loss || 0,
+                TotalOverdue: aging?.totalOverdue || 0,
+                providerId: provider.id,
+            };
+        });
+        return applySortAndPaginate('agingReport', rows);
+    }, [providers, providerSummaryData, providerId, tableStates.agingReport]);
+    const borrowerTable = useMemo(() => applySortAndPaginate('borrowerReport', loansData), [loansData, tableStates.borrowerReport]);
+
     if (isLoading || isAuthLoading || providerId === null) {
         return (
              <div className="flex-1 space-y-4 p-8 pt-6">
@@ -509,16 +658,16 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
-                                    <TableHead>Provider</TableHead>
-                                    <TableHead>Loan ID</TableHead>
-                                    <TableHead>Borrower</TableHead>
-                                    <TableHead className="text-right">Principal Disbursed</TableHead>
-                                    <TableHead className="text-right">Principal Outstanding</TableHead>
-                                    <TableHead className="text-right">Interest Outstanding</TableHead>
-                                    <TableHead className="text-right">Service Fee Outstanding</TableHead>
-                                    <TableHead className="text-right">Penalty Outstanding</TableHead>
-                                    <TableHead className="text-right">Total Outstanding</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead><button onClick={() => toggleSort('providerReport', 'provider')} className="flex items-center">{'Provider'}{renderSortIcon('providerReport', 'provider')}</button></TableHead>
+                                    <TableHead><button onClick={() => toggleSort('providerReport', 'loanId')} className="flex items-center">{'Loan ID'}{renderSortIcon('providerReport', 'loanId')}</button></TableHead>
+                                    <TableHead><button onClick={() => toggleSort('providerReport', 'borrowerName')} className="flex items-center">{'Borrower'}{renderSortIcon('providerReport', 'borrowerName')}</button></TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('providerReport', 'principalDisbursed')} className="flex items-center">{'Principal Disbursed'}{renderSortIcon('providerReport', 'principalDisbursed')}</button></TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('providerReport', 'principalOutstanding')} className="flex items-center">{'Principal Outstanding'}{renderSortIcon('providerReport', 'principalOutstanding')}</button></TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('providerReport', 'interestOutstanding')} className="flex items-center">{'Interest Outstanding'}{renderSortIcon('providerReport', 'interestOutstanding')}</button></TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('providerReport', 'serviceFeeOutstanding')} className="flex items-center">{'Service Fee Outstanding'}{renderSortIcon('providerReport', 'serviceFeeOutstanding')}</button></TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('providerReport', 'penaltyOutstanding')} className="flex items-center">{'Penalty Outstanding'}{renderSortIcon('providerReport', 'penaltyOutstanding')}</button></TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('providerReport', 'totalOutstanding')} className="flex items-center">{'Total Outstanding'}{renderSortIcon('providerReport', 'totalOutstanding')}</button></TableHead>
+                                    <TableHead><button onClick={() => toggleSort('providerReport', 'status')} className="flex items-center">{'Status'}{renderSortIcon('providerReport', 'status')}</button></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -528,11 +677,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                             <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
                                         </TableCell>
                                     </TableRow>
-                                ) : loansData.length > 0 ? (
-                                    loansData.map((row) => (
+                                ) : providerTable.items.length > 0 ? (
+                                    providerTable.items.map((row: any) => (
                                         <TableRow key={row.loanId}>
                                             <TableCell>{row.provider}</TableCell>
-                                            <TableCell>{row.loanId.slice(-8)}</TableCell>
+                                            <TableCell>{row.loanId?.slice(-8)}</TableCell>
                                             <TableCell>{row.borrowerName}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.principalDisbursed)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.principalOutstanding)}</TableCell>
@@ -561,71 +710,73 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
+                        <PaginationControls tab="providerReport" meta={{ total: providerTable.total, totalPages: providerTable.totalPages, page: providerTable.page, pageSize: providerTable.pageSize }} />
                     </TabsContent>
                     <TabsContent value="disbursementsReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
-                                        <TableRow>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Loan ID</TableHead>
-                                            <TableHead>Customer Name</TableHead>
-                                            <TableHead>Debit Account</TableHead>
-                                            <TableHead>Credit Account (Customer Account)</TableHead>
-                                            <TableHead>Txn Status</TableHead>
-                                            <TableHead>CBS Reference</TableHead>
-                                            <TableHead className="text-right">Loan Amount (MLS)</TableHead>
-                                            <TableHead className="text-right">Interest Fee (MLS)</TableHead>
-                                            <TableHead className="text-right">Service Fee (MLS)</TableHead>
-                                            <TableHead className="text-right">Net Disbursed (MLS)</TableHead>
-                                            <TableHead className="text-right">CBS Credit Amount</TableHead>
-                                            <TableHead>Due Date</TableHead>
-                                            <TableHead className="text-right">Difference</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {isLoading ? (
-                                            <TableRow><TableCell colSpan={13} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                        ) : disbursementsData.length > 0 ? (
-                                            disbursementsData.map((row) => {
-                                                                                const loanAmt = row.principalDisbursed || 0;
-                                                                                const interestFee = row.interestOutstanding || 0;
-                                                                                const serviceFee = row.serviceFeeOutstanding || 0;
-                                                                                const netDisbursed = row.netDisbursed != null ? row.netDisbursed : loanAmt;
-                                                const cbsCredit = row.cbsCreditAmount ?? 0;
-                                                const diff = netDisbursed - cbsCredit;
-                                                return (
-                                                <TableRow key={row.reference}>
-                                                    <TableCell>{row.transactionDate ? format(new Date(row.transactionDate), 'yyyy-MM-dd') : ''}</TableCell>
-                                                    <TableCell>{row.loanId?.slice(-8)}</TableCell>
-                                                    <TableCell>{row.customerName || row.borrowerName || row.borrowerAccount || row.borrowerId || ''}</TableCell>
-                                                    <TableCell className="font-mono">{row.debitAccount}</TableCell>
-                                                    <TableCell className="font-mono">{row.borrowerAccount || row.creditAccount}</TableCell>
-                                                    <TableCell>{row.disbursementOutcome || row.disbursementStatusText || row.transactionStatus}</TableCell>
-                                                    
-                                                    <TableCell>{row.cbsReference || row.reference}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatCurrency(loanAmt)}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatCurrency(interestFee)}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatCurrency(serviceFee)}</TableCell>
-                                                    <TableCell className="text-right font-mono font-bold">{formatCurrency(netDisbursed)}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatCurrency(cbsCredit)}</TableCell>
-                                                    <TableCell>{row.dueDate ? format(new Date(row.dueDate), 'yyyy-MM-dd') : ''}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatCurrency(diff)}</TableCell>
-                                                </TableRow>
-                                            )})
-                                        ) : (
-                                            <TableRow><TableCell colSpan={13} className="h-24 text-center">No results found for the selected filters.</TableCell></TableRow>
-                                        )}
-                                    </TableBody>
+                                <TableRow>
+                                    <TableHead><button onClick={() => toggleSort('disbursementsReport', 'transactionDate')} className="flex items-center">Date{renderSortIcon('disbursementsReport', 'transactionDate')}</button></TableHead>
+                                    <TableHead><button onClick={() => toggleSort('disbursementsReport', 'loanId')} className="flex items-center">Loan ID{renderSortIcon('disbursementsReport', 'loanId')}</button></TableHead>
+                                    <TableHead>Customer Name</TableHead>
+                                    <TableHead>Debit Account</TableHead>
+                                    <TableHead>Credit Account (Customer Account)</TableHead>
+                                    <TableHead>Txn Status</TableHead>
+                                    <TableHead>CBS Reference</TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('disbursementsReport', 'principalDisbursed')} className="flex items-center">Loan Amount (MLS){renderSortIcon('disbursementsReport', 'principalDisbursed')}</button></TableHead>
+                                    <TableHead className="text-right">Interest Fee (MLS)</TableHead>
+                                    <TableHead className="text-right">Service Fee (MLS)</TableHead>
+                                    <TableHead className="text-right"><button onClick={() => toggleSort('disbursementsReport', 'netDisbursed')} className="flex items-center">Net Disbursed (MLS){renderSortIcon('disbursementsReport', 'netDisbursed')}</button></TableHead>
+                                    <TableHead className="text-right">CBS Credit Amount</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead className="text-right">Difference</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={13} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                                ) : disbursementTable.items.length > 0 ? (
+                                    disbursementTable.items.map((row: any) => {
+                                        const loanAmt = row.principalDisbursed || 0;
+                                        const interestFee = row.interestOutstanding || 0;
+                                        const serviceFee = row.serviceFeeOutstanding || 0;
+                                        const netDisbursed = row.netDisbursed != null ? row.netDisbursed : loanAmt;
+                                        const cbsCredit = row.cbsCreditAmount ?? 0;
+                                        const diff = netDisbursed - cbsCredit;
+                                        return (
+                                            <TableRow key={row.reference || row.loanId}>
+                                                <TableCell>{row.transactionDate ? format(new Date(row.transactionDate), 'yyyy-MM-dd') : ''}</TableCell>
+                                                <TableCell>{row.loanId?.slice(-8)}</TableCell>
+                                                <TableCell>{row.customerName || row.borrowerName || row.borrowerAccount || row.borrowerId || ''}</TableCell>
+                                                <TableCell className="font-mono">{row.debitAccount}</TableCell>
+                                                <TableCell className="font-mono">{row.borrowerAccount || row.creditAccount}</TableCell>
+                                                <TableCell>{row.disbursementOutcome || row.disbursementStatusText || row.transactionStatus}</TableCell>
+                                                <TableCell>{row.cbsReference || row.reference}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatCurrency(loanAmt)}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatCurrency(interestFee)}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatCurrency(serviceFee)}</TableCell>
+                                                <TableCell className="text-right font-mono font-bold">{formatCurrency(netDisbursed)}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatCurrency(cbsCredit)}</TableCell>
+                                                <TableCell>{row.dueDate ? format(new Date(row.dueDate), 'yyyy-MM-dd') : ''}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatCurrency(diff)}</TableCell>
+                                            </TableRow>
+                                        )
+                                    })
+                                ) : (
+                                    <TableRow><TableCell colSpan={13} className="h-24 text-center">No results found for the selected filters.</TableCell></TableRow>
+                                )}
+                            </TableBody>
                         </Table>
+                        <PaginationControls tab="disbursementsReport" meta={{ total: disbursementTable.total, totalPages: disbursementTable.totalPages, page: disbursementTable.page, pageSize: disbursementTable.pageSize }} />
                     </TabsContent>
                     <TabsContent value="repaymentsReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
-                                    <TableHead>Loan ID</TableHead>
+                                    <TableHead><button onClick={() => toggleSort('repaymentsReport', 'loanId')} className="flex items-center">Loan ID{renderSortIcon('repaymentsReport', 'loanId')}</button></TableHead>
                                     <TableHead>Customer</TableHead>
-                                    <TableHead>Transaction Date</TableHead>
+                                    <TableHead><button onClick={() => toggleSort('repaymentsReport', 'transactionDate')} className="flex items-center">Transaction Date{renderSortIcon('repaymentsReport', 'transactionDate')}</button></TableHead>
                                     <TableHead>Due Date</TableHead>
                                     <TableHead>Debit Account</TableHead>
                                     <TableHead>Credit Account</TableHead>
@@ -645,9 +796,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={18} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : repaymentsData.length > 0 ? (
-                                    repaymentsData.map((row) => (
-                                        <TableRow key={row.reference}>
+                                ) : repaymentTable.items.length > 0 ? (
+                                    repaymentTable.items.map((row: any) => (
+                                        <TableRow key={row.reference || row.loanId}>
                                             <TableCell>{row.provider}</TableCell>
                                             <TableCell>{row.loanId?.slice(-8)}</TableCell>
                                             <TableCell>{row.customerName || row.borrowerName || row.borrowerAccount || row.borrowerId || ''}</TableCell>
@@ -673,13 +824,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
+                        <PaginationControls tab="repaymentsReport" meta={{ total: repaymentTable.total, totalPages: repaymentTable.totalPages, page: repaymentTable.page, pageSize: repaymentTable.pageSize }} />
                     </TabsContent>
                     <TabsContent value="collectionsReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
-                                    <TableHead>Date</TableHead>
+                                    <TableHead><button onClick={() => toggleSort('collectionsReport', 'date')} className="flex items-center">Date{renderSortIcon('collectionsReport', 'date')}</button></TableHead>
                                     <TableHead className="text-right">Principal Received</TableHead>
                                     <TableHead className="text-right">Interest Received</TableHead>
                                     <TableHead className="text-right">Service Fee Received</TableHead>
@@ -691,8 +843,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={8} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : collectionsData.length > 0 ? (
-                                    collectionsData.map((row) => (
+                                ) : collectionsTable.items.length > 0 ? (
+                                    collectionsTable.items.map((row: any) => (
                                         <TableRow key={`${row.provider}-${row.date}`}>
                                             <TableCell>{row.provider}</TableCell>
                                             <TableCell>{format(new Date(row.date), 'yyyy-MM-dd')}</TableCell>
@@ -711,6 +863,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
+                        <PaginationControls tab="collectionsReport" meta={{ total: collectionsTable.total, totalPages: collectionsTable.totalPages, page: collectionsTable.page, pageSize: collectionsTable.pageSize }} />
                     </TabsContent>
                     <TabsContent value="incomeReport">
                         <Table>
@@ -728,8 +881,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : incomeData.length > 0 ? (
-                                    incomeData.map((row) => (
+                                ) : incomeTable.items.length > 0 ? (
+                                    incomeTable.items.map((row: any) => (
                                         <TableRow key={row.provider}>
                                             <TableCell>{row.provider}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.accruedInterest)}</TableCell>
@@ -747,12 +900,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
+                        <PaginationControls tab="incomeReport" meta={{ total: incomeTable.total, totalPages: incomeTable.totalPages, page: incomeTable.page, pageSize: incomeTable.pageSize }} />
                     </TabsContent>
                     <TabsContent value="utilizationReport">
                         <Table>
-                                <TableHeader className="sticky top-0 bg-card z-10">
+                            <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
-                                    <TableHead>Provider</TableHead>
+                                    <TableHead><button onClick={() => toggleSort('utilizationReport', 'Provider')} className="flex items-center">Provider{renderSortIcon('utilizationReport', 'Provider')}</button></TableHead>
                                     <TableHead className="text-right">Provider Fund</TableHead>
                                     <TableHead className="text-right">Loans Disbursed</TableHead>
                                     <TableHead className="text-right">Available Fund</TableHead>
@@ -762,20 +916,16 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
-                                    providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
-                                        const data = providerSummaryData[provider.id];
-                                        if (!data) return <TableRow key={provider.id}><TableCell colSpan={5} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
-                                        const availableFund = provider.initialBalance - data.portfolioSummary.outstanding;
-                                        return (
-                                        <TableRow key={provider.id}>
-                                            <TableCell>{provider.name}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(provider.initialBalance)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(data?.portfolioSummary.disbursed || 0)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(availableFund)}</TableCell>
-                                            <TableCell className="text-right font-mono">{data?.fundUtilization.toFixed(2) || '0.00'}%</TableCell>
+                                ) : utilizationTable.items.length > 0 ? (
+                                    utilizationTable.items.map((row: any) => (
+                                        <TableRow key={row.providerId}>
+                                            <TableCell>{row.Provider}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.ProviderFund)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.LoansDisbursed)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(row.AvailableFund)}</TableCell>
+                                            <TableCell className="text-right font-mono">{(row.Utilization || 0).toFixed(2)}%</TableCell>
                                         </TableRow>
-                                    )})
+                                    ))
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={5} className="h-24 text-center">No results found.</TableCell>
@@ -783,10 +933,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
+                        <PaginationControls tab="utilizationReport" meta={{ total: utilizationTable.total, totalPages: utilizationTable.totalPages, page: utilizationTable.page, pageSize: utilizationTable.pageSize }} />
                     </TabsContent>
                     <TabsContent value="agingReport">
                         <Table>
-                                <TableHeader className="sticky top-0 bg-card z-10">
+                            <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
                                     <TableHead>Provider</TableHead>
                                     <TableHead className="text-right">Pass (0-29 Days)</TableHead>
@@ -800,22 +951,18 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : providers.filter(p => providerId === 'all' || p.id === providerId).length > 0 ? (
-                                    providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
-                                        const data = providerSummaryData[provider.id];
-                                        if (!data) return <TableRow key={provider.id}><TableCell colSpan={7} className="text-center h-12">No data for {provider.name}</TableCell></TableRow>;
-                                        const aging = data?.agingReport;
-                                        return (
-                                        <TableRow key={provider.id}>
-                                            <TableCell>{provider.name}</TableCell>
-                                            <TableCell className="text-right font-mono">{aging?.buckets?.Pass || 0}</TableCell>
-                                            <TableCell className="text-right font-mono">{aging?.buckets?.['Special Mention'] || 0}</TableCell>
-                                            <TableCell className="text-right font-mono">{aging?.buckets?.Substandard || 0}</TableCell>
-                                            <TableCell className="text-right font-mono">{aging?.buckets?.Doubtful || 0}</TableCell>
-                                            <TableCell className="text-right font-mono">{aging?.buckets?.Loss || 0}</TableCell>
-                                            <TableCell className="text-right font-mono font-bold">{aging?.totalOverdue || 0}</TableCell>
+                                ) : agingTable.items.length > 0 ? (
+                                    agingTable.items.map((row: any) => (
+                                        <TableRow key={row.providerId}>
+                                            <TableCell>{row.Provider}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.Pass}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.Special}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.Substandard}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.Doubtful}</TableCell>
+                                            <TableCell className="text-right font-mono">{row.Loss}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold">{row.TotalOverdue}</TableCell>
                                         </TableRow>
-                                    )})
+                                    ))
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell>
@@ -823,46 +970,49 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                 )}
                             </TableBody>
                         </Table>
-                            {/* Borrower-level aging breakdown when a single provider is selected */}
-                            {providerId && providerId !== 'all' && (() => {
-                                const pdata = providerSummaryData[providerId];
-                                const borrowers = pdata?.agingReport?.byBorrower || [];
-                                return (
-                                    <div className="mt-6">
-                                        <h3 className="text-lg font-medium mb-2">Borrower-level Aging</h3>
-                                        <Table>
-                                                    <TableHeader className="sticky top-0 bg-card z-10">
-                                                        <TableRow>
-                                                            <TableHead className="text-left">Borrower</TableHead>
-                                                            <TableHead className="text-center">Account Number</TableHead>
-                                                            <TableHead className="text-center">Days Overdue</TableHead>
-                                                            <TableHead className="text-center">Category</TableHead>
-                                                            <TableHead className="text-right">Amount</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                <TableBody>
-                                                    {borrowers.length === 0 ? (
-                                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">No borrower-level aging data.</TableCell></TableRow>
-                                                    ) : borrowers.map((b: any) => (
-                                                        <TableRow key={b.borrowerId}>
-                                                            <TableCell className="font-medium">{b.borrowerId}</TableCell>
-                                                            <TableCell className="text-center font-mono text-sm">{b.borrowerAccount || ''}</TableCell>
-                                                            <TableCell className="text-center">{b.daysOverdue ?? '-'}</TableCell>
-                                                            <TableCell className="text-center">{b.classification || 'N/A'}</TableCell>
-                                                            <TableCell className="text-right font-mono font-bold">{formatCurrency(b.classificationAmount || b.totalOverdue || 0)}</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                        </Table>
-                                    </div>
-                                );
-                            })()}
+                        <PaginationControls tab="agingReport" meta={{ total: agingTable.total, totalPages: agingTable.totalPages, page: agingTable.page, pageSize: agingTable.pageSize }} />
+                        {/* Borrower-level aging breakdown when a single provider is selected */}
+                        {providerId && providerId !== 'all' && (() => {
+                            const pdata = providerSummaryData[providerId];
+                            const borrowers = pdata?.agingReport?.byBorrower || [];
+                            const borrowerMeta = applySortAndPaginate('agingReport', borrowers); // reuse pagination config (or create separate if needed)
+                            return (
+                                <div className="mt-6">
+                                    <h3 className="text-lg font-medium mb-2">Borrower-level Aging</h3>
+                                    <Table>
+                                        <TableHeader className="sticky top-0 bg-card z-10">
+                                            <TableRow>
+                                                <TableHead className="text-left">Borrower</TableHead>
+                                                <TableHead className="text-center">Account Number</TableHead>
+                                                <TableHead className="text-center">Days Overdue</TableHead>
+                                                <TableHead className="text-center">Category</TableHead>
+                                                <TableHead className="text-right">Amount</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {borrowers.length === 0 ? (
+                                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No borrower-level aging data.</TableCell></TableRow>
+                                            ) : borrowerMeta.items.map((b: any) => (
+                                                <TableRow key={b.borrowerId}>
+                                                    <TableCell className="font-medium">{b.borrowerId}</TableCell>
+                                                    <TableCell className="text-center font-mono text-sm">{b.borrowerAccount || ''}</TableCell>
+                                                    <TableCell className="text-center">{b.daysOverdue ?? '-'}</TableCell>
+                                                    <TableCell className="text-center">{b.classification || 'N/A'}</TableCell>
+                                                    <TableCell className="text-right font-mono font-bold">{formatCurrency(b.classificationAmount || b.totalOverdue || 0)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                    <PaginationControls tab="agingReport" meta={{ total: borrowerMeta.total, totalPages: borrowerMeta.totalPages, page: borrowerMeta.page, pageSize: borrowerMeta.pageSize }} />
+                                </div>
+                            );
+                        })()}
                     </TabsContent>
                     <TabsContent value="borrowerReport">
                         <Table>
-                                <TableHeader className="sticky top-0 bg-card z-10">
+                            <TableHeader className="sticky top-0 bg-card z-10">
                                 <TableRow>
-                                    <TableHead>Borrower ID</TableHead>
+                                    <TableHead><button onClick={() => toggleSort('borrowerReport', 'borrowerId')} className="flex items-center">Borrower ID{renderSortIcon('borrowerReport', 'borrowerId')}</button></TableHead>
                                     <TableHead>Borrower Name</TableHead>
                                     <TableHead>Loan ID</TableHead>
                                     <TableHead className="text-right">Principal Disbursed</TableHead>
@@ -874,15 +1024,15 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                     <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
-                                <TableBody>
+                            <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={10} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : loansData.length > 0 ? (
-                                    loansData.map((row) => (
+                                ) : borrowerTable.items.length > 0 ? (
+                                    borrowerTable.items.map((row: any) => (
                                         <TableRow key={row.loanId}>
-                                            <TableCell>{row.borrowerId.slice(-8)}</TableCell>
+                                            <TableCell>{row.borrowerId?.slice(-8)}</TableCell>
                                             <TableCell>{row.borrowerName}</TableCell>
-                                            <TableCell>{row.loanId.slice(-8)}</TableCell>
+                                            <TableCell>{row.loanId?.slice(-8)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.principalDisbursed)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.principalOutstanding)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatCurrency(row.interestOutstanding)}</TableCell>
@@ -906,8 +1056,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                                         <TableCell colSpan={10} className="h-24 text-center">No results found.</TableCell>
                                     </TableRow>
                                 )}
-                                </TableBody>
+                            </TableBody>
                         </Table>
+                        <PaginationControls tab="borrowerReport" meta={{ total: borrowerTable.total, totalPages: borrowerTable.totalPages, page: borrowerTable.page, pageSize: borrowerTable.pageSize }} />
                     </TabsContent>
                 </div>
             </Tabs>

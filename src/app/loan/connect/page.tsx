@@ -31,7 +31,7 @@ const ErrorDisplay = ({ title, message }: { title: string, message: string }) =>
 
 
 export default async function ConnectPage() {
-    const headersList = headers();
+    const headersList = await headers();
     const authHeader = headersList.get('Authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

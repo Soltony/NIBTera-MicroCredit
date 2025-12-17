@@ -55,6 +55,7 @@ async function getProviders(): Promise<LoanProvider[]> {
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
                 penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
+                requiredDocuments: safeJsonParse(prod.requiredDocuments, []) as string[],
                 status: prod.status as 'Active' | 'Disabled',
                 allowConcurrentLoans: prod.allowConcurrentLoans,
             }))
@@ -107,6 +108,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
               serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
               dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0, calculationBase: 'principal' }),
               penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
+              requiredDocuments: safeJsonParse(loan.product.requiredDocuments, []) as string[],
             },
             payments: loan.payments.map(p => ({
                 id: p.id,

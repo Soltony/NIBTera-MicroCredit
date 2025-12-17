@@ -7,6 +7,15 @@ import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 
 
+const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        return defaultValue;
+    }
+};
+
 async function getProviders(): Promise<LoanProvider[]> {
     const providers = await prisma.loanProvider.findMany({
         orderBy: { displayOrder: 'asc' }
@@ -44,9 +53,9 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
         return loans.map(loan => {
             const parsedProduct = {
                 ...loan.product,
-                serviceFee: JSON.parse(loan.product.serviceFee as string),
-                dailyFee: JSON.parse(loan.product.dailyFee as string),
-                penaltyRules: JSON.parse(loan.product.penaltyRules as string),
+                serviceFee: safeJsonParse(loan.product.serviceFee as string, { type: 'percentage', value: 0 }),
+                dailyFee: safeJsonParse(loan.product.dailyFee as string, { type: 'percentage', value: 0, calculationBase: 'principal' }),
+                penaltyRules: safeJsonParse(loan.product.penaltyRules as string, []),
             };
 
             const { total: totalRepayable } = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, new Date());
@@ -84,11 +93,13 @@ async function getTaxConfigs(): Promise<Tax[]> {
 }
 
 
-export default async function HistoryPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
-    const borrowerId = searchParams['borrowerId'] as string;
-    
+export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }>}) {
+    const sp = await searchParams;
+    const rawBorrowerId = sp?.borrowerId;
+    const borrowerId = Array.isArray(rawBorrowerId) ? rawBorrowerId[0] : rawBorrowerId;
+
     const [loanHistory, providers, taxConfigs] = await Promise.all([
-        getLoanHistory(borrowerId),
+        getLoanHistory(borrowerId || ''),
         getProviders(),
         getTaxConfigs()
     ]);

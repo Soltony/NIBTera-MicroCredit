@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
             data: {
                 borrower: { connect: { id: borrowerId } },
                 product: { connect: { id: productId } },
-                loanAmount: loanAmount, // Save the requested loan amount
+                loanAmount: loanAmount,
                 status: 'APPROVED',
             }
         });

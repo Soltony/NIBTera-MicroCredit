@@ -57,8 +57,10 @@ async function getTaxConfigs(): Promise<Tax[] | null> {
 }
 
 
-export default async function ApplyPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-    const providerId = searchParams['providerId'] as string;
+export default async function ApplyPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+    const sp = await searchParams;
+    const rawProviderId = sp?.providerId;
+    const providerId = Array.isArray(rawProviderId) ? rawProviderId[0] : rawProviderId;
 
     if (!providerId || typeof providerId !== 'string') {
         notFound();
