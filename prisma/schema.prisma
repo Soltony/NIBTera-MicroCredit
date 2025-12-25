@@ -69,6 +69,7 @@ model LoanProvider {
   colorHex                String
   displayOrder            Int
   accountNumber           String?
+  collectionAccount       String?                       // additional field for collection account
   startingCapital         Float
   initialBalance          Float
   allowCrossProviderLoans Boolean                       @default(false)
@@ -82,6 +83,26 @@ model LoanProvider {
   ledgerAccounts          LedgerAccount[]
   journalEntries          JournalEntry[]
   termsAndConditions      TermsAndConditions[]
+  distributions           ProviderDistribution[]
+}
+
+model ProviderDistribution {
+  id                    String       @id @default(cuid())
+  providerId            String
+  provider              LoanProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  // External provider identifier sent to the upstream distribution service.
+  externalProviderId    String?
+  distributionDate      DateTime
+  interestAmount        Float        @default(0)
+  serviceFeeAmount      Float        @default(0)
+  penaltyAmount         Float        @default(0)
+  taxAmount             Float        @default(0)
+  totalDistributedAmount Float       @default(0)
+  distributionReference String?
+  createdAt             DateTime     @default(now())
+
+  @@unique([providerId, distributionDate])
+  @@index([distributionDate])
 }
 
 model LoanProduct {

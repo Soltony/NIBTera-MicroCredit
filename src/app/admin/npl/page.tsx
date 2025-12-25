@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateNplStatus } from '@/actions/npl';
+import { usePermissions } from '@/hooks/use-permissions';
 
 interface NplBorrower {
     id: string;
@@ -31,6 +32,8 @@ async function getNplBorrowers(): Promise<NplBorrower[]> {
 
 export default function NplManagementPage() {
     useRequirePermission('npl');
+    const { canModule } = usePermissions();
+    const canRunNplUpdate = canModule('npl', 'update');
     const [borrowers, setBorrowers] = useState<NplBorrower[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
@@ -57,6 +60,10 @@ export default function NplManagementPage() {
     }, []);
 
     const handleRunNplUpdate = async () => {
+        if (!canRunNplUpdate) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to run NPL updates.', variant: 'destructive' });
+            return;
+        }
         setIsUpdating(true);
         try {
             const result = await updateNplStatus();
@@ -93,10 +100,12 @@ export default function NplManagementPage() {
                             View and manage borrowers with Non-Performing Loans.
                         </p>
                     </div>
-                     <Button onClick={handleRunNplUpdate} disabled={isUpdating}>
-                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        Run NPL Status Update
-                    </Button>
+                    {canRunNplUpdate && (
+                        <Button onClick={handleRunNplUpdate} disabled={isUpdating}>
+                            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Run NPL Status Update
+                        </Button>
+                    )}
                 </div>
                  <Card>
                     <CardHeader>

@@ -52,7 +52,18 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   const pwnedAbort = useRef<AbortController | null>(null);
   const [pwFocused, setPwFocused] = useState(false);
 
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
   const COMMON = new Set(['123456','123456789','qwerty','password','1234567','12345678','12345','111111','123123','password1','1234567890','1234','welcome','letmein','admin','iloveyou']);
+
+  const PHONE_REGEX = /^(09\d{8}|9\d{8})$/;
+  const validatePhone = (raw: string) => {
+    const value = (raw || '').trim();
+    if (!value) return 'Phone number is required.';
+    if (!PHONE_REGEX.test(value)) return 'Invalid phone number format. Use 0912345678 or 912345678.';
+    return null;
+  };
 
   useEffect(() => {
     const defaultRole = roles.find(r => r.name === 'Loan Provider') ? 'Loan Provider' : (roles[0]?.name || '');
@@ -77,6 +88,10 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
         providerId: providers.length > 0 ? providers[0].id : null,
       });
     }
+
+    // reset field-level validation UI on open/change
+    setPhoneTouched(false);
+    setPhoneError(null);
   }, [user, isOpen, providers, roles]);
 
   // Validate password client-side and run debounced pwned-password check
@@ -146,6 +161,15 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
+    if (id === 'phoneNumber') {
+      // Keep only digits; validation expects strict digit-only formats.
+      const digitsOnly = value.replace(/\D+/g, '');
+      setFormData((prev) => ({ ...prev, phoneNumber: digitsOnly }));
+      if (phoneTouched) {
+        setPhoneError(validatePhone(digitsOnly));
+      }
+      return;
+    }
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
@@ -172,6 +196,15 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submissionData: any = { ...formData };
+
+    // Phone validation (inline)
+    const pErr = validatePhone(submissionData.phoneNumber);
+    if (pErr) {
+      setPhoneTouched(true);
+      setPhoneError(pErr);
+      return;
+    }
+
     // Inline validation: ensure client checks pass and pwned check is clear
     if (submissionData.password) {
       const pw = submissionData.password;
@@ -237,8 +270,29 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
             <Label htmlFor="phoneNumber" className="text-right">
               Phone
             </Label>
-            <Input id="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className="col-span-3" required />
+            <Input
+              id="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              onBlur={() => {
+                setPhoneTouched(true);
+                setPhoneError(validatePhone(formData.phoneNumber));
+              }}
+              className="col-span-3"
+              required
+              placeholder="e.g., 0912345678"
+              inputMode="numeric"
+              aria-invalid={!!phoneError}
+            />
           </div>
+          {(phoneTouched && phoneError) && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <div />
+              <div className="col-span-3 text-sm text-destructive">
+                {phoneError}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="password" className="text-right">
                 {user ? 'New Password' : 'Password'}
@@ -338,6 +392,7 @@ export function AddUserDialog({ isOpen, onClose, onSave, user, roles, providers,
             </DialogClose>
             <Button type="submit" disabled={
               ( !user && !formData.password ) ||
+              !!validatePhone(formData.phoneNumber) ||
               (formData.password && (!pwChecks.length || !pwChecks.lower || !pwChecks.upper || !pwChecks.number || !pwChecks.symbol || pwChecks.common || pwned === true || pwnedLoading))
             } style={{ backgroundColor: primaryColor }} className="text-white">
               {user ? 'Save Changes' : 'Add User'}

@@ -4,16 +4,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z, ZodError } from 'zod';
-import { loginSchema, passwordSchema } from '@/lib/validators';
+import { loginSchema, passwordSchema, phoneNumberSchema } from '@/lib/validators';
 import { validationErrorResponse, handleApiError } from '@/lib/error-utils';
 import { isBlocked, recordFailedAttempt, resetAttempts, getRemainingAttempts, getBackoffSeconds, getLockRemainingMs } from '@/lib/rate-limiter';
 import { createAuditLog } from '@/lib/audit-log';
 import { getUserFromSession } from '@/lib/user';
+import { revokeAllUserSessions } from '@/lib/session';
 
 const userSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Invalid email address'),
-  phoneNumber: z.string().min(1, 'Phone number is required'),
+  phoneNumber: phoneNumberSchema,
   // password is validated with the stronger shared login schema below
   password: z.string().optional(),
   role: z.string(), // Role name, will be connected by ID
@@ -162,7 +163,30 @@ export async function POST(req: NextRequest) {
     await createAuditLog({ actorId: user.id, action: 'USER_CREATE_SUCCESS', entity: 'USER', entityId: newUser.id, details: successLogDetails, ipAddress, userAgent });
 
 
-    return NextResponse.json(newUser, { status: 201 });
+    // Never return password hashes (or other auth secrets) in API responses.
+    const createdUser = await prisma.user.findUnique({
+      where: { id: newUser.id },
+      include: { role: true, loanProvider: true },
+    });
+
+    if (!createdUser) {
+      return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      {
+        id: createdUser.id,
+        fullName: createdUser.fullName,
+        email: createdUser.email,
+        phoneNumber: createdUser.phoneNumber,
+        role: createdUser.role.name,
+        providerName: createdUser.loanProvider?.name || 'N/A',
+        providerId: createdUser.loanProvider?.id,
+        status: createdUser.status,
+        passwordChangeRequired: createdUser.passwordChangeRequired,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     const errorMessage = (error instanceof ZodError) ? error.errors : (error as Error).message;
      const failureLogDetails = { error: errorMessage };
@@ -191,6 +215,14 @@ export async function PUT(req: NextRequest) {
     if (!id) {
         throw new Error('User ID is required for an update.');
     }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: { roleId: true, status: true },
+    });
+    if (!existingUser) {
+      return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+    }
     
     // Horizontal access control: non-super-admins can only edit users in their own provider or unassigned users
     if (user.role !== 'Super Admin' && user.loanProviderId) {
@@ -206,6 +238,10 @@ export async function PUT(req: NextRequest) {
 
     let dataToUpdate: any = { ...userData };
 
+    const passwordWasReset = !!password;
+    let roleChanged = false;
+    const statusChanged = typeof userData?.status === 'string' && userData.status !== existingUser.status;
+
     if (roleName) {
         const role = await prisma.role.findUnique({ where: { name: roleName }});
         if (!role) {
@@ -217,7 +253,8 @@ export async function PUT(req: NextRequest) {
             return NextResponse.json({ error: 'You cannot assign a higher-privileged role.' }, { status: 403 });
         }
 
-        dataToUpdate.roleId = role.id;
+    dataToUpdate.roleId = role.id;
+    roleChanged = role.id !== existingUser.roleId;
     }
     
     if (password) {
@@ -256,11 +293,43 @@ export async function PUT(req: NextRequest) {
       where: { id },
       data: dataToUpdate,
     });
+
+    // Privilege/session lifecycle control:
+    // - role changes => revoke sessions (permissions may change)
+    // - account deactivation => revoke sessions
+    // - password reset / forced password change => revoke sessions
+    if (roleChanged || statusChanged || passwordWasReset || dataToUpdate.passwordChangeRequired === true) {
+      try {
+        await revokeAllUserSessions(id);
+      } catch (e) {
+        console.error('Failed to revoke user sessions after privilege change:', e);
+      }
+    }
     
     const successLogDetails = { updatedUserId: id, updatedFields: Object.keys(dataToUpdate) };
     await createAuditLog({ actorId: user.id, action: 'USER_UPDATE_SUCCESS', entity: 'USER', entityId: id, details: successLogDetails, ipAddress, userAgent });
 
-    return NextResponse.json(updatedUser);
+    // Never return password hashes (or other auth secrets) in API responses.
+    const updatedUserFull = await prisma.user.findUnique({
+      where: { id: updatedUser.id },
+      include: { role: true, loanProvider: true },
+    });
+
+    if (!updatedUserFull) {
+      return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      id: updatedUserFull.id,
+      fullName: updatedUserFull.fullName,
+      email: updatedUserFull.email,
+      phoneNumber: updatedUserFull.phoneNumber,
+      role: updatedUserFull.role.name,
+      providerName: updatedUserFull.loanProvider?.name || 'N/A',
+      providerId: updatedUserFull.loanProvider?.id,
+      status: updatedUserFull.status,
+      passwordChangeRequired: updatedUserFull.passwordChangeRequired,
+    });
   } catch (error) {
     const errorMessage = (error as Error).message;
     const failureLogDetails = { error: errorMessage };

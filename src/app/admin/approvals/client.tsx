@@ -27,6 +27,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import ExcelJS from 'exceljs';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { usePermissions } from '@/hooks/use-permissions';
 
 
 const renderFieldValue = (value: any): React.ReactNode => {
@@ -806,9 +807,15 @@ export function ApprovalsClient({
   const [changeToView, setChangeToView] = useState<PendingChangeWithDetails | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const { canModule } = usePermissions();
+  const canProcessApprovals = canModule('approvals', 'update');
 
 
   const handleProcessChange = async (changeId: string, approved: boolean, reason?: string) => {
+    if (!canProcessApprovals) {
+      toast({ title: 'Not authorized', description: 'You are not authorized to approve or reject changes.', variant: 'destructive' });
+      return;
+    }
     setProcessingId(changeId);
     try {
       const response = await fetch('/api/approvals', {
@@ -885,24 +892,28 @@ export function ApprovalsClient({
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setChangeToView(change)}>
                             <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleProcessChange(change.id, true)}
-                          disabled={processingId === change.id || change.createdById === currentUser.id}
-                          className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-                        >
-                          {processingId === change.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setChangeToReject(change)}
-                          disabled={processingId === change.id || change.createdById === currentUser.id}
-                           className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        {canProcessApprovals && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleProcessChange(change.id, true)}
+                              disabled={processingId === change.id || change.createdById === currentUser.id}
+                              className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                            >
+                              {processingId === change.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setChangeToReject(change)}
+                              disabled={processingId === change.id || change.createdById === currentUser.id}
+                               className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -929,6 +940,7 @@ export function ApprovalsClient({
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
               placeholder="e.g., Incorrect configuration..."
+              disabled={!canProcessApprovals}
             />
           </div>
           <DialogFooter>
@@ -936,7 +948,7 @@ export function ApprovalsClient({
             <Button
               variant="destructive"
               onClick={() => handleProcessChange(changeToReject!.id, false, rejectionReason)}
-              disabled={!rejectionReason.trim()}
+              disabled={!canProcessApprovals || !rejectionReason.trim()}
             >
               Confirm Rejection
             </Button>

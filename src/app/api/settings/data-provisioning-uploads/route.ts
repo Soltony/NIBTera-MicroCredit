@@ -7,6 +7,7 @@ import { getUserFromSession } from '@/lib/user';
 import ExcelJS from 'exceljs';
 import { createAuditLog } from '@/lib/audit-log';
 import { handleApiError } from '@/lib/error-utils';
+import { hasPermissionForEntity } from '@/lib/require-permission';
 
 
 // Helper to convert strings to camelCase
@@ -25,7 +26,10 @@ const ALLOWED_FILE_TYPES = ['application/vnd.openxmlformats-officedocument.sprea
 export async function POST(req: NextRequest) {
     const session = await getSession();
     const user = await getUserFromSession();
-    if (!session?.userId || !user || (!user.permissions['settings']?.create && !user.permissions['settings']?.update)) {
+    if (!session?.userId || !user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!hasPermissionForEntity(user, 'DataProvisioningUpload', 'create')) {
         return NextResponse.json({ error: 'Not authorized for this action' }, { status: 403 });
     }
     const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
@@ -212,6 +216,13 @@ export async function DELETE(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!hasPermissionForEntity(user, 'DataProvisioningUpload', 'delete')) {
+        return NextResponse.json({ error: 'Not authorized for this action' }, { status: 403 });
     }
      const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
     const userAgent = req.headers.get('user-agent') || 'N/A';

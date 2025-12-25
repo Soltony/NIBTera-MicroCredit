@@ -9,6 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "run:worker": "ts-node -P tsconfig.json -r tsconfig-paths/register src/worker.ts",
+    "build:worker": "esbuild src/worker.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/worker.cjs --external:@prisma/client --external:.prisma/client",
+    "start:worker": "node dist/worker.cjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -72,6 +74,7 @@
     "@types/react-dom": "^18",
     "@types/recharts": "^1.8.29",
     "cross-env": "^10.1.0",
+    "esbuild": "^0.27.2",
     "postcss": "^8",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",

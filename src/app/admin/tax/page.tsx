@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRequirePermission } from '@/hooks/use-require-permission';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,11 +32,28 @@ const TAX_COMPONENTS = [
     { id: 'penalty', label: 'Penalty' },
 ];
 
-function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxConfig, originalTax?: TaxConfig) => Promise<void>; onDelete: (tax: TaxConfig) => Promise<void>; }) {
+function TaxCard({
+    tax,
+    onSave,
+    onDelete,
+    canCreate,
+    canUpdate,
+    canDelete,
+}: {
+    tax: TaxConfig;
+    onSave: (tax: TaxConfig, originalTax?: TaxConfig) => Promise<void>;
+    onDelete: (tax: TaxConfig) => Promise<void>;
+    canCreate: boolean;
+    canUpdate: boolean;
+    canDelete: boolean;
+}) {
     const [config, setConfig] = useState(tax);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const { toast } = useToast();
+
+    const isNew = config.id.startsWith('new-');
+    const canEdit = config.status !== 'PENDING_APPROVAL' && (isNew ? canCreate : canUpdate);
 
     useEffect(() => {
         setConfig(tax);
@@ -103,7 +121,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                         onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="e.g., VAT"
                         className="max-w-xs"
-                        disabled={config.status === 'PENDING_APPROVAL'}
+                        disabled={!canEdit}
                     />
                 </div>
                 <div className="space-y-2">
@@ -115,7 +133,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                         onChange={(e) => setConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) || 0 }))}
                         placeholder="e.g., 15"
                         className="max-w-xs"
-                        disabled={config.status === 'PENDING_APPROVAL'}
+                        disabled={!canEdit}
                     />
                 </div>
                  <div className="space-y-4">
@@ -127,7 +145,7 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                                     id={`tax-on-${config.id}-${component.id}`}
                                     checked={JSON.parse(config.appliedTo).includes(component.id)}
                                     onCheckedChange={(checked) => handleComponentChange(component.id, !!checked)}
-                                    disabled={config.status === 'PENDING_APPROVAL'}
+                                    disabled={!canEdit}
                                 />
                                 <Label htmlFor={`tax-on-${config.id}-${component.id}`} className="font-normal">{component.label}</Label>
                             </div>
@@ -136,11 +154,21 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-2">
-                <Button variant="destructive" onClick={() => setIsDeleting(true)} disabled={isSaving || isDeleting || config.status === 'PENDING_APPROVAL' || config.id.startsWith('new-') }>
+                <Button
+                    variant="destructive"
+                    onClick={() => setIsDeleting(true)}
+                    disabled={
+                        isSaving ||
+                        isDeleting ||
+                        config.status === 'PENDING_APPROVAL' ||
+                        !canDelete ||
+                        isNew
+                    }
+                >
                     {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                     Delete
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || isDeleting || config.status === 'PENDING_APPROVAL'}>
+                <Button onClick={handleSave} disabled={isSaving || isDeleting || !canEdit}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     {config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
                 </Button>
@@ -155,7 +183,11 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                        <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-destructive hover:bg-destructive/90"
+                            disabled={!canDelete || isNew}
+                        >
                              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Submit for Deletion
                         </AlertDialogAction>
@@ -169,9 +201,15 @@ function TaxCard({ tax, onSave, onDelete }: { tax: TaxConfig; onSave: (tax: TaxC
 
 export default function TaxSettingsPage() {
     useRequirePermission('tax');
+    const { currentUser } = useAuth();
     const [taxes, setTaxes] = useState<TaxConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+
+    // Align with backend mapping: Tax actions can be authorized via either the `tax` or `settings` module.
+    const canCreate = !!(currentUser?.permissions?.tax?.create || currentUser?.permissions?.settings?.create);
+    const canUpdate = !!(currentUser?.permissions?.tax?.update || currentUser?.permissions?.settings?.update);
+    const canDelete = !!(currentUser?.permissions?.tax?.delete || currentUser?.permissions?.settings?.delete);
 
     const fetchTaxConfigs = async () => {
         setIsLoading(true);
@@ -197,6 +235,7 @@ export default function TaxSettingsPage() {
     }, []);
     
     const handleAddNewTax = () => {
+        if (!canCreate) return;
         const newTax: TaxConfig = {
             id: `new-${Date.now()}`,
             name: 'New Tax',
@@ -209,6 +248,14 @@ export default function TaxSettingsPage() {
 
     const handleSave = async (taxToSave: TaxConfig, originalTax?: TaxConfig) => {
         const isNew = taxToSave.id.startsWith('new-');
+        if (isNew && !canCreate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
+        if (!isNew && !canUpdate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
         const changeType = isNew ? 'CREATE' : 'UPDATE';
         const entityId = isNew ? undefined : taxToSave.id;
 
@@ -245,6 +292,10 @@ export default function TaxSettingsPage() {
     };
     
     const handleDelete = async (taxToDelete: TaxConfig) => {
+        if (!canDelete) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
         if (taxToDelete.id.startsWith('new-')) {
             setTaxes(prev => prev.filter(t => t.id !== taxToDelete.id));
             return;
@@ -273,10 +324,12 @@ export default function TaxSettingsPage() {
                     <h2 className="text-3xl font-bold tracking-tight">Tax Configuration</h2>
                     <p className="text-muted-foreground">Define universal tax rates and apply them to specific loan components.</p>
                 </div>
-                 <Button onClick={handleAddNewTax}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add New Tax
-                </Button>
+                {canCreate ? (
+                    <Button onClick={handleAddNewTax}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add New Tax
+                    </Button>
+                ) : null}
             </div>
             
              <div className="space-y-4">
@@ -284,12 +337,20 @@ export default function TaxSettingsPage() {
                     <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
                  ) : taxes.length > 0 ? (
                     taxes.map(tax => (
-                        <TaxCard key={tax.id} tax={tax} onSave={handleSave} onDelete={handleDelete} />
+                        <TaxCard
+                            key={tax.id}
+                            tax={tax}
+                            onSave={handleSave}
+                            onDelete={handleDelete}
+                            canCreate={canCreate}
+                            canUpdate={canUpdate}
+                            canDelete={canDelete}
+                        />
                     ))
                  ) : (
                      <Card>
                          <CardContent className="pt-6 text-center text-muted-foreground">
-                            No tax configurations found. Click "Add New Tax" to create one.
+                            No tax configurations found.
                          </CardContent>
                      </Card>
                  )}

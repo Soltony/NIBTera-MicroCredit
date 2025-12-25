@@ -40,7 +40,8 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
         icon: icons[0].name,
         colorHex: '#2563eb',
         displayOrder: 0,
-        accountNumber: '' as string | null,
+      accountNumber: '' as string | null,
+      collectionAccount: '' as string | null,
         startingCapital: 0,
         nplThresholdDays: 60,
     });
@@ -55,6 +56,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             colorHex: provider.colorHex || '#2563eb',
             displayOrder: provider.displayOrder || 0,
             accountNumber: provider.accountNumber || null,
+      collectionAccount: (provider as any).collectionAccount || null,
             startingCapital: provider.startingCapital || 0,
             nplThresholdDays: provider.nplThresholdDays || 60,
         });
@@ -65,6 +67,7 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
             colorHex: '#2563eb',
             displayOrder: 0,
             accountNumber: null,
+      collectionAccount: null,
             startingCapital: 0,
             nplThresholdDays: 60,
         });
@@ -142,6 +145,19 @@ export function AddProviderDialog({ isOpen, onClose, onSave, provider, primaryCo
               value={formData.accountNumber || ''}
               onChange={handleChange}
               placeholder="e.g., 1000123456789"
+              className="col-span-3"
+              style={{'--ring': primaryColor} as React.CSSProperties}
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="collectionAccount" className="text-right">
+              Collection Account
+            </Label>
+            <Input
+              id="collectionAccount"
+              value={formData.collectionAccount || ''}
+              onChange={handleChange}
+              placeholder="e.g., 2000123456789"
               className="col-span-3"
               style={{'--ring': primaryColor} as React.CSSProperties}
             />

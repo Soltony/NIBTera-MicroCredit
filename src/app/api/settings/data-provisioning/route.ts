@@ -3,6 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
+import { hasPermissionForEntity } from '@/lib/require-permission';
 
 // Helper to safely parse JSON strings
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -17,6 +19,18 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
 
 // GET all configs for a provider
 export async function GET(req: NextRequest) {
+    const session = await getSession();
+    if (!session?.userId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!hasPermissionForEntity(user, 'DataProvisioningConfig', 'read')) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const providerId = searchParams.get('providerId');
 
@@ -57,6 +71,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!hasPermissionForEntity(user, 'DataProvisioningConfig', 'create')) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     try {
         const body = await req.json();
         const { providerId, name, columns } = body;
@@ -81,6 +103,14 @@ export async function PUT(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!hasPermissionForEntity(user, 'DataProvisioningConfig', 'update')) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
     try {
@@ -108,6 +138,14 @@ export async function DELETE(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!hasPermissionForEntity(user, 'DataProvisioningConfig', 'delete')) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
     
     const { searchParams } = new URL(req.url);

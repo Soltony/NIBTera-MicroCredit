@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/user';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const user = await getUserFromSession();
+    const isMiddlewareCheck = req.headers.get('x-auth-session-check') === 'middleware';
+    const user = await getUserFromSession({ allowRefresh: !isMiddlewareCheck });
     if (!user?.id) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }

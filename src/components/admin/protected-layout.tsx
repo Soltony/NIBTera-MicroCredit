@@ -77,6 +77,16 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
   const router = useRouter();
   const { currentUser, logout, isLoading } = useAuth();
 
+  const currentMenuItem = React.useMemo(() => {
+    let best: (typeof allMenuItems)[number] | undefined;
+    for (const item of allMenuItems) {
+      if (pathname.startsWith(item.path) && (!best || item.path.length > best.path.length)) {
+        best = item;
+      }
+    }
+    return best;
+  }, [pathname]);
+
   React.useEffect(() => {
     if (!isLoading && !currentUser && pathname !== '/admin/login') {
       router.push('/admin/login');
@@ -115,19 +125,11 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
   // forbidden page to prevent client-side navigation to restricted pages.
   const isCurrentRouteAllowed = React.useMemo(() => {
     if (!currentUser || !currentUser.permissions) return false;
-    const current = allMenuItems.find(item => pathname.startsWith(item.path));
+    const current = currentMenuItem;
     if (!current) return true; // allow non-admin menu routes (handled elsewhere)
     const moduleName = current.label.toLowerCase().replace(/\s+/g, '-');
     return !!currentUser.permissions[moduleName]?.read;
-  }, [currentUser, pathname]);
-
-  React.useEffect(() => {
-    if (isLoading) return;
-    if (!currentUser) return;
-    if (!isCurrentRouteAllowed && pathname !== '/admin/forbidden') {
-      router.replace('/admin/forbidden');
-    }
-  }, [isCurrentRouteAllowed, currentUser, isLoading, pathname, router]);
+  }, [currentUser, currentMenuItem]);
 
   const handleLogout = async () => {
     await logout();

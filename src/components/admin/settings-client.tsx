@@ -62,6 +62,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { format } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
 import Link from 'next/link';
+import { usePermissions } from '@/hooks/use-permissions';
 
 
 // Helper to safely parse JSON fields that might be strings
@@ -120,7 +121,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     allDataConfigs: DataProvisioningConfig[];
 }) => {
     const { currentUser } = useAuth();
+    const { entityActions } = usePermissions();
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     // Keep a snapshot of the original product when the settings collapsible is opened
     // so we can send correct "original" values for approval payloads even though
@@ -130,6 +133,12 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const { toast } = useToast();
     
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const productActions = entityActions('LoanProduct');
+    const eligibilityActions = entityActions('EligibilityList');
+    const canEditProduct = !!(productActions.create || productActions.update);
+    const canDeleteProduct = !!productActions.delete;
+    const canCreateEligibilityList = !!eligibilityActions.create;
 
     const formData = useMemo(() => {
         return {
@@ -145,11 +154,6 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         const { name, value } = e.target;
         onUpdate({ [name]: value === '' ? null : value });
     };
-
-    const canEditSettings = useMemo(() => {
-        const perms = currentUser?.permissions?.['settings'];
-        return !!(perms?.create || perms?.update || perms?.delete);
-    }, [currentUser]);
 
     // Capture original snapshot when the editor opens so we can later
     // use the original values when submitting a change request for approval.
@@ -168,7 +172,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     }, [isOpen, product]);
 
     const handleSwitchChange = (name: keyof LoanProduct, checked: boolean) => {
-        if (!canEditSettings) {
+        if (!canEditProduct) {
             toast({ title: 'Not authorized', description: 'You only have read access for Settings.', variant: 'destructive' });
             return;
         }
@@ -180,7 +184,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     }
 
     const handleStatusChange = async (checked: boolean) => {
-        if (!canEditSettings) {
+        if (!canEditProduct) {
             toast({ title: 'Not authorized', description: 'You only have read access for Settings.', variant: 'destructive' });
             return;
         }
@@ -217,6 +221,12 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         const file = event.target.files?.[0];
         if (!file || !product.dataProvisioningConfigId) return;
 
+        if (!canCreateEligibilityList) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Eligibility.', variant: 'destructive' });
+            if (event.target) event.target.value = '';
+            return;
+        }
+
         setIsUploading(true);
         try {
             const fileReader = new FileReader();
@@ -251,6 +261,10 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     };
     
     const handleEligibilitySubmitForApproval = async () => {
+        if (!canCreateEligibilityList) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Eligibility.', variant: 'destructive' });
+            return;
+        }
         if (!product.eligibilityUpload || !(product.eligibilityUpload as any).fileContent) {
             toast({ title: "No file to submit", description: "Please upload a file first.", variant: "destructive"});
             return;
@@ -288,6 +302,11 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
     const submitForApproval = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!canEditProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         setIsSaving(true);
         try {
              const productToSave = {
@@ -358,6 +377,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 id={`status-${product.id}`}
                                 checked={formData.status === 'Active'} 
                                 onCheckedChange={(checked) => handleSwitchChange('status', checked)}
+                                disabled={!canEditProduct}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -367,7 +387,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                             <Switch
                                 id={`allowConcurrentLoans-${product.id}`}
                                 checked={!!formData.allowConcurrentLoans}
-                                onCheckedChange={(checked) => onUpdate({ allowConcurrentLoans: checked })}
+                                onCheckedChange={(checked) => handleSwitchChange('allowConcurrentLoans', Boolean(checked))}
+                                disabled={!canEditProduct}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -382,6 +403,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 value={formData.minLoan ?? ''}
                                 onChange={handleChange}
                                 placeholder="e.g., 500"
+                                disabled={!canEditProduct}
                             />
                         </div>
                         <div className="space-y-2">
@@ -393,6 +415,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 value={formData.maxLoan ?? ''}
                                 onChange={handleChange}
                                 placeholder="e.g., 2500"
+                                disabled={!canEditProduct}
                             />
                         </div>
                         <div className="space-y-2">
@@ -404,13 +427,23 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 value={formData.duration ?? ''}
                                 onChange={handleChange}
                                 placeholder="e.g., 30"
+                                disabled={!canEditProduct}
                             />
                         </div>
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
-                        <Button variant="destructive" type="button" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                        <Button type="submit" style={{ backgroundColor: providerColor }} className="text-white" disabled={isSaving || (((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL')}>
+                        {canDeleteProduct && (
+                            <Button variant="destructive" type="button" onClick={onDelete} disabled={isSaving}>
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </Button>
+                        )}
+                        <Button
+                            type="submit"
+                            style={{ backgroundColor: providerColor }}
+                            className="text-white"
+                            disabled={!canEditProduct || isSaving || (((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL')}
+                        >
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {(((product as any)._optimisticPending) || product.status === 'PENDING_APPROVAL') ? 'Pending Approval' : 'Submit for Approval'}
                         </Button>
@@ -427,6 +460,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
     onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
 }) {
     const { currentUser } = useAuth();
+    const { entityActions } = usePermissions();
     const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
     const [editingProvider, setEditingProvider] = useState<LoanProvider | null>(null);
     const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
@@ -435,6 +469,14 @@ function ProvidersTab({ providers, onProvidersChange }: {
     const [dataConfigs, setDataConfigs] = useState<DataProvisioningConfig[]>(providers.flatMap(p => p.dataProvisioningConfigs || []));
 
     const { toast } = useToast();
+
+    const providerActions = entityActions('LoanProvider');
+    const productActions = entityActions('LoanProduct');
+    const canCreateProvider = !!providerActions.create;
+    const canUpdateProvider = !!providerActions.update;
+    const canDeleteProvider = !!providerActions.delete;
+    const canCreateProduct = !!productActions.create;
+    const canDeleteProduct = !!productActions.delete;
     
     useEffect(() => {
         setDataConfigs(providers.flatMap(p => p.dataProvisioningConfigs || []));
@@ -454,6 +496,14 @@ function ProvidersTab({ providers, onProvidersChange }: {
 
     const handleSaveProvider = async (providerData: Partial<Omit<LoanProvider, 'products' | 'dataProvisioningConfigs' | 'id' | 'initialBalance'>> & { id?: string }) => {
         const isEditing = !!providerData.id;
+        if (isEditing && !canUpdateProvider) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Providers.', variant: 'destructive' });
+            return;
+        }
+        if (!isEditing && !canCreateProvider) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Providers.', variant: 'destructive' });
+            return;
+        }
         try {
             const changeType = isEditing ? 'UPDATE' : 'CREATE';
             const entityId = isEditing ? providerData.id : undefined;
@@ -497,6 +547,11 @@ function ProvidersTab({ providers, onProvidersChange }: {
     const handleAddProduct = async (newProductData: Omit<LoanProduct, 'id' | 'status' | 'serviceFee' | 'dailyFee' | 'penaltyRules' | 'providerId' > & { icon?: string }) => {
         if (!selectedProviderId) return;
 
+        if (!canCreateProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
+
         try {
             await postPendingChange({
                 entityType: 'LoanProduct',
@@ -536,6 +591,10 @@ function ProvidersTab({ providers, onProvidersChange }: {
     
     const handleDeleteProvider = async (providerId: string) => {
         try {
+             if (!canDeleteProvider) {
+                 toast({ title: 'Not authorized', description: 'You only have read access for Providers.', variant: 'destructive' });
+                 return;
+             }
              const providerToDelete = providers.find(p => p.id === providerId);
              if (!providerToDelete) throw new Error('Provider not found');
 
@@ -559,6 +618,10 @@ function ProvidersTab({ providers, onProvidersChange }: {
     
     const handleDeleteProduct = async (providerId: string, productId: string) => {
         try {
+            if (!canDeleteProduct) {
+                toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+                return;
+            }
             const provider = providers.find(p => p.id === providerId);
             const productToDelete = provider?.products.find(p => p.id === productId);
             if (!productToDelete) throw new Error("Product not found");
@@ -598,7 +661,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
     <>
       <div className="flex items-center justify-between space-y-2 mb-4">
         <div></div>
-        {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                {canCreateProvider && (
           <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
             <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
           </Button>
@@ -621,14 +684,28 @@ function ProvidersTab({ providers, onProvidersChange }: {
                 </div>
               </AccordionTrigger>
               <div className="flex items-center gap-2 ml-auto pl-4">
-                {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                                {(canUpdateProvider || canDeleteProvider) && (
                   <>
-                    <Button variant="ghost" size="icon" className="hover:bg-muted h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8" onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id }); }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                                        {canUpdateProvider && (
+                                                <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="hover:bg-muted h-8 w-8"
+                                                        onClick={(e) => { e.stopPropagation(); handleOpenProviderDialog(provider); }}
+                                                >
+                                                        <Edit className="h-4 w-4" />
+                                                </Button>
+                                        )}
+                                        {canDeleteProvider && (
+                                                <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="hover:bg-destructive hover:text-destructive-foreground h-8 w-8"
+                                                        onClick={(e) => { e.stopPropagation(); setDeletingId({ type: 'provider', providerId: provider.id }); }}
+                                                >
+                                                        <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                        )}
                   </>
                 )}
                 <AccordionTrigger className="p-2">
@@ -650,7 +727,7 @@ function ProvidersTab({ providers, onProvidersChange }: {
                     allDataConfigs={dataConfigs.filter(c => c.providerId === provider.id)}
                   />
                 ))}
-                {currentUser?.permissions?.['products']?.create && (
+                {canCreateProduct && (
                     <Button 
                     variant="outline" 
                     className="w-full hover:text-white"
@@ -829,12 +906,20 @@ function LoanTiersForm({ product, onUpdate, color }: {
     onUpdate: (updatedProduct: Partial<LoanProduct>) => void;
     color?: string;
 }) {
+    const { entityActions } = usePermissions();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const tiers = product.loanAmountTiers || [];
 
+    const productActions = entityActions('LoanProduct');
+    const canEditProduct = !!(productActions.create || productActions.update);
+
     const handleTierChange = (index: number, field: keyof Omit<LoanAmountTier, 'id' | 'productId'>, value: string) => {
+        if (!canEditProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         const newTiers = produce(tiers, draft => {
             const newTier = { ...draft[index], [field]: value === '' ? '' : value };
             draft[index] = newTier;
@@ -849,6 +934,10 @@ function LoanTiersForm({ product, onUpdate, color }: {
     };
 
     const handleAddTier = () => {
+        if (!canEditProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         const lastTier = tiers[tiers.length - 1];
         const newFromScore = lastTier ? (Number(lastTier.toScore) || 0) + 1 : 0;
         
@@ -864,6 +953,10 @@ function LoanTiersForm({ product, onUpdate, color }: {
     };
 
     const handleRemoveTier = (index: number) => {
+        if (!canEditProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         const newTiers = tiers.filter((_, i) => i !== index);
         onUpdate({ loanAmountTiers: newTiers });
     };
@@ -947,7 +1040,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
                                     value={tier.fromScore ?? ''}
                                     onChange={(e) => handleTierChange(index, 'fromScore', e.target.value)}
                                     className="w-28"
-                                    disabled={index > 0} // Only first "from" is editable
+                                    disabled={index > 0 || !canEditProduct} // Only first "from" is editable
                                 />
                                 <Label className="w-16">To Score</Label>
                                  <Input
@@ -955,6 +1048,7 @@ function LoanTiersForm({ product, onUpdate, color }: {
                                     value={tier.toScore ?? ''}
                                     onChange={(e) => handleTierChange(index, 'toScore', e.target.value)}
                                     className="w-28"
+                                                disabled={!canEditProduct}
                                 />
                                 <Label className="w-24">Loan Amount</Label>
                                  <Input
@@ -962,11 +1056,14 @@ function LoanTiersForm({ product, onUpdate, color }: {
                                     value={tier.loanAmount ?? ''}
                                     onChange={(e) => handleTierChange(index, 'loanAmount', e.target.value)}
                                     className="flex-1"
+                                    disabled={!canEditProduct}
                                 />
-                                <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveTier(index)} className="text-destructive" disabled={!canEditProduct}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                             </div>
                         ))}
-                         <Button variant="outline" onClick={handleAddTier} className="w-full">
+                         <Button variant="outline" onClick={handleAddTier} className="w-full" disabled={!canEditProduct}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Tier
                         </Button>
                     </CardContent>
@@ -982,9 +1079,13 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     onProductUpdate: (updatedProduct: LoanProduct) => void;
     taxConfig: Tax;
 }) {
+    const { entityActions } = usePermissions();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
+    const productActions = entityActions('LoanProduct');
+    const canEditProduct = !!(productActions.create || productActions.update);
     
     const taxAppliedTo = useMemo(() => safeParseJson({appliedTo: taxConfig.appliedTo}, 'appliedTo', []), [taxConfig.appliedTo]);
 
@@ -1007,10 +1108,15 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     }, [parsedProduct]);
 
     const handleUpdate = (update: Partial<LoanProduct>) => {
+        if (!canEditProduct) return;
         setConfig(prev => ({...prev, ...update}));
     };
 
     const handleAddPenaltyRule = () => {
+        if (!canEditProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         const newRule: PenaltyRule = {
             id: `penalty-${Date.now()}`,
             fromDay: 1,
@@ -1023,10 +1129,12 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     };
 
     const handleRemovePenaltyRule = (ruleId: string) => {
+        if (!canEditProduct) return;
         setConfig(prev => ({...prev, penaltyRules: prev.penaltyRules.filter(r => r.id !== ruleId)}));
     };
     
     const handleUpdatePenaltyRule = (ruleId: string, updatedRule: PenaltyRule) => {
+         if (!canEditProduct) return;
          setConfig(prev => ({
             ...prev,
             penaltyRules: prev.penaltyRules.map(r => r.id === ruleId ? updatedRule : r)
@@ -1034,6 +1142,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
     };
 
     const handleSave = async () => {
+        if (!canEditProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         setIsSaving(true);
         try {
             // Validate loan amount tiers before submitting, in case the user
@@ -1124,6 +1236,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                                 id={`serviceFeeEnabled-${config.id}`}
                                 checked={config.serviceFeeEnabled}
                                 onCheckedChange={(checked) => handleUpdate({ serviceFeeEnabled: checked })}
+                                disabled={!canEditProduct}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -1132,7 +1245,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                             label="Fee Details"
                             fee={config.serviceFee}
                             onChange={(fee) => handleUpdate({ serviceFee: fee })}
-                            isEnabled={!!config.serviceFeeEnabled}
+                            isEnabled={!!config.serviceFeeEnabled && canEditProduct}
                         />
                         
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
@@ -1144,6 +1257,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                                 id={`dailyFeeEnabled-${config.id}`}
                                 checked={config.dailyFeeEnabled}
                                 onCheckedChange={(checked) => handleUpdate({ dailyFeeEnabled: checked })}
+                                disabled={!canEditProduct}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -1152,7 +1266,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                             label="Fee Details"
                             fee={config.dailyFee}
                             onChange={(fee) => handleUpdate({ dailyFee: fee })}
-                            isEnabled={!!config.dailyFeeEnabled}
+                            isEnabled={!!config.dailyFeeEnabled && canEditProduct}
                         />
                         
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
@@ -1164,6 +1278,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                                 id={`penaltyRulesEnabled-${config.id}`}
                                 checked={config.penaltyRulesEnabled}
                                 onCheckedChange={(checked) => handleUpdate({ penaltyRulesEnabled: checked })}
+                                disabled={!canEditProduct}
                                 className="data-[state=checked]:bg-[--provider-color]"
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
@@ -1177,10 +1292,10 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                                         onChange={(updatedRule) => handleUpdatePenaltyRule(rule.id, updatedRule)}
                                         onRemove={() => handleRemovePenaltyRule(rule.id)}
                                         color={providerColor}
-                                        isEnabled={!!config.penaltyRulesEnabled}
+                                        isEnabled={!!config.penaltyRulesEnabled && canEditProduct}
                                     />
                                 ))}
-                                <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled}>
+                                <Button variant="outline" size="sm" onClick={handleAddPenaltyRule} disabled={!config.penaltyRulesEnabled || !canEditProduct}>
                                     <PlusCircle className="h-4 w-4 mr-2" /> Add Penalty Rule
                                 </Button>
                             </div>
@@ -1201,7 +1316,7 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                             size="sm"
                             style={{ backgroundColor: providerColor }}
                             className="text-white ml-auto"
-                            disabled={isSaving || ((config as any)._optimisticPending || config.status === 'PENDING_APPROVAL')}
+                            disabled={!canEditProduct || isSaving || ((config as any)._optimisticPending || config.status === 'PENDING_APPROVAL')}
                         >
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                             {(config as any)._optimisticPending || config.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 'Submit for Approval'}
@@ -1325,11 +1440,22 @@ function EligibilityTab({ providers, onProvidersChange }: {
     providers: LoanProvider[],
     onProvidersChange: (updater: React.SetStateAction<LoanProvider[]>) => void;
 }) {
+    const { entityActions } = usePermissions();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const [viewingUpload, setViewingUpload] = useState<DataProvisioningUpload | null>(null);
 
+    const productActions = entityActions('LoanProduct');
+    const eligibilityActions = entityActions('EligibilityList');
+    const canUpdateProduct = !!(productActions.create || productActions.update);
+    const canCreateEligibilityList = !!eligibilityActions.create;
+    const canDeleteEligibilityList = !!eligibilityActions.delete;
+
     const handleUpdateProduct = async (providerId: string, updatedProduct: Partial<LoanProduct>) => {
+        if (!canUpdateProduct) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Products.', variant: 'destructive' });
+            return;
+        }
         // Optimistically update UI
         const previousState = JSON.parse(JSON.stringify(providers));
         onProvidersChange(produce(draft => {
@@ -1400,6 +1526,12 @@ function EligibilityTab({ providers, onProvidersChange }: {
         const file = event.target.files?.[0];
         if (!file || !product.dataProvisioningConfigId) return;
 
+        if (!canCreateEligibilityList) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Eligibility.', variant: 'destructive' });
+            if (event.target) event.target.value = '';
+            return;
+        }
+
         setIsSaving(true);
         try {
             const fileReader = new FileReader();
@@ -1430,6 +1562,10 @@ function EligibilityTab({ providers, onProvidersChange }: {
     };
     
     const handleEligibilitySubmitForApproval = async (product: LoanProduct) => {
+        if (!canCreateEligibilityList) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Eligibility.', variant: 'destructive' });
+            return;
+        }
         if (!product.eligibilityUpload || !(product.eligibilityUpload as any).fileContent) {
             toast({ title: "No file to submit", description: "Please upload a file first.", variant: "destructive"});
             return;
@@ -1466,6 +1602,11 @@ function EligibilityTab({ providers, onProvidersChange }: {
     
     const handleDeleteFilter = async (product: LoanProduct) => {
         if (!product.eligibilityUploadId) return;
+
+        if (!canDeleteEligibilityList) {
+            toast({ title: 'Not authorized', description: 'You only have read access for Eligibility.', variant: 'destructive' });
+            return;
+        }
         setIsSaving(true);
         try {
             const response = await fetch(`/api/settings/products/eligibility-filter?productId=${product.id}`, {
@@ -1512,7 +1653,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                 onCheckedChange={(checked) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningEnabled: checked })}
                                                 className="data-[state=checked]:bg-[--provider-color]"
                                                 style={{ '--provider-color': provider.colorHex } as React.CSSProperties}
-                                                disabled={((product as any)._optimisticPending || product.status === 'PENDING_APPROVAL')}
+                                                disabled={!canUpdateProduct || ((product as any)._optimisticPending || product.status === 'PENDING_APPROVAL')}
                                             />
                                             <Label htmlFor={`dataProvisioningEnabled-${product.id}`}>Enable Eligibility Allow-List</Label>
                                         </div>
@@ -1524,7 +1665,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                     <Select
                                                         value={product.dataProvisioningConfigId || ''}
                                                         onValueChange={(value) => handleUpdateProduct(provider.id, { id: product.id, dataProvisioningConfigId: value })}
-                                                        disabled={((product as any)._optimisticPending || product.status === 'PENDING_APPROVAL')}
+                                                        disabled={!canUpdateProduct || ((product as any)._optimisticPending || product.status === 'PENDING_APPROVAL')}
                                                     >
                                                         <SelectTrigger className="w-full">
                                                             <SelectValue placeholder="Select a data source..." />
@@ -1540,7 +1681,13 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                     <Label>Upload List</Label>
                                                     <div className="flex items-center gap-4">
                                                         <Button asChild variant="outline" size="sm">
-                                                            <label htmlFor={`filter-upload-${product.id}`} className={cn("cursor-pointer", !product.dataProvisioningConfigId && 'cursor-not-allowed opacity-50')}>
+                                                            <label
+                                                                htmlFor={`filter-upload-${product.id}`}
+                                                                className={cn(
+                                                                    "cursor-pointer",
+                                                                    (!product.dataProvisioningConfigId || !canCreateEligibilityList) && 'cursor-not-allowed opacity-50',
+                                                                )}
+                                                            >
                                                                 <Upload className="h-4 w-4 mr-2" />
                                                                 {isSaving ? "Uploading..." : "Upload Excel File"}
                                                                 <input
@@ -1549,7 +1696,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                                     accept=".xlsx, .xls"
                                                                     onChange={(e) => handleFilterFileUpload(e, product)}
                                                                     className="hidden"
-                                                                    disabled={isSaving || !product.dataProvisioningConfigId}
+                                                                    disabled={isSaving || !product.dataProvisioningConfigId || !canCreateEligibilityList}
                                                                 />
                                                             </label>
                                                         </Button>
@@ -1568,13 +1715,19 @@ function EligibilityTab({ providers, onProvidersChange }: {
                                                                     </p>
                                                                 </div>
                                                                 <div className="flex gap-2 items-center">
-                                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload)}>View</Button>
-                                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteFilter(product)}>Delete List</Button>
+                                                                    <Button variant="outline" size="sm" onClick={() => setViewingUpload(product.eligibilityUpload ?? null)}>View</Button>
+                                                                    {canDeleteEligibilityList && (
+                                                                        <Button variant="destructive" size="sm" onClick={() => handleDeleteFilter(product)}>
+                                                                            Delete List
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                             {(product.eligibilityUpload as any).fileContent && (
                                                                 <div className="mt-2 text-right">
-                                                                     <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={isSaving}>Submit Eligibility for Approval</Button>
+                                                                     <Button size="sm" onClick={() => handleEligibilitySubmitForApproval(product)} disabled={!canCreateEligibilityList || isSaving}>
+                                                                        Submit Eligibility for Approval
+                                                                     </Button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1643,6 +1796,8 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
     providerColor?: string;
 }) {
     const { toast } = useToast();
+    const { entityActions } = usePermissions();
+    const loanCycleActions = entityActions('LoanCycleConfig');
     const [loanCycleConfig, setLoanCycleConfig] = useState<LoanCycleConfig | null>(null);
     const [editingMetric, setEditingMetric] = useState<LoanCycleConfig['metric'] | null>(null);
     const [editingEnabled, setEditingEnabled] = useState<boolean>(true);
@@ -1651,6 +1806,9 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
     const [newCycleLabel, setNewCycleLabel] = useState<string>('');
     const [isSavingLoanCycle, setIsSavingLoanCycle] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+
+    const canEditLoanCycle = loanCycleConfig ? loanCycleActions.update : loanCycleActions.create;
+    const loanCycleReadOnly = !canEditLoanCycle;
 
     useEffect(() => {
         let mounted = true;
@@ -1721,6 +1879,10 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
     };
     
     const handleSaveLoanCycle = async () => {
+        if (loanCycleReadOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to update loan-cycle configuration.', variant: 'destructive' });
+            return;
+        }
         if (!product.id || !editingMetric) {
             toast({ title: 'Error', description: 'Product and metric are required', variant: 'destructive' });
             return;
@@ -1758,7 +1920,7 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
                 <div className="flex items-center justify-end">
                     <div className="flex items-center gap-2">
                         <Label>Enabled</Label>
-                        <Switch checked={editingEnabled} onCheckedChange={(c) => setEditingEnabled(Boolean(c))} />
+                        <Switch checked={editingEnabled} onCheckedChange={(c) => setEditingEnabled(Boolean(c))} disabled={loanCycleReadOnly} />
                     </div>
                 </div>
 
@@ -1766,7 +1928,7 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
                     <div className="space-y-2">
                         <Label>Progression Metric</Label>
                         <Select onValueChange={(v) => setEditingMetric(v as LoanCycleConfig['metric'])} value={editingMetric || undefined}>
-                            <SelectTrigger>
+                            <SelectTrigger disabled={loanCycleReadOnly}>
                                 <SelectValue placeholder="Select metric" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1785,16 +1947,16 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
                         {editingCycleRanges.length === 0 && <div className="text-xs text-muted-foreground">No cycle ranges defined.</div>}
                         {editingCycleRanges.map((r, idx) => (
                             <div key={idx} className="flex items-center gap-2">
-                                <Input placeholder="Label" value={r.label} onChange={(e) => updateCycleRangeField(idx, 'label', e.target.value)} className="w-32" />
-                                <Input placeholder="min" type="number" value={String(r.min)} onChange={(e) => updateCycleRangeField(idx, 'min', e.target.value)} className="w-20" />
+                                <Input placeholder="Label" value={r.label} onChange={(e) => updateCycleRangeField(idx, 'label', e.target.value)} className="w-32" disabled={loanCycleReadOnly} />
+                                <Input placeholder="min" type="number" value={String(r.min)} onChange={(e) => updateCycleRangeField(idx, 'min', e.target.value)} className="w-20" disabled={loanCycleReadOnly} />
                                 <div className="text-sm">-</div>
-                                <Input placeholder="max" type="number" value={String(r.max)} onChange={(e) => updateCycleRangeField(idx, 'max', e.target.value)} className="w-20" />
-                                <Button variant="ghost" size="sm" onClick={() => removeCycleRange(idx)}><Trash2 className="h-3 w-3"/></Button>
+                                <Input placeholder="max" type="number" value={String(r.max)} onChange={(e) => updateCycleRangeField(idx, 'max', e.target.value)} className="w-20" disabled={loanCycleReadOnly} />
+                                <Button variant="ghost" size="sm" onClick={() => removeCycleRange(idx)} disabled={loanCycleReadOnly}><Trash2 className="h-3 w-3"/></Button>
                             </div>
                         ))}
                         <div className="flex items-center gap-2 mt-1">
-                            <Input placeholder="New range label" value={newCycleLabel} onChange={(e) => setNewCycleLabel(e.target.value)} className="w-32" />
-                            <Button type="button" onClick={addCycleRange} size="sm"><PlusCircle className="h-4 w-4"/></Button>
+                            <Input placeholder="New range label" value={newCycleLabel} onChange={(e) => setNewCycleLabel(e.target.value)} className="w-32" disabled={loanCycleReadOnly} />
+                            <Button type="button" onClick={addCycleRange} size="sm" disabled={loanCycleReadOnly}><PlusCircle className="h-4 w-4"/></Button>
                         </div>
                     </div>
 
@@ -1815,19 +1977,19 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
                                 <tbody>
                                     {editingGrades.map((g, gIdx) => (
                                         <tr key={gIdx} className="border-t">
-                                            <td className="px-2 py-2"><Input value={g.label} onChange={(e) => updateGradeField(gIdx, 'label', e.target.value)} className="w-28 h-8" /></td>
-                                            <td className="px-2 py-2"><Input type="number" value={String(g.minScore)} onChange={(e) => updateGradeField(gIdx, 'minScore', e.target.value)} className="w-24 h-8" /></td>
+                                            <td className="px-2 py-2"><Input value={g.label} onChange={(e) => updateGradeField(gIdx, 'label', e.target.value)} className="w-28 h-8" disabled={loanCycleReadOnly} /></td>
+                                            <td className="px-2 py-2"><Input type="number" value={String(g.minScore)} onChange={(e) => updateGradeField(gIdx, 'minScore', e.target.value)} className="w-24 h-8" disabled={loanCycleReadOnly} /></td>
                                             {editingCycleRanges.map((r, cIdx) => (
-                                                <td key={cIdx} className="px-2 py-2"><Input type="number" value={String(g.percentages[cIdx] ?? 0)} onChange={(e) => updateGradePercentage(gIdx, cIdx, e.target.value)} className="w-20 h-8" /></td>
+                                                <td key={cIdx} className="px-2 py-2"><Input type="number" value={String(g.percentages[cIdx] ?? 0)} onChange={(e) => updateGradePercentage(gIdx, cIdx, e.target.value)} className="w-20 h-8" disabled={loanCycleReadOnly} /></td>
                                             ))}
-                                            <td className="px-2 py-2"><Button variant="ghost" size="sm" onClick={() => removeGrade(gIdx)}><Trash2 className="h-4 w-4"/></Button></td>
+                                            <td className="px-2 py-2"><Button variant="ghost" size="sm" onClick={() => removeGrade(gIdx)} disabled={loanCycleReadOnly}><Trash2 className="h-4 w-4"/></Button></td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                         <div className="mt-2 flex items-center gap-2">
-                            <Button type="button" onClick={addGrade} size="sm"><PlusCircle className="h-4 w-4"/> Add Grade</Button>
+                            <Button type="button" onClick={addGrade} size="sm" disabled={loanCycleReadOnly}><PlusCircle className="h-4 w-4"/> Add Grade</Button>
                         </div>
                     </div>
                 </div>
@@ -1839,7 +2001,7 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
                         setEditingCycleRanges(Array.isArray(loanCycleConfig?.cycleRanges) ? loanCycleConfig!.cycleRanges.map((r: any) => ({ label: r.label ?? `${r.min}-${r.max}`, min: r.min ?? '', max: r.max ?? '' })) : []);
                         setEditingGrades(Array.isArray(loanCycleConfig?.grades) ? loanCycleConfig!.grades.map((g: any) => ({ label: g.label ?? '', minScore: g.minScore ?? '', percentages: Array.isArray(g.percentages) ? g.percentages : [] })) : []);
                     }}>Reset</Button>
-                    <Button type="button" onClick={handleSaveLoanCycle} disabled={isSavingLoanCycle || !editingMetric} style={{ backgroundColor: providerColor }} className="text-white">{isSavingLoanCycle ? 'Saving...' : 'Save Loan Cycle'}</Button>
+                    <Button type="button" onClick={handleSaveLoanCycle} disabled={isSavingLoanCycle || !editingMetric || loanCycleReadOnly} style={{ backgroundColor: providerColor }} className="text-white">{isSavingLoanCycle ? 'Saving...' : 'Save Loan Cycle'}</Button>
                 </div>
             </CollapsibleContent>
         </Collapsible>
@@ -1927,6 +2089,9 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
 
 function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, onProviderUpdate: (update: Partial<LoanProvider>) => void }) {
     const { toast } = useToast();
+    const { entityActions } = usePermissions();
+    const termsActions = entityActions('TermsAndConditions');
+    const canEditTerms = termsActions.create || termsActions.update;
     const [terms, setTerms] = useState<TermsAndConditions | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     
@@ -1949,6 +2114,10 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
     }, [provider.id, toast]);
     
     const handleSave = async () => {
+        if (!canEditTerms) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to update terms and conditions.', variant: 'destructive' });
+            return;
+        }
         if (!terms || !terms.content.trim()) {
             toast({ title: "Error", description: "Terms and conditions content cannot be empty.", variant: "destructive" });
             return;
@@ -1995,12 +2164,13 @@ function AgreementTab({ provider, onProviderUpdate }: { provider: LoanProvider, 
                 onChange={(e) => setTerms(prev => ({ ...(prev || { version: 0, content: '' }), content: e.target.value }) as TermsAndConditions)}
                 placeholder="Enter the terms and conditions for your loan products here."
                 rows={15}
+                     disabled={!canEditTerms}
             />
             <div className="flex justify-between items-center">
                 <p className="text-sm text-muted-foreground">
                     Current Version: {terms?.version || 0}
                 </p>
-                <Button onClick={handleSave} disabled={isLoading}>
+                <Button onClick={handleSave} disabled={isLoading || !canEditTerms}>
                     {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
                     Submit New Version for Approval
                 </Button>
@@ -2019,6 +2189,9 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
     allProviderProducts: LoanProduct[];
 }) {
     const { toast } = useToast();
+    const { entityActions } = usePermissions();
+    const dataConfigActions = entityActions('DataProvisioningConfig');
+    const uploadActions = entityActions('DataProvisioningUpload');
     const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -2026,6 +2199,10 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
 
     const handleSaveConfig = async (newConfigData: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
         const isEditing = !!newConfigData.id;
+        if (isEditing ? !dataConfigActions.update : !dataConfigActions.create) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to modify data provisioning settings.', variant: 'destructive' });
+            return;
+        }
         const method = isEditing ? 'PUT' : 'POST';
         const endpoint = '/api/settings/data-provisioning';
         const body = { ...newConfigData, providerId: providerId };
@@ -2051,6 +2228,11 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
     
     const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         if (!config) return;
+        if (!uploadActions.create) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to upload data provisioning files.', variant: 'destructive' });
+            if (event.target) event.target.value = '';
+            return;
+        }
 
         const file = event.target.files?.[0];
         if (!file) return;
@@ -2097,6 +2279,9 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
     };
 
     if (!config) {
+        if (!dataConfigActions.create) {
+            return null;
+        }
         return (
             <>
                 <Button onClick={() => setIsConfigDialogOpen(true)}>
@@ -2107,6 +2292,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
                     onClose={() => setIsConfigDialogOpen(false)}
                     onSave={handleSaveConfig}
                     config={null}
+                    readOnly={!dataConfigActions.create}
                 />
             </>
         )
@@ -2126,7 +2312,9 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
                         <CardTitle className="text-lg">{config.name}</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsConfigDialogOpen(true)}><Edit className="h-4 w-4" /></Button>
+                        {dataConfigActions.update && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsConfigDialogOpen(true)}><Edit className="h-4 w-4" /></Button>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -2142,7 +2330,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                disabled={isUploading}
+                                disabled={isUploading || !uploadActions.create}
                                 onClick={() => fileInputRef.current?.click()}
                             >
                                 {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
@@ -2193,6 +2381,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
                 onClose={() => setIsConfigDialogOpen(false)}
                 onSave={handleSaveConfig}
                 config={config}
+                     readOnly={!dataConfigActions.update}
             />
             <UploadDataViewerDialog
                 upload={viewingUpload}
@@ -2207,11 +2396,12 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
 // --------------------------------------------------
 type EditableDataColumn = DataColumn & { optionsString?: string };
 
-function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
+function DataProvisioningDialog({ isOpen, onClose, onSave, config, readOnly }: {
     isOpen: boolean;
     onClose: () => void;
     onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => void;
     config: DataProvisioningConfig | null;
+    readOnly?: boolean;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState('');
@@ -2230,6 +2420,11 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     }, [config, isOpen]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (readOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to modify this configuration.', variant: 'destructive' });
+            if (event.target) event.target.value = '';
+            return;
+        }
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -2264,6 +2459,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     };
 
     const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
+        if (readOnly) return;
         setColumns(produce(draft => {
             if (field === 'isIdentifier' && typeof value === 'boolean') {
                 // Ensure only one column can be the identifier
@@ -2278,6 +2474,10 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (readOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to save this configuration.', variant: 'destructive' });
+            return;
+        }
         if (!columns.some(c => c.isIdentifier)) {
             toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
             return;
@@ -2304,12 +2504,12 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div>
                         <Label htmlFor="data-type-name">Data Type Name</Label>
-                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required />
+                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required disabled={!!readOnly} />
                     </div>
 
                     <div>
                         <Label htmlFor="file-upload">Upload Sample File (.xlsx, .xls)</Label>
-                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} disabled={!!readOnly} />
                          <p className="text-xs text-muted-foreground mt-1">Upload a file to automatically detect columns.</p>
                     </div>
 
@@ -2325,9 +2525,10 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                 value={col.name}
                                                 onChange={e => handleColumnChange(index, 'name', e.target.value)}
                                                 required
+                                                disabled={!!readOnly}
                                             />
                                             <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
-                                                <SelectTrigger className="col-span-3">
+                                                <SelectTrigger className="col-span-3" disabled={!!readOnly}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -2341,6 +2542,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                     id={`is-identifier-${col.id}`}
                                                     checked={col.isIdentifier}
                                                     onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                                    disabled={!!readOnly}
                                                 />
                                                 <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
                                             </div>
@@ -2354,6 +2556,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                     className="text-xs"
                                                     value={col.optionsString || ''}
                                                     onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
+                                                    disabled={!!readOnly}
                                                 />
                                                 <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
                                             </div>
@@ -2366,7 +2569,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     
                     <UIDialogFooter>
                         <UIDialogClose asChild><Button type="button" variant="outline">Cancel</Button></UIDialogClose>
-                        <Button type="submit">Save</Button>
+                        <Button type="submit" disabled={!!readOnly}>Save</Button>
                     </UIDialogFooter>
                 </form>
             </UIDialogContent>

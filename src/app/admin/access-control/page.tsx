@@ -33,6 +33,9 @@ function UsersTab() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const { toast } = useToast();
+
+    const canCreate = !!currentUser?.permissions?.['access-control']?.create;
+    const canUpdate = !!currentUser?.permissions?.['access-control']?.update;
     
     const themeColor = React.useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -86,6 +89,14 @@ function UsersTab() {
     };
 
     const handleSaveUser = async (userData: Omit<User, 'id'> & { id?: string; password?: string }) => {
+        if (editingUser && !canUpdate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
+        if (!editingUser && !canCreate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
         const method = editingUser ? 'PUT' : 'POST';
         const endpoint = '/api/users';
         const body = JSON.stringify(editingUser ? { ...userData, id: editingUser.id } : userData);
@@ -117,6 +128,10 @@ function UsersTab() {
     };
     
     const handleToggleStatus = async (user: User) => {
+        if (!canUpdate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
         const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
         try {
             const response = await fetch('/api/users', {
@@ -152,9 +167,11 @@ function UsersTab() {
         <>
             <div className="flex items-center justify-between space-y-2 mb-4">
                 <div/>
-                <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: themeColor }} className="text-white">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add User
-                </Button>
+                {canCreate ? (
+                    <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: themeColor }} className="text-white">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add User
+                    </Button>
+                ) : null}
             </div>
             <Card>
                 <CardHeader>
@@ -199,8 +216,8 @@ function UsersTab() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onClick={() => handleOpenDialog(user)}>Edit</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
+                                                <DropdownMenuItem onClick={() => handleOpenDialog(user)} disabled={!canUpdate}>Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleToggleStatus(user)} disabled={!canUpdate}>
                                                     {user.status === 'Active' ? 'Deactivate' : 'Activate'}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -234,6 +251,10 @@ function RolesTab() {
     const [editingRole, setEditingRole] = useState<Role | null>(null);
     const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
     const { toast } = useToast();
+
+    const canCreate = !!currentUser?.permissions?.['access-control']?.create;
+    const canUpdate = !!currentUser?.permissions?.['access-control']?.update;
+    const canDelete = !!currentUser?.permissions?.['access-control']?.delete;
 
     const themeColor = React.useMemo(() => {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') {
@@ -281,6 +302,14 @@ function RolesTab() {
     };
 
     const handleSaveRole = async (roleData: Omit<Role, 'id'>) => {
+        if (editingRole && !canUpdate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
+        if (!editingRole && !canCreate) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            return;
+        }
         const method = editingRole ? 'PUT' : 'POST';
         const endpoint = '/api/roles';
         const body = JSON.stringify(editingRole ? { ...roleData, id: editingRole.id } : roleData);
@@ -313,6 +342,11 @@ function RolesTab() {
     
     const handleDeleteRole = async () => {
         if (!deletingRoleId) return;
+        if (!canDelete) {
+            toast({ title: 'Not authorized', description: 'Not authorized to perform this action.', variant: 'destructive' });
+            setDeletingRoleId(null);
+            return;
+        }
         try {
             const response = await fetch('/api/roles', {
                 method: 'DELETE',
@@ -349,9 +383,11 @@ function RolesTab() {
         <>
             <div className="flex items-center justify-between space-y-2 mb-4">
                 <div />
-                <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: themeColor }} className="text-white">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Role
-                </Button>
+                {canCreate ? (
+                    <Button onClick={() => handleOpenDialog()} style={{ backgroundColor: themeColor }} className="text-white">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Role
+                    </Button>
+                ) : null}
             </div>
             <Card>
                 <CardHeader>
@@ -393,8 +429,8 @@ function RolesTab() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onClick={() => handleOpenDialog(role)}>Edit</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-red-600" onClick={() => setDeletingRoleId(role.id)}>Delete</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleOpenDialog(role)} disabled={!canUpdate}>Edit</DropdownMenuItem>
+                                                <DropdownMenuItem className="text-red-600" onClick={() => setDeletingRoleId(role.id)} disabled={!canDelete}>Delete</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
@@ -421,7 +457,7 @@ function RolesTab() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteRole} style={{ backgroundColor: themeColor }} className="text-white">Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={handleDeleteRole} style={{ backgroundColor: themeColor }} className="text-white" disabled={!canDelete}>Delete</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

@@ -46,6 +46,9 @@ export async function createSession(userId: string, superAppToken?: string, perm
   const userWithRole = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
   if (!userWithRole) throw new Error("User not found during session creation.");
 
+  // Enforce session concurrency: only allow a single active session per user.
+  // Any existing active sessions are revoked when a new login occurs.
+
   // Create a DB session (refresh token storage) and issue access + refresh tokens.
   const refreshExpiresAt = expiryDateFromDays(REFRESH_TOKEN_DAYS);
 
@@ -55,14 +58,21 @@ export async function createSession(userId: string, superAppToken?: string, perm
   // generate a JTI (JWT ID) for the access token and persist it on the DB session
   const jti = randomUUID();
 
-  const sessionRecord = await prisma.session.create({
-    data: {
-      userId,
-      refreshToken,
-      jti,
-      expiresAt: refreshExpiresAt,
-      revoked: false,
-    },
+  const sessionRecord = await prisma.$transaction(async (tx) => {
+    await tx.session.updateMany({
+      where: { userId, revoked: false },
+      data: { revoked: true, jti: null },
+    });
+
+    return await tx.session.create({
+      data: {
+        userId,
+        refreshToken,
+        jti,
+        expiresAt: refreshExpiresAt,
+        revoked: false,
+      },
+    });
   });
 
   // Build access token payload including session id so we can track activity
@@ -99,6 +109,14 @@ export async function createSession(userId: string, superAppToken?: string, perm
   return { accessToken, refreshToken, sessionId: sessionRecord.id };
 }
 
+export async function revokeAllUserSessions(userId: string) {
+  const { default: prisma } = await import('./prisma');
+  await prisma.session.updateMany({
+    where: { userId, revoked: false },
+    data: { revoked: true, jti: null },
+  });
+}
+
 // Create a legacy-only session cookie for flows where the external token
 // should log the user into the mini-app without creating a DB-backed session.
 export async function createLegacySession(phone: string, superAppToken: string) {
@@ -110,7 +128,8 @@ export async function createLegacySession(phone: string, superAppToken: string) 
   return { session: legacySessionJwt };
 }
 
-export async function getSession() {
+export async function getSession(options?: { allowRefresh?: boolean }) {
+  const allowRefresh = options?.allowRefresh !== false;
   const cookiesStore = await cookies();
   const access = cookiesStore.get('accessToken')?.value;
   const refresh = cookiesStore.get('refreshToken')?.value;
@@ -156,6 +175,23 @@ export async function getSession() {
       if (!sessionRecord) return null;
       if (sessionRecord.revoked) return null;
       if (sessionRecord.expiresAt < new Date()) return null;
+
+      // If refresh is not allowed (e.g., Server Components or internal middleware checks),
+      // validate the refresh token without rotating it and without setting cookies.
+      if (!allowRefresh) {
+        const userWithRole = await prisma.user.findUnique({ where: { id: sessionRecord.userId }, include: { role: true } });
+        if (!userWithRole) return null;
+
+        // update last activity timestamp (DB-only; safe in all contexts)
+        await prisma.session.update({ where: { id: sessionRecord.id }, data: { lastActivity: new Date() } });
+
+        return {
+          userId: sessionRecord.userId,
+          sessionId: sessionRecord.id,
+          jti: sessionRecord.jti,
+          passwordChangeRequired: userWithRole.passwordChangeRequired,
+        };
+      }
 
       // rotate refresh token for additional security
       const newRefreshToken = await encryptJwt({ userId: sessionRecord.userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);

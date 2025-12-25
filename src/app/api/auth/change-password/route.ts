@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { getSession, deleteSession, createSession } from '@/lib/session';
+import { getSession, deleteSession, revokeAllUserSessions } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
 import { z, ZodError } from 'zod';
 import { passwordSchema } from '@/lib/validators'; // Use the strong password validation (includes breach check)
@@ -57,7 +57,12 @@ export async function POST(req: NextRequest) {
             action: 'PASSWORD_CHANGE_SUCCESS',
         });
 
-        await deleteSession();    
+        // Invalidate all existing sessions after a password change.
+        // This prevents stolen/leaked tokens from remaining usable.
+        await revokeAllUserSessions(user.id);
+
+        // Clear cookies for the current browser as well.
+        await deleteSession();
     
         return NextResponse.json({ message: 'Password changed successfully.' }, { status: 200 });
 

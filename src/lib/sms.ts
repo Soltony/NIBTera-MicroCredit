@@ -4,6 +4,11 @@
  */
 export async function sendSms(to: string, text: string) {
   const smsUrl = process.env.SMS_URL;
+  if (!smsUrl) {
+    console.error('[sms] SMS_URL env var not set');
+    return { ok: false, error: 'SMS_URL env var not set' };
+  }
+
   try {
     const params = new URLSearchParams();
     params.append('to', to);

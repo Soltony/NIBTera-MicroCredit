@@ -20,14 +20,22 @@ async function getProviders(userId: string): Promise<LoanProviderType[]> {
         })) as LoanProviderType[];
     }
     
-    if (user?.loanProviderId) {
+        if (user?.loanProviderId) {
         const provider = await prisma.loanProvider.findUnique({
             where: { id: user.loanProviderId }
         });
         return provider ? [provider] as LoanProviderType[] : [];
     }
-    
-    return [];
+
+        // If the user can access reports but isn't bound to a specific provider,
+        // allow them to select from all providers (common for Auditor/Loan Manager).
+        if (user?.role !== 'Loan Provider') {
+            return (await prisma.loanProvider.findMany({
+                orderBy: { displayOrder: 'asc' },
+            })) as LoanProviderType[];
+        }
+
+        return [];
 }
 
 

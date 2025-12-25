@@ -108,3 +108,23 @@ The project includes a worker script for handling scheduled tasks like automated
     ```bash
     npm run run:worker -- repayment-service
     ```
+
+*   **To run the provider distribution once (posts Interest/ServiceFee/Penalty/Tax Received to upstream and clears received balances on success):**
+    ```bash
+    npm run run:worker -- provider-distribution
+    ```
+
+*   **To start the provider distribution service (runs periodically):**
+    ```bash
+    npm run run:worker -- provider-distribution-service
+    ```
+
+### External Distribution API (optional)
+
+The provider distribution worker posts to the upstream endpoint using HTTP Basic Auth.
+
+```env
+EXTERNAL_DISTRIBUTION_URL="http://192.168.100.56:8280/nibtera-loan/distribution"
+EXTERNAL_API_USERNAME="nibLoan"
+EXTERNAL_API_PASSWORD="123456"
+```

@@ -2,11 +2,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { getUserFromSession } from '@/lib/user';
 
 export async function GET(req: NextRequest) {
     const session = await getSession();
     if (!session?.userId) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user?.id) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    if (!user.permissions?.['npl']?.read) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
     
     try {

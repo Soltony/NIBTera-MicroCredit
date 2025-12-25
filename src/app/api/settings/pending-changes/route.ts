@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getUserFromSession } from '@/lib/user';
+import ExcelJS from 'exceljs';
 import { hasPermissionForEntity } from '@/lib/require-permission';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
@@ -104,6 +105,37 @@ export async function POST(req: NextRequest) {
       // Scoring rules don't have a status on a single entity, it's a collection.
     }
 
+
+    // Validate embedded file payloads for uploads submitted via pending changes
+    if (entityType === 'DataProvisioningUpload' || entityType === 'EligibilityList') {
+      try {
+        const parsed = JSON.parse(payload);
+        const created = parsed?.created;
+        const fileContent = created?.fileContent;
+        const fileName = created?.fileName;
+
+        if (!fileContent || !fileName) {
+          return NextResponse.json({ error: 'Missing file content or file name' }, { status: 400 });
+        }
+
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const buffer = Buffer.from(fileContent, 'base64');
+        if (buffer.length > MAX_FILE_SIZE) {
+          return NextResponse.json({ error: 'File too large. Maximum allowed size is 100MB.' }, { status: 400 });
+        }
+
+        if (!/\.(xlsx|xls)$/i.test(fileName)) {
+          return NextResponse.json({ error: 'Unsupported file type. Only Excel files are allowed.' }, { status: 400 });
+        }
+
+        // Try to parse the workbook to ensure it's a valid Excel file
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
+      } catch (err) {
+        console.error('Invalid file payload for pending change:', err);
+        return NextResponse.json({ error: 'Invalid file upload payload' }, { status: 400 });
+      }
+    }
 
     const sanitizedPayload = sanitizePendingChangePayload(entityType, payload);
 

@@ -167,43 +167,34 @@ export async function DELETE(req: NextRequest) {
     try {
         const uploadToDelete = await prisma.dataProvisioningUpload.findUnique({
             where: { id: uploadId },
+            include: { config: true },
         });
 
-                    const workbook = new ExcelJS.Workbook();
-                    await workbook.xlsx.load(buffer);
-                    const worksheet = workbook.worksheets[0];
+        if (!uploadToDelete) {
+            return NextResponse.json({ message: 'Upload not found or already deleted.' }, { status: 404 });
+        }
 
-                    const columnCount = worksheet.columnCount || 0;
-                    const jsonData: any[][] = [];
-                    worksheet.eachRow((row) => {
-                        const rowArr: any[] = [];
-                        for (let i = 1; i <= columnCount; i++) {
-                            rowArr.push(row.getCell(i).value);
-                        }
-                        jsonData.push(rowArr);
-                    });
+        await prisma.$transaction(async (tx) => {
+            // Delete all provisioned data rows associated with this upload first.
+            await tx.provisionedData.deleteMany({
+                where: { uploadId },
+            });
 
-                    const originalHeaders = jsonData.length > 0 ? jsonData[0].map(h => String(h)) : [];
-                    const camelCaseHeaders = originalHeaders.map(toCamelCase);
-
-                    const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
-
-            // Delete the upload record itself
+            // Then delete the upload record.
             await tx.dataProvisioningUpload.delete({
-                where: { id: uploadId }
+                where: { id: uploadId },
             });
         });
-        
-         await createAuditLog({
+
+        await createAuditLog({
             actorId: session.userId,
             action: 'DATA_PROVISIONING_DELETE',
             entity: 'PROVIDER',
-            entityId: uploadToDelete.configId,
-            details: { uploadId: uploadId, fileName: uploadToDelete.fileName },
+            entityId: uploadToDelete.config.providerId,
+            details: { uploadId: uploadId, fileName: uploadToDelete.fileName, rows: uploadToDelete.rowCount },
             ipAddress,
             userAgent
         });
-
 
         return NextResponse.json({ message: 'Upload and all associated data have been deleted successfully.' }, { status: 200 });
 
@@ -216,4 +207,4 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
-    
+

@@ -55,6 +55,7 @@ import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
+import { usePermissions } from '@/hooks/use-permissions';
 
 
 export interface ScoringHistoryItem {
@@ -71,13 +72,14 @@ interface CustomParameterType {
     options?: string[];
 }
 
-const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: { 
+const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo, readOnly }: { 
     rule: Rule; 
     onUpdate: (updatedRule: Rule) => void; 
     onRemove: () => void; 
     color?: string, 
     maxScore: number,
-    paramFieldInfo?: CustomParameterType
+    paramFieldInfo?: CustomParameterType,
+    readOnly?: boolean
 }) => {
     
     const [min, max] = useMemo(() => {
@@ -98,7 +100,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
         if (paramFieldInfo?.type === 'select' && rule.condition === '==') {
             return (
                 <Select value={rule.value || ''} onValueChange={(value) => onUpdate({...rule, value })}>
-                    <SelectTrigger className="flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]" style={{'--ring-color': color} as React.CSSProperties}>
+                    <SelectTrigger className="flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]" style={{'--ring-color': color} as React.CSSProperties} disabled={!!readOnly}>
                         <SelectValue placeholder="Select a value" />
                     </SelectTrigger>
                     <SelectContent>
@@ -118,6 +120,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
                         value={min}
                         onChange={handleRangeChange('min')}
                         className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!min.trim() || (!!max.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                        disabled={!!readOnly}
                     />
                     <span>-</span>
                     <Input
@@ -125,6 +128,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
                         value={max}
                         onChange={handleRangeChange('max')}
                         className={cn("shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", (!max.trim() || (!!min.trim() && parseFloat(min) >= parseFloat(max))) && 'border-destructive')}
+                        disabled={!!readOnly}
                     />
                 </div>
             );
@@ -136,6 +140,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
                 value={rule.value || ''}
                 onChange={(e) => onUpdate({ ...rule, value: e.target.value })}
                 className={cn("flex-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", !rule.value.trim() && 'border-destructive')}
+                disabled={!!readOnly}
             />
         );
     }
@@ -144,7 +149,7 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
         <div className="flex flex-col gap-2 p-2 bg-muted/50 rounded-md" style={{'--ring-color': color} as React.CSSProperties}>
             <div className="flex items-center gap-2">
                 <Select value={rule.condition} onValueChange={(value) => onUpdate({...rule, condition: value})}>
-                    <SelectTrigger className="w-[150px] shadow-sm focus:ring-2 focus:ring-[--ring-color]">
+                    <SelectTrigger className="w-[150px] shadow-sm focus:ring-2 focus:ring-[--ring-color]" disabled={!!readOnly}>
                         <SelectValue placeholder="Condition" />
                     </SelectTrigger>
                     <SelectContent>
@@ -175,8 +180,9 @@ const RuleRow = ({ rule, onUpdate, onRemove, color, maxScore, paramFieldInfo }: 
                     value={rule.score}
                     onChange={(e) => onUpdate({ ...rule, score: parseInt(e.target.value) || 0 })}
                     className={cn("w-[100px] shadow-sm focus-visible:ring-2 focus-visible:ring-[--ring-color]", isScoreInvalid && 'border-destructive')}
+                    disabled={!!readOnly}
                 />
-                <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground">
+                <Button variant="ghost" size="icon" onClick={onRemove} className="hover:bg-destructive hover:text-destructive-foreground" disabled={!!readOnly}>
                     <Trash2 className="h-4 w-4" />
                 </Button>
             </div>
@@ -209,6 +215,10 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     const [restoringHistoryItem, setRestoringHistoryItem] = useState<ScoringHistoryItem | null>(null);
 
     const { toast } = useToast();
+    const { entityActions } = usePermissions();
+    const scoringActions = entityActions('ScoringRules');
+    const canEditScoring = scoringActions.create || scoringActions.update;
+    const scoringReadOnly = !canEditScoring;
 
     const fetchCustomParams = useCallback(async (providerId: string) => {
         try {
@@ -274,6 +284,10 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     
     const handleAddParameter = () => {
         if (!selectedProviderId) return;
+        if (scoringReadOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to modify scoring rules.', variant: 'destructive' });
+            return;
+        }
         const newParam: ScoringParameter = {
             id: `param-${Date.now()}`,
             providerId: selectedProviderId,
@@ -285,6 +299,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     };
     
     const handleUpdateParameter = (paramId: string, field: 'name' | 'weight', value: any) => {
+        if (scoringReadOnly) return;
         setCurrentParameters(produce(draft => {
             const param = draft.find(p => p.id === paramId);
             if (param) {
@@ -294,10 +309,12 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     };
     
     const handleRemoveParameter = (paramId: string) => {
+        if (scoringReadOnly) return;
         setCurrentParameters(prev => prev.filter(p => p.id !== paramId));
     };
 
     const handleAddRule = (paramId: string) => {
+        if (scoringReadOnly) return;
         setCurrentParameters(produce(draft => {
             const param = draft.find(p => p.id === paramId);
             if (param) {
@@ -316,6 +333,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     }
 
     const handleUpdateRule = (paramId: string, ruleId: string, updatedRule: Rule) => {
+        if (scoringReadOnly) return;
         setCurrentParameters(produce(draft => {
             const param = draft.find(p => p.id === paramId);
             if (param && param.rules) {
@@ -328,6 +346,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     };
 
     const handleRemoveRule = (paramId: string, ruleId: string) => {
+        if (scoringReadOnly) return;
         setCurrentParameters(produce(draft => {
             const param = draft.find(p => p.id === paramId);
             if (param && param.rules) {
@@ -341,11 +360,19 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     }, [currentParameters]);
 
     const handleOpenSaveDialog = () => {
+        if (scoringReadOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to submit scoring rules for approval.', variant: 'destructive' });
+            return;
+        }
         setIsApplyDialogOpen(true);
     };
 
     const handleSaveAndApply = async () => {
         if (!selectedProviderId) return;
+        if (scoringReadOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to submit scoring rules for approval.', variant: 'destructive' });
+            return;
+        }
 
         setIsSaving(true);
         try {
@@ -381,6 +408,10 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
     
     const handleDeleteHistory = async () => {
         if (!deletingHistoryId) return;
+        if (scoringReadOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to delete scoring history.', variant: 'destructive' });
+            return;
+        }
 
         try {
             const response = await fetch(`/api/scoring-history?id=${deletingHistoryId}`, {
@@ -470,7 +501,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                             Define parameters, their weights, and the rules that assign scores.
                         </CardDescription>
                     </div>
-                     <Button onClick={handleOpenSaveDialog} style={{ backgroundColor: themeColor }} className="text-white" disabled={isSaving}>
+                     <Button onClick={handleOpenSaveDialog} style={{ backgroundColor: themeColor }} className="text-white" disabled={isSaving || scoringReadOnly}>
                         {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Submit for Approval
                     </Button>
@@ -488,7 +519,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                                             <div className="space-y-1">
                                                 <Label htmlFor={`param-name-${param.id}`}>Parameter</Label>
                                                 <Select value={param.name} onValueChange={(value) => handleUpdateParameter(param.id, 'name', value)}>
-                                                    <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties}>
+                                                    <SelectTrigger id={`param-name-${param.id}`} className="w-full bg-background shadow-sm focus:ring-2 focus:ring-[--ring-color]" style={{'--ring-color': themeColor} as React.CSSProperties} disabled={scoringReadOnly}>
                                                         <SelectValue placeholder="Select Parameter Field" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -509,11 +540,12 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                                                     value={param.weight}
                                                     onChange={(e) => handleUpdateParameter(param.id, 'weight', parseInt(e.target.value) || 0)}
                                                     className="w-full bg-background"
+                                                    disabled={scoringReadOnly}
                                                 />
                                             </div>
                                         </div>
                                         <AccordionTrigger className="p-0 hover:no-underline"></AccordionTrigger>
-                                        <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id); }}>
+                                        <Button variant="ghost" size="icon" className="ml-4" onClick={(e) => { e.stopPropagation(); handleRemoveParameter(param.id); }} disabled={scoringReadOnly}>
                                             <Trash2 className="h-4 w-4 text-destructive" />
                                         </Button>
                                     </div>
@@ -528,9 +560,10 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                                                     color={themeColor}
                                                     maxScore={param.weight}
                                                     paramFieldInfo={paramFieldInfo}
+                                                    readOnly={scoringReadOnly}
                                                 />
                                             ))}
-                                            <Button variant="outline" className="w-full mt-2" onClick={() => handleAddRule(param.id)}>
+                                            <Button variant="outline" className="w-full mt-2" onClick={() => handleAddRule(param.id)} disabled={scoringReadOnly}>
                                                 <PlusCircle className="mr-2 h-4 w-4" /> Add Rule
                                             </Button>
                                         </div>
@@ -546,6 +579,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                         variant="outline"
                         className="w-full"
                         onClick={handleAddParameter}
+                        disabled={scoringReadOnly}
                     >
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
                     </Button>
@@ -608,6 +642,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                                     id={`product-${product.id}`}
                                     checked={selectedProducts[product.id] || false}
                                     onCheckedChange={(checked) => setSelectedProducts(prev => ({...prev, [product.id]: !!checked}))}
+                                    disabled={scoringReadOnly}
                                 />
                                 <label
                                     htmlFor={`product-${product.id}`}
@@ -623,7 +658,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                     </div>
                     <DialogFooter className="pt-4">
                         <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button onClick={handleSaveAndApply} style={{backgroundColor: themeColor}} className="text-white" disabled={isSaving || Object.values(selectedProducts).every(v => !v)}>
+                        <Button onClick={handleSaveAndApply} style={{backgroundColor: themeColor}} className="text-white" disabled={isSaving || scoringReadOnly || Object.values(selectedProducts).every(v => !v)}>
                              {isSaving && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                              Submit for Approval
                         </Button>
@@ -641,7 +676,7 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteHistory} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={handleDeleteHistory} className="bg-destructive hover:bg-destructive/90" disabled={scoringReadOnly}>Delete</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -671,6 +706,13 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     allProviderProducts: LoanProduct[];
 }) {
     const { toast } = useToast();
+    const { canModule } = usePermissions();
+    // Scoring page should be governed by scoring-engine permissions.
+    const canCreateType = canModule('scoring-engine', 'create');
+    const canUpdateType = canModule('scoring-engine', 'update');
+    const canDeleteType = canModule('scoring-engine', 'delete');
+    const canUploadFile = canModule('scoring-engine', 'create');
+    const canDeleteUpload = canModule('scoring-engine', 'delete');
     const [configs, setConfigs] = useState(initialConfigs);
     const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
     const [editingConfig, setEditingConfig] = useState<DataProvisioningConfig | null>(null);
@@ -686,11 +728,26 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     }, [initialConfigs]);
 
     const handleOpenDialog = (config: DataProvisioningConfig | null = null) => {
+        if (config) {
+            if (!canUpdateType) {
+                toast({ title: 'Not authorized', description: 'You are not authorized to update data provisioning types.', variant: 'destructive' });
+                return;
+            }
+        } else {
+            if (!canCreateType) {
+                toast({ title: 'Not authorized', description: 'You are not authorized to create data provisioning types.', variant: 'destructive' });
+                return;
+            }
+        }
         setEditingConfig(config);
         setIsConfigDialogOpen(true);
     };
 
     const handleDeleteConfig = async (configId: string) => {
+        if (!canDeleteType) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to delete data provisioning types.', variant: 'destructive' });
+            return;
+        }
         try {
             const configToDelete = configs.find(c => c.id === configId);
             if (!configToDelete) throw new Error("Config not found");
@@ -719,6 +776,10 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     
     const handleSaveConfig = async (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => {
         const isEditing = !!config.id;
+        if (isEditing ? !canUpdateType : !canCreateType) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to modify data provisioning types.', variant: 'destructive' });
+            return;
+        }
         try {
             const originalConfig = isEditing ? configs.find(c => c.id === config.id) : null;
             const changeType = isEditing ? 'UPDATE' : 'CREATE';
@@ -762,6 +823,11 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     }
 
     const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>, config: DataProvisioningConfig) => {
+        if (!canUploadFile) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to upload data provisioning files.', variant: 'destructive' });
+            if (event.target) event.target.value = '';
+            return;
+        }
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -825,6 +891,10 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
     
      const handleDeleteUpload = async () => {
         if (!deletingUpload) return;
+        if (!canDeleteUpload) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to delete data provisioning uploads.', variant: 'destructive' });
+            return;
+        }
         
         try {
             const response = await fetch(`/api/settings/data-provisioning-uploads?uploadId=${deletingUpload.id}`, {
@@ -875,9 +945,11 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                             <CardDescription>Define custom data types from file uploads to use in scoring.</CardDescription>
                         </div>
                         <div className="flex items-center gap-4">
-                            <Button onClick={() => handleOpenDialog()}>
-                                <PlusCircle className="h-4 w-4 mr-2" /> Add Data Type
-                            </Button>
+                            {canCreateType && (
+                                <Button onClick={() => handleOpenDialog()}>
+                                    <PlusCircle className="h-4 w-4 mr-2" /> Add Data Type
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>
@@ -893,8 +965,12 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                                         {isPending && <Badge variant="outline">Pending Approval</Badge>}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)} disabled={isPending}><Edit className="h-4 w-4" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)} disabled={isPending}><Trash2 className="h-4 w-4" /></Button>
+                                        {canUpdateType && (
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(config)} disabled={isPending}><Edit className="h-4 w-4" /></Button>
+                                        )}
+                                        {canDeleteType && (
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingConfigId(config.id)} disabled={isPending}><Trash2 className="h-4 w-4" /></Button>
+                                        )}
                                     </div>
                                 </CardHeader>
                                 <CardContent>
@@ -910,7 +986,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                disabled={isUploading}
+                                                disabled={isUploading || isPending || !canUploadFile}
                                                 onClick={() => fileInputRefs.current[config.id]?.current?.click()}
                                             >
                                                 {isUploading ? <Loader className="h-4 w-4 mr-2 animate-spin"/> : <Upload className="h-4 w-4 mr-2"/>}
@@ -949,7 +1025,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                                                                 <TableCell>{upload.uploadedBy}</TableCell>
                                                                 <TableCell>{format(new Date(upload.uploadedAt), "yyyy-MM-dd HH:mm")}</TableCell>
                                                                 <TableCell className="text-right">
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)} disabled={isTemp}>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingUpload(upload)} disabled={isTemp || !canDeleteUpload}>
                                                                         <Trash2 className="h-4 w-4" />
                                                                     </Button>
                                                                 </TableCell>
@@ -979,6 +1055,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                 onClose={() => setIsConfigDialogOpen(false)}
                 onSave={handleSaveConfig}
                 config={editingConfig}
+                readOnly={editingConfig ? !canUpdateType : !canCreateType}
             />
 
             <AlertDialog open={!!deletingConfigId} onOpenChange={() => setDeletingConfigId(null)}>
@@ -991,7 +1068,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteConfig(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90">Submit for Deletion</AlertDialogAction>
+                        <AlertDialogAction onClick={() => handleDeleteConfig(deletingConfigId!)} className="bg-destructive hover:bg-destructive/90" disabled={!canDeleteType}>Submit for Deletion</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -1006,7 +1083,7 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteUpload} className="bg-destructive hover:bg-destructive/90">Delete Upload</AlertDialogAction>
+                        <AlertDialogAction onClick={handleDeleteUpload} className="bg-destructive hover:bg-destructive/90" disabled={!canDeleteUpload}>Delete Upload</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -1022,11 +1099,12 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
 // Extend DataColumn state to include the raw comma-separated string for the textarea
 type EditableDataColumn = DataColumn & { optionsString?: string };
 
-function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
+function DataProvisioningDialog({ isOpen, onClose, onSave, config, readOnly }: {
     isOpen: boolean;
     onClose: () => void;
     onSave: (config: Omit<DataProvisioningConfig, 'providerId' | 'id' | 'uploads'> & { id?: string }) => void;
     config: DataProvisioningConfig | null;
+    readOnly?: boolean;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState('');
@@ -1045,6 +1123,11 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     }, [config, isOpen]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (readOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to modify this configuration.', variant: 'destructive' });
+            if (event.target) event.target.value = '';
+            return;
+        }
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -1079,6 +1162,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
     };
 
     const handleColumnChange = (index: number, field: keyof EditableDataColumn, value: string | boolean) => {
+        if (readOnly) return;
         setColumns(produce(draft => {
             if (field === 'isIdentifier' && typeof value === 'boolean') {
                 // Ensure only one column can be the identifier
@@ -1093,6 +1177,10 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (readOnly) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to submit this change for approval.', variant: 'destructive' });
+            return;
+        }
         if (!columns.some(c => c.isIdentifier)) {
             toast({ title: 'Error', description: 'Please mark one column as the customer identifier.', variant: 'destructive' });
             return;
@@ -1119,12 +1207,12 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div>
                         <Label htmlFor="data-type-name">Data Type Name</Label>
-                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required />
+                        <Input id="data-type-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Credit Bureau Data" required disabled={!!readOnly} />
                     </div>
 
                     <div>
                         <Label htmlFor="file-upload">Upload Sample File (.xlsx, .xls)</Label>
-                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                        <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={handleFileUpload} disabled={!!readOnly} />
                          <p className="text-xs text-muted-foreground mt-1">Upload a file to automatically detect columns.</p>
                     </div>
 
@@ -1140,9 +1228,10 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                 value={col.name}
                                                 onChange={e => handleColumnChange(index, 'name', e.target.value)}
                                                 required
+                                                disabled={!!readOnly}
                                             />
                                             <Select value={col.type} onValueChange={(value: 'string' | 'number' | 'date') => handleColumnChange(index, 'type', value)}>
-                                                <SelectTrigger className="col-span-3">
+                                                <SelectTrigger className="col-span-3" disabled={!!readOnly}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1156,6 +1245,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                     id={`is-identifier-${col.id}`}
                                                     checked={col.isIdentifier}
                                                     onCheckedChange={(checked) => handleColumnChange(index, 'isIdentifier', !!checked)}
+                                                    disabled={!!readOnly}
                                                 />
                                                 <Label htmlFor={`is-identifier-${col.id}`} className="text-sm text-muted-foreground whitespace-nowrap">Is Identifier?</Label>
                                             </div>
@@ -1169,6 +1259,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                                                     className="text-xs"
                                                     value={col.optionsString || ''}
                                                     onChange={e => handleColumnChange(index, 'optionsString', e.target.value)}
+                                                    disabled={!!readOnly}
                                                 />
                                                 <p className="text-xs text-muted-foreground">Comma-separated values for dropdown select.</p>
                                             </div>
@@ -1181,7 +1272,7 @@ function DataProvisioningDialog({ isOpen, onClose, onSave, config }: {
                     
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit">Submit for Approval</Button>
+                        <Button type="submit" disabled={!!readOnly}>Submit for Approval</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

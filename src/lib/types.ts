@@ -68,6 +68,7 @@ export interface LoanProvider {
   colorHex?: string;
   displayOrder: number;
   accountNumber: string | null;
+    collectionAccount?: string | null;
   startingCapital: number;
   initialBalance: number;
   allowCrossProviderLoans: boolean;
@@ -233,6 +234,7 @@ export type Permissions = {
         read: boolean;
         update: boolean;
         delete: boolean;
+        approve?: boolean;
     };
 };
 

@@ -48,16 +48,25 @@ export async function validateBody<T>(req: NextRequest, schema: ZodSchema<T>) {
 // - Must contain uppercase, lowercase, digit and symbol
 // - Must not be a common password
 
+// Phone number policy (Ethiopia-local formats used in this app):
+// - Accept either:
+//   - 10 digits starting with 09 (e.g., 0912345678)
+//   - 9 digits starting with 9 (e.g., 912345678)
+// - Reject any non-digit characters and overly long inputs.
+export const phoneNumberSchema = z
+  .string()
+  .trim()
+  .regex(/^(09\d{8}|9\d{8})$/, 'Invalid phone number format. Use 0912345678 or 912345678.');
+
 
 // Login schema: only basic password requirements (no breach check)
+// Login schema:
+// - Validate phone format
+// - Accept any non-empty password (do NOT enforce password policy at login)
+//   so we don't leak password requirements via validation errors.
 export const loginSchema = z.object({
-  phoneNumber: z.string().min(3),
-  password: z.string().min(8)
-    .regex(/(?=.*[a-z])/, 'must contain a lowercase letter')
-    .regex(/(?=.*[A-Z])/, 'must contain an uppercase letter')
-    .regex(/(?=.*\d)/, 'must contain a number')
-    .regex(/(?=.*[^A-Za-z0-9])/, 'must contain a symbol')
-    .refine((pw) => !isCommonPassword(pw), { message: 'password is too common or compromised' }),
+  phoneNumber: phoneNumberSchema,
+  password: z.string().min(1).max(256),
 });
 
 // Password schema for registration/change: includes breach check
@@ -93,5 +102,6 @@ export const scoringRulesSchema = z.object({
 export default {
   validateBody,
   loginSchema,
+  phoneNumberSchema,
   scoringRulesSchema,
 };

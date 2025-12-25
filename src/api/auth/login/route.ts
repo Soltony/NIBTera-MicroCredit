@@ -4,17 +4,54 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { createSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit-log';
+import { loginSchema } from '@/lib/validators';
+import { isBlocked, recordFailedAttempt, resetAttempts, getRemainingAttempts, getBackoffSeconds, getLockRemainingMs } from '@/lib/rate-limiter';
 
 export async function POST(req: NextRequest) {
   const ipAddress = req.ip || req.headers.get('x-forwarded-for') || 'N/A';
   const userAgent = req.headers.get('user-agent') || 'N/A';
+  const GENERIC_AUTH_ERROR = 'Invalid phone number or password.';
 
   try {
-    const { phoneNumber, password } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const phoneNumberRaw = typeof (body as any)?.phoneNumber === 'string' ? (body as any).phoneNumber.trim() : '';
 
-    if (!phoneNumber || !password) {
-      return NextResponse.json({ error: 'Phone number and password are required.' }, { status: 400 });
+    // Apply the same rate-limiter UX as the app-router login.
+    const ipAddressKey = req.ip || req.headers.get('x-forwarded-for') || 'unknown-ip';
+    const rateKey = `${phoneNumberRaw || 'unknown-phone'}:${ipAddressKey}`;
+
+    if (isBlocked(rateKey)) {
+      const lockMs = getLockRemainingMs(rateKey);
+      const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+      const remaining = getRemainingAttempts(rateKey);
+      const backoff = getBackoffSeconds(rateKey);
+      return NextResponse.json(
+        { error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+      );
     }
+
+    const parsed = await loginSchema.safeParseAsync(body);
+    if (!parsed.success) {
+      recordFailedAttempt(rateKey);
+      if (isBlocked(rateKey)) {
+        const lockMs = getLockRemainingMs(rateKey);
+        const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+        const remaining = getRemainingAttempts(rateKey);
+        const backoff = getBackoffSeconds(rateKey);
+        return NextResponse.json(
+          { error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff },
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+        );
+      }
+      const backoff = getBackoffSeconds(rateKey);
+      if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+      const remaining = getRemainingAttempts(rateKey);
+      return NextResponse.json({ error: GENERIC_AUTH_ERROR, retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
+    }
+
+    const { phoneNumber, password } = parsed.data;
+    const validatedRateKey = `${phoneNumber}:${ipAddressKey}`;
 
     const user = await prisma.user.findFirst({
       where: { phoneNumber },
@@ -33,7 +70,21 @@ export async function POST(req: NextRequest) {
         userAgent,
         details: logDetails,
       });
-      return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+      recordFailedAttempt(validatedRateKey);
+      if (isBlocked(validatedRateKey)) {
+        const lockMs = getLockRemainingMs(validatedRateKey);
+        const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+        const remaining = getRemainingAttempts(validatedRateKey);
+        const backoff = getBackoffSeconds(validatedRateKey);
+        return NextResponse.json(
+          { error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff },
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+        );
+      }
+      const backoff = getBackoffSeconds(validatedRateKey);
+      if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+      const remaining = getRemainingAttempts(validatedRateKey);
+      return NextResponse.json({ error: GENERIC_AUTH_ERROR, retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
     }
 
     if (user.status === 'Inactive') {
@@ -49,10 +100,12 @@ export async function POST(req: NextRequest) {
             userAgent,
             details: logDetails
         });
-        // Return a clear client-facing error for inactive accounts so admins and users
-        // can understand the login failure reason. Use 403 Forbidden as this is
-        // an authenticated-action denial due to account state.
-        return NextResponse.json({ error: 'Your account has been deactivated. Please contact the administrator.' }, { status: 403 });
+          // Do not disclose account state on login.
+          recordFailedAttempt(validatedRateKey);
+          const backoff = getBackoffSeconds(validatedRateKey);
+          if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+          const remaining = getRemainingAttempts(validatedRateKey);
+          return NextResponse.json({ error: GENERIC_AUTH_ERROR, retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -70,8 +123,24 @@ export async function POST(req: NextRequest) {
            userAgent,
            details: logDetails
        });
-       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+      recordFailedAttempt(validatedRateKey);
+      if (isBlocked(validatedRateKey)) {
+        const lockMs = getLockRemainingMs(validatedRateKey);
+        const retryAfterSeconds = Math.ceil(lockMs / 1000) || 1;
+        const remaining = getRemainingAttempts(validatedRateKey);
+        const backoff = getBackoffSeconds(validatedRateKey);
+        return NextResponse.json(
+          { error: 'Too many failed attempts. Try again later.', retryAfter: retryAfterSeconds, retriesLeft: remaining, delaySeconds: backoff },
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+        );
+      }
+      const backoff = getBackoffSeconds(validatedRateKey);
+      if (backoff > 0) await new Promise((res) => setTimeout(res, backoff * 1000));
+      const remaining = getRemainingAttempts(validatedRateKey);
+      return NextResponse.json({ error: GENERIC_AUTH_ERROR, retriesLeft: remaining, delaySeconds: backoff }, { status: 401 });
     }
+
+    resetAttempts(validatedRateKey);
 
     // Create a session for the user
     await createSession(user.id);

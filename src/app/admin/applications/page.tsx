@@ -35,6 +35,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined) return 'N/A';
@@ -81,10 +82,11 @@ const DocumentViewerDialog = ({ application, isOpen, onClose }: { application: L
     );
 };
 
-const RejectionDialog = ({ isOpen, onClose, onConfirm, isUpdating }: { isOpen: boolean; onClose: () => void; onConfirm: (reason: string) => void; isUpdating: boolean; }) => {
+const RejectionDialog = ({ isOpen, onClose, onConfirm, isUpdating, readOnly }: { isOpen: boolean; onClose: () => void; onConfirm: (reason: string) => void; isUpdating: boolean; readOnly?: boolean; }) => {
     const [reason, setReason] = useState('');
 
     const handleConfirm = () => {
+        if (readOnly) return;
         if (reason.trim()) {
             onConfirm(reason);
         }
@@ -104,11 +106,12 @@ const RejectionDialog = ({ isOpen, onClose, onConfirm, isUpdating }: { isOpen: b
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         placeholder="e.g., 'The uploaded ID is blurry. Please upload a clearer copy.'..."
+                        disabled={!!readOnly}
                     />
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                    <Button onClick={handleConfirm} disabled={!reason.trim() || isUpdating} variant="destructive">
+                    <Button onClick={handleConfirm} disabled={!!readOnly || !reason.trim() || isUpdating} variant="destructive">
                         {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Request Revision
                     </Button>
@@ -125,6 +128,8 @@ export default function ApplicationsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const { toast } = useToast();
+    const { canModule } = usePermissions();
+    const canUpdateApplications = canModule('applications', 'update');
     
     type ActionType = 'approve' | 'reject' | 'view';
     const [actionState, setActionState] = useState<{ type: ActionType; application: LoanApplication | null }>({ type: 'view', application: null });
@@ -155,6 +160,10 @@ export default function ApplicationsPage() {
     
     const handleStatusUpdate = async (revisionReason?: string) => {
         if (!actionState.application) return;
+        if (!canUpdateApplications) {
+            toast({ title: 'Not authorized', description: 'You are not authorized to update applications.', variant: 'destructive' });
+            return;
+        }
 
         setIsUpdating(true);
         const { id, borrowerName } = actionState.application;
@@ -256,14 +265,18 @@ export default function ApplicationsPage() {
                                                             <FileText className="mr-2 h-4 w-4"/>
                                                             View Documents
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => setActionState({ type: 'approve', application: app })}>
-                                                            <CheckCircle className="mr-2 h-4 w-4 text-green-600"/>
-                                                            Approve
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-red-600" onClick={() => setActionState({ type: 'reject', application: app })}>
-                                                            <XCircle className="mr-2 h-4 w-4"/>
-                                                            Request Revision
-                                                        </DropdownMenuItem>
+                                                        {canUpdateApplications && (
+                                                            <>
+                                                                <DropdownMenuItem onClick={() => setActionState({ type: 'approve', application: app })}>
+                                                                    <CheckCircle className="mr-2 h-4 w-4 text-green-600"/>
+                                                                    Approve
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem className="text-red-600" onClick={() => setActionState({ type: 'reject', application: app })}>
+                                                                    <XCircle className="mr-2 h-4 w-4"/>
+                                                                    Request Revision
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>
@@ -300,7 +313,7 @@ export default function ApplicationsPage() {
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction 
                             onClick={() => handleStatusUpdate()} 
-                            disabled={isUpdating}
+                            disabled={isUpdating || !canUpdateApplications}
                         >
                             {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                             Confirm Approval
@@ -314,6 +327,7 @@ export default function ApplicationsPage() {
                 onClose={() => setActionState({ type: 'view', application: null })}
                 onConfirm={handleStatusUpdate}
                 isUpdating={isUpdating}
+                     readOnly={!canUpdateApplications}
             />
         </>
     );

@@ -9,8 +9,9 @@
 import prisma from '@/lib/prisma';
 import { subDays } from 'date-fns';
 import sendSms from '@/lib/sms';
+import { getUserFromSession } from '@/lib/user';
 
-export async function updateNplStatus(): Promise<{ success: boolean; message: string; updatedCount: number }> {
+async function updateNplStatusInternal(): Promise<{ success: boolean; message: string; updatedCount: number }> {
     // NPL status update started (log removed to reduce console noise)
     
     // Get all providers and their NPL thresholds
@@ -89,4 +90,22 @@ export async function updateNplStatus(): Promise<{ success: boolean; message: st
 
     // NPL status update finished (log removed to reduce console noise)
     return { success: true, message: `Successfully updated a total of ${totalUpdatedCount} borrowers to NPL status.`, updatedCount: totalUpdatedCount };
+}
+
+// For scheduled/background execution (no user session)
+export async function updateNplStatusJob(): Promise<{ success: boolean; message: string; updatedCount: number }> {
+    return updateNplStatusInternal();
+}
+
+export async function updateNplStatus(): Promise<{ success: boolean; message: string; updatedCount: number }> {
+    const user = await getUserFromSession({ allowRefresh: false });
+    if (!user?.id) {
+        return { success: false, message: 'Not authenticated', updatedCount: 0 };
+    }
+    const allowed = !!user.permissions?.['npl']?.update;
+    if (!allowed) {
+        return { success: false, message: 'Not authorized', updatedCount: 0 };
+    }
+
+    return updateNplStatusInternal();
 }

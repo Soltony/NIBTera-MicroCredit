@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
+import { revokeAllUserSessions } from '@/lib/session';
 
 const permissionsSchema = z.record(z.string(), z.object({
   create: z.boolean(),
@@ -98,6 +99,14 @@ export async function PUT(req: NextRequest) {
                 permissions: JSON.stringify(permissions),
             },
         });
+
+                // Privilege update control: invalidate sessions for users of this role.
+                try {
+                    const users = await prisma.user.findMany({ where: { roleId: id }, select: { id: true } });
+                    await Promise.all(users.map((u) => revokeAllUserSessions(u.id)));
+                } catch (e) {
+                    console.error('Failed to revoke sessions after role permission update:', e);
+                }
         
         const successLogDetails = { roleId: updatedRole.id, roleName: updatedRole.name };
         await createAuditLog({ actorId: session.userId, action: 'ROLE_UPDATE_SUCCESS', entity: 'ROLE', entityId: updatedRole.id, details: successLogDetails, ipAddress, userAgent });

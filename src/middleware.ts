@@ -3,9 +3,19 @@ import { decryptJwt } from '@/lib/session';
 import { allMenuItems } from './lib/menu-items';
 import type { Permissions } from '@/lib/types';
 
+function findLongestMatchingMenuItem(path: string) {
+  let best: (typeof allMenuItems)[number] | undefined;
+  for (const item of allMenuItems) {
+    if (path.startsWith(item.path) && (!best || item.path.length > best.path.length)) {
+      best = item;
+    }
+  }
+  return best;
+}
+
 // Helper: resolve allowed roles for a given path
 function getAllowedRolesForPath(path: string): string[] | undefined {
-  const route = allMenuItems.find(item => path.startsWith(item.path));
+  const route = findLongestMatchingMenuItem(path);
   const maybe = (route as any)?.allowedRoles;
   if (Array.isArray(maybe) && maybe.length > 0) return maybe.map((r: any) => String(r));
 
@@ -115,7 +125,10 @@ export default async function middleware(req: NextRequest) {
 
     try {
       sessionResp = await fetch(new URL('/api/auth/session', req.nextUrl.origin).toString(), {
-        headers: { cookie: cookieHeader }
+        headers: {
+          cookie: cookieHeader,
+          'x-auth-session-check': 'middleware',
+        }
       });
     } catch (e) {
       console.error('Failed to fetch session in middleware:', e);
@@ -189,7 +202,7 @@ export default async function middleware(req: NextRequest) {
       }
     }
 
-    const currentRouteConfig = allMenuItems.find(item => path.startsWith(item.path));
+    const currentRouteConfig = findLongestMatchingMenuItem(path);
 
     // Permission enforcement (non-super-admin)
     const isSuperAdmin = session?.role === 'Super Admin';
