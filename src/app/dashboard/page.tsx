@@ -4,6 +4,8 @@ import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/type
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
+import { redirect } from 'next/navigation';
+import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
     if (!jsonString) return defaultValue;
@@ -103,7 +105,27 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
 
 
 export default async function DashboardPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
-    const borrowerId = searchParams['borrowerId'] as string;
+    const ctx = await requireMiniAppAuthContext().catch(() => null);
+    if (!ctx) {
+        redirect('/loan/connect');
+    }
+
+    const borrowerIdFromUrl = searchParams['borrowerId'] as string | undefined;
+    if (!borrowerIdFromUrl || String(borrowerIdFromUrl) !== String(ctx.borrowerId)) {
+        const sp = new URLSearchParams();
+        for (const [k, v] of Object.entries(searchParams || {})) {
+            if (v == null) continue;
+            if (Array.isArray(v)) {
+                for (const vv of v) sp.append(k, String(vv));
+            } else {
+                sp.set(k, String(v));
+            }
+        }
+        sp.set('borrowerId', String(ctx.borrowerId));
+        redirect(`/dashboard?${sp.toString()}`);
+    }
+
+    const borrowerId = String(ctx.borrowerId);
     const providers = await getProviders();
     const loanHistory = await getLoanHistory(borrowerId);
     

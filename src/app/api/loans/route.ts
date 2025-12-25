@@ -8,6 +8,7 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
 import { createAuditLog } from '@/lib/audit-log';
+import { MiniAppAuthError, requireMiniAppAuthContext, assertBorrowerMatches } from '@/lib/miniapp-auth';
 
 async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
     return await prisma.$transaction(async (tx) => {
@@ -127,9 +128,12 @@ export async function POST(req: NextRequest) {
     
     let loanDetailsForLogging: any = {};
     try {
+        const ctx = await requireMiniAppAuthContext();
         const body = await req.json();
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
+
+        assertBorrowerMatches(data.borrowerId, ctx);
 
         const product = await prisma.loanProduct.findUnique({
             where: { id: data.productId },
@@ -166,6 +170,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(newLoan, { status: 201 });
 
     } catch (error) {
+        if (error instanceof MiniAppAuthError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
         const failureLogDetails = {
             ...loanDetailsForLogging,

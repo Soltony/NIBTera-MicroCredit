@@ -2,9 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+import { MiniAppAuthError, requireMiniAppAuthContext, assertBorrowerMatches } from '@/lib/miniapp-auth';
 
 // GET checks the agreement status for a borrower and a provider
 export async function GET(req: NextRequest) {
+    try {
+    const ctx = await requireMiniAppAuthContext();
     const { searchParams } = new URL(req.url);
     const providerId = searchParams.get('providerId');
     const borrowerId = searchParams.get('borrowerId');
@@ -13,7 +16,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Provider ID and Borrower ID are required' }, { status: 400 });
     }
 
-    try {
+    assertBorrowerMatches(borrowerId, ctx);
         // 1. Get the current active terms for the provider
         const currentTerms = await prisma.termsAndConditions.findFirst({
             where: { providerId, isActive: true },
@@ -39,8 +42,10 @@ export async function GET(req: NextRequest) {
             terms: currentTerms,
             hasAgreed: !!agreement,
         });
-
     } catch (error) {
+        if (error instanceof MiniAppAuthError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         console.error('Error checking borrower agreement:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
@@ -55,8 +60,11 @@ const agreementSchema = z.object({
 // POST records a borrower's acceptance of the terms
 export async function POST(req: NextRequest) {
     try {
+        const ctx = await requireMiniAppAuthContext();
         const body = await req.json();
         const { borrowerId, termsId } = agreementSchema.parse(body);
+
+        assertBorrowerMatches(borrowerId, ctx);
 
         // Use upsert to avoid creating duplicate agreements
         const agreement = await prisma.borrowerAgreement.upsert({
@@ -76,6 +84,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(agreement, { status: 201 });
 
     } catch (error) {
+        if (error instanceof MiniAppAuthError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors }, { status: 400 });
         }

@@ -6,6 +6,8 @@ import type { LoanDetails, Tax } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { LoanDetailClient } from './client';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { redirect } from 'next/navigation';
+import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,13 +20,13 @@ const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any)
     }
 };
 
-async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
+async function getLoanDetails(loanId: string, borrowerId: string): Promise<LoanDetails | null> {
     try {
         if (!loanId) return null;
 
         const [loan, taxConfigs] = await Promise.all([
-            prisma.loan.findUnique({
-                where: { id: loanId },
+            prisma.loan.findFirst({
+                where: { id: loanId, borrowerId },
                 include: {
                     product: {
                         include: {
@@ -85,9 +87,14 @@ async function getLoanDetails(loanId: string): Promise<LoanDetails | null> {
 
 
 export default async function LoanDetailPage({ params }: { params: Promise<{ loanId: string }> }) {
+    const ctx = await requireMiniAppAuthContext().catch(() => null);
+    if (!ctx) {
+        redirect('/loan/connect');
+    }
+
     const p = await params;
     const loanId = p?.loanId;
-    const loanDetails = await getLoanDetails(loanId);
+    const loanDetails = await getLoanDetails(loanId, String(ctx.borrowerId));
 
     if (!loanDetails) {
         notFound();

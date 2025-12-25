@@ -7,6 +7,7 @@ import { startOfDay, isBefore, isEqual } from 'date-fns';
 import type { RepaymentBehavior } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit-log';
 import sendSms from '@/lib/sms';
+import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -18,12 +19,17 @@ export async function POST(req: NextRequest) {
     let paymentDetailsForLogging: any = {};
     let borrowerIdForLogging: string | null = null;
     try {
+        const ctx = await requireMiniAppAuthContext();
         const body = await req.json();
         const { loanId, amount: paymentAmount } = paymentSchema.parse(body);
         paymentDetailsForLogging = { loanId, amount: paymentAmount };
         
         const loanForBorrowerId = await prisma.loan.findUnique({ where: { id: loanId }, select: { borrowerId: true }});
         borrowerIdForLogging = loanForBorrowerId?.borrowerId || null;
+
+        if (!borrowerIdForLogging || String(borrowerIdForLogging) !== String(ctx.borrowerId)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
         await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
        
@@ -215,6 +221,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(updatedLoan, { status: 200 });
 
     } catch (error: any) {
+        if (error instanceof MiniAppAuthError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         const errorMessage = (error instanceof z.ZodError) ? error.errors : (error as Error).message;
         const failureLogDetails = {
             ...paymentDetailsForLogging,

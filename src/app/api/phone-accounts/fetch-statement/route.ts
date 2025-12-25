@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import { Prisma } from '@prisma/client';
 import statementUtils, { StatementLine } from '@/lib/statement-utils';
+import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 type Body = {
   phoneNumber: string;
@@ -12,9 +13,14 @@ type Body = {
 
 export async function POST(req: Request) {
   try {
+    const ctx = await requireMiniAppAuthContext();
     const body: Body = await req.json();
     const { phoneNumber, accountNumber, startDate, endDate } = body;
     if (!phoneNumber || !accountNumber) return NextResponse.json({ error: 'phoneNumber and accountNumber required' }, { status: 400 });
+
+    if (String(phoneNumber) !== String(ctx.borrowerId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Ensure borrower exists
     const borrowerId = String(phoneNumber);
@@ -172,6 +178,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, statementId: created.id });
 
   } catch (err: any) {
+    if (err instanceof MiniAppAuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error('[phone-accounts][fetch-statement] error', err);
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }

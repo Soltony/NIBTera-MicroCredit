@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import { Prisma } from '@prisma/client';
+import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 // POST { phoneNumber, accountNumber }
 export async function POST(req: Request) {
   try {
+    const ctx = await requireMiniAppAuthContext();
     const body = await req.json();
     const { phoneNumber, accountNumber, providerId } = body;
     console.info('[phone-accounts][fetch-customer] request', { phoneNumber, accountNumber });
 
     if (!phoneNumber || !accountNumber) return NextResponse.json({ error: 'phoneNumber and accountNumber required' }, { status: 400 });
+
+    if (String(phoneNumber) !== String(ctx.borrowerId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Deterministic column mapping for ExternalCustomerInfo
     const desiredColumns = [
@@ -136,6 +142,9 @@ export async function POST(req: Request) {
     }
 
   } catch (err: any) {
+    if (err instanceof MiniAppAuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error('[phone-accounts][fetch-customer] error', err);
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }

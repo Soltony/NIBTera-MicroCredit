@@ -59,8 +59,15 @@ const protectedAdminRoutes = [
 ];
 const publicRoutes = ['/admin/login', '/loan/connect', '/admin/change-password'];
 
+const protectedMiniAppRoutes = ['/loan', '/dashboard', '/history'];
+const publicMiniAppRoutes = ['/loan/connect'];
+
 export const config = {
   matcher: [
+    // Apply security headers to all API responses (JSON included)
+    '/api/:path*',
+    '/api',
+
     '/admin/:path*',
     '/admin',
     '/api/admin/:path*',
@@ -79,8 +86,44 @@ export const config = {
     '/api/users',
     '/api/reports/:path*',
     '/api/reports',
+
+    // Mini-app pages and APIs that must not be accessible without a super-app token
+    '/loan',
+    '/loan/:path*',
+    '/dashboard',
+    '/dashboard/:path*',
+    '/history',
+    '/history/:path*',
+    '/api/loan-accounts',
+    '/api/phone-accounts',
+    '/api/phone-accounts/:path*',
+    '/api/borrowers/agreements',
+    '/api/payments',
+    '/api/loans',
   ],
 };
+
+async function hasSuperAppToken(req: NextRequest) {
+  // direct cookie set by /api/save-token
+  const direct = req.cookies.get('superAppToken')?.value;
+  if (direct && String(direct).trim()) return true;
+
+  // legacy session cookie created by createLegacySession / createSession backwards-compat
+  const legacy = req.cookies.get('session')?.value;
+  if (legacy) {
+    const legacyPayload = await decryptJwt(legacy);
+    if (legacyPayload?.superAppToken) return true;
+  }
+
+  // DB-backed access token may also contain superAppToken
+  const access = req.cookies.get('accessToken')?.value;
+  if (access) {
+    const payload = await decryptJwt(access);
+    if (payload?.superAppToken) return true;
+  }
+
+  return false;
+}
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -112,6 +155,27 @@ export default async function middleware(req: NextRequest) {
   requestHeaders.set('Content-Security-Policy', cspHeader);
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  // ----------------------------------------
+  // MINI-APP ACCESS CONTROL (super-app token required)
+  // ----------------------------------------
+
+  const isMiniProtected = protectedMiniAppRoutes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
+  if (isMiniProtected && !publicMiniAppRoutes.includes(path)) {
+    const ok = await hasSuperAppToken(req);
+    if (!ok) {
+      if (path.startsWith('/api/')) {
+        return withSecurityHeaders(
+          NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
+          cspHeader,
+          nonce
+        );
+      }
+
+      const redirectTo = new URL('/loan/connect', req.nextUrl.origin);
+      return withSecurityHeaders(NextResponse.redirect(redirectTo), cspHeader, nonce);
+    }
+  }
 
   // ----------------------------------------
   // START ACCESS CONTROL ENFORCEMENT

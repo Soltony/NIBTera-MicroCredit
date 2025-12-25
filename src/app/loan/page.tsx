@@ -4,6 +4,8 @@ import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule, Tax } from '@/lib
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
+import { redirect } from 'next/navigation';
+import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 // Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -39,6 +41,7 @@ async function getProviders(): Promise<LoanProvider[]> {
             icon: p.icon,
             colorHex: p.colorHex,
             displayOrder: p.displayOrder,
+            nplThresholdDays: p.nplThresholdDays,
             accountNumber: p.accountNumber,
             startingCapital: p.startingCapital,
             initialBalance: p.initialBalance,
@@ -55,11 +58,11 @@ async function getProviders(): Promise<LoanProvider[]> {
                 serviceFee: safeJsonParse(prod.serviceFee, { type: 'percentage', value: 0 }) as FeeRule,
                 dailyFee: safeJsonParse(prod.dailyFee, { type: 'percentage', value: 0 }) as FeeRule,
                 penaltyRules: safeJsonParse(prod.penaltyRules, []) as PenaltyRule[],
-                requiredDocuments: safeJsonParse(prod.requiredDocuments, []) as string[],
+                requiredDocuments: safeJsonParse(prod.requiredDocuments, []) as any,
                 status: prod.status as 'Active' | 'Disabled',
                 allowConcurrentLoans: prod.allowConcurrentLoans,
             }))
-        })) as LoanProvider[];
+        })) as unknown as LoanProvider[];
     } catch(e) {
         console.error(e);
         return [];
@@ -129,8 +132,31 @@ async function getTaxConfigs(): Promise<Tax[]> {
 
 
 export default async function LoanPage({ searchParams }: { searchParams: any }) {
+    const ctx = await requireMiniAppAuthContext().catch(() => null);
+    if (!ctx) {
+        redirect('/loan/connect');
+    }
+
     const params = await searchParams;
-    const borrowerId = params?.borrowerId as string;
+    const borrowerIdFromUrl = params?.borrowerId as string | undefined;
+
+    if (!borrowerIdFromUrl || String(borrowerIdFromUrl) !== String(ctx.borrowerId)) {
+        const sp = new URLSearchParams();
+        if (params && typeof params === 'object') {
+            for (const [k, v] of Object.entries(params)) {
+                if (v == null) continue;
+                if (Array.isArray(v)) {
+                    for (const vv of v) sp.append(k, String(vv));
+                } else {
+                    sp.set(k, String(v));
+                }
+            }
+        }
+        sp.set('borrowerId', String(ctx.borrowerId));
+        redirect(`/loan?${sp.toString()}`);
+    }
+
+    const borrowerId = String(ctx.borrowerId);
     
     const [providers, loanHistory, taxConfigs] = await Promise.all([
         getProviders(),

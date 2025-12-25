@@ -1,12 +1,17 @@
-
 import { NextResponse } from 'next/server';
+import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 export async function POST(req: Request) {
   try {
+    const ctx = await requireMiniAppAuthContext();
     const body = await req.json();
     const { phoneNumber } = body;
     if (!phoneNumber) {
       return NextResponse.json({ error: 'phoneNumber is required' }, { status: 400 });
+    }
+
+    if (String(phoneNumber) !== String(ctx.borrowerId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const apiUrl = process.env.EXTERNAL_API_URL ?? 'http://192.168.100.56:8280/nibtera-loan/get-accounts';
@@ -34,6 +39,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json(data ?? { status: 'Error', status_code: res.status }, { status: res.status });
   } catch (err: any) {
+    if (err instanceof MiniAppAuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error('[loan-accounts] error', err);
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }

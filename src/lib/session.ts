@@ -4,13 +4,21 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import { randomUUID } from 'crypto';
 
 const secretKey = process.env.SESSION_SECRET;
 const key = new TextEncoder().encode(secretKey);
 
 const ACCESS_TOKEN_EXP = '15m'; // access token expiry
 const REFRESH_TOKEN_DAYS = 7; // refresh token expiry days
+
+function uuid() {
+  // Edge Runtime-safe UUID generation.
+  // Next.js Edge provides Web Crypto; Node 18+ also provides globalThis.crypto.
+  const c: any = (globalThis as any).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  // Extremely defensive fallback (should not be hit in supported runtimes).
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+}
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -56,7 +64,7 @@ export async function createSession(userId: string, superAppToken?: string, perm
   const refreshToken = await encryptJwt({ userId, t: 'refresh' }, `${REFRESH_TOKEN_DAYS}d`);
 
   // generate a JTI (JWT ID) for the access token and persist it on the DB session
-  const jti = randomUUID();
+  const jti = uuid();
 
   const sessionRecord = await prisma.$transaction(async (tx) => {
     await tx.session.updateMany({
@@ -202,7 +210,7 @@ export async function getSession(options?: { allowRefresh?: boolean }) {
       if (!userWithRole) return null; // user might have been deleted
 
       // generate new jti for the rotated access token and persist it
-      const newJti = randomUUID();
+      const newJti = uuid();
 
       // update DB session with rotated refresh token, new jti and new expiry/lastActivity
       await prisma.session.update({ where: { id: sessionRecord.id }, data: { refreshToken: newRefreshToken, expiresAt: refreshExpiresAt, lastActivity: new Date(), jti: newJti } });

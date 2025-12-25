@@ -5,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 import { HistoryClient } from '@/components/history/history-client';
 import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { redirect } from 'next/navigation';
+import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 
 
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -94,12 +96,33 @@ async function getTaxConfigs(): Promise<Tax[]> {
 
 
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }>}) {
+    const ctx = await requireMiniAppAuthContext().catch(() => null);
+    if (!ctx) {
+        redirect('/loan/connect');
+    }
+
     const sp = await searchParams;
     const rawBorrowerId = sp?.borrowerId;
     const borrowerId = Array.isArray(rawBorrowerId) ? rawBorrowerId[0] : rawBorrowerId;
 
+    if (!borrowerId || String(borrowerId) !== String(ctx.borrowerId)) {
+        const params = new URLSearchParams();
+        if (sp && typeof sp === 'object') {
+            for (const [k, v] of Object.entries(sp)) {
+                if (v == null) continue;
+                if (Array.isArray(v)) {
+                    for (const vv of v) params.append(k, String(vv));
+                } else {
+                    params.set(k, String(v));
+                }
+            }
+        }
+        params.set('borrowerId', String(ctx.borrowerId));
+        redirect(`/history?${params.toString()}`);
+    }
+
     const [loanHistory, providers, taxConfigs] = await Promise.all([
-        getLoanHistory(borrowerId || ''),
+        getLoanHistory(String(ctx.borrowerId)),
         getProviders(),
         getTaxConfigs()
     ]);
