@@ -39,24 +39,49 @@ function removeFileContent(obj: any) {
 
 function sanitizePendingChangePayload(entityType: string, payloadStr: string) {
   try {
-    // Keep EligibilityList and DataProvisioningUpload intact so their fileContent can be approved
-    if (entityType === 'EligibilityList' || entityType === 'DataProvisioningUpload') {
-      return payloadStr;
-    }
-
     const parsed = JSON.parse(payloadStr);
-    // Traverse created/updated/original and remove any fileContent fields
+    // Traverse created/updated/original and remove any fileContent fields (and sensitive fields)
     ['created', 'updated', 'original'].forEach((p) => {
       if (parsed[p]) {
-        parsed[p] = removeFileContent(parsed[p]);
+        if (entityType === 'EligibilityList' || entityType === 'DataProvisioningUpload') {
+          // For file uploads keep fileContent but strip sensitive fields like passwords
+          parsed[p] = removeSensitiveFields(parsed[p]);
+        } else {
+          parsed[p] = removeFileContent(parsed[p]);
+          // Also remove any sensitive auth fields like passwords
+          parsed[p] = removeSensitiveFields(parsed[p]);
+        }
       }
     });
 
-    return JSON.stringify(parsed);
+    // As a final precaution, run a global sensitive field removal on the root
+    const sanitized = removeSensitiveFields(parsed);
+    return JSON.stringify(sanitized);
   } catch (e) {
     // If parsing fails, just return original payload
     return payloadStr;
   }
+}
+
+// Remove known sensitive fields (password hashes etc.) from payloads
+function removeSensitiveFields(obj: any) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(removeSensitiveFields);
+
+  const out: any = {};
+  for (const k of Object.keys(obj)) {
+    if (k === 'password' || k.toLowerCase().includes('password') || k === 'passwordHash' || k === 'hashedPassword' || k === 'pass') {
+      // drop sensitive auth fields
+      continue;
+    }
+    const v = obj[k];
+    if (typeof v === 'object' && v !== null) {
+      out[k] = removeSensitiveFields(v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 export async function POST(req: NextRequest) {

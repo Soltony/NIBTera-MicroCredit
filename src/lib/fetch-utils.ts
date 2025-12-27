@@ -21,6 +21,37 @@ export async function extractErrorMessage(response: Response, defaultMsg: string
 }
 
 export async function postPendingChange(body: any, defaultMsg = 'Failed to submit changes for approval.') {
+  // Defensive client-side validation: if the payload contains embedded fileContent,
+  // ensure the file is of an allowed type and not oversized before sending to the server.
+  try {
+    if (body && typeof body.payload === 'string') {
+      const parsed = JSON.parse(body.payload);
+      const parts = ['created', 'updated', 'original'];
+      const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+      const allowedExt = /\.(xlsx|xls)$/i;
+      for (const p of parts) {
+        const item = parsed[p];
+        if (item && typeof item === 'object') {
+          const fileContent = item.fileContent;
+          const fileName = item.fileName || item.file?.name;
+          if (fileContent && fileName) {
+            // estimate bytes from base64 length
+            const b64len = fileContent.length;
+            const approxBytes = Math.ceil((b64len * 3) / 4);
+            if (approxBytes > MAX_FILE_SIZE) {
+              throw new Error('File too large. Maximum allowed size is 100MB.');
+            }
+            if (!allowedExt.test(fileName)) {
+              throw new Error('Unsupported file type. Only Excel files are allowed.');
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    if (e instanceof Error) throw e; // rethrow validation message
+    // ignore parsing errors and continue — server will validate
+  }
   const resp = await fetch('/api/settings/pending-changes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

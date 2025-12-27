@@ -18,7 +18,20 @@ async function getPendingChanges(): Promise<PendingChangeWithDetails[]> {
             status: 'PENDING',
         },
         include: {
-            createdBy: true,
+            // Only select non-sensitive fields for the creating user to avoid returning password hashes
+            createdBy: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    phoneNumber: true,
+                    roleId: true,
+                    loanProviderId: true,
+                    status: true,
+                    passwordChangeRequired: true,
+                    createdAt: true,
+                }
+            },
         },
         orderBy: {
             createdAt: 'desc',
@@ -42,6 +55,21 @@ async function getPendingChanges(): Promise<PendingChangeWithDetails[]> {
     });
     const providerMap = new Map(providers.map(p => [p.id, p.name]));
 
+    // Remove known sensitive fields (password hashes etc.) from payloads
+    const removeSensitiveFields = (obj: any): any => {
+        if (!obj || typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) return obj.map(removeSensitiveFields);
+        const out: any = {};
+        for (const k of Object.keys(obj)) {
+            if (k === 'password' || k.toLowerCase().includes('password') || k === 'passwordHash' || k === 'hashedPassword' || k === 'pass') {
+                continue;
+            }
+            const v = obj[k];
+            out[k] = (typeof v === 'object' && v !== null) ? removeSensitiveFields(v) : v;
+        }
+        return out;
+    };
+
     const sanitizePayloadForDisplay = (entityType: string, payloadStr: string) => {
         try {
             if (entityType === 'EligibilityList' || entityType === 'DataProvisioningUpload') return payloadStr;
@@ -58,9 +86,13 @@ async function getPendingChanges(): Promise<PendingChangeWithDetails[]> {
                 return out;
             };
             ['created', 'updated', 'original'].forEach((p) => {
-                if (parsed[p]) parsed[p] = removeFileContent(parsed[p]);
+                if (parsed[p]) {
+                    parsed[p] = removeFileContent(parsed[p]);
+                    parsed[p] = removeSensitiveFields(parsed[p]);
+                }
             });
-            return JSON.stringify(parsed);
+            const sanitized = removeSensitiveFields(parsed);
+            return JSON.stringify(sanitized);
         } catch (e) {
             return payloadStr;
         }

@@ -833,6 +833,15 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
 
         setIsUploading(true);
         try {
+            // Client-side validation: reject unsupported types and oversized files before sending
+            const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+            const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+            if (!allowedTypes.includes(file.type)) {
+                throw new Error('Invalid file type. Only .xlsx files are allowed.');
+            }
+            if (file.size > MAX_FILE_SIZE) {
+                throw new Error('File is too large. Maximum size is 100MB.');
+            }
             const fileReader = new FileReader();
             fileReader.readAsDataURL(file);
             fileReader.onload = async () => {
