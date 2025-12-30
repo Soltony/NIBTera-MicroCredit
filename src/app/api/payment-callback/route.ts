@@ -81,7 +81,13 @@ export async function POST(request: NextRequest) {
   let requestBody;
   try {
     requestBody = await request.json();
-    // callback payload received (log removed to reduce console noise)
+    // Log incoming payload and headers for debugging
+    try {
+      console.log('[payment-callback] received payload:', JSON.stringify(requestBody));
+      console.log('[payment-callback] headers:', Array.from(request.headers.entries()));
+    } catch (e) {
+      console.log('[payment-callback] could not stringify payload or headers', e);
+    }
 
     // ✅ Extract and normalize Authorization header
     const authHeader = request.headers.get('Authorization');
@@ -105,6 +111,8 @@ if (!fixedAuthHeader) {
     // ✅ Validate fixed token
     await validateAuthHeader(fixedAuthHeader);
 
+    console.log('[payment-callback] fixedAuthHeader validated');
+
   } catch (e: any) {
     console.error("Callback Error: Initial validation failed.", e);
     return NextResponse.json(
@@ -123,6 +131,8 @@ if (!fixedAuthHeader) {
     token,
     Signature: receivedSignature
   } = requestBody;
+
+  console.log('[payment-callback] parsed fields', { txnRef, transactionId, paidAmount, paidByNumber, transactionTime, accountNo });
 
   // --- Log payment transaction ---
   try {
@@ -150,6 +160,7 @@ if (!fixedAuthHeader) {
       where: { transactionId: txnRef },
     });
 
+    console.log('[payment-callback] pendingPayment lookup result', pendingPayment);
     if (!pendingPayment) {
       console.error(`Callback Error: No pending payment found for txnRef: ${txnRef}`);
       return NextResponse.json({ message: "Transaction reference not found or already processed." }, { status: 200 });
@@ -167,11 +178,15 @@ if (!fixedAuthHeader) {
       prisma.tax.findMany(),
     ]);
 
+    console.log('[payment-callback] loan fetched', { loanId, loanExists: !!loan, providerId: loan?.product?.providerId });
+    console.log('[payment-callback] taxConfig length', taxConfig?.length);
     if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
     const provider = loan.product.provider;
     const paymentDate = new Date();
     const alreadyRepaid = loan.repaidAmount || 0;
+
+    console.log('[payment-callback] paymentDate/alreadyRepaid', { paymentDate: paymentDate.toISOString(), alreadyRepaid });
 
     // If this loan has an installment schedule, apply this payment to the active installment.
     // This is necessary for Salary Advance products where repayments are installment-based.
@@ -180,6 +195,8 @@ if (!fixedAuthHeader) {
     // provider ledger accounts log removed to reduce console noise
     const totals = calculateTotalRepayable(loan as any, loan.product as any, taxConfig, paymentDate);
     const totalDue = totals.total - alreadyRepaid;
+
+    console.log('[payment-callback] totals computed', { totals, totalDue });
 
   if (!hasInstallments && paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
         console.error(`[PAYMENT_CALLBACK_ERROR] Overpayment detected. Payment amount (${paymentAmount}) exceeds balance due (${totalDue}).`);
@@ -194,10 +211,12 @@ if (!fixedAuthHeader) {
 
     const updatedLoan = await prisma.$transaction(async (tx) => {
       if (hasInstallments) {
+        console.log('[payment-callback] loan has installments, running installment flow');
         // Rollover merge: if an installment is past due and the next exists,
         // merge next into current and mark next as Merged.
         const today = startOfDay(new Date());
         const installments = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
+        console.log('[payment-callback] installments before rollover', installments.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, dueDate: i.dueDate })));
         const rolloverUpdates: Promise<any>[] = [];
         for (let i = 0; i < installments.length - 1; i++) {
           const cur = installments[i];
@@ -217,10 +236,13 @@ if (!fixedAuthHeader) {
         }
         if (rolloverUpdates.length) {
           await Promise.all(rolloverUpdates);
+          console.log('[payment-callback] applied rollover updates');
         }
 
         const refreshedInstallments = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
+        console.log('[payment-callback] installments after rollover', refreshedInstallments.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, isActive: i.isActive })));
         const activeInstallment = refreshedInstallments.find(i => i.isActive && i.status !== 'Paid');
+        console.log('[payment-callback] activeInstallment', activeInstallment);
         if (!activeInstallment) {
           throw new Error('No active installment found for this loan.');
         }
@@ -243,6 +265,8 @@ if (!fixedAuthHeader) {
             description: `SuperApp repayment for installment ${activeInstallment.installmentNumber} of loan ${loan.id} via TxRef ${txnRef}`
           },
         });
+
+        console.log('[payment-callback] created journalEntry', { id: journalEntry.id });
 
         const principalReceivable = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
         const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
@@ -268,6 +292,7 @@ if (!fixedAuthHeader) {
             ]
           });
           amountToApply -= penaltyToPay;
+          console.log('[payment-callback] applied penaltyToPay', { penaltyToPay, remainingAmount: amountToApply });
         }
 
         const principalRemaining = Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0));
@@ -282,6 +307,7 @@ if (!fixedAuthHeader) {
             ]
           });
           amountToApply -= principalToPay;
+          console.log('[payment-callback] applied principalToPay', { principalToPay, remainingAmount: amountToApply });
         }
 
         await tx.payment.create({
@@ -294,6 +320,8 @@ if (!fixedAuthHeader) {
             journalEntryId: journalEntry.id,
           },
         });
+
+        console.log('[payment-callback] created payment record for installment', { loanId, installmentId: activeInstallment.id, amount: paymentAmount });
 
         const newPaidAmount = (activeInstallment.paidAmount || 0) + paymentAmount;
         const isInstallmentFullyPaid = newPaidAmount >= (activeInstallment.amount || 0) + penaltyForInstallment - 1e-9;
@@ -309,6 +337,8 @@ if (!fixedAuthHeader) {
           }
         });
 
+        console.log('[payment-callback] updated installment paidAmount/status', { id: activeInstallment.id, newPaidAmount: newPaidAmount, isInstallmentFullyPaid });
+
         await tx.loan.update({ where: { id: loanId }, data: { repaidAmount: alreadyRepaid + paymentAmount } });
 
         if (isInstallmentFullyPaid) {
@@ -323,8 +353,10 @@ if (!fixedAuthHeader) {
           });
           if (nextPayable) {
             await tx.loanInstallment.update({ where: { id: nextPayable.id }, data: { isActive: true } });
+            console.log('[payment-callback] activated nextPayable installment', { id: nextPayable.id, installmentNumber: nextPayable.installmentNumber });
           } else {
             await tx.loan.update({ where: { id: loanId }, data: { repaymentStatus: 'Paid' } });
+            console.log('[payment-callback] no next payable installment; marked loan Paid');
           }
         }
 
@@ -337,6 +369,8 @@ if (!fixedAuthHeader) {
         });
 
         await tx.pendingPayment.update({ where: { transactionId: txnRef }, data: { status: 'COMPLETED' } });
+
+        console.log('[payment-callback] marked pendingPayment COMPLETED for txnRef', txnRef);
 
         return await tx.loan.findUniqueOrThrow({ where: { id: loanId } });
       }
