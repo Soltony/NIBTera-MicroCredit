@@ -159,7 +159,6 @@ export default async function middleware(req: NextRequest) {
   // ----------------------------------------
   // MINI-APP ACCESS CONTROL (super-app token required)
   // ----------------------------------------
-
   const isMiniProtected = protectedMiniAppRoutes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
   if (isMiniProtected && !publicMiniAppRoutes.includes(path)) {
     const ok = await hasSuperAppToken(req);
