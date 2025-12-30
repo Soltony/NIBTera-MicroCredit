@@ -133,9 +133,30 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     };
 
     const numberPadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+    const activeInstallment = useMemo(() => {
+        const installments = Array.isArray((loan as any)?.installments) ? (loan as any).installments : [];
+        return installments.find((i: any) => i && i.isActive);
+    }, [loan]);
+
+    const mergedNextInstallment = useMemo(() => {
+        const installments = Array.isArray((loan as any)?.installments) ? (loan as any).installments : [];
+        if (!activeInstallment) return undefined;
+        return installments.find((i: any) =>
+            i && i.status === 'Merged' && i.installmentNumber === activeInstallment.installmentNumber + 1
+        );
+    }, [loan, activeInstallment]);
+
+    const isInstallmentPayment = !!activeInstallment;
     
     const breakdown = useMemo(() => {
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
+        // If paying an installment, show installment-level amounts so the penalty is visible pre-payment.
+        if (isInstallmentPayment && activeInstallment) {
+            const principalDue = Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0));
+            const penaltyDue = Math.max(0, activeInstallment.penaltyAmount || 0);
+            return { principal: principalDue, interest: 0, penalty: penaltyDue, serviceFee: 0, tax: 0 };
+        }
         return calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
     }, [loan, taxConfigs]);
 
@@ -177,9 +198,21 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                          </Alert>
                     ) : (
                         <div className="text-center text-sm text-muted-foreground space-y-1">
+                            {isInstallmentPayment && activeInstallment && (
+                                <div className="text-xs space-y-1">
+                                    <p>
+                                        Paying installment {activeInstallment.installmentNumber} (penalty shown as of today)
+                                    </p>
+                                    {mergedNextInstallment && (
+                                        <p className="text-muted-foreground">
+                                            Installments merged: includes installment {mergedNextInstallment.installmentNumber}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                             <div className="grid grid-cols-3 gap-2 text-xs text-left">
                                 <span className="col-span-2">Principal Due:</span>
-                                <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.principal - (loan.repaidAmount || 0))}</span>
+                                <span className="text-right font-medium text-foreground">{formatCurrency(isInstallmentPayment ? breakdown.principal : (breakdown.principal - (loan.repaidAmount || 0)))}</span>
 
                                 <span className="col-span-2">Service Fee Due:</span>
                                 <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.serviceFee)}</span>

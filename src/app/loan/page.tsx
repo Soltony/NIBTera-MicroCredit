@@ -6,6 +6,8 @@ import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
+import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
+import { startOfDay } from 'date-fns';
 
 // Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -73,6 +75,40 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
     try {
         if (!borrowerId) return [];
 
+        // Ensure overdue installments are rolled over (merged) so the borrower UI
+        // reflects the combined installment amount as soon as a due date passes.
+        const loanIds = await prisma.loan.findMany({
+            where: { borrowerId, repaymentStatus: 'Unpaid' },
+            select: { id: true },
+        });
+
+        const ensureRollover = async (loanId: string) => {
+            const today = startOfDay(new Date());
+            const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
+            const updates: Promise<any>[] = [];
+            for (let i = 0; i < installments.length - 1; i++) {
+                const cur = installments[i];
+                const nxt = installments[i + 1];
+                const curDue = startOfDay(new Date(cur.dueDate));
+                if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
+                    updates.push(prisma.loanInstallment.update({
+                        where: { id: cur.id },
+                        data: {
+                            amount: (cur.amount || 0) + (nxt.amount || 0),
+                            isActive: true,
+                            penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0),
+                        }
+                    }));
+                    updates.push(prisma.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
+                }
+            }
+            if (updates.length) await prisma.$transaction(updates);
+        };
+
+        for (const l of loanIds) {
+            await ensureRollover(l.id);
+        }
+
         const loans = await prisma.loan.findMany({
             where: { borrowerId },
             include: {
@@ -85,6 +121,9 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                     orderBy: {
                         date: 'asc'
                     }
+                },
+                installments: {
+                    orderBy: { installmentNumber: 'asc' }
                 }
             },
             orderBy: {
@@ -105,13 +144,13 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
             repaidAmount: loan.repaidAmount || 0,
             penaltyAmount: loan.penaltyAmount,
             product: {
-              ...loan.product,
-              id: loan.product.id,
-              providerId: loan.product.providerId,
-              serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
-              dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0, calculationBase: 'principal' }),
-              penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
-              requiredDocuments: safeJsonParse(loan.product.requiredDocuments, []) as string[],
+                ...loan.product,
+                id: loan.product.id,
+                providerId: loan.product.providerId,
+                serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
+                dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0, calculationBase: 'principal' }),
+                penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
+                requiredDocuments: safeJsonParse(loan.product.requiredDocuments, []) as string[],
             },
             payments: loan.payments.map(p => ({
                 id: p.id,
@@ -119,7 +158,23 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
             }))
-        })) as LoanDetails[];
+            ,
+            installments: loan.installments?.map(i => ({
+                id: i.id,
+                installmentNumber: i.installmentNumber,
+                dueDate: i.dueDate,
+                amount: i.amount,
+                paidAmount: i.paidAmount || 0,
+                status: i.status,
+                isActive: i.isActive,
+                penaltyAmount: calculateInstallmentPenalty({
+                    dueDate: i.dueDate,
+                    principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
+                    penaltyRules: (safeJsonParse(loan.product.penaltyRules, []) as any) || [],
+                    asOfDate: new Date(),
+                }),
+            })) || []
+        })) as unknown as LoanDetails[];
     } catch(e) {
         console.error(e);
         return [];

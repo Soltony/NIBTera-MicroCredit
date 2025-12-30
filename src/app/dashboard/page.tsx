@@ -4,8 +4,14 @@ import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/type
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
+import { startOfDay } from 'date-fns';
 import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
+import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
+
+// Ensure dashboard always renders dynamically and bypasses cache so rollover runs
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
     if (!jsonString) return defaultValue;
@@ -52,27 +58,42 @@ async function getProviders(): Promise<LoanProvider[]> {
 async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
      try {
         if (!borrowerId) return [];
+        // First, ensure any overdue installments are rolled over (merged)
+        // so dashboard sees the combined installment amounts without requiring
+        // the user to open the loan detail page.
+        const loans = await prisma.loan.findMany({ where: { borrowerId }, select: { id: true } });
 
-        const loans = await prisma.loan.findMany({
+        const ensureRollover = async (loanId: string) => {
+            const today = startOfDay(new Date());
+            const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
+            const updates: any[] = [];
+            for (let i = 0; i < installments.length - 1; i++) {
+                const cur = installments[i];
+                const nxt = installments[i + 1];
+                const curDue = startOfDay(new Date(cur.dueDate));
+                if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
+                    updates.push(prisma.loanInstallment.update({ where: { id: cur.id }, data: { amount: (cur.amount || 0) + (nxt.amount || 0), isActive: true, penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0) } }));
+                    updates.push(prisma.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
+                }
+            }
+            if (updates.length) await prisma.$transaction(updates);
+        };
+
+        for (const l of loans) {
+            await ensureRollover(l.id);
+        }
+
+        const refreshedLoans = await prisma.loan.findMany({
             where: { borrowerId },
             include: {
-                product: {
-                  include: {
-                    provider: true
-                  }
-                },
-                payments: {
-                    orderBy: {
-                        date: 'asc'
-                    }
-                }
+                product: { include: { provider: true } },
+                payments: { orderBy: { date: 'asc' } },
+                installments: { orderBy: { installmentNumber: 'asc' } }
             },
-            orderBy: {
-                disbursedDate: 'desc'
-            }
+            orderBy: { disbursedDate: 'desc' }
         });
 
-        return loans.map(loan => ({
+        return refreshedLoans.map(loan => ({
             id: loan.id,
             borrowerId: loan.borrowerId,
             providerName: loan.product.provider.name,
@@ -96,6 +117,23 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                 date: p.date,
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
             }))
+            ,
+            installments: loan.installments ? loan.installments.map(i => ({
+                id: i.id,
+                installmentNumber: i.installmentNumber,
+                dueDate: i.dueDate,
+                amount: i.amount,
+                paidAmount: i.paidAmount || 0,
+                paidAt: i.paidAt,
+                status: i.status,
+                penaltyAmount: calculateInstallmentPenalty({
+                    dueDate: i.dueDate,
+                    principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
+                    penaltyRules: (safeJsonParse(loan.product.penaltyRules as any, []) as any) || [],
+                    asOfDate: new Date(),
+                }),
+                isActive: i.isActive,
+            })) : []
         })) as LoanDetails[];
     } catch(e) {
         console.error(e);

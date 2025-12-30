@@ -227,7 +227,12 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
   const activeLoansByProduct = useMemo(() => {
       const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
       return unpaidLoans.reduce((acc, loan) => {
-          if (!acc[loan.product.id] || new Date(loan.dueDate) > new Date(acc[loan.product.id].dueDate)) {
+          // Use the active installment due date when present, otherwise fall back to loan.dueDate
+          const activeInst = Array.isArray((loan as any).installments) ? (loan as any).installments.find((i: any) => i.isActive) : undefined;
+          const effectiveDue = activeInst ? new Date(activeInst.dueDate) : new Date(loan.dueDate);
+          const existing = acc[loan.product.id];
+          const existingEffectiveDue = existing ? (Array.isArray(existing.installments) ? (existing.installments.find((i: any) => i.isActive)?.dueDate ? new Date(existing.installments.find((i: any) => i.isActive)?.dueDate) : new Date(existing.dueDate)) : new Date(existing.dueDate)) : null;
+          if (!acc[loan.product.id] || effectiveDue > (existingEffectiveDue || new Date(0))) {
               acc[loan.product.id] = loan;
           }
           return acc;
@@ -247,11 +252,29 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
         }
 
         const params = new URLSearchParams(searchParams.toString());
-        // Personal Loan Flow
         params.set('providerId', selectedProviderId);
         params.set('product', product.id);
-        const productLimit = eligibility.limits[product.id] ?? 0;
-        
+
+        // Fetch fresh eligibility for this borrower + provider to ensure UI uses up-to-date limit
+        let productLimit = eligibility.limits[product.id] ?? 0;
+        try {
+            if (borrowerId && selectedProviderId) {
+                const res = await fetch(`/api/ussd/borrowers/${encodeURIComponent(borrowerId)}/eligibility?providerId=${encodeURIComponent(selectedProviderId)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data.limits)) {
+                        const found = data.limits.find((l: any) => l.productId === product.id);
+                        if (found && typeof found.limit === 'number') {
+                            productLimit = found.limit;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // ignore network errors and fall back to existing limit
+            console.error('Failed to fetch fresh eligibility:', e);
+        }
+
         params.set('min', String(product.minLoan ?? 0));
         params.set('max', String(productLimit));
         router.push(`/apply?${params.toString()}`);

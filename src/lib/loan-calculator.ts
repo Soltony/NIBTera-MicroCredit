@@ -84,42 +84,86 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     const runningBalanceForPenalty = principal + interestComponent + serviceFee;
 
     // 3. Penalty - Calculated only if overdue.
-    if (loanProduct.penaltyRulesEnabled && penaltyRules && penaltyRules.length > 0 && finalDate > dueDate) {
-        const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
-        const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
-        
-        penaltyRules.forEach((rule: PenaltyRule) => {
-             const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
-             const toDayRaw = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
-             const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;
-             const value = rule.value === '' ? 0 : Number(rule.value);
+    if (loanProduct.penaltyRulesEnabled && penaltyRules && penaltyRules.length > 0) {
+        // If penaltyPerInstallment is enabled, compute penalty per-installment
+        if ((loanProduct as any).penaltyPerInstallment && Array.isArray(loanDetails.installments) && loanDetails.installments.length > 0) {
+            // Sum penalties for each installment that is overdue as of finalDate
+            for (const inst of loanDetails.installments) {
+                const instDue = startOfDay(new Date(inst.dueDate));
+                if (finalDate <= instDue) continue;
+                const daysOverdue = differenceInDays(finalDate, instDue);
+                const principalForInst = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
+                if (principalForInst <= 0) continue;
 
-             if (daysOverdueTotal >= fromDay) {
-                 const applicableDaysInTier = Math.min(daysOverdueTotal, toDay) - fromDay + 1;
-                 const isOneTime = rule.frequency === 'one-time';
+                penaltyRules.forEach((rule: PenaltyRule) => {
+                    const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
+                    const toDayRaw = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
+                    const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;
+                    const value = rule.value === '' ? 0 : Number(rule.value);
 
-                 if (applicableDaysInTier > 0) {
-                    let penaltyForThisRule = 0;
-                    const daysToCalculate = isOneTime ? 1 : applicableDaysInTier;
-
-                    if (rule.type === 'fixed') {
-                        penaltyForThisRule = value * daysToCalculate;
-                    } else if (rule.type === 'percentageOfPrincipal') {
-                        penaltyForThisRule = principal * (value / 100) * daysToCalculate;
-                    } else if (rule.type === 'percentageOfCompound') {
-                        let compoundPenaltyBase = runningBalanceForPenalty + penaltyComponent;
-                        for (let i = 0; i < daysToCalculate; i++) {
-                             const dailyPenalty = roundCurrency(compoundPenaltyBase * (value / 100));
-                             penaltyForThisRule += dailyPenalty;
-                             if (!isOneTime) {
-                                compoundPenaltyBase += dailyPenalty;
-                             }
+                    if (daysOverdue >= fromDay) {
+                        const applicableDaysInTier = Math.min(daysOverdue, toDay) - fromDay + 1;
+                        const isOneTime = rule.frequency === 'one-time';
+                        const daysToCalculate = isOneTime ? 1 : applicableDaysInTier;
+                        if (daysToCalculate > 0) {
+                            let penaltyForThisRule = 0;
+                            if (rule.type === 'fixed') {
+                                penaltyForThisRule = value * daysToCalculate;
+                            } else if (rule.type === 'percentageOfPrincipal') {
+                                penaltyForThisRule = principalForInst * (value / 100) * daysToCalculate;
+                            } else if (rule.type === 'percentageOfCompound') {
+                                let compoundPenaltyBase = principalForInst;
+                                for (let i = 0; i < daysToCalculate; i++) {
+                                    const dailyPenalty = roundCurrency(compoundPenaltyBase * (value / 100));
+                                    penaltyForThisRule += dailyPenalty;
+                                    if (!isOneTime) compoundPenaltyBase += dailyPenalty;
+                                }
+                            }
+                            penaltyComponent += penaltyForThisRule;
                         }
                     }
-                    penaltyComponent += penaltyForThisRule;
-                 }
-             }
-        });
+                });
+            }
+        } else {
+            // Loan-level penalty calculation (legacy behavior)
+            if (finalDate > dueDate) {
+                const penaltyStartDate = loanProduct.duration === 0 ? startOfDay(new Date(loanDetails.disbursedDate.getTime() + 86400000)) : dueDate;
+                const daysOverdueTotal = differenceInDays(finalDate, penaltyStartDate);
+
+                penaltyRules.forEach((rule: PenaltyRule) => {
+                    const fromDay = rule.fromDay === '' ? 1 : Number(rule.fromDay);
+                    const toDayRaw = rule.toDay === '' || rule.toDay === null ? Infinity : Number(rule.toDay);
+                    const toDay = isNaN(toDayRaw) ? Infinity : toDayRaw;
+                    const value = rule.value === '' ? 0 : Number(rule.value);
+
+                    if (daysOverdueTotal >= fromDay) {
+                        const applicableDaysInTier = Math.min(daysOverdueTotal, toDay) - fromDay + 1;
+                        const isOneTime = rule.frequency === 'one-time';
+
+                        if (applicableDaysInTier > 0) {
+                            let penaltyForThisRule = 0;
+                            const daysToCalculate = isOneTime ? 1 : applicableDaysInTier;
+
+                            if (rule.type === 'fixed') {
+                                penaltyForThisRule = value * daysToCalculate;
+                            } else if (rule.type === 'percentageOfPrincipal') {
+                                penaltyForThisRule = principal * (value / 100) * daysToCalculate;
+                            } else if (rule.type === 'percentageOfCompound') {
+                                let compoundPenaltyBase = runningBalanceForPenalty + penaltyComponent;
+                                for (let i = 0; i < daysToCalculate; i++) {
+                                    const dailyPenalty = roundCurrency(compoundPenaltyBase * (value / 100));
+                                    penaltyForThisRule += dailyPenalty;
+                                    if (!isOneTime) {
+                                        compoundPenaltyBase += dailyPenalty;
+                                    }
+                                }
+                            }
+                            penaltyComponent += penaltyForThisRule;
+                        }
+                    }
+                });
+            }
+        }
     }
     penaltyComponent = roundCurrency(penaltyComponent);
 

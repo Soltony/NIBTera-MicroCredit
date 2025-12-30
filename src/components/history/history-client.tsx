@@ -36,7 +36,7 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
   const [activeTab, setActiveTab] = useState('active');
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
-  const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number } | null>(null);
+  const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number, installmentId?: string } | null>(null);
   const [selectedLoanProviderColor, setSelectedLoanProviderColor] = useState<string>('#fdb913');
 
   useEffect(() => {
@@ -89,6 +89,15 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
 
 
   const handleRepay = (loan: LoanDetails) => {
+    // If the loan has an active installment, default to that installment amount (plus penalty)
+    const activeInstallment = Array.isArray(loan.installments) ? loan.installments.find(i => i.isActive) : undefined;
+    if (activeInstallment) {
+      const installBalance = Math.max(0, (activeInstallment.amount - (activeInstallment.paidAmount || 0)) + (activeInstallment.penaltyAmount || 0));
+      setRepayingLoanInfo({ loan, balanceDue: installBalance, installmentId: activeInstallment.id });
+      setIsRepayDialogOpen(true);
+      return;
+    }
+
     const balanceDue = (loan.totalRepayableAmount ?? 0) - (loan.repaidAmount || 0);
     setRepayingLoanInfo({ loan, balanceDue: Math.max(0, balanceDue) });
     setIsRepayDialogOpen(true);
@@ -97,11 +106,13 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
   const handleConfirmRepayment = async (amount: number) => {
     if (!repayingLoanInfo) return;
     try {
+      const payload: any = { loanId: repayingLoanInfo.loan.id, amount };
+      if (repayingLoanInfo.installmentId) payload.installmentId = repayingLoanInfo.installmentId;
       const response = await fetch('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loanId: repayingLoanInfo.loan.id, amount }),
-      });
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
       if (!response.ok) {
         const errorData = await response.json();

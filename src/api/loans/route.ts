@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
+import { getSalaryEntryForProduct, computeAllowedFromSalary } from '@/lib/salary-advance';
 import { createAuditLog } from '@/lib/audit-log';
 
 async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
@@ -142,8 +143,25 @@ export async function POST(req: NextRequest) {
             throw new Error(`Loan denied: ${reason}`);
         }
 
-        if (data.loanAmount > maxLoanAmount) {
-            throw new Error(`Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`);
+        if (product.isSalaryAdvance) {
+            // require borrowerAccountNumber to map salary entry
+            const accountNumber = (body as any).borrowerAccountNumber || (data as any).borrowerAccountNumber;
+            if (!accountNumber) {
+                throw new Error('Borrower account number is required for salary-advance products.');
+            }
+            const entry = await getSalaryEntryForProduct(product.id, accountNumber);
+            if (!entry) {
+                throw new Error('No salary entry found for borrower account number.');
+            }
+            const percent = product.advancePercent || 0;
+            const allowed = computeAllowedFromSalary(Number(entry.salary), percent, product.maxLoan || undefined);
+            if (data.loanAmount > allowed) {
+                throw new Error(`Requested amount of ${data.loanAmount} exceeds the salary-advance allowed amount of ${allowed}.`);
+            }
+        } else {
+            if (data.loanAmount > maxLoanAmount) {
+                throw new Error(`Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`);
+            }
         }
 
         const newLoan = await handlePersonalLoan(data);

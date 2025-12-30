@@ -8,6 +8,7 @@
  */
 
 import prisma from '@/lib/prisma';
+import { getSalaryEntryForProduct, computeAllowedFromSalary } from '@/lib/salary-advance';
 import { evaluateCondition } from '@/lib/utils';
 import type { ScoringParameter as ScoringParameterType } from '@/lib/types';
 import { Loan, LoanProduct, Prisma, RepaymentBehavior } from '@prisma/client';
@@ -251,11 +252,37 @@ export async function checkLoanEligibility(borrowerId: string, providerId: strin
     }
 
 
+    // If this product is a salary advance, bypass provider scoring and compute limit from salary mapping
+    if (product.isSalaryAdvance) {
+        try {
+            const activeAccount = await prisma.phoneAccount.findFirst({ where: { phoneNumber: borrowerId, isActive: true } });
+            if (!activeAccount || !activeAccount.accountNumber) {
+                return { isEligible: false, reason: 'No active account selected. Please select your salary account to apply.', score: 0, maxLoanAmount: 0 };
+            }
+
+            const mapping = await getSalaryEntryForProduct(productId, activeAccount.accountNumber);
+            if (!mapping || typeof mapping.salary === 'undefined' || mapping.salary === null) {
+                return { isEligible: false, reason: 'No salary record found for your active account. Please contact the provider.', score: 0, maxLoanAmount: 0 };
+            }
+
+            const allowed = computeAllowedFromSalary(Number(mapping.salary), Number(product.advancePercent || 0), Number(product.maxLoan || 0));
+            const allowedRounded = Math.floor(Number(allowed) || 0);
+            if (allowedRounded <= 0) {
+                return { isEligible: false, reason: 'Configured salary advance yields no available amount for your account.', score: 0, maxLoanAmount: 0 };
+            }
+
+            return { isEligible: true, reason: 'Salary advance available.', score: 0, maxLoanAmount: allowedRounded };
+        } catch (e) {
+            console.error('Salary-advance eligibility check failed:', e);
+            return { isEligible: false, reason: 'Failed to determine salary advance eligibility.', score: 0, maxLoanAmount: 0 };
+        }
+    }
+
     const scoringParameterCount = await prisma.scoringParameter.count({ where: { providerId } });
     if (scoringParameterCount === 0) {
         return { isEligible: false, reason: 'This provider has not configured their credit scoring rules.', score: 0, maxLoanAmount: 0 };
     }
-    
+
     const score = await calculateScoreForProvider(borrowerId, providerId);
 
     const applicableTier = await prisma.loanAmountTier.findFirst({

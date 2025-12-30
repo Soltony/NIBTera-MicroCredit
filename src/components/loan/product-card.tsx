@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
 
 const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined || isNaN(amount)) return '0.00';
@@ -96,10 +97,32 @@ export function ProductCard({
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
-    const isOverdue = activeLoan ? new Date() > new Date(activeLoan.dueDate) : false;
+    const activeInstallment = activeLoan && Array.isArray((activeLoan as any).installments) ? (activeLoan as any).installments.find((i: any) => i.isActive) : undefined;
+    const mergedNextInstallment = activeLoan && activeInstallment && Array.isArray((activeLoan as any).installments)
+        ? (activeLoan as any).installments.find((i: any) => i && i.status === 'Merged' && i.installmentNumber === activeInstallment.installmentNumber + 1)
+        : undefined;
+    const isOverdue = activeInstallment ? new Date() > new Date(activeInstallment.dueDate) : (activeLoan ? new Date() > new Date(activeLoan.dueDate) : false);
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
+        // Prefer active installment amount when available (installment schedule)
+        if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
+            const activeInst = (activeLoan as any).installments.find((i: any) => i.isActive);
+            if (activeInst) {
+                const outstanding = Math.max(0, (activeInst.amount - (activeInst.paidAmount || 0)));
+                // Use server-provided penaltyAmount when available; otherwise compute locally.
+                const penaltyRules = product.penaltyRules || [];
+                const penalty = (activeInst.penaltyAmount && activeInst.penaltyAmount > 0)
+                    ? activeInst.penaltyAmount
+                    : calculateInstallmentPenalty({
+                        dueDate: new Date(activeInst.dueDate),
+                        principalOutstanding: outstanding,
+                        penaltyRules,
+                        asOfDate: new Date(),
+                    });
+                return Math.max(0, outstanding + (penalty || 0));
+            }
+        }
         const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, new Date());
         const remainingBalance = total - (activeLoan.repaidAmount || 0);
         return Math.max(0, remainingBalance);
@@ -163,6 +186,8 @@ export function ProductCard({
     );
 
     if (activeLoan) {
+        const instOutstanding = activeInstallment ? Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0)) : null;
+        const instPenalty = activeInstallment ? Math.max(0, activeInstallment.penaltyAmount || 0) : 0;
         return (
             <Card>
                 <CardContent className="p-4">
@@ -170,13 +195,27 @@ export function ProductCard({
                         <div>
                             <p className="text-lg font-bold" style={{ color: providerColor }}>{product.name}</p>
                             <p className="text-sm text-muted-foreground">
-                                Due Date: {format(activeLoan.dueDate, 'yyyy-MM-dd')}
+                                Due Date: {activeInstallment ? format(new Date(activeInstallment.dueDate), 'yyyy-MM-dd') : format(new Date(activeLoan.dueDate), 'yyyy-MM-dd')}
                                 {isOverdue && <span className="text-red-500 ml-2 font-semibold">Overdue</span>}
                             </p>
+                            {activeInstallment && (
+                                <p className="text-sm text-muted-foreground">
+                                    Active installment: {activeInstallment.installmentNumber}
+                                    {mergedNextInstallment && (
+                                        <span className="ml-2">• Merged</span>
+                                    )}
+                                    {instPenalty > 0 && (
+                                        <span className="ml-2">• Penalty: {formatCurrency(instPenalty)} ETB</span>
+                                    )}
+                                </p>
+                            )}
                         </div>
                         <div className="text-right">
                              <p className="text-xl font-bold">{formatCurrency(balanceDue)}</p>
                              <p className="text-xs text-muted-foreground">Outstanding</p>
+                             {activeInstallment && instOutstanding !== null && (
+                                <p className="text-xs text-muted-foreground">Principal: {formatCurrency(instOutstanding)} ETB</p>
+                             )}
                         </div>
                     </div>
                      <div className="flex justify-end mt-2">
@@ -197,7 +236,7 @@ export function ProductCard({
                         <div>
                             <p className="font-semibold">{product.name}</p>
                             <p className="text-xs text-muted-foreground">
-                                Credit limit {formatCurrency(product.minLoan ?? 0)} to {formatCurrency(product.maxLoan ?? 0)}
+                                Credit limit {formatCurrency(product.minLoan ?? 0)} to {formatCurrency((product.maxLoan && product.maxLoan > 0) ? product.maxLoan : (product.availableLimit ?? 0))}
                             </p>
                         </div>
                     </div>

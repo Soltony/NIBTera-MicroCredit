@@ -7,10 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import type { LoanDetails } from '@/lib/types';
 import { format } from 'date-fns';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { cn } from '@/lib/utils';
 
 const formatCurrency = (amount: number | null | undefined) => {  
@@ -97,15 +93,12 @@ export function LoanDetailClient({ loanDetails }: LoanDetailClientProps) {
                             </Card>
 
                             <div>
-                                <h3 className="font-semibold mb-2">Repayment Schedule</h3>
+                                <h3 className="font-semibold mb-2">Due Date</h3>
                                 <Card>
-                                     <CardContent className="p-4 space-y-2 text-sm">
+                                    <CardContent className="p-4 text-sm">
                                         <div className="flex justify-between items-center">
-                                            <div>
-                                                <p className="font-semibold">Outstanding Amount</p>
-                                                <p className="text-xs text-muted-foreground">{format(loanDetails.dueDate, 'yyyy-MM-dd')} (1/1)</p>
-                                            </div>
-                                            <p className="font-bold text-lg" style={{ color: providerColor }}>{formatCurrency(totalOutstanding)}</p>
+                                            <p className="text-muted-foreground">Due</p>
+                                            <p className="font-medium">{format(loanDetails.dueDate, 'yyyy-MM-dd')}</p>
                                         </div>
                                     </CardContent>
                                 </Card>

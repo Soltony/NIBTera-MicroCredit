@@ -70,8 +70,14 @@ model LoanProduct {
   name                         String
   description                  String?
   icon                         String
-  minLoan                      Float                           @default(0)
-  maxLoan                      Float                           @default(0)
+  minLoan                      Float?                          @default(0)
+  maxLoan                      Float?                          @default(0)
+  isSalaryAdvance              Boolean                         @default(false)
+  advancePercent               Int?
+  salaryAdvanceMappings        String?                         @db.NVarChar(Max) // JSON: [{ accountNumber, salary }]
+  // salary-advance installment configuration
+  installments                 Int?
+  repaymentIntervalDays       Int?
   status                       String                          @default("Active") // "Active", "Disabled"
   serviceFee                   String? // JSON FeeRule
   dailyFee                     String? // JSON DailyFeeRule
@@ -79,6 +85,7 @@ model LoanProduct {
   serviceFeeEnabled            Boolean                         @default(true)
   dailyFeeEnabled              Boolean                         @default(true)
   penaltyRulesEnabled          Boolean                         @default(true)
+  penaltyPerInstallment        Boolean                         @default(false)
   loanAmountTiers              LoanAmountTier[]
   loans                        Loan[]
   scoringConfigurationHistory  ScoringConfigurationHistory[]   @relation("ProductScoringHistory")
@@ -192,13 +199,32 @@ model Loan {
   provider        LoanProvider @relation(fields: [providerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   product         LoanProduct  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   payments        Payment[]
+  installments    LoanInstallment[]
 }
 
 model Payment {
   id                              String   @id @default(uuid())
   loanId                          String
   loan                            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  installmentId                   String?
+  installment                     LoanInstallment? @relation(fields: [installmentId], references: [id], onDelete: Cascade)
   amount                          Float
   date                            DateTime @default(now())
   outstandingBalanceBeforePayment Float?
+}
+
+model LoanInstallment {
+  id                String   @id @default(uuid())
+  loanId            String
+  loan              Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  installmentNumber Int
+  dueDate           DateTime
+  amount            Float
+  paidAmount        Float?
+  paidAt            DateTime?
+  status            String   @default("Pending") // Pending, Paid, Overdue
+  penaltyApplied    Float    @default(0)
+  isActive          Boolean  @default(false)
+
+  @@unique([loanId, installmentNumber])
 }

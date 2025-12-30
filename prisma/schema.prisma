@@ -112,9 +112,14 @@ model LoanProduct {
   name                     String
   description              String
   icon                     String                        @db.Text
-  minLoan                  Float
-  maxLoan                  Float
+  minLoan                  Float?
+  maxLoan                  Float?
+  isSalaryAdvance          Boolean                       @default(false)
+  advancePercent           Int?
+  salaryAdvanceMappings    String?                       @db.NVarChar(Max) // JSON: [{ accountNumber, salary }]
   duration                 Int
+  installments             Int?
+  repaymentIntervalDays    Int?
   status                   String                        @default("Active") // Active, Disabled, PENDING_APPROVAL
   allowConcurrentLoans     Boolean                       @default(false)
   serviceFee               String // JSON FeeRule
@@ -123,6 +128,9 @@ model LoanProduct {
   dailyFeeEnabled          Boolean?
   penaltyRules             String // JSON array of PenaltyRule
   penaltyRulesEnabled      Boolean?
+  // If true, penalty rules are applied per installment
+  // (useful for salary-advance products that have installment schedules)
+  penaltyPerInstallment    Boolean?                      @default(false)
   dataProvisioningEnabled  Boolean?
   dataProvisioningConfigId String?
   dataProvisioningConfig   DataProvisioningConfig?       @relation(fields: [dataProvisioningConfigId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -178,6 +186,7 @@ model Loan {
   repaymentBehavior String? // ON_TIME, LATE, EARLY
   repaidAmount      Float?
   payments          Payment[]
+  installments      LoanInstallment[]
   journalEntries    JournalEntry[]
   pendingPayments   PendingPayment[]
   createdAt         DateTime         @default(now())
@@ -188,11 +197,34 @@ model Payment {
   id                              String        @id @default(cuid())
   loanId                          String
   loan                            Loan          @relation(fields: [loanId], references: [id])
+  installmentId                   String?
+  installment                     LoanInstallment? @relation(fields: [installmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   amount                          Float
   date                            DateTime
   outstandingBalanceBeforePayment Float?
   journalEntryId                  String?       @unique
   journalEntry                    JournalEntry? @relation(fields: [journalEntryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+}
+
+model LoanInstallment {
+  id                String    @id @default(cuid())
+  loanId            String
+  loan              Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  installmentNumber Int
+  dueDate           DateTime
+  amount            Float
+  paidAmount        Float?    @default(0)
+  paidAt            DateTime?
+  status            String    @default("PENDING") // PENDING, PAID, LATE
+  penaltyAmount     Float     @default(0)
+  isActive          Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  payments          Payment[]
+
+  @@index([loanId])
+  @@index([dueDate])
 }
 
 model Borrower {

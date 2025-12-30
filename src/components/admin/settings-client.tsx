@@ -146,7 +146,9 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             serviceFee: safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 }),
             dailyFee: safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' }),
             penaltyRules: safeParseJson(product, 'penaltyRules', []),
-            eligibilityFilter: product.eligibilityFilter
+            eligibilityFilter: product.eligibilityFilter,
+            installments: product.installments ?? '',
+            repaymentIntervalDays: product.repaymentIntervalDays ?? undefined,
         };
     }, [product]);
     
@@ -180,6 +182,72 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             handleStatusChange(checked);
         } else {
             onUpdate({ [name]: checked });
+        }
+    }
+
+    const handleFileSalaryUpload = async (file?: File | null) => {
+        if (!file) return;
+        const name = file.name || '';
+        const ext = name.split('.').pop()?.toLowerCase();
+        try {
+            let mappings: Array<any> = [];
+            if (ext === 'xlsx' || ext === 'xls' || (file.type && file.type.includes('sheet'))) {
+                // parse with ExcelJS
+                const buffer = await file.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(buffer);
+                const sheet = workbook.worksheets[0];
+                if (sheet) {
+                    const headerRow = sheet.getRow(1).values as any[];
+                    const rawHeaders = (headerRow || []).slice(1).map((h: any) => String(h || '').trim());
+                    const canonicalHeaders = rawHeaders.map(h => {
+                        const norm = String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (norm.includes('account') || norm.includes('acct')) return 'accountNumber';
+                        if (norm.includes('salary') || norm.includes('amount') || norm.includes('pay')) return 'salary';
+                        return norm || h;
+                    });
+                    for (let i = 2; i <= sheet.rowCount; i++) {
+                        const row = sheet.getRow(i).values as any[];
+                        if (!row || row.length <= 1) continue;
+                        const data: any = {};
+                        canonicalHeaders.forEach((h: string, idx: number) => {
+                          data[h] = row[idx + 1] ?? '';
+                        });
+                        mappings.push({
+                            accountNumber: String(data.accountNumber || '').trim(),
+                            salary: Number(data.salary || 0)
+                        });
+                    }
+                }
+            } else {
+                const text = await file.text();
+                const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+                if (lines.length) {
+                    const raw = lines[0].split(',').map(h => h.trim());
+                    const headers = raw.map(h => {
+                        const norm = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (norm.includes('account') || norm.includes('acct')) return 'accountNumber';
+                        if (norm.includes('salary') || norm.includes('amount') || norm.includes('pay')) return 'salary';
+                        return h;
+                    });
+                    const rows = lines.slice(1).map(line => {
+                        const cols = line.split(',');
+                        const obj: any = {};
+                        headers.forEach((h, i) => obj[h] = cols[i] ? cols[i].trim() : '');
+                        return obj;
+                    });
+                    mappings = rows.map((r: any) => ({
+                        accountNumber: String(r.accountNumber || '').trim(),
+                        salary: Number(r.salary || 0)
+                    })).filter((r: any) => r.accountNumber);
+                }
+            }
+
+            mappings = mappings.filter((m: any) => m.accountNumber);
+            onUpdate({ salaryAdvanceMappings: JSON.stringify(mappings) });
+        } catch (err) {
+            console.error('Failed to parse salary mapping file', err);
+            // keep previous mappings unchanged on error
         }
     }
 
@@ -229,6 +297,16 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
         setIsUploading(true);
         try {
+            // Client-side validation: reject unsupported file types and oversized files early
+            const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+            const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+            if (!allowedTypes.includes(file.type)) {
+                throw new Error('Invalid file type. Only .xlsx files are allowed.');
+            }
+            if (file.size > MAX_FILE_SIZE) {
+                throw new Error('File is too large. Maximum size is 100MB.');
+            }
+
             const fileReader = new FileReader();
             fileReader.readAsDataURL(file);
             fileReader.onload = async (e) => {
@@ -309,11 +387,40 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
         setIsSaving(true);
         try {
+            const parsedDuration = parseInt(String(formData.duration)) || 30;
+            const parsedInstallments = formData.isSalaryAdvance
+                ? (formData.installments === '' || formData.installments === null || formData.installments === undefined
+                    ? null
+                    : Number(formData.installments))
+                : null;
+
+            if (formData.isSalaryAdvance) {
+                if (!parsedInstallments || !Number.isFinite(parsedInstallments) || parsedInstallments <= 0) {
+                    throw new Error('For salary-advance products, Installments is required and must be greater than 0.');
+                }
+                if (parsedDuration <= 0) {
+                    throw new Error('For salary-advance products, Loan Duration (days) must be greater than 0.');
+                }
+                if (parsedInstallments > parsedDuration) {
+                    throw new Error('Installments cannot be greater than duration (days).');
+                }
+            }
+
+            const computedIntervalDays = (formData.isSalaryAdvance && parsedInstallments)
+                ? Math.floor(parsedDuration / parsedInstallments)
+                : null;
+
              const productToSave = {
                 ...formData,
-                minLoan: parseFloat(String(formData.minLoan)) || 0,
-                maxLoan: parseFloat(String(formData.maxLoan)) || 0,
-                duration: parseInt(String(formData.duration)) || 30,
+                minLoan: formData.isSalaryAdvance ? undefined : (parseFloat(String(formData.minLoan)) || 0),
+                maxLoan: formData.isSalaryAdvance ? undefined : (parseFloat(String(formData.maxLoan)) || 0),
+                duration: parsedDuration,
+                advancePercent: formData.isSalaryAdvance ? (formData.advancePercent ? Number(formData.advancePercent) : null) : undefined,
+                salaryAdvanceMappings: formData.isSalaryAdvance ? formData.salaryAdvanceMappings : undefined,
+                installments: formData.isSalaryAdvance ? parsedInstallments : undefined,
+                repaymentIntervalDays: formData.isSalaryAdvance ? (computedIntervalDays || undefined) : undefined,
+                // For installment-based products, apply penalties per installment.
+                penaltyPerInstallment: formData.isSalaryAdvance ? true : undefined,
                 // Exclude status and eligibility from the main product approval payload
                 status: undefined, 
                 dataProvisioningEnabled: undefined,
@@ -403,7 +510,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 value={formData.minLoan ?? ''}
                                 onChange={handleChange}
                                 placeholder="e.g., 500"
-                                disabled={!canEditProduct}
+                                disabled={!canEditProduct || !!formData.isSalaryAdvance}
                             />
                         </div>
                         <div className="space-y-2">
@@ -415,7 +522,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 value={formData.maxLoan ?? ''}
                                 onChange={handleChange}
                                 placeholder="e.g., 2500"
-                                disabled={!canEditProduct}
+                                disabled={!canEditProduct || !!formData.isSalaryAdvance}
                             />
                         </div>
                         <div className="space-y-2">
@@ -430,6 +537,64 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 disabled={!canEditProduct}
                             />
                         </div>
+                        <div className="space-y-2">
+                            <Label className="">Salary Advance</Label>
+                            <div className="flex items-center gap-2">
+                                <Switch
+                                    id={`isSalaryAdvance-${product.id}`}
+                                    checked={!!formData.isSalaryAdvance}
+                                    onCheckedChange={(checked) => handleSwitchChange('isSalaryAdvance', Boolean(checked))}
+                                    disabled={!canEditProduct}
+                                    className="data-[state=checked]:bg-[--provider-color]"
+                                    style={{'--provider-color': providerColor} as React.CSSProperties}
+                                />
+                                <span className="text-sm">Enable salary advance for this product</span>
+                            </div>
+                        </div>
+                        {formData.isSalaryAdvance && (
+                          <>
+                            <div className="space-y-2">
+                                <Label htmlFor={`advancePercent-${product.id}`}>Advance Percent</Label>
+                                <Input
+                                    id={`advancePercent-${product.id}`}
+                                    name="advancePercent"
+                                    type="number"
+                                    value={formData.advancePercent ?? ''}
+                                    onChange={handleChange}
+                                    placeholder="e.g., 50"
+                                    disabled={!canEditProduct}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor={`installments-${product.id}`}>Installments</Label>
+                                <Input
+                                    id={`installments-${product.id}`}
+                                    name="installments"
+                                    type="number"
+                                    value={formData.installments ?? ''}
+                                    onChange={handleChange}
+                                    placeholder="e.g., 12"
+                                    disabled={!canEditProduct}
+                                />
+                            </div>
+                            {formData.installments && Number(formData.installments) > 0 && (
+                              <div className="space-y-2">
+                                <Label>Repayment Interval</Label>
+                                <div className="text-sm text-muted-foreground">Every {Math.floor((Number(formData.duration) || 0) / Number(formData.installments)) || 0} days</div>
+                              </div>
+                            )}
+                            <div className="space-y-2">
+                                <Label>Salary Mapping Upload</Label>
+                                <div>
+                                    <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => handleFileSalaryUpload(e.target.files ? e.target.files[0] : undefined)} disabled={!canEditProduct} />
+                                    <div className="text-sm text-muted-foreground">CSV columns: accountNumber,salary</div>
+                                </div>
+                                {formData.salaryAdvanceMappings && (
+                                    <div className="text-sm text-muted-foreground">Uploaded mappings: {(JSON.parse(formData.salaryAdvanceMappings as string) || []).length} rows</div>
+                                )}
+                            </div>
+                          </>
+                        )}
                     </div>
 
                     <div className="flex items-center space-x-2 justify-end">
@@ -1093,11 +1258,13 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
         const serviceFee = safeParseJson(product, 'serviceFee', { type: 'percentage', value: 0 });
         const dailyFee = safeParseJson(product, 'dailyFee', { type: 'percentage', value: 0, calculationBase: 'principal' });
         const penaltyRules = safeParseJson(product, 'penaltyRules', []).map((r: any) => ({ ...r, frequency: r.frequency || 'daily' }));
+        const penaltyPerInstallment = (product as any).penaltyPerInstallment ?? false;
         return {
             ...product,
             serviceFee,
             dailyFee,
             penaltyRules,
+            penaltyPerInstallment,
         };
     }, [product]);
     
@@ -1283,6 +1450,22 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                                 style={{'--provider-color': providerColor} as React.CSSProperties}
                             />
                         </div>
+                            {config.isSalaryAdvance && (
+                                <div className="flex items-center justify-between mt-3">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor={`penaltyPerInstallment-${config.id}`} className="font-medium">Apply Penalty Per Installment</Label>
+                                        <div className="text-sm text-muted-foreground">(Each installment uses its own due date)</div>
+                                    </div>
+                                    <Switch
+                                        id={`penaltyPerInstallment-${config.id}`}
+                                        checked={!!config.penaltyPerInstallment}
+                                        onCheckedChange={(checked) => handleUpdate({ penaltyPerInstallment: checked })}
+                                        disabled={!canEditProduct}
+                                        className="data-[state=checked]:bg-[--provider-color]"
+                                        style={{'--provider-color': providerColor} as React.CSSProperties}
+                                    />
+                                </div>
+                            )}
                         <div>
                             <div className="space-y-2 p-4 border rounded-md bg-muted/50">
                                 {config.penaltyRules.map((rule) => (
@@ -2011,6 +2194,11 @@ function LoanCycleForm({ product, onUpdate, providerColor }: {
 
 export function SettingsClient({ initialProviders, initialTaxConfig }: { initialProviders: LoanProvider[], initialTaxConfig: Tax }) {
     const [providers, setProviders] = useState(initialProviders);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const onProductUpdate = useCallback((providerId: string, productId: string, updatedProduct: Partial<LoanProduct>) => {
         setProviders(produce(draft => {
@@ -2038,51 +2226,62 @@ export function SettingsClient({ initialProviders, initialTaxConfig }: { initial
         }));
     }, []);
 
-    return (
-        <div className="flex-1 space-y-4 p-8 pt-6">
-            <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-            <Tabs defaultValue="providers" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
-                    <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
-                    <TabsTrigger value="loanCycles">Loan Cycle</TabsTrigger>
-                     <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
-                    <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
-                    <TabsTrigger value="tax">Tax</TabsTrigger>
-                </TabsList>
-                <TabsContent value="providers">
-                    <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
-                </TabsContent>
-                <TabsContent value="configuration">
-                     <ConfigurationTab providers={providers} onProductUpdate={(providerId, product) => onProductUpdate(providerId, product.id, product)} taxConfig={initialTaxConfig} />
-                </TabsContent>
-                <TabsContent value="loanCycles">
-                    <LoanCycleTab providers={providers} onProviderUpdate={onProductUpdate} />
-                </TabsContent>
-                 <TabsContent value="eligibility">
-                     <EligibilityTab providers={providers} onProvidersChange={handleProvidersChange} />
-                </TabsContent>
-                 <TabsContent value="agreement">
-                    <Accordion type="multiple" className="w-full space-y-4">
-                        {providers.map((provider) => (
-                             <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
-                                 <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
-                                    <div className="flex items-center gap-4">
-                                        <IconDisplay iconName={provider.icon} className="h-6 w-6" />
-                                        <div className="text-lg font-semibold">{provider.name}</div>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="p-4 border-t">
-                                    <AgreementTab provider={provider} onProviderUpdate={handleProviderUpdate} />
-                                </AccordionContent>
-                             </AccordionItem>
-                        ))}
-                    </Accordion>
-                </TabsContent>
-                <TabsContent value="tax">
-                    <TaxTab initialTaxConfig={initialTaxConfig} />
-                </TabsContent>
-            </Tabs>
+        return (
+                <div className="flex-1 space-y-4 p-8 pt-6">
+                        <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+                        {/* Render Tabs only after client mount to avoid Radix/React hydration id mismatches */}
+                        {mounted ? (
+                            <Tabs defaultValue="providers" className="space-y-4">
+                                <TabsList>
+                                    <TabsTrigger value="providers">Providers & Products</TabsTrigger>
+                                    <TabsTrigger value="configuration">Fee & Tier Configuration</TabsTrigger>
+                                    <TabsTrigger value="loanCycles">Loan Cycle</TabsTrigger>
+                                    <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
+                                    <TabsTrigger value="agreement">Borrower Agreement</TabsTrigger>
+                                    <TabsTrigger value="tax">Tax</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="providers">
+                                    <ProvidersTab providers={providers} onProvidersChange={handleProvidersChange} />
+                                </TabsContent>
+                                <TabsContent value="configuration">
+                                    <ConfigurationTab providers={providers} onProductUpdate={(providerId, product) => onProductUpdate(providerId, product.id, product)} taxConfig={initialTaxConfig} />
+                                </TabsContent>
+                                <TabsContent value="loanCycles">
+                                    <LoanCycleTab providers={providers} onProviderUpdate={onProductUpdate} />
+                                </TabsContent>
+                                <TabsContent value="eligibility">
+                                    <EligibilityTab providers={providers} onProvidersChange={handleProvidersChange} />
+                                </TabsContent>
+                                <TabsContent value="agreement">
+                                    <Accordion type="multiple" className="w-full space-y-4">
+                                        {providers.map((provider) => (
+                                            <AccordionItem value={provider.id} key={provider.id} className="border rounded-lg bg-card">
+                                                <AccordionTrigger className="flex w-full items-center justify-between p-4 hover:no-underline">
+                                                    <div className="flex items-center gap-4">
+                                                        <IconDisplay iconName={provider.icon} className="h-6 w-6" />
+                                                        <div className="text-lg font-semibold">{provider.name}</div>
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="p-4 border-t">
+                                                    <AgreementTab provider={provider} onProviderUpdate={handleProviderUpdate} />
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        ))}
+                                    </Accordion>
+                                </TabsContent>
+                                <TabsContent value="tax">
+                                    <TaxTab initialTaxConfig={initialTaxConfig} />
+                                </TabsContent>
+                            </Tabs>
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Server-rendered fallback: simple headings to match layout */}
+                                <div className="inline-flex items-center gap-4">
+                                    <div className="font-medium">Providers & Products</div>
+                                    <div className="font-medium">Fee & Tier Configuration</div>
+                                </div>
+                            </div>
+                        )}
         </div>
     );
 }

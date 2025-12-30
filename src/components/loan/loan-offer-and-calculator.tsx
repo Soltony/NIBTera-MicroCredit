@@ -74,9 +74,11 @@ export function LoanOfferAndCalculator({ product, taxConfigs, isLoading, eligibi
   const [calculationResult, setCalculationResult] = useState<any>(null);
 
   const { suggestedLoanAmountMin = 0, suggestedLoanAmountMax = 0 } = eligibilityResult || {};
-  
+
+  // If product.maxLoan is not configured (0 or negative), treat it as no cap and rely on suggestedLoanAmountMax
+  const effectiveProductMax = (typeof product.maxLoan === 'number' && product.maxLoan > 0) ? product.maxLoan : Infinity;
   const minLoan = Math.max(product.minLoan ?? 0, suggestedLoanAmountMin);
-  const maxLoan = Math.min(product.maxLoan ?? Infinity, suggestedLoanAmountMax);
+  const maxLoan = Math.min(effectiveProductMax, suggestedLoanAmountMax);
 
   useEffect(() => {
     const initialAmount = Math.min(product.availableLimit ?? maxLoan, maxLoan);

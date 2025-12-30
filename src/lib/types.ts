@@ -86,6 +86,15 @@ export interface LoanProduct {
   minLoan?: number;
   maxLoan?: number;
   duration?: number;
+    // Salary-advance configuration
+    isSalaryAdvance?: boolean;
+    advancePercent?: number | null;
+    salaryAdvanceMappings?: string | null;
+    // Installment schedule configuration (primarily for salary-advance)
+    installments?: number | null;
+    repaymentIntervalDays?: number | null;
+    // If true, penalty rules are applied per installment
+    penaltyPerInstallment?: boolean | null;
   serviceFee: FeeRule;
   dailyFee: DailyFeeRule;
   penaltyRules: PenaltyRule[];
@@ -169,6 +178,18 @@ export interface Payment {
   outstandingBalanceBeforePayment?: number;
 }
 
+export interface LoanInstallment {
+    id: string;
+    installmentNumber: number;
+    dueDate: Date;
+    amount: number;
+    paidAmount?: number;
+    paidAt?: Date | null;
+    status: string;
+    penaltyAmount?: number;
+    isActive?: boolean;
+}
+
 export interface LoanDetails {
   id: string;
   borrowerId: string;
@@ -183,6 +204,7 @@ export interface LoanDetails {
   payments: Payment[];
   penaltyAmount: number;
   totalRepayableAmount?: number;
+    installments?: LoanInstallment[];
   // For calculation purposes, not stored in DB
   product: LoanProduct;
   provider?: LoanProvider;

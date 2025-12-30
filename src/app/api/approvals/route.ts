@@ -352,11 +352,59 @@ async function applyChange(change: any) {
             if (updateData.penaltyRules && Array.isArray(updateData.penaltyRules)) {
                 updateData.penaltyRules = JSON.stringify(updateData.penaltyRules);
             }
+
+            // Convert any relation-id scalars (fields ending with 'Id') into
+            // nested relation updates that Prisma expects (connect/disconnect).
+            for (const key of Object.keys(updateData)) {
+                if (key === 'id') continue;
+                if (key.endsWith('Id')) {
+                    const relName = key.substring(0, key.length - 2);
+                    const relVal = updateData[key];
+                    if (relVal === null || relVal === undefined) {
+                        updateData[relName] = { disconnect: true };
+                    } else {
+                        updateData[relName] = { connect: { id: relVal } };
+                    }
+                    delete updateData[key];
+                }
+            }
+
+            // Sanitize update data: only include allowed scalar fields and known
+            // nested relation keys for LoanProduct. This prevents accidental
+            // unknown-argument errors when the change payload contains newer
+            // fields that aren't present in the current Prisma model (e.g.
+            // `penaltyPerInstallment`).
+            const allowedScalars = new Set([
+                'name','description','icon','minLoan','maxLoan','isSalaryAdvance','advancePercent',
+                'salaryAdvanceMappings','duration','installments','repaymentIntervalDays','status',
+                'allowConcurrentLoans','serviceFee','serviceFeeEnabled','dailyFee','dailyFeeEnabled',
+                'penaltyRules','penaltyRulesEnabled','dataProvisioningEnabled','eligibilityFilter',
+                'penaltyPerInstallment'
+            ]);
+
+            const allowedRelations = new Set([
+                'provider','dataProvisioningConfig','loanCycleConfig','eligibilityUpload',
+                'loans','loanAmountTiers','scoringConfiguration','loanApplications','requiredDocuments'
+            ]);
+
+            const sanitizedData: any = {};
+            for (const [k, v] of Object.entries(updateData)) {
+                if (allowedScalars.has(k) || allowedRelations.has(k)) {
+                    sanitizedData[k] = v;
+                } else {
+                    // Skip unknown fields (they may belong to a newer schema).
+                    // Keep a lightweight server-side log for debugging.
+                    console.warn(`[approvals] skipping unknown field on LoanProduct.update: ${k}`);
+                }
+            }
+
+            // Replace updateData with the sanitized object used for Prisma update.
+            const finalUpdateData = sanitizedData;
             
             await prisma.$transaction(async (tx) => {
                 await tx.loanProduct.update({
                     where: { id: entityId },
-                    data: updateData,
+                    data: finalUpdateData,
                 });
 
                 await tx.loanAmountTier.deleteMany({ where: { productId: entityId } });

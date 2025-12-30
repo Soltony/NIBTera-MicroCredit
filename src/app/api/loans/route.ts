@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { addDays } from 'date-fns';
 import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
 import { createAuditLog } from '@/lib/audit-log';
@@ -116,6 +117,36 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
         await tx.ledgerAccount.update({ where: { id: principalReceivableAccount.id }, data: { balance: { increment: data.loanAmount } } });
         await tx.loanProvider.update({ where: { id: provider.id }, data: { initialBalance: { decrement: data.loanAmount } } });
         
+        // Create installment schedule if product defines installments
+        try {
+            const installmentsCount = product.installments || null;
+            const repaymentIntervalDays = product.repaymentIntervalDays ?? null;
+            if (installmentsCount && installmentsCount > 0) {
+                const calc = calculateTotalRepayable(tempLoanForCalc, product as any, taxConfigs, new Date(data.dueDate));
+                const totalRepayable = calc.total;
+                const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
+                const interval = (repaymentIntervalDays ?? Math.floor(((new Date(data.dueDate).getTime() - new Date(data.disbursedDate).getTime()) / (1000 * 60 * 60 * 24)) / installmentsCount)) || 0;
+
+                let remaining = round2(totalRepayable);
+                for (let i = 1; i <= installmentsCount; i++) {
+                    const isLast = i === installmentsCount;
+                    const amount = isLast ? remaining : round2(Math.floor((totalRepayable / installmentsCount) * 100) / 100);
+                    const due = addDays(new Date(data.disbursedDate), interval * i);
+                    await tx.loanInstallment.create({ data: {
+                        loanId: createdLoan.id,
+                        installmentNumber: i,
+                        dueDate: due,
+                        amount,
+                        isActive: i === 1,
+                    }});
+                    remaining = round2(remaining - amount);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to create installments', e);
+        }
+
         return createdLoan;
     });
 }
