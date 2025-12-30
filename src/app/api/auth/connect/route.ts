@@ -2,6 +2,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, createLegacySession } from '@/lib/session';
 
+function normalizeBearerAuthHeader(input: string): { authHeader: string; token: string } | null {
+    const trimmed = String(input || '').trim();
+    if (!trimmed) return null;
+
+    // Expect Bearer; tolerate case.
+    if (!trimmed.toLowerCase().startsWith('bearer ')) return null;
+
+    let tokenPart = trimmed.slice(7).trim();
+    if (!tokenPart) return null;
+
+    // Some clients mistakenly embed JSON in the Bearer portion, e.g. Bearer {"token":"..."}
+    const jsonTokenMatch = tokenPart.match(/"token"\s*:\s*"([^"]+)"/);
+    if (jsonTokenMatch?.[1]) {
+        tokenPart = jsonTokenMatch[1];
+    }
+
+    // Strip wrapping quotes if present.
+    if (
+        (tokenPart.startsWith('"') && tokenPart.endsWith('"')) ||
+        (tokenPart.startsWith("'") && tokenPart.endsWith("'"))
+    ) {
+        tokenPart = tokenPart.slice(1, -1).trim();
+    }
+
+    if (!tokenPart) return null;
+
+    return { authHeader: `Bearer ${tokenPart}`, token: tokenPart };
+}
+
 function snippet(text: string, maxLen = 300) {
     const normalized = text.replace(/\s+/g, ' ').trim();
     if (normalized.length <= maxLen) return normalized;
@@ -18,12 +47,16 @@ export async function POST(req: NextRequest) {
     try {
         const { superAppToken } = await req.json();
 
-        if (!superAppToken || !superAppToken.startsWith('Bearer ')) {
+        if (!superAppToken || typeof superAppToken !== 'string') {
             return NextResponse.json({ error: "Super App Token is missing or malformed." }, { status: 400 });
         }
-        
-        const authHeader = superAppToken;
-        const token = authHeader.substring(7);
+
+        const normalized = normalizeBearerAuthHeader(superAppToken);
+        if (!normalized) {
+            return NextResponse.json({ error: "Super App Token is missing or malformed." }, { status: 400 });
+        }
+
+        const { authHeader, token } = normalized;
 
         let externalResponse: Response;
         try {
@@ -45,6 +78,7 @@ export async function POST(req: NextRequest) {
 
         if (!externalResponse.ok) {
             const contentType = externalResponse.headers.get('content-type') || '';
+            const wwwAuthenticate = externalResponse.headers.get('www-authenticate') || '';
             const rawBody = await externalResponse.text().catch(() => '');
 
             let errorMessage = `Token validation failed (status ${externalResponse.status}).`;
@@ -68,6 +102,7 @@ export async function POST(req: NextRequest) {
                     error: errorMessage,
                     upstreamStatus: externalResponse.status,
                     upstreamContentType: contentType,
+                    upstreamWwwAuthenticate: wwwAuthenticate || undefined,
                 },
                 { status: externalResponse.status },
             );
