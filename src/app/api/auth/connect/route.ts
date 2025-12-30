@@ -2,6 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, createLegacySession } from '@/lib/session';
 
+function snippet(text: string, maxLen = 300) {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (normalized.length <= maxLen) return normalized;
+    return normalized.slice(0, maxLen) + '…';
+}
+
 export async function POST(req: NextRequest) {
     const TOKEN_VALIDATION_API_URL = process.env.TOKEN_VALIDATION_API_URL;
     
@@ -19,24 +25,52 @@ export async function POST(req: NextRequest) {
         const authHeader = superAppToken;
         const token = authHeader.substring(7);
 
-        const externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
-            method: 'GET',
-            headers: {
-                Authorization: authHeader,
-                Accept: 'application/json',
-            },
-            cache: 'no-store',
-        });
+        let externalResponse: Response;
+        try {
+            externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
+                method: 'GET',
+                headers: {
+                    Authorization: authHeader,
+                    Accept: 'application/json',
+                },
+                cache: 'no-store',
+            });
+        } catch (err: any) {
+            const message = err?.message || String(err);
+            return NextResponse.json(
+                { error: `Token validation request failed: ${message}` },
+                { status: 502 },
+            );
+        }
 
         if (!externalResponse.ok) {
-            let errorMessage = 'Token validation failed with an unknown error.';
+            const contentType = externalResponse.headers.get('content-type') || '';
+            const rawBody = await externalResponse.text().catch(() => '');
+
+            let errorMessage = `Token validation failed (status ${externalResponse.status}).`;
             try {
-                const errorData = await externalResponse.json();
-                errorMessage = errorData.message || `Token validation failed with status: ${externalResponse.status}`;
-            } catch (e) {
-                // Ignore if response is not JSON
+                const maybeJson = JSON.parse(rawBody || '{}');
+                if (maybeJson?.message && typeof maybeJson.message === 'string') {
+                    errorMessage = maybeJson.message;
+                } else if (rawBody) {
+                    errorMessage = `${errorMessage} Upstream response: ${snippet(rawBody)}`;
+                }
+            } catch {
+                if (rawBody) {
+                    errorMessage = `${errorMessage} Upstream response: ${snippet(rawBody)}`;
+                } else if (contentType) {
+                    errorMessage = `${errorMessage} Upstream content-type: ${contentType}`;
+                }
             }
-            return NextResponse.json({ error: errorMessage }, { status: externalResponse.status });
+
+            return NextResponse.json(
+                {
+                    error: errorMessage,
+                    upstreamStatus: externalResponse.status,
+                    upstreamContentType: contentType,
+                },
+                { status: externalResponse.status },
+            );
         }
 
         const responseData = await externalResponse.json();
