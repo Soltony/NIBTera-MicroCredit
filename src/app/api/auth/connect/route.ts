@@ -2,35 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, createLegacySession } from '@/lib/session';
 
-function normalizeBearerAuthHeader(input: string): { authHeader: string; token: string } | null {
-    const trimmed = String(input || '').trim();
-    if (!trimmed) return null;
-
-    // Expect Bearer; tolerate case.
-    if (!trimmed.toLowerCase().startsWith('bearer ')) return null;
-
-    let tokenPart = trimmed.slice(7).trim();
-    if (!tokenPart) return null;
-
-    // Some clients mistakenly embed JSON in the Bearer portion, e.g. Bearer {"token":"..."}
-    const jsonTokenMatch = tokenPart.match(/"token"\s*:\s*"([^"]+)"/);
-    if (jsonTokenMatch?.[1]) {
-        tokenPart = jsonTokenMatch[1];
-    }
-
-    // Strip wrapping quotes if present.
-    if (
-        (tokenPart.startsWith('"') && tokenPart.endsWith('"')) ||
-        (tokenPart.startsWith("'") && tokenPart.endsWith("'"))
-    ) {
-        tokenPart = tokenPart.slice(1, -1).trim();
-    }
-
-    if (!tokenPart) return null;
-
-    return { authHeader: `Bearer ${tokenPart}`, token: tokenPart };
-}
-
 function snippet(text: string, maxLen = 300) {
     const normalized = text.replace(/\s+/g, ' ').trim();
     if (normalized.length <= maxLen) return normalized;
@@ -45,18 +16,15 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        const requestId = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
         const { superAppToken } = await req.json();
 
-        if (!superAppToken || typeof superAppToken !== 'string') {
+        if (!superAppToken || !superAppToken.startsWith('Bearer ')) {
             return NextResponse.json({ error: "Super App Token is missing or malformed." }, { status: 400 });
         }
-
-        const normalized = normalizeBearerAuthHeader(superAppToken);
-        if (!normalized) {
-            return NextResponse.json({ error: "Super App Token is missing or malformed." }, { status: 400 });
-        }
-
-        const { authHeader, token } = normalized;
+        
+        const authHeader = superAppToken;
+        const token = authHeader.substring(7);
 
         let externalResponse: Response;
         try {
@@ -70,6 +38,12 @@ export async function POST(req: NextRequest) {
             });
         } catch (err: any) {
             const message = err?.message || String(err);
+            console.error('[auth/connect] token validation request failed', {
+                requestId,
+                message,
+                TOKEN_VALIDATION_API_URL,
+                tokenLength: token?.length,
+            });
             return NextResponse.json(
                 { error: `Token validation request failed: ${message}` },
                 { status: 502 },
@@ -80,6 +54,15 @@ export async function POST(req: NextRequest) {
             const contentType = externalResponse.headers.get('content-type') || '';
             const wwwAuthenticate = externalResponse.headers.get('www-authenticate') || '';
             const rawBody = await externalResponse.text().catch(() => '');
+
+            console.log('[auth/connect] token validation response', {
+                requestId,
+                upstreamStatus: externalResponse.status,
+                upstreamContentType: contentType,
+                upstreamWwwAuthenticate: wwwAuthenticate || undefined,
+                upstreamBodySnippet: rawBody ? snippet(rawBody, 1200) : undefined,
+                TOKEN_VALIDATION_API_URL,
+            });
 
             let errorMessage = `Token validation failed (status ${externalResponse.status}).`;
             try {
@@ -103,6 +86,7 @@ export async function POST(req: NextRequest) {
                     upstreamStatus: externalResponse.status,
                     upstreamContentType: contentType,
                     upstreamWwwAuthenticate: wwwAuthenticate || undefined,
+                    upstreamBodySnippet: rawBody ? snippet(rawBody, 1200) : undefined,
                 },
                 { status: externalResponse.status },
             );
@@ -110,6 +94,12 @@ export async function POST(req: NextRequest) {
 
         const responseData = await externalResponse.json();
         let phone = responseData.phone;
+
+        console.log('[auth/connect] token validated', {
+            requestId,
+            phonePresent: Boolean(phone),
+            TOKEN_VALIDATION_API_URL,
+        });
         
         if (!phone) {
             return NextResponse.json({ error: "Phone number not found in validation response." }, { status: 400 });

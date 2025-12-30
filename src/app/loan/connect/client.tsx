@@ -22,7 +22,21 @@ export function ConnectClient({ superAppToken }: { superAppToken: string }) {
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || 'Session creation failed.');
+                    console.error('[loan/connect] /api/auth/connect failed', {
+                        status: response.status,
+                        errorData,
+                    });
+
+                    const parts: string[] = [];
+                    parts.push(String(errorData?.error || 'Session creation failed.'));
+                    if (errorData?.upstreamWwwAuthenticate) {
+                        parts.push(`WWW-Authenticate: ${String(errorData.upstreamWwwAuthenticate)}`);
+                    }
+                    if (errorData?.upstreamBodySnippet) {
+                        parts.push(`Upstream: ${String(errorData.upstreamBodySnippet)}`);
+                    }
+
+                    throw new Error(parts.join(' '));
                 }
                 
                 const { borrowerId } = await response.json();
