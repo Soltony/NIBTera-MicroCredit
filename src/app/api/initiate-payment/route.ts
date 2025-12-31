@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     // initiate payment request received (log removed to reduce console noise)
 
     // --- Step 1: Environment Validation ---
-    const FALLBACK_ACCOUNT_NO = process.env.ACCOUNT_NO;
+    const ACCOUNT_NO = process.env.ACCOUNT_NO;
     const CALLBACK_URL = process.env.CALLBACK_URL;
     const COMPANY_NAME = process.env.COMPANY_NAME;
     const NIB_PAYMENT_KEY = process.env.NIB_PAYMENT_KEY;
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     // environment variables check (log removed to reduce console noise)
 
-    if (!CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
+    if (!ACCOUNT_NO || !CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
         console.error('❌ Missing payment gateway environment variables.');
         return NextResponse.json(
             { error: 'Payment gateway is not configured on the server.' },
@@ -38,41 +38,13 @@ export async function POST(req: NextRequest) {
         }
 
         // --- Step 3: Fetch Loan Data ---
-        // Keep this query lightweight and resilient: fetch productId first,
-        // then fetch provider collection account in a separate query.
         const loan = await prisma.loan.findUnique({
             where: { id: loanId },
-            select: { borrowerId: true, productId: true },
+            select: { borrowerId: true },
         });
 
         if (!loan) {
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
-        }
-
-        const product = await prisma.loanProduct.findUnique({
-            where: { id: loan.productId },
-            select: {
-                provider: { select: { collectionAccount: true } },
-            },
-        });
-
-        if (!product?.provider) {
-            return NextResponse.json(
-                { error: 'Loan provider not found for this loan.' },
-                { status: 500 }
-            );
-        }
-
-        // Provider-specific collection account (fallback to env ACCOUNT_NO for backwards compatibility)
-        // Trim to avoid sending whitespace (gateway may reject / signature mismatch).
-        const providerAccountNo = (product.provider.collectionAccount || '').trim();
-        const fallbackAccountNo = (FALLBACK_ACCOUNT_NO || '').trim();
-        const ACCOUNT_NO = providerAccountNo || fallbackAccountNo;
-        if (!ACCOUNT_NO) {
-            return NextResponse.json(
-                { error: 'Collection account is not configured for this provider.' },
-                { status: 500 }
-            );
         }
 
         // --- Step 4: Retrieve Session ---
