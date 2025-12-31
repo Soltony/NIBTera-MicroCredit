@@ -30,10 +30,21 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        console.info('[initiate-payment] start');
+        console.info('[initiate-payment] env:', {
+            CALLBACK_URL: !!CALLBACK_URL,
+            COMPANY_NAME: COMPANY_NAME || null,
+            NIB_PAYMENT_URL: NIB_PAYMENT_URL || null,
+            NIB_PAYMENT_KEY_PRESENT: !!NIB_PAYMENT_KEY,
+            LEGACY_ACCOUNT_NO_PRESENT: !!LEGACY_ACCOUNT_NO,
+        });
+
         // --- Step 2: Parse Request ---
         const body = await req.json();
+        console.info('[initiate-payment] request body received');
+        try { console.debug('[initiate-payment] body', JSON.stringify(body)); } catch(e) { console.debug('[initiate-payment] body (non-serializable)'); }
 
-        const { amount, loanId } = body;
+        const { amount, loanId } = body as any;
         if (!amount || !loanId) {
             console.error('❌ Missing amount or loanId in the request.');
             return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
@@ -55,13 +66,20 @@ export async function POST(req: NextRequest) {
         });
 
         if (!loan) {
+            console.error('[initiate-payment] loan not found for loanId:', loanId);
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
         }
 
-        const providerCollectionAccount = loan.product?.provider?.collectionAccount || null;
+        console.info('[initiate-payment] loan fetched', { loanId, borrowerId: loan.borrowerId });
+        try { console.debug('[initiate-payment] loan.detail', JSON.stringify(loan)); } catch (e) { console.debug('[initiate-payment] loan.detail (non-serializable)'); }
+
+        const providerCollectionAccount = (loan as any).product?.provider?.collectionAccount || null;
         const ACCOUNT_NO = providerCollectionAccount || LEGACY_ACCOUNT_NO;
 
+        console.info('[initiate-payment] resolved collection account', { providerCollectionAccount: !!providerCollectionAccount, usingLegacy: !!(!providerCollectionAccount && LEGACY_ACCOUNT_NO) });
+
         if (!ACCOUNT_NO) {
+            console.error('[initiate-payment] no collection account configured for provider or legacy fallback');
             return NextResponse.json(
                 { error: 'Collection account is not configured for this provider.' },
                 { status: 500 }
@@ -70,6 +88,7 @@ export async function POST(req: NextRequest) {
 
         // --- Step 4: Retrieve Session ---
         const session = await getSession();
+        console.info('[initiate-payment] session loaded', { sessionPresent: !!session, sessionUser: session?.userId || null });
 
         const superAppToken = session?.superAppToken;
 
@@ -86,38 +105,50 @@ export async function POST(req: NextRequest) {
         }
 
         const token = superAppToken;
+        console.info('[initiate-payment] superAppToken present', { tokenLength: String(token).length });
 
         // --- Step 5: Generate Transaction Info ---
         const transactionId = randomUUID();
         const transactionTime = format(new Date(), 'yyyyMMddHHmmss');
 
-        const signatureString = [
+        const signatureParts: string[] = [
             `accountNo=${ACCOUNT_NO}`,
             `amount=${amount}`,
             `callBackURL=${CALLBACK_URL}`,
             `companyName=${COMPANY_NAME}`,
-            `Key=${NIB_PAYMENT_KEY}`,
+            `Key=${NIB_PAYMENT_KEY ? '[MASKED]' : ''}`,
+            `token=${'[MASKED]'}`,
+            `transactionId=${transactionId}`,
+            `transactionTime=${transactionTime}`,
+        ];
+        const signatureStringMasked = signatureParts.join('&');
+        const signatureStringForHash = [
+            `accountNo=${ACCOUNT_NO}`,
+            `amount=${amount}`,
+            `callBackURL=${CALLBACK_URL}`,
+            `companyName=${COMPANY_NAME}`,
+            `Key=${NIB_PAYMENT_KEY || ''}`,
             `token=${token}`,
             `transactionId=${transactionId}`,
             `transactionTime=${transactionTime}`,
         ].join('&');
 
-        // signature string built (log removed to reduce console noise)
+        console.info('[initiate-payment] signature string (masked)', signatureStringMasked);
 
-        const signature = createHash('sha256').update(signatureString, 'utf8').digest('hex');
-        // generated signature (log removed to reduce console noise)
+        const signature = createHash('sha256').update(signatureStringForHash, 'utf8').digest('hex');
+        console.info('[initiate-payment] signature generated', { signature });
 
         const payload = {
             accountNo: ACCOUNT_NO,
             amount: String(amount),
             callBackURL: CALLBACK_URL,
             companyName: COMPANY_NAME,
-            token: token,
+            token: '[MASKED]',
             transactionId,
             transactionTime,
             signature,
         };
-        // final payload prepared for payment gateway (log removed to reduce console noise)
+        try { console.debug('[initiate-payment] payload (masked)', JSON.stringify(payload)); } catch(e) { console.debug('[initiate-payment] payload (masked) non-serializable'); }
 
         // --- Step 6: Save Pending Payment ---
         await prisma.pendingPayment.create({
