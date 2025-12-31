@@ -104,8 +104,13 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const token = superAppToken;
-        console.info('[initiate-payment] superAppToken present', { tokenLength: String(token).length });
+        const rawToken = String(superAppToken);
+        const token = rawToken.toLowerCase().startsWith('bearer ') ? rawToken.slice(7) : rawToken;
+        const authHeader = rawToken.toLowerCase().startsWith('bearer ') ? rawToken : `Bearer ${rawToken}`;
+        console.info('[initiate-payment] superAppToken present', {
+            tokenLength: String(token).length,
+            tokenHadBearerPrefix: rawToken.toLowerCase().startsWith('bearer '),
+        });
 
         // --- Step 5: Generate Transaction Info ---
         const transactionId = randomUUID();
@@ -143,12 +148,14 @@ export async function POST(req: NextRequest) {
             amount: String(amount),
             callBackURL: CALLBACK_URL,
             companyName: COMPANY_NAME,
-            token: '[MASKED]',
+            token: token,
             transactionId,
             transactionTime,
             signature,
         };
-        try { console.debug('[initiate-payment] payload (masked)', JSON.stringify(payload)); } catch(e) { console.debug('[initiate-payment] payload (masked) non-serializable'); }
+
+        const payloadMasked = { ...payload, token: '[MASKED]' };
+        try { console.debug('[initiate-payment] payload (masked)', JSON.stringify(payloadMasked)); } catch(e) { console.debug('[initiate-payment] payload (masked) non-serializable'); }
 
         // --- Step 6: Save Pending Payment ---
         await prisma.pendingPayment.create({
@@ -174,7 +181,7 @@ export async function POST(req: NextRequest) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${superAppToken}`,
+                Authorization: authHeader,
             },
             body: JSON.stringify(payload),
         });
