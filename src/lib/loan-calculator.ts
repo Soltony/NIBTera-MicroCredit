@@ -180,9 +180,6 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
             if (taxAppliedTo.includes('interest')) {
                 taxableAmount += interestComponent;
             }
-            if (taxAppliedTo.includes('penalty')) {
-                taxableAmount += penaltyComponent;
-            }
             taxComponent += taxableAmount * (taxRate / 100);
         }
     });

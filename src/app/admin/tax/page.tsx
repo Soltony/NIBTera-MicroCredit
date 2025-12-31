@@ -29,7 +29,6 @@ import { Badge } from '@/components/ui/badge';
 const TAX_COMPONENTS = [
     { id: 'serviceFee', label: 'Service Fee' },
     { id: 'interest', label: 'Daily Fee (Interest)' },
-    { id: 'penalty', label: 'Penalty' },
 ];
 
 function TaxCard({
@@ -76,7 +75,18 @@ function TaxCard({
                 toast({ title: 'Invalid Rate', description: 'Tax rate must be a positive number.', variant: 'destructive'});
                 return;
             }
-            await onSave({ ...config, rate: numericRate }, tax);
+            const sanitizedAppliedTo = (() => {
+                try {
+                    const appliedTo = JSON.parse(config.appliedTo || '[]');
+                    const filtered = Array.isArray(appliedTo)
+                        ? appliedTo.filter((c: unknown) => c !== 'penalty')
+                        : [];
+                    return JSON.stringify(filtered);
+                } catch {
+                    return '[]';
+                }
+            })();
+            await onSave({ ...config, rate: numericRate, appliedTo: sanitizedAppliedTo }, tax);
             if (!config.id.startsWith('new-')) {
                 setConfig(prev => produce(prev, draft => {
                     draft.status = 'PENDING_APPROVAL';
