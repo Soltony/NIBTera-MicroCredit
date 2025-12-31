@@ -1439,7 +1439,6 @@ function ProductConfiguration({ product, providerColor, onProductUpdate, taxConf
                         <div className="flex items-center justify-between border-b pb-4 pt-4">
                              <div className="flex items-center gap-2">
                                 <Label htmlFor={`penaltyRulesEnabled-${config.id}`} className="font-medium">Penalty Rules</Label>
-                                 {taxAppliedTo.includes('penalty') && <Badge variant="outline" className="text-xs">Taxable ({taxConfig.rate}%)</Badge>}
                             </div>
                             <Switch
                                 id={`penaltyRulesEnabled-${config.id}`}
@@ -1564,7 +1563,6 @@ function ConfigurationTab({ providers, onProductUpdate, taxConfig }: {
 const TAX_COMPONENTS = [
     { id: 'serviceFee', label: 'Service Fee' },
     { id: 'interest', label: 'Daily Fee (Interest)' },
-    { id: 'penalty', label: 'Penalty' },
 ];
 
 function TaxTab({ initialTaxConfig }: { initialTaxConfig: Tax }) {

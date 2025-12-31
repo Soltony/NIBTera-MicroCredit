@@ -67,7 +67,6 @@ const formatPenaltyRule = (rule: PenaltyRule | undefined, type: 'summary' | 'ful
 const taxComponentLabels: Record<string, string> = {
     serviceFee: 'Service Fee',
     interest: 'Daily Fee',
-    penalty: 'Penalty'
 };
 
 interface ProductCardProps {
@@ -149,7 +148,7 @@ export function ProductCard({
         // A more complex system might link specific taxes to products.
         const tax = taxConfigs[0];
         const appliedTo = JSON.parse(tax.appliedTo || '[]') as string[];
-        const isTaxable = appliedTo.some(item => ['serviceFee', 'interest', 'penalty'].includes(item));
+        const isTaxable = appliedTo.some(item => ['serviceFee', 'interest'].includes(item));
         
         if (!isTaxable) return null;
 
