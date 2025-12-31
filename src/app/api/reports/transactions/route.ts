@@ -149,9 +149,8 @@ export async function GET(request: NextRequest) {
       const totalOutstanding = principalOutstanding + interestOutstanding + serviceFeeOutstanding + penaltyOutstanding;
 
       // debit and credit account names from entries
-      // Prefer provider-specific collection account; fall back to legacy env var; otherwise use journal debit entries.
-      const providerCollectionAccount = (je.loan as any)?.product?.provider?.collectionAccount || null;
-      const configuredDebit = providerCollectionAccount || process.env.ACCOUNT_NO || null;
+      // Use configured debit account from environment if provided, otherwise use journal debit entries
+      const configuredDebit = process.env.ACCOUNT_NO || null;
       let debitAccounts = [] as string[];
       if (configuredDebit) {
         debitAccounts = [configuredDebit];

@@ -11,9 +11,7 @@ export async function POST(req: NextRequest) {
     // initiate payment request received (log removed to reduce console noise)
 
     // --- Step 1: Environment Validation ---
-    // Collection account is provider-specific (LoanProvider.collectionAccount).
-    // We keep ACCOUNT_NO as an optional legacy fallback.
-    const LEGACY_ACCOUNT_NO = process.env.ACCOUNT_NO;
+    const ACCOUNT_NO = process.env.ACCOUNT_NO;
     const CALLBACK_URL = process.env.CALLBACK_URL;
     const COMPANY_NAME = process.env.COMPANY_NAME;
     const NIB_PAYMENT_KEY = process.env.NIB_PAYMENT_KEY;
@@ -21,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     // environment variables check (log removed to reduce console noise)
 
-    if (!CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
+    if (!ACCOUNT_NO || !CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
         console.error('❌ Missing payment gateway environment variables.');
         return NextResponse.json(
             { error: 'Payment gateway is not configured on the server.' },
@@ -30,21 +28,10 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        console.info('[initiate-payment] start');
-        console.info('[initiate-payment] env:', {
-            CALLBACK_URL: !!CALLBACK_URL,
-            COMPANY_NAME: COMPANY_NAME || null,
-            NIB_PAYMENT_URL: NIB_PAYMENT_URL || null,
-            NIB_PAYMENT_KEY_PRESENT: !!NIB_PAYMENT_KEY,
-            LEGACY_ACCOUNT_NO_PRESENT: !!LEGACY_ACCOUNT_NO,
-        });
-
         // --- Step 2: Parse Request ---
         const body = await req.json();
-        console.info('[initiate-payment] request body received');
-        try { console.debug('[initiate-payment] body', JSON.stringify(body)); } catch(e) { console.debug('[initiate-payment] body (non-serializable)'); }
 
-        const { amount, loanId } = body as any;
+        const { amount, loanId } = body;
         if (!amount || !loanId) {
             console.error('❌ Missing amount or loanId in the request.');
             return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
@@ -53,42 +40,15 @@ export async function POST(req: NextRequest) {
         // --- Step 3: Fetch Loan Data ---
         const loan = await prisma.loan.findUnique({
             where: { id: loanId },
-            select: {
-                borrowerId: true,
-                product: {
-                    select: {
-                        provider: {
-                            select: { collectionAccount: true },
-                        },
-                    },
-                },
-            },
+            select: { borrowerId: true },
         });
 
         if (!loan) {
-            console.error('[initiate-payment] loan not found for loanId:', loanId);
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
-        }
-
-        console.info('[initiate-payment] loan fetched', { loanId, borrowerId: loan.borrowerId });
-        try { console.debug('[initiate-payment] loan.detail', JSON.stringify(loan)); } catch (e) { console.debug('[initiate-payment] loan.detail (non-serializable)'); }
-
-        const providerCollectionAccount = (loan as any).product?.provider?.collectionAccount || null;
-        const ACCOUNT_NO = providerCollectionAccount || LEGACY_ACCOUNT_NO;
-
-        console.info('[initiate-payment] resolved collection account', { providerCollectionAccount: !!providerCollectionAccount, usingLegacy: !!(!providerCollectionAccount && LEGACY_ACCOUNT_NO) });
-
-        if (!ACCOUNT_NO) {
-            console.error('[initiate-payment] no collection account configured for provider or legacy fallback');
-            return NextResponse.json(
-                { error: 'Collection account is not configured for this provider.' },
-                { status: 500 }
-            );
         }
 
         // --- Step 4: Retrieve Session ---
         const session = await getSession();
-        console.info('[initiate-payment] session loaded', { sessionPresent: !!session, sessionUser: session?.userId || null });
 
         const superAppToken = session?.superAppToken;
 
@@ -104,44 +64,27 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const rawToken = String(superAppToken);
-        const token = rawToken.toLowerCase().startsWith('bearer ') ? rawToken.slice(7) : rawToken;
-        const authHeader = rawToken.toLowerCase().startsWith('bearer ') ? rawToken : `Bearer ${rawToken}`;
-        console.info('[initiate-payment] superAppToken present', {
-            tokenLength: String(token).length,
-            tokenHadBearerPrefix: rawToken.toLowerCase().startsWith('bearer '),
-        });
+        const token = superAppToken;
 
         // --- Step 5: Generate Transaction Info ---
         const transactionId = randomUUID();
         const transactionTime = format(new Date(), 'yyyyMMddHHmmss');
 
-        const signatureParts: string[] = [
+        const signatureString = [
             `accountNo=${ACCOUNT_NO}`,
             `amount=${amount}`,
             `callBackURL=${CALLBACK_URL}`,
             `companyName=${COMPANY_NAME}`,
-            `Key=${NIB_PAYMENT_KEY ? '[MASKED]' : ''}`,
-            `token=${'[MASKED]'}`,
-            `transactionId=${transactionId}`,
-            `transactionTime=${transactionTime}`,
-        ];
-        const signatureStringMasked = signatureParts.join('&');
-        const signatureStringForHash = [
-            `accountNo=${ACCOUNT_NO}`,
-            `amount=${amount}`,
-            `callBackURL=${CALLBACK_URL}`,
-            `companyName=${COMPANY_NAME}`,
-            `Key=${NIB_PAYMENT_KEY || ''}`,
+            `Key=${NIB_PAYMENT_KEY}`,
             `token=${token}`,
             `transactionId=${transactionId}`,
             `transactionTime=${transactionTime}`,
         ].join('&');
 
-        console.info('[initiate-payment] signature string (masked)', signatureStringMasked);
+        // signature string built (log removed to reduce console noise)
 
-        const signature = createHash('sha256').update(signatureStringForHash, 'utf8').digest('hex');
-        console.info('[initiate-payment] signature generated', { signature });
+        const signature = createHash('sha256').update(signatureString, 'utf8').digest('hex');
+        // generated signature (log removed to reduce console noise)
 
         const payload = {
             accountNo: ACCOUNT_NO,
@@ -153,9 +96,7 @@ export async function POST(req: NextRequest) {
             transactionTime,
             signature,
         };
-
-        const payloadMasked = { ...payload, token: '[MASKED]' };
-        try { console.debug('[initiate-payment] payload (masked)', JSON.stringify(payloadMasked)); } catch(e) { console.debug('[initiate-payment] payload (masked) non-serializable'); }
+        // final payload prepared for payment gateway (log removed to reduce console noise)
 
         // --- Step 6: Save Pending Payment ---
         await prisma.pendingPayment.create({
@@ -181,7 +122,7 @@ export async function POST(req: NextRequest) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: authHeader,
+                Authorization: `Bearer ${superAppToken}`,
             },
             body: JSON.stringify(payload),
         });
