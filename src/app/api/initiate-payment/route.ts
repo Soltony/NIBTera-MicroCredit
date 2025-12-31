@@ -59,7 +59,10 @@ export async function POST(req: NextRequest) {
         }
 
         // Provider-specific collection account (fallback to env ACCOUNT_NO for backwards compatibility)
-        const ACCOUNT_NO = loan.product?.provider?.collectionAccount || FALLBACK_ACCOUNT_NO;
+        // Trim to avoid sending whitespace (gateway may reject / signature mismatch).
+        const providerAccountNo = (loan.product?.provider?.collectionAccount || '').trim();
+        const fallbackAccountNo = (FALLBACK_ACCOUNT_NO || '').trim();
+        const ACCOUNT_NO = providerAccountNo || fallbackAccountNo;
         if (!ACCOUNT_NO) {
             return NextResponse.json(
                 { error: 'Collection account is not configured for this provider.' },
