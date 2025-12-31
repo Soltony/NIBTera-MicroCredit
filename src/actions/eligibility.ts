@@ -26,12 +26,28 @@ async function getBorrowerDataForScoring(
     providerId: string, 
 ): Promise<Record<string, any>> {
 
-    // Load provisioned data for the borrower across all providers' ExternalCustomerInfo configs.
-    // This allows any provider to access fetched external customer info for scoring.
+    // Borrowers are identified by phone number in the mini-app/USSD flows.
+    // Some provisioned datasets (e.g., salary lists) may be uploaded keyed by AccountNumber.
+    // To make scoring consistent, also merge provisioned data keyed by the borrower's active account.
+    const activeAccount = await prisma.phoneAccount.findFirst({
+        where: { phoneNumber: borrowerId, isActive: true },
+        select: { accountNumber: true },
+    });
+
+    const borrowerIdsToFetch = Array.from(
+        new Set([borrowerId, activeAccount?.accountNumber].filter((v): v is string => Boolean(v && String(v).trim())))
+    );
+
+    // Load provisioned data for:
+    // - ExternalCustomerInfo across all providers (shared customer info)
+    // - any provider-scoped provisioning for the requested provider
     const provisionedDataEntries = await prisma.provisionedData.findMany({
         where: {
-            borrowerId,
-            config: { name: 'ExternalCustomerInfo' },
+            borrowerId: { in: borrowerIdsToFetch },
+            OR: [
+                { config: { name: 'ExternalCustomerInfo' } },
+                { config: { providerId } },
+            ],
         },
         include: { config: true },
         orderBy: { createdAt: 'desc' },

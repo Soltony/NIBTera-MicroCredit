@@ -18,9 +18,8 @@ export async function GET(
 
   try {
     const [borrower, provider] = await Promise.all([
-        // We check for borrower existence indirectly by trying to fetch their data.
-        // A more direct way could be to query the Borrower model if it guarantees existence.
-        prisma.provisionedData.findFirst({ where: { borrowerId } }),
+      // Check borrower existence directly.
+      prisma.borrower.findUnique({ where: { id: borrowerId } }),
         prisma.loanProvider.findUnique({
             where: { id: providerId },
             include: { products: { where: { status: 'Active' } } }
