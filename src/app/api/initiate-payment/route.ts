@@ -11,7 +11,9 @@ export async function POST(req: NextRequest) {
     // initiate payment request received (log removed to reduce console noise)
 
     // --- Step 1: Environment Validation ---
-    const ACCOUNT_NO = process.env.ACCOUNT_NO;
+    // Collection account is provider-specific (LoanProvider.collectionAccount).
+    // We keep ACCOUNT_NO as an optional legacy fallback.
+    const LEGACY_ACCOUNT_NO = process.env.ACCOUNT_NO;
     const CALLBACK_URL = process.env.CALLBACK_URL;
     const COMPANY_NAME = process.env.COMPANY_NAME;
     const NIB_PAYMENT_KEY = process.env.NIB_PAYMENT_KEY;
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // environment variables check (log removed to reduce console noise)
 
-    if (!ACCOUNT_NO || !CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
+    if (!CALLBACK_URL || !COMPANY_NAME || !NIB_PAYMENT_KEY || !NIB_PAYMENT_URL) {
         console.error('❌ Missing payment gateway environment variables.');
         return NextResponse.json(
             { error: 'Payment gateway is not configured on the server.' },
@@ -40,11 +42,30 @@ export async function POST(req: NextRequest) {
         // --- Step 3: Fetch Loan Data ---
         const loan = await prisma.loan.findUnique({
             where: { id: loanId },
-            select: { borrowerId: true },
+            select: {
+                borrowerId: true,
+                product: {
+                    select: {
+                        provider: {
+                            select: { collectionAccount: true },
+                        },
+                    },
+                },
+            },
         });
 
         if (!loan) {
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
+        }
+
+        const providerCollectionAccount = loan.product?.provider?.collectionAccount || null;
+        const ACCOUNT_NO = providerCollectionAccount || LEGACY_ACCOUNT_NO;
+
+        if (!ACCOUNT_NO) {
+            return NextResponse.json(
+                { error: 'Collection account is not configured for this provider.' },
+                { status: 500 }
+            );
         }
 
         // --- Step 4: Retrieve Session ---
