@@ -185,6 +185,9 @@ model Loan {
   repaymentStatus   String // Paid, Unpaid
   repaymentBehavior String? // ON_TIME, LATE, EARLY
   repaidAmount      Float?
+  // Interest accrual tracking (for daily ledger accrual)
+  interestAccruedAmount      Float    @default(0)
+  interestAccruedThroughDate DateTime?
   payments          Payment[]
   installments      LoanInstallment[]
   journalEntries    JournalEntry[]

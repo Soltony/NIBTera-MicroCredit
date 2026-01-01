@@ -1,6 +1,7 @@
 
 import { differenceInDays, startOfDay } from 'date-fns';
 import type { LoanDetails, LoanProduct, PenaltyRule, Tax } from './types';
+import { calculateInterestWithPayments, normalizePayments, roundCurrency } from './interest-accrual';
 
 interface CalculatedRepayment {
     total: number;
@@ -11,10 +12,6 @@ interface CalculatedRepayment {
     tax: number;
 }
 
-// Helper to round to 2 decimal places for currency
-const roundCurrency = (amount: number): number => {
-    return Math.round((amount + Number.EPSILON) * 100) / 100;
-};
 
 
 export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: LoanProduct, taxConfigs: Tax[], asOfDate: Date = new Date()): CalculatedRepayment => {
@@ -60,24 +57,20 @@ export const calculateTotalRepayable = (loanDetails: LoanDetails, loanProduct: L
     if (loanProduct.dailyFeeEnabled && dailyFeeRule && dailyFeeRule.value > 0) {
         const feeValue = typeof dailyFeeRule.value === 'string' ? parseFloat(dailyFeeRule.value) : dailyFeeRule.value;
         const interestEndDate = finalDate > dueDate ? dueDate : finalDate;
-        const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
+        const payments = normalizePayments((loanDetails as any).payments);
 
-        if (daysForInterest > 0) {
-            if (dailyFeeRule.type === 'fixed') {
-                interestComponent = feeValue * daysForInterest;
-            } else if (dailyFeeRule.type === 'percentage') {
-                if (dailyFeeRule.calculationBase === 'compound') {
-                     let compoundInterestBase = principal;
-                    for (let i = 0; i < daysForInterest; i++) {
-                        const dailyInterest = roundCurrency(compoundInterestBase * (feeValue / 100));
-                        interestComponent += dailyInterest;
-                        compoundInterestBase += dailyInterest;
-                    }
-                } else { // Simple interest on principal
-                    interestComponent = principal * (feeValue / 100) * daysForInterest;
-                }
-            }
-        }
+        interestComponent = calculateInterestWithPayments({
+            principal,
+            loanStartDate,
+            interestEndDate,
+            dailyFeeRule: {
+                type: dailyFeeRule.type,
+                value: feeValue,
+                calculationBase: dailyFeeRule.calculationBase,
+            },
+            serviceFee,
+            payments,
+        });
     }
     interestComponent = roundCurrency(interestComponent);
     
