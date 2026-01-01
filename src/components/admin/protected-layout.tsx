@@ -77,6 +77,11 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
   const router = useRouter();
   const { currentUser, logout, isLoading } = useAuth();
 
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const currentMenuItem = React.useMemo(() => {
     let best: (typeof allMenuItems)[number] | undefined;
     for (const item of allMenuItems) {
@@ -191,33 +196,35 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
               <Bell className="h-4 w-4" />
               <span className="sr-only">Toggle notifications</span>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="overflow-hidden rounded-full"
-                >
-                  <Avatar>
-                    <AvatarImage
-                      src={`/avatars/shadcn.png`}
-                      alt={currentUser?.fullName || ''}
-                    />
-                    <AvatarFallback>
-                      {getInitials(currentUser?.fullName || '')}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>{currentUser?.fullName}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Logout</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {mounted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="overflow-hidden rounded-full"
+                  >
+                    <Avatar>
+                      <AvatarImage
+                        src={`/avatars/shadcn.png`}
+                        alt={currentUser?.fullName || ''}
+                      />
+                      <AvatarFallback>
+                        {getInitials(currentUser?.fullName || '')}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{currentUser?.fullName}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </header>
           <main className="flex-1 overflow-x-auto">
             {!isCurrentRouteAllowed ? (

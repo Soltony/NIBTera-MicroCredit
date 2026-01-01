@@ -377,10 +377,14 @@ export function CreditScoreEngineClient({ initialProviders, initialScoringParame
         setIsSaving(true);
         try {
             const appliedProductIds = Object.keys(selectedProducts).filter(id => selectedProducts[id]);
+            const provider = providers.find(p => p.id === selectedProviderId);
+            const appliedProducts = (provider?.products || []).filter(p => appliedProductIds.includes(p.id));
             const payload = {
                 original: initialScoringParameters.filter(p => p.providerId === selectedProviderId),
                 updated: currentParameters,
                 appliedProductIds: appliedProductIds,
+                provider: provider ? { id: provider.id, name: provider.name } : { id: selectedProviderId, name: '' },
+                appliedProducts: appliedProducts.map(p => ({ id: p.id, name: p.name })),
             };
             await postPendingChange({
                 entityType: 'ScoringRules',
