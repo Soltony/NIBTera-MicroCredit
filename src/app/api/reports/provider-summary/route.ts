@@ -239,6 +239,40 @@ export async function GET(req: NextRequest) {
             const overdueAmount = Math.max(0, (loan.loanAmount || 0) - repaid);
             if (overdueAmount <= 0) continue;
 
+            // Compute per-component outstanding amounts for this loan by summing ledger entries
+            // We consider ledger entries tied to journal entries for this loan and aggregate by ledger account category.
+            const entries = await prisma.ledgerEntry.findMany({
+                where: { journalEntry: { loanId: loan.id } },
+                include: { ledgerAccount: true }
+            });
+
+            let principalOutstandingForLoan = 0;
+            let interestOutstandingForLoan = 0;
+            let serviceFeeOutstandingForLoan = 0;
+            let penaltyOutstandingForLoan = 0;
+
+            for (const e of entries) {
+                const category = (e.ledgerAccount?.category || '').toString();
+                // Convention: Debits increase receivable, Credits reduce receivable.
+                const signed = e.type === 'Debit' ? (e.amount || 0) : -(e.amount || 0);
+                if (category === 'Principal') principalOutstandingForLoan += signed;
+                if (category === 'Interest') interestOutstandingForLoan += signed;
+                if (category === 'ServiceFee') serviceFeeOutstandingForLoan += signed;
+                if (category === 'Penalty') penaltyOutstandingForLoan += signed;
+            }
+
+            // Ensure non-negative and fallback to coarse overdue amount if ledger data is not present
+            principalOutstandingForLoan = Math.max(0, principalOutstandingForLoan) || 0;
+            interestOutstandingForLoan = Math.max(0, interestOutstandingForLoan) || 0;
+            serviceFeeOutstandingForLoan = Math.max(0, serviceFeeOutstandingForLoan) || 0;
+            penaltyOutstandingForLoan = Math.max(0, penaltyOutstandingForLoan) || 0;
+
+            // If ledger-derived total is zero (no entries), fallback to distributing overdueAmount into principal
+            const ledgerTotal = principalOutstandingForLoan + interestOutstandingForLoan + serviceFeeOutstandingForLoan + penaltyOutstandingForLoan;
+            if (ledgerTotal === 0) {
+                principalOutstandingForLoan = overdueAmount;
+            }
+
             // (provider-level counts are incremented later after borrower aggregation)
 
             const borrowerKey = loan.borrowerId;
@@ -260,6 +294,10 @@ export async function GET(req: NextRequest) {
                         Loss: 0,
                     },
                     totalOverdue: 0,
+                    principalOutstanding: 0,
+                    interestOutstanding: 0,
+                    serviceFeeOutstanding: 0,
+                    penaltyOutstanding: 0,
                 };
             }
             // update maxDaysOverdue for classification after aggregation
@@ -268,6 +306,10 @@ export async function GET(req: NextRequest) {
             }
             byBorrower[borrowerKey].buckets[classification] += overdueAmount;
             byBorrower[borrowerKey].totalOverdue += overdueAmount;
+            byBorrower[borrowerKey].principalOutstanding += principalOutstandingForLoan;
+            byBorrower[borrowerKey].interestOutstanding += interestOutstandingForLoan;
+            byBorrower[borrowerKey].serviceFeeOutstanding += serviceFeeOutstandingForLoan;
+            byBorrower[borrowerKey].penaltyOutstanding += penaltyOutstandingForLoan;
 
             // set borrower account if not yet set: prefer active phoneAccount mapping, fallback to provisionedData
             if (!byBorrower[borrowerKey].borrowerAccount) {

@@ -11,7 +11,7 @@ import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LoanProvider, type LoanReportData, type CollectionsReportData, type IncomeReportData, ProviderReportData } from '@/lib/types';
+import { LoanProvider, type LoanReportData, type CollectionsReportData, ProviderReportData } from '@/lib/types';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
 import { format, addDays } from 'date-fns';
@@ -62,7 +62,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     
     const [loansData, setLoansData] = useState<LoanReportData[]>([]);
     const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
-    const [incomeData, setIncomeData] = useState<IncomeReportData[]>([]);
     const [disbursementsData, setDisbursementsData] = useState<any[]>([]);
     const [repaymentsData, setRepaymentsData] = useState<any[]>([]);
     const [providerSummaryData, setProviderSummaryData] = useState<Record<string, ProviderReportData>>({});
@@ -104,10 +103,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         disbursementsReport: { sortBy: 'transactionDate', sortDir: 'desc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
         repaymentsReport: { sortBy: 'transactionDate', sortDir: 'desc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
         collectionsReport: { sortBy: 'date', sortDir: 'desc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
-        incomeReport: { sortBy: 'provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        
         utilizationReport: { sortBy: 'Provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
         agingReport: { sortBy: 'Provider', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
         borrowerReport: { sortBy: 'borrowerId', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
+        borrowerAging: { sortBy: 'borrowerId', sortDir: 'asc', page: 1, pageSize: DEFAULT_PAGE_SIZE },
     });
 
     const setTableState = (tab: string, updater: Partial<TableState> | ((s: TableState) => TableState)) => {
@@ -151,7 +151,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
             const loansPromise = fetchDataForTab(buildUrl('/api/reports/loans'));
             const collectionsPromise = fetchDataForTab(buildUrl('/api/reports/collections'));
-            const incomePromise = fetchDataForTab(buildUrl('/api/reports/income'));
             const disbursementsPromise = fetchDataForTab(buildUrl('/api/reports/transactions') + '&type=disbursement');
             const repaymentsPromise = fetchDataForTab(buildUrl('/api/reports/transactions') + '&type=repayment');
             
@@ -169,10 +168,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                         })
                 );
             
-            const [loans, collections, income, disbursements, repayments, ...summaryResults] = await Promise.all([
+            const [loans, collections, disbursements, repayments, ...summaryResults] = await Promise.all([
                 loansPromise,
                 collectionsPromise,
-                incomePromise,
                 disbursementsPromise,
                 repaymentsPromise,
                 ...summaryPromises
@@ -180,7 +178,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
             setLoansData(loans);
             setCollectionsData(collections);
-            setIncomeData(income);
+            
             setDisbursementsData(disbursements || []);
             setRepaymentsData(repayments || []);
             
@@ -284,31 +282,20 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             addSanitizedRows(ws, collectionsExportData);
         }
         
-        // 3. Income
-        if (incomeData.length > 0) {
-            const incomeExportData = incomeData.map(d => ({
-                'Provider': d.provider,
-                'Accrued Interest': d.accruedInterest,
-                'Collected Interest': d.collectedInterest,
-                'Accrued Service Fee': d.accruedServiceFee,
-                'Collected Service Fee': d.collectedServiceFee,
-                'Accrued Penalty': d.accruedPenalty,
-                'Collected Penalty': d.collectedPenalty,
-                'Total Accrued': d.accruedInterest + d.accruedServiceFee + d.accruedPenalty,
-                'Total Collected': d.collectedInterest + d.collectedServiceFee + d.collectedPenalty,
-            }));
-            const ws = wb.addWorksheet('Income');
-            addSanitizedRows(ws, incomeExportData);
-        }
+        
         
         // 4. Fund Utilization
         const utilizationExportData = providerList.map(p => {
             const data = providerSummaryData[p.id];
             if (!data) return null;
-            const availableFund = p.initialBalance - data.portfolioSummary.outstanding;
+            // Use startingCapital (original provider fund) for display, and compute available
+            // as startingCapital minus current outstanding principal. `initialBalance`
+            // is a running cash balance that is decremented on disbursement and would
+            // otherwise double-count if we subtracted outstanding again.
+            const availableFund = p.startingCapital - data.portfolioSummary.outstanding;
             return {
                 'Provider': p.name,
-                'Provider Fund': p.initialBalance,
+                'Provider Fund': p.startingCapital,
                 'Loans Disbursed': data.portfolioSummary.disbursed,
                 'Outstanding Principal': data.portfolioSummary.outstanding,
                 'Available Fund': availableFund,
@@ -411,7 +398,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     'Borrower Name': b.borrowerName || '',
                     'Days Overdue': b.daysOverdue ?? '',
                     'Category': b.classification || '',
-                    'Amount': b.classificationAmount || b.totalOverdue || 0,
+                    'Principal Outstanding': b.principalOutstanding || 0,
+                    'Interest Outstanding': b.interestOutstanding || 0,
+                    'Service Fee Outstanding': b.serviceFeeOutstanding || 0,
+                    'Penalty Outstanding': b.penaltyOutstanding || 0,
+                    'Total Outstanding': b.classificationAmount || b.totalOverdue || 0,
                 });
             });
         });
@@ -514,14 +505,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     const disbursementTable = useMemo(() => applySortAndPaginate('disbursementsReport', disbursementsData), [disbursementsData, tableStates.disbursementsReport]);
     const repaymentTable = useMemo(() => applySortAndPaginate('repaymentsReport', repaymentsData), [repaymentsData, tableStates.repaymentsReport]);
     const collectionsTable = useMemo(() => applySortAndPaginate('collectionsReport', collectionsData), [collectionsData, tableStates.collectionsReport]);
-    const incomeTable = useMemo(() => applySortAndPaginate('incomeReport', incomeData), [incomeData, tableStates.incomeReport]);
+    
     const utilizationTable = useMemo(() => {
         const rows = providers.filter(p => providerId === 'all' || p.id === providerId).map(provider => {
             const data = providerSummaryData[provider.id];
-            const availableFund = data ? provider.initialBalance - data.portfolioSummary.outstanding : 0;
+            const availableFund = data ? provider.startingCapital - data.portfolioSummary.outstanding : 0;
             return {
                 Provider: provider.name,
-                ProviderFund: provider.initialBalance,
+                ProviderFund: provider.startingCapital,
                 LoansDisbursed: data?.portfolioSummary.disbursed || 0,
                 AvailableFund: availableFund,
                 Utilization: data?.fundUtilization || 0,
@@ -648,7 +639,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     <TabsTrigger value="disbursementsReport">Disbursements</TabsTrigger>
                     <TabsTrigger value="repaymentsReport">Repayments</TabsTrigger>
                     <TabsTrigger value="collectionsReport">Collections</TabsTrigger>
-                    <TabsTrigger value="incomeReport">Income</TabsTrigger>
+                    
                     <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
                     <TabsTrigger value="agingReport">Aging</TabsTrigger>
                     <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
@@ -865,43 +856,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                         </Table>
                         <PaginationControls tab="collectionsReport" meta={{ total: collectionsTable.total, totalPages: collectionsTable.totalPages, page: collectionsTable.page, pageSize: collectionsTable.pageSize }} />
                     </TabsContent>
-                    <TabsContent value="incomeReport">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-card z-10">
-                                <TableRow>
-                                    <TableHead>Provider</TableHead>
-                                    <TableHead className="text-right">Accrued Interest</TableHead>
-                                    <TableHead className="text-right">Collected Interest</TableHead>
-                                    <TableHead className="text-right">Accrued Service Fee</TableHead>
-                                    <TableHead className="text-right">Collected Service Fee</TableHead>
-                                    <TableHead className="text-right">Accrued Penalty</TableHead>
-                                    <TableHead className="text-right">Collected Penalty</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                                ) : incomeTable.items.length > 0 ? (
-                                    incomeTable.items.map((row: any) => (
-                                        <TableRow key={row.provider}>
-                                            <TableCell>{row.provider}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(row.accruedInterest)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(row.collectedInterest)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(row.accruedServiceFee)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(row.collectedServiceFee)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(row.accruedPenalty)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(row.collectedPenalty)}</TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                        <PaginationControls tab="incomeReport" meta={{ total: incomeTable.total, totalPages: incomeTable.totalPages, page: incomeTable.page, pageSize: incomeTable.pageSize }} />
-                    </TabsContent>
+                    
                     <TabsContent value="utilizationReport">
                         <Table>
                             <TableHeader className="sticky top-0 bg-card z-10">
@@ -975,35 +930,43 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                         {providerId && providerId !== 'all' && (() => {
                             const pdata = providerSummaryData[providerId];
                             const borrowers = pdata?.agingReport?.byBorrower || [];
-                            const borrowerMeta = applySortAndPaginate('agingReport', borrowers); // reuse pagination config (or create separate if needed)
+                            const borrowerMeta = applySortAndPaginate('borrowerAging', borrowers);
                             return (
                                 <div className="mt-6">
                                     <h3 className="text-lg font-medium mb-2">Borrower-level Aging</h3>
                                     <Table>
-                                        <TableHeader className="sticky top-0 bg-card z-10">
-                                            <TableRow>
-                                                <TableHead className="text-left">Borrower</TableHead>
-                                                <TableHead className="text-center">Account Number</TableHead>
-                                                <TableHead className="text-center">Days Overdue</TableHead>
-                                                <TableHead className="text-center">Category</TableHead>
-                                                <TableHead className="text-right">Amount</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {borrowers.length === 0 ? (
-                                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No borrower-level aging data.</TableCell></TableRow>
-                                            ) : borrowerMeta.items.map((b: any) => (
-                                                <TableRow key={b.borrowerId}>
-                                                    <TableCell className="font-medium">{b.borrowerId}</TableCell>
-                                                    <TableCell className="text-center font-mono text-sm">{b.borrowerAccount || ''}</TableCell>
-                                                    <TableCell className="text-center">{b.daysOverdue ?? '-'}</TableCell>
-                                                    <TableCell className="text-center">{b.classification || 'N/A'}</TableCell>
-                                                    <TableCell className="text-right font-mono font-bold">{formatCurrency(b.classificationAmount || b.totalOverdue || 0)}</TableCell>
+                                            <TableHeader className="sticky top-0 bg-card z-10">
+                                                <TableRow>
+                                                    <TableHead className="text-left">Borrower</TableHead>
+                                                    <TableHead className="text-center">Account Number</TableHead>
+                                                    <TableHead className="text-center">Days Overdue</TableHead>
+                                                    <TableHead className="text-center">Category</TableHead>
+                                                    <TableHead className="text-right">Principal Outstanding</TableHead>
+                                                    <TableHead className="text-right">Interest Outstanding</TableHead>
+                                                    <TableHead className="text-right">Service Fee Outstanding</TableHead>
+                                                    <TableHead className="text-right">Penalty Outstanding</TableHead>
+                                                    <TableHead className="text-right">Total Outstanding</TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {borrowers.length === 0 ? (
+                                                    <TableRow><TableCell colSpan={9} className="h-24 text-center">No borrower-level aging data.</TableCell></TableRow>
+                                                ) : borrowerMeta.items.map((b: any) => (
+                                                    <TableRow key={b.borrowerId}>
+                                                        <TableCell className="font-medium">{b.borrowerId}</TableCell>
+                                                        <TableCell className="text-center font-mono text-sm">{b.borrowerAccount || ''}</TableCell>
+                                                        <TableCell className="text-center">{b.daysOverdue ?? '-'}</TableCell>
+                                                        <TableCell className="text-center">{b.classification || 'N/A'}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatCurrency(b.principalOutstanding || 0)}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatCurrency(b.interestOutstanding || 0)}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatCurrency(b.serviceFeeOutstanding || 0)}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatCurrency(b.penaltyOutstanding || 0)}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold">{formatCurrency(b.classificationAmount || b.totalOverdue || 0)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
                                     </Table>
-                                    <PaginationControls tab="agingReport" meta={{ total: borrowerMeta.total, totalPages: borrowerMeta.totalPages, page: borrowerMeta.page, pageSize: borrowerMeta.pageSize }} />
+                                    <PaginationControls tab="borrowerAging" meta={{ total: borrowerMeta.total, totalPages: borrowerMeta.totalPages, page: borrowerMeta.page, pageSize: borrowerMeta.pageSize }} />
                                 </div>
                             );
                         })()}

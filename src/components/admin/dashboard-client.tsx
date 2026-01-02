@@ -240,48 +240,31 @@ const DashboardView = ({ data, color }: { data: DashboardData, color: string }) 
                 </CardContent>
             </Card>
         </div>
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-1">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
                 <CardHeader>
-                    <CardTitle>Income Statement</CardTitle>
-                    <CardDescription>Breakdown of all collected income.</CardDescription>
+                    <CardTitle>Receivables</CardTitle>
+                    <CardDescription>Amounts currently receivable (uncollected)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <LedgerDetailRow title="Service Fee Income" value={income.serviceFee} />
-                    <LedgerDetailRow title="Interest Income" value={income.interest} />
-                    <LedgerDetailRow title="Penalty Income" value={income.penalty} />
-                    <div className="flex justify-between items-baseline text-sm pt-3 mt-2 border-t-2">
-                        <span className="font-bold">Total Income</span>
-                        <span className="font-bold text-lg" style={{ color: color }}>{formatCurrency(totalIncome)}</span>
-                    </div>
+                    <LedgerDetailRow title="Principal Receivable" value={receivables.principal} />
+                    <LedgerDetailRow title="Interest Receivable" value={receivables.interest} />
+                    <LedgerDetailRow title="Service Fee Receivable" value={receivables.serviceFee} />
+                    <LedgerDetailRow title="Penalty Receivable" value={receivables.penalty} />
+                    <LedgerDetailRow title="Tax Receivable" value={receivables.tax} />
                 </CardContent>
             </Card>
-            <Card className="lg:col-span-2">
+            <Card>
                 <CardHeader>
-                    <CardTitle>Ledger Balances</CardTitle>
-                    <CardDescription>Live view of receivable and collected amounts.</CardDescription>
+                    <CardTitle>Collections</CardTitle>
+                    <CardDescription>Amounts already collected</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Tabs defaultValue="receivables">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="receivables">Receivables</TabsTrigger>
-                            <TabsTrigger value="collections">Collections</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="receivables" className="mt-4">
-                            <LedgerDetailRow title="Principal Receivable" value={receivables.principal} />
-                            <LedgerDetailRow title="Interest Receivable" value={receivables.interest} />
-                            <LedgerDetailRow title="Service Fee Receivable" value={receivables.serviceFee} />
-                            <LedgerDetailRow title="Penalty Receivable" value={receivables.penalty} />
-                            <LedgerDetailRow title="Tax Receivable" value={receivables.tax} />
-                        </TabsContent>
-                         <TabsContent value="collections" className="mt-4">
-                            <LedgerDetailRow title="Principal Received" value={collections.principal} />
-                            <LedgerDetailRow title="Interest Received" value={collections.interest} />
-                            <LedgerDetailRow title="Service Fee Received" value={collections.serviceFee} />
-                            <LedgerDetailRow title="Penalty Received" value={collections.penalty} />
-                            <LedgerDetailRow title="Tax Received" value={collections.tax} />
-                        </TabsContent>
-                    </Tabs>
+                    <LedgerDetailRow title="Principal Received" value={collections.principal} />
+                    <LedgerDetailRow title="Interest Received" value={collections.interest} />
+                    <LedgerDetailRow title="Service Fee Received" value={collections.serviceFee} />
+                    <LedgerDetailRow title="Penalty Received" value={collections.penalty} />
+                    <LedgerDetailRow title="Tax Received" value={collections.tax} />
                 </CardContent>
             </Card>
         </div>
