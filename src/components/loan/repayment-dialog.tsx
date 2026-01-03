@@ -42,6 +42,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+
+    const [stat, setStat] = useState<string | null>(null);
     const router = useRouter();
     const { toast } = useToast();
 
@@ -127,6 +129,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
 
                 const data = await res.json();
                 const status = String(data?.status ?? '').toUpperCase();
+
+                setStat(status);
 
                 if (status === 'COMPLETED') {
                     stopPolling();
@@ -233,7 +237,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
 
               // NOTE: The actual loan update will happen when the callback is received.
               // For a better UX, we optimistically close the dialog.
-              onClose();
+            //   onClose();
 
             } else {
               console.error("NIB Super App channel (window.myJsChannel) not found.");
@@ -319,6 +323,8 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                     </DialogClose>
                 </DialogHeader>
                 <div className="px-6 space-y-4">
+
+    {stat}
                     <div className="relative">
                         <input
                             type="text"
