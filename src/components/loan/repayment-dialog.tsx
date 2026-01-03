@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import type { LoanDetails, LoanProduct, Tax } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -42,12 +41,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
-    const router = useRouter();
     const { toast } = useToast();
-
-    const [pollingTransactionId, setPollingTransactionId] = useState<string | null>(null);
-    const [pollingStartedAtMs, setPollingStartedAtMs] = useState<number | null>(null);
-    const [isPolling, setIsPolling] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -56,111 +50,6 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
             setIsProcessing(false);
         }
     }, [isOpen, totalBalanceDue]);
-
-    useEffect(() => {
-        if (!isPolling || !pollingTransactionId || !pollingStartedAtMs) return;
-
-        let alive = true;
-        const intervalMs = 2000;
-        const maxMs = 30_000;
-        const deadline = pollingStartedAtMs + maxMs;
-
-        const publishPaymentCompleted = (loanId: string) => {
-            try {
-                if (typeof window === 'undefined') return;
-                const event = new CustomEvent('payment:completed', { detail: { loanId } });
-                window.dispatchEvent(event);
-                try {
-                    const bc = new BroadcastChannel('payments');
-                    bc.postMessage({ loanId });
-                    bc.close();
-                } catch (e) {
-                    // ignore if BroadcastChannel not supported
-                }
-            } catch (e) {
-                // ignore
-            }
-        };
-
-        const stopPolling = () => {
-            setIsPolling(false);
-            setPollingTransactionId(null);
-            setPollingStartedAtMs(null);
-        };
-
-        const checkOnce = async () => {
-            if (!alive) return;
-
-            const now = Date.now();
-            if (now >= deadline) {
-                stopPolling();
-                toast({
-                    title: 'Payment Pending',
-                    description: 'Payment was not confirmed within 30 seconds. If you completed it in the Super App, your dashboard should update shortly.',
-                    variant: 'destructive',
-                });
-                return;
-            }
-
-            try {
-                const res = await fetch(
-                    `/api/payment-status?transactionId=${encodeURIComponent(pollingTransactionId)}`,
-                    { cache: 'no-store' }
-                );
-
-                if (!alive) return;
-
-                if (res.status === 401) {
-                    stopPolling();
-                    toast({
-                        title: 'Session expired',
-                        description: 'Please reconnect from the main app and try again.',
-                        variant: 'destructive',
-                    });
-                    return;
-                }
-
-                if (!res.ok) {
-                    // Keep polling on transient errors (including 404) until deadline.
-                    return;
-                }
-
-                const data = await res.json();
-                const status = String(data?.status ?? '').toUpperCase();
-
-                if (status === 'COMPLETED') {
-                    stopPolling();
-                    toast({
-                        title: 'Payment Confirmed',
-                        description: 'Your payment has been confirmed and applied.',
-                    });
-                    publishPaymentCompleted(data?.loanId ?? loan.id);
-                    router.refresh();
-                    return;
-                }
-
-                if (status === 'FAILED') {
-                    stopPolling();
-                    toast({
-                        title: 'Payment Failed',
-                        description: 'The payment was marked as failed. Please try again.',
-                        variant: 'destructive',
-                    });
-                    return;
-                }
-            } catch (e) {
-                // Ignore network errors; keep polling until deadline.
-            }
-        };
-
-        checkOnce();
-        const intervalId = setInterval(checkOnce, intervalMs);
-
-        return () => {
-            alive = false;
-            clearInterval(intervalId);
-        };
-    }, [isPolling, pollingTransactionId, pollingStartedAtMs, router, toast, loan.id]);
 
     const remainingAmount = useMemo(() => {
         const enteredAmount = parseFloat(amount) || 0;
@@ -227,13 +116,25 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                   description: 'Your payment request has been sent to the Super App for completion.',
               });
 
-              setPollingTransactionId(transactionId);
-              setPollingStartedAtMs(Date.now());
-              setIsPolling(true);
+                            // Persist + emit so polling can happen in the page (dashboard/history)
+                            // even if this dialog unmounts or the WebView pauses while the Super App runs.
+                            try {
+                                const startedAtMs = Date.now();
+                                sessionStorage.setItem(
+                                    'pendingPaymentTxn',
+                                    JSON.stringify({ transactionId, startedAtMs, loanId: loan.id })
+                                );
+                                const event = new CustomEvent('payment:initiated', {
+                                    detail: { transactionId, startedAtMs, loanId: loan.id },
+                                });
+                                window.dispatchEvent(event);
+                            } catch (e) {
+                                // ignore
+                            }
 
               // NOTE: The actual loan update will happen when the callback is received.
               // For a better UX, we optimistically close the dialog.
-            //   onClose();
+              onClose();
 
             } else {
               console.error("NIB Super App channel (window.myJsChannel) not found.");
