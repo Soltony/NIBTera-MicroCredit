@@ -31,10 +31,6 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-
-  const [pendingPaymentTxnId, setPendingPaymentTxnId] = useState<string | null>(null);
-  const [pendingPaymentStartedAtMs, setPendingPaymentStartedAtMs] = useState<number | null>(null);
-  const [isPollingPayment, setIsPollingPayment] = useState(false);
   
   const [loanHistory, setLoanHistory] = useState(initialLoanHistory);
   const [activeTab, setActiveTab] = useState('active');
@@ -200,124 +196,6 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
       try { bc?.close(); } catch (e) { }
     };
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // Resume polling after refresh/navigation within the 30s window.
-    try {
-      const raw = sessionStorage.getItem('pendingPaymentTxn');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const txnId = typeof parsed?.transactionId === 'string' ? parsed.transactionId : null;
-        const started = typeof parsed?.startedAtMs === 'number' ? parsed.startedAtMs : null;
-        if (txnId && started) {
-          setPendingPaymentTxnId(txnId);
-          setPendingPaymentStartedAtMs(started);
-          setIsPollingPayment(true);
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    const onInitiated = (ev: Event) => {
-      const detail = (ev as CustomEvent)?.detail as any;
-      const txnId = typeof detail?.transactionId === 'string' ? detail.transactionId : null;
-      const started = typeof detail?.startedAtMs === 'number' ? detail.startedAtMs : Date.now();
-      if (!txnId) return;
-      setPendingPaymentTxnId(txnId);
-      setPendingPaymentStartedAtMs(started);
-      setIsPollingPayment(true);
-    };
-
-    window.addEventListener('payment:initiated', onInitiated as EventListener);
-    return () => window.removeEventListener('payment:initiated', onInitiated as EventListener);
-  }, []);
-
-  useEffect(() => {
-    if (!isPollingPayment || !pendingPaymentTxnId || !pendingPaymentStartedAtMs) return;
-
-    let alive = true;
-    const intervalMs = 2000;
-    const maxMs = 30_000;
-    const deadline = pendingPaymentStartedAtMs + maxMs;
-
-    const clearPendingTxn = () => {
-      setIsPollingPayment(false);
-      setPendingPaymentTxnId(null);
-      setPendingPaymentStartedAtMs(null);
-      try { sessionStorage.removeItem('pendingPaymentTxn'); } catch (e) { }
-    };
-
-    const checkOnce = async () => {
-      if (!alive) return;
-
-      const now = Date.now();
-      if (now >= deadline) {
-        clearPendingTxn();
-        toast({
-          title: 'Payment Pending',
-          description: 'Payment was not confirmed within 30 seconds. If you completed it in the Super App, your history should update shortly.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      try {
-        const res = await fetch(
-          `/api/payment-status?transactionId=${encodeURIComponent(pendingPaymentTxnId)}`,
-          { cache: 'no-store' }
-        );
-
-        if (!alive) return;
-
-        if (res.status === 401) {
-          clearPendingTxn();
-          toast({
-            title: 'Session expired',
-            description: 'Please reconnect from the main app and try again.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        if (!res.ok) {
-          return;
-        }
-
-        const data = await res.json();
-        const status = String(data?.status ?? '').toUpperCase();
-
-        if (status === 'COMPLETED') {
-          clearPendingTxn();
-          toast({ title: 'Payment Confirmed', description: 'Your payment has been confirmed and applied.' });
-          try { window.location.reload(); } catch (e) { }
-          return;
-        }
-
-        if (status === 'FAILED') {
-          clearPendingTxn();
-          toast({
-            title: 'Payment Failed',
-            description: 'The payment was marked as failed. Please try again.',
-            variant: 'destructive',
-          });
-          return;
-        }
-      } catch (e) {
-        // ignore
-      }
-    };
-
-    checkOnce();
-    const id = setInterval(checkOnce, intervalMs);
-
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [isPollingPayment, pendingPaymentTxnId, pendingPaymentStartedAtMs, toast]);
 
 
   const renderLoanCard = (loan: LoanDetails) => {

@@ -116,22 +116,6 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                   description: 'Your payment request has been sent to the Super App for completion.',
               });
 
-                            // Persist + emit so polling can happen in the page (dashboard/history)
-                            // even if this dialog unmounts or the WebView pauses while the Super App runs.
-                            try {
-                                const startedAtMs = Date.now();
-                                sessionStorage.setItem(
-                                    'pendingPaymentTxn',
-                                    JSON.stringify({ transactionId, startedAtMs, loanId: loan.id })
-                                );
-                                const event = new CustomEvent('payment:initiated', {
-                                    detail: { transactionId, startedAtMs, loanId: loan.id },
-                                });
-                                window.dispatchEvent(event);
-                            } catch (e) {
-                                // ignore
-                            }
-
               // NOTE: The actual loan update will happen when the callback is received.
               // For a better UX, we optimistically close the dialog.
               onClose();
