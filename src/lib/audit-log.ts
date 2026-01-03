@@ -1,7 +1,3 @@
-
-
-'use server';
-
 import prisma from './prisma';
 import { randomUUID } from 'crypto';
 
@@ -221,6 +217,7 @@ export async function auditExternalApiError(base: ExternalApiAuditBase, error: u
  * @param data - The data for the audit log entry.
  */
 export async function createAuditLog(data: AuditLogData) {
+    'use server';
     try {
         await prisma.auditLog.create({
             data: {
