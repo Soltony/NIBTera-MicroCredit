@@ -8,6 +8,43 @@ import { hasPermissionForEntity } from '@/lib/require-permission';
 import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 
+export async function GET(req: NextRequest) {
+  const user = await getUserFromSession();
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const canReadApprovals = !!user.permissions?.['approvals']?.read || !!user.permissions?.['approvals']?.update || user.role === 'Super Admin' || user.role === 'Auditor';
+  if (!canReadApprovals) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) {
+    return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+  }
+
+  try {
+    const change = await prisma.pendingChange.findUnique({
+      where: { id },
+      include: {
+        createdBy: { select: { id: true, fullName: true, email: true } },
+        approvedBy: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+
+    if (!change) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(change);
+  } catch (error) {
+    console.error('Failed to fetch pending change:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 const changeSchema = z.object({
   entityType: z.string(),
   entityId: z.string().optional(),
