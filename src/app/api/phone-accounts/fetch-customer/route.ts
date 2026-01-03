@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import { Prisma } from '@prisma/client';
 import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
+import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 // POST { phoneNumber, accountNumber }
 export async function POST(req: Request) {
   try {
     const ctx = await requireMiniAppAuthContext();
+    const ipAddress = req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
     const body = await req.json();
     const { phoneNumber, accountNumber, providerId } = body;
     console.info('[phone-accounts][fetch-customer] request', { phoneNumber, accountNumber });
@@ -111,20 +114,113 @@ export async function POST(req: Request) {
     const pass = process.env.EXTERNAL_API_PASSWORD;
     const auth = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
 
+    const correlationId = newAuditCorrelationId();
+    const startedAt = Date.now();
+    await auditExternalApiRequest(
+      {
+        actorId: String(ctx.borrowerId),
+        ipAddress,
+        userAgent,
+        integration: 'CUSTOMER_INFO',
+        entity: 'Borrower',
+        entityId: String(ctx.borrowerId),
+        correlationId,
+      },
+      {
+        method: 'POST',
+        url: String(apiUrl ?? 'EXTERNAL_CUSTOMER_INFO_URL'),
+        headers: { 'Content-Type': 'application/json', Authorization: auth },
+        body: { accountNumber },
+      },
+    ).catch(() => null);
+
     // Call upstream customer info service
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: auth },
       body: JSON.stringify({ accountNumber }),
+    }).catch(async (e) => {
+      await auditExternalApiError(
+        {
+          actorId: String(ctx.borrowerId),
+          ipAddress,
+          userAgent,
+          integration: 'CUSTOMER_INFO',
+          entity: 'Borrower',
+          entityId: String(ctx.borrowerId),
+          correlationId,
+        },
+        e,
+        { durationMs: Date.now() - startedAt, request: { method: 'POST', url: String(apiUrl ?? ''), body: { accountNumber } } },
+      ).catch(() => null);
+      throw e;
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => null);
       console.warn('[phone-accounts][fetch-customer] upstream returned', res.status, text);
+
+      await auditExternalApiResponse(
+        {
+          actorId: String(ctx.borrowerId),
+          ipAddress,
+          userAgent,
+          integration: 'CUSTOMER_INFO',
+          entity: 'Borrower',
+          entityId: String(ctx.borrowerId),
+          correlationId,
+        },
+        {
+          status: res.status,
+          statusText: (res as any).statusText,
+          headers: (() => {
+            const headersObj: Record<string, string> = {};
+            try {
+              for (const [k, v] of (res.headers as any).entries()) {
+                headersObj[k] = v;
+              }
+            } catch {
+              // ignore
+            }
+            return headersObj;
+          })(),
+          body: text,
+          durationMs: Date.now() - startedAt,
+        },
+      ).catch(() => null);
+
       return NextResponse.json({ error: 'Upstream error', status: res.status, body: text }, { status: 502 });
     }
 
     const data = await res.json().catch(() => null);
+    await auditExternalApiResponse(
+      {
+        actorId: String(ctx.borrowerId),
+        ipAddress,
+        userAgent,
+        integration: 'CUSTOMER_INFO',
+        entity: 'Borrower',
+        entityId: String(ctx.borrowerId),
+        correlationId,
+      },
+      {
+        status: res.status,
+        statusText: (res as any).statusText,
+        headers: (() => {
+          const headersObj: Record<string, string> = {};
+          try {
+            for (const [k, v] of (res.headers as any).entries()) {
+              headersObj[k] = v;
+            }
+          } catch {
+            // ignore
+          }
+          return headersObj;
+        })(),
+        body: data,
+        durationMs: Date.now() - startedAt,
+      },
+    ).catch(() => null);
     const detail = data?.detail ?? data?.details ?? data;
 
     // Save provisioned data as JSON string. We keep a single latest row per (borrower, config) per simplicity.

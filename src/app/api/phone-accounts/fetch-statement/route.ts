@@ -3,6 +3,7 @@ import prisma from '../../../../lib/prisma';
 import { Prisma } from '@prisma/client';
 import statementUtils, { StatementLine } from '@/lib/statement-utils';
 import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
+import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 type Body = {
   phoneNumber: string;
@@ -14,6 +15,8 @@ type Body = {
 export async function POST(req: Request) {
   try {
     const ctx = await requireMiniAppAuthContext();
+    const ipAddress = req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
     const body: Body = await req.json();
     const { phoneNumber, accountNumber, startDate, endDate } = body;
     if (!phoneNumber || !accountNumber) return NextResponse.json({ error: 'phoneNumber and accountNumber required' }, { status: 400 });
@@ -49,19 +52,112 @@ export async function POST(req: Request) {
 
     const auth = user && pass ? 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64') : undefined;
 
+    const correlationId = newAuditCorrelationId();
+    const startedAt = Date.now();
+    await auditExternalApiRequest(
+      {
+        actorId: String(ctx.borrowerId),
+        ipAddress,
+        userAgent,
+        integration: 'STATEMENT',
+        entity: 'Borrower',
+        entityId: String(ctx.borrowerId),
+        correlationId,
+      },
+      {
+        method: 'POST',
+        url: apiUrl,
+        headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
+        body: { accountNumber, startDate, endDate },
+      },
+    ).catch(() => null);
+
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify({ accountNumber, startDate, endDate }),
+    }).catch(async (e) => {
+      await auditExternalApiError(
+        {
+          actorId: String(ctx.borrowerId),
+          ipAddress,
+          userAgent,
+          integration: 'STATEMENT',
+          entity: 'Borrower',
+          entityId: String(ctx.borrowerId),
+          correlationId,
+        },
+        e,
+        { durationMs: Date.now() - startedAt, request: { method: 'POST', url: apiUrl, body: { accountNumber, startDate, endDate } } },
+      ).catch(() => null);
+      throw e;
     });
 
     if (!res.ok) {
       const txt = await res.text().catch(() => null);
       console.warn('[phone-accounts][fetch-statement] upstream returned', res.status, txt);
+
+      await auditExternalApiResponse(
+        {
+          actorId: String(ctx.borrowerId),
+          ipAddress,
+          userAgent,
+          integration: 'STATEMENT',
+          entity: 'Borrower',
+          entityId: String(ctx.borrowerId),
+          correlationId,
+        },
+        {
+          status: res.status,
+          statusText: (res as any).statusText,
+          headers: (() => {
+            const headersObj: Record<string, string> = {};
+            try {
+              for (const [k, v] of (res.headers as any).entries()) {
+                headersObj[k] = v;
+              }
+            } catch {
+              // ignore
+            }
+            return headersObj;
+          })(),
+          body: txt,
+          durationMs: Date.now() - startedAt,
+        },
+      ).catch(() => null);
+
       return NextResponse.json({ error: 'Upstream error', status: res.status, body: txt }, { status: 502 });
     }
 
     const payload = await res.json().catch(() => null);
+    await auditExternalApiResponse(
+      {
+        actorId: String(ctx.borrowerId),
+        ipAddress,
+        userAgent,
+        integration: 'STATEMENT',
+        entity: 'Borrower',
+        entityId: String(ctx.borrowerId),
+        correlationId,
+      },
+      {
+        status: res.status,
+        statusText: (res as any).statusText,
+        headers: (() => {
+          const headersObj: Record<string, string> = {};
+          try {
+            for (const [k, v] of (res.headers as any).entries()) {
+              headersObj[k] = v;
+            }
+          } catch {
+            // ignore
+          }
+          return headersObj;
+        })(),
+        body: payload,
+        durationMs: Date.now() - startedAt,
+      },
+    ).catch(() => null);
     const details = payload?.details ?? payload?.details ?? payload?.details ?? payload?.response ?? payload;
 
     // Normalize fields from sample

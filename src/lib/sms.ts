@@ -10,6 +10,8 @@ export async function sendSms(to: string, text: string) {
   }
 
   try {
+    const startedAt = Date.now();
+
     const params = new URLSearchParams();
     params.append('to', to);
     params.append('text', text);
@@ -21,6 +23,9 @@ export async function sendSms(to: string, text: string) {
     });
 
     const body = await res.text().catch(() => null);
+
+    void startedAt;
+
     if (!res.ok) {
       console.error('[sms] send failed', { to, smsUrl, status: res.status, body });
       return { ok: false, status: res.status, body };

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import sendSms from '@/lib/sms';
 import { areDisbursementsEnabled } from '@/lib/disbursement-control';
+import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 type Body = {
   creditAccount: string;
@@ -11,6 +12,10 @@ type Body = {
 
 export async function POST(req: Request) {
   try {
+    const ipAddress = req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
+    const actorId = 'system';
+
     const enabled = await areDisbursementsEnabled();
     if (!enabled) {
       return NextResponse.json({ error: 'Disbursements are currently disabled.' }, { status: 503 });
@@ -47,6 +52,19 @@ export async function POST(req: Request) {
     if (!apiUrl) {
       const errMsg = 'Missing EXTERNAL_DISBURSEMENT_URL env var';
       console.error('[external][disbursement] config error', { error: errMsg });
+
+      await auditExternalApiError(
+        { actorId, ipAddress, userAgent, integration: 'DISBURSEMENT', entity: 'DisbursementTransaction' },
+        errMsg,
+        {
+          request: {
+            method: 'POST',
+            url: 'EXTERNAL_DISBURSEMENT_URL',
+            body: { creditAccount, providerId: sendProviderId, amount },
+          },
+        },
+      ).catch(() => null);
+
       try {
         await prisma.disbursementTransaction.create({
           data: {
@@ -68,14 +86,43 @@ export async function POST(req: Request) {
 
     let res;
     try {
+      const correlationId = newAuditCorrelationId();
+      const startedAt = Date.now();
+      await auditExternalApiRequest(
+        {
+          actorId,
+          ipAddress,
+          userAgent,
+          integration: 'DISBURSEMENT',
+          entity: 'DisbursementTransaction',
+          correlationId,
+        },
+        {
+          method: 'POST',
+          url: apiUrl,
+          headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
+          body: { creditAccount, providerId: sendProviderId, amount },
+        },
+      );
+
       res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
         body: JSON.stringify({ creditAccount, providerId: sendProviderId, amount }),
       });
+
+      const durationMs = Date.now() - startedAt;
+      // We'll log the response body later once parsed.
+      (res as any).__audit = { correlationId, durationMs };
     } catch (fetchErr: any) {
       const details = String(fetchErr?.message ?? fetchErr);
       console.error('[external][disbursement] fetch failed', { apiUrl, error: details });
+
+      await auditExternalApiError(
+        { actorId, ipAddress, userAgent, integration: 'DISBURSEMENT', entity: 'DisbursementTransaction' },
+        fetchErr,
+        { request: { method: 'POST', url: apiUrl, body: { creditAccount, providerId: sendProviderId, amount } } },
+      ).catch(() => null);
 
       try {
         await prisma.disbursementTransaction.create({
@@ -101,6 +148,40 @@ export async function POST(req: Request) {
     // Try to parse JSON, fallback to text
     let payload: any = null;
     try { payload = txt ? JSON.parse(txt) : null; } catch (e) { payload = txt; }
+
+    try {
+      const auditMeta = (res as any).__audit as { correlationId?: string; durationMs?: number } | undefined;
+      const correlationId = auditMeta?.correlationId ?? newAuditCorrelationId();
+      await auditExternalApiResponse(
+        {
+          actorId,
+          ipAddress,
+          userAgent,
+          integration: 'DISBURSEMENT',
+          entity: 'DisbursementTransaction',
+          correlationId,
+        },
+        {
+          status: res.status,
+          statusText: (res as any).statusText,
+          headers: (() => {
+            const headersObj: Record<string, string> = {};
+            try {
+              for (const [k, v] of (res.headers as any).entries()) {
+                headersObj[k] = v;
+              }
+            } catch {
+              // ignore
+            }
+            return headersObj;
+          })(),
+          body: payload,
+          durationMs: auditMeta?.durationMs,
+        },
+      );
+    } catch {
+      // ignore audit failures
+    }
 
     // Log upstream response for debugging
     try {
@@ -174,7 +255,7 @@ export async function POST(req: Request) {
         }
 
         console.info('[external][disbursement] sms notify', { phoneNumber, message });
-        const smsRes = await sendSms(phoneNumber, message);
+            const smsRes = await sendSms(phoneNumber, message);
         console.info('[external][disbursement] sms send result', smsRes);
         if (!smsRes.ok) console.warn('[external][disbursement] sms send failed', smsRes);
       } catch (e) {

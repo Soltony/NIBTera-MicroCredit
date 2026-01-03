@@ -70,6 +70,17 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
     const msg = (error as Error).message || 'Internal Server Error';
+
+    await createAuditLog({
+      actorId: user.id,
+      action: 'DISBURSEMENT_CONTROL_UPDATE_FAILED',
+      entity: 'DISBURSEMENT_CONTROL',
+      entityId: 'global',
+      details: { error: msg },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
+
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import prisma from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit-log';
 import { getSession } from '@/lib/session';
+import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
     
@@ -28,6 +29,9 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        const ipAddress = req.headers.get('x-forwarded-for') || 'N/A';
+        const userAgent = req.headers.get('user-agent') || 'N/A';
+
         // --- Step 2: Parse Request ---
         const body = await req.json();
 
@@ -118,6 +122,37 @@ export async function POST(req: NextRequest) {
         });
 
         // --- Step 7: Send to Payment Gateway ---
+        const correlationId = newAuditCorrelationId();
+        const startedAt = Date.now();
+        await auditExternalApiRequest(
+            {
+                actorId: loan.borrowerId,
+                ipAddress,
+                userAgent,
+                integration: 'PAYMENT_GATEWAY',
+                entity: 'LOAN',
+                entityId: loanId,
+                correlationId,
+            },
+            {
+                method: 'POST',
+                url: NIB_PAYMENT_URL,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${superAppToken}`,
+                },
+                body: {
+                    accountNo: ACCOUNT_NO,
+                    amount: String(amount),
+                    callBackURL: CALLBACK_URL,
+                    companyName: COMPANY_NAME,
+                    transactionId,
+                    transactionTime,
+                    // signature + token intentionally omitted from audit details
+                },
+            },
+        ).catch(() => null);
+
         const paymentResponse = await fetch(NIB_PAYMENT_URL, {
             method: 'POST',
             headers: {
@@ -127,11 +162,67 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify(payload),
         });
 
+        const responseTextOrJson = await (async () => {
+            try {
+                const cloned = paymentResponse.clone();
+                return await cloned.json();
+            } catch {
+                try {
+                    const cloned = paymentResponse.clone();
+                    return await cloned.text();
+                } catch {
+                    return null;
+                }
+            }
+        })();
+
+        await auditExternalApiResponse(
+            {
+                actorId: loan.borrowerId,
+                ipAddress,
+                userAgent,
+                integration: 'PAYMENT_GATEWAY',
+                entity: 'LOAN',
+                entityId: loanId,
+                correlationId,
+            },
+            {
+                status: paymentResponse.status,
+                statusText: (paymentResponse as any).statusText,
+                headers: (() => {
+                    const headersObj: Record<string, string> = {};
+                    try {
+                        for (const [k, v] of (paymentResponse.headers as any).entries()) {
+                            headersObj[k] = v;
+                        }
+                    } catch {
+                        // ignore
+                    }
+                    return headersObj;
+                })(),
+                body: responseTextOrJson,
+                durationMs: Date.now() - startedAt,
+            },
+        ).catch(() => null);
+
         // payment gateway response status (log removed)
 
         if (!paymentResponse.ok) {
             const errorData = await paymentResponse.text();
             console.error('❌ PAYMENT GATEWAY ERROR RESPONSE:', errorData);
+            await auditExternalApiError(
+                {
+                    actorId: loan.borrowerId,
+                    ipAddress,
+                    userAgent,
+                    integration: 'PAYMENT_GATEWAY',
+                    entity: 'LOAN',
+                    entityId: loanId,
+                    correlationId,
+                },
+                new Error(`Payment gateway request failed: ${errorData}`),
+                { durationMs: Date.now() - startedAt },
+            ).catch(() => null);
             throw new Error(`Payment gateway request failed: ${errorData}`);
         }
 

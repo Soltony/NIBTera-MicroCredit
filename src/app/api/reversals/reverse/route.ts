@@ -20,13 +20,41 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const disbursementTransactionId = body?.id ? String(body.id) : null;
   if (!disbursementTransactionId) {
+    await createAuditLog({
+      actorId: user.id,
+      action: 'REVERSAL_REQUEST_INVALID',
+      entity: 'DisbursementTransaction',
+      details: { reason: 'Missing id' },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
     return NextResponse.json({ error: 'Missing id' }, { status: 400 });
   }
 
   const tx = await prisma.disbursementTransaction.findUnique({ where: { id: disbursementTransactionId } });
-  if (!tx) return NextResponse.json({ error: 'DisbursementTransaction not found' }, { status: 404 });
+  if (!tx) {
+    await createAuditLog({
+      actorId: user.id,
+      action: 'REVERSAL_REQUEST_NOT_FOUND',
+      entity: 'DisbursementTransaction',
+      entityId: disbursementTransactionId,
+      details: { reason: 'DisbursementTransaction not found' },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
+    return NextResponse.json({ error: 'DisbursementTransaction not found' }, { status: 404 });
+  }
 
   if (!isFailureStatus(tx.statusCode)) {
+    await createAuditLog({
+      actorId: user.id,
+      action: 'REVERSAL_REQUEST_BLOCKED',
+      entity: 'DisbursementTransaction',
+      entityId: tx.id,
+      details: { reason: 'Not marked failed', statusCode: tx.statusCode },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
     return NextResponse.json({ error: 'This disbursement is not marked as failed; reversal is blocked.' }, { status: 400 });
   }
 
@@ -39,6 +67,15 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
   if (alreadyReversed) {
+    await createAuditLog({
+      actorId: user.id,
+      action: 'REVERSAL_REQUEST_ALREADY_REVERSED',
+      entity: 'DisbursementTransaction',
+      entityId: tx.id,
+      details: { reason: 'Already reversed' },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
     return NextResponse.json({ ok: true, message: 'Already reversed' }, { status: 200 });
   }
 
@@ -51,6 +88,15 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
   if (existingPending) {
+    await createAuditLog({
+      actorId: user.id,
+      action: 'REVERSAL_REQUEST_ALREADY_PENDING',
+      entity: 'DisbursementTransaction',
+      entityId: tx.id,
+      details: { reason: 'Already submitted for approval', changeId: existingPending.id },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
     return NextResponse.json({ ok: true, message: 'Already submitted for approval', changeId: existingPending.id }, { status: 200 });
   }
 

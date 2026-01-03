@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit-log';
+import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 import { format, startOfDay, subDays } from 'date-fns';
 import { logger } from '@/lib/logger';
 
@@ -123,6 +124,28 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
       };
 
       logger.info(`Posting distribution to upstream for provider ${provider.id} -> externalId=${externalProviderId}`);
+
+      const correlationId = newAuditCorrelationId();
+      const startedAt = Date.now();
+      await auditExternalApiRequest(
+        {
+          actorId: 'system',
+          integration: 'PROVIDER_DISTRIBUTION',
+          entity: 'LoanProvider',
+          entityId: provider.id,
+          correlationId,
+        },
+        {
+          method: 'POST',
+          url: upstream.url,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: upstream.auth,
+          },
+          body: payload,
+        },
+      ).catch(() => null);
+
       const res = await fetch(upstream.url, {
         method: 'POST',
         headers: {
@@ -134,6 +157,33 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
 
       const responseJson = await res.json().catch(() => null);
 
+      await auditExternalApiResponse(
+        {
+          actorId: 'system',
+          integration: 'PROVIDER_DISTRIBUTION',
+          entity: 'LoanProvider',
+          entityId: provider.id,
+          correlationId,
+        },
+        {
+          status: res.status,
+          statusText: (res as any).statusText,
+          headers: (() => {
+            const headersObj: Record<string, string> = {};
+            try {
+              for (const [k, v] of (res.headers as any).entries()) {
+                headersObj[k] = v;
+              }
+            } catch {
+              // ignore
+            }
+            return headersObj;
+          })(),
+          body: responseJson,
+          durationMs: Date.now() - startedAt,
+        },
+      ).catch(() => null);
+
       if (!res.ok || !isUpstreamSuccess(responseJson)) {
         const details = {
           providerId: provider.id,
@@ -143,6 +193,17 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
           upstreamBody: responseJson,
         };
         logger.error(`Upstream failed for provider ${provider.id}: status=${res.status} body=${JSON.stringify(responseJson)}`);
+        await auditExternalApiError(
+          {
+            actorId: 'system',
+            integration: 'PROVIDER_DISTRIBUTION',
+            entity: 'LoanProvider',
+            entityId: provider.id,
+            correlationId,
+          },
+          new Error(`Upstream failed status=${res.status}`),
+          { durationMs: Date.now() - startedAt },
+        ).catch(() => null);
         await createAuditLog({
           actorId: 'system',
           action: 'PROVIDER_DISTRIBUTION_FAILED',
