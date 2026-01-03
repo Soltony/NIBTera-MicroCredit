@@ -27,6 +27,9 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    console.log("Checking Status", JSON.stringify(pending));
+    
+
     if (!pending) {
       return NextResponse.json(
         { transactionId, status: 'NOT_FOUND' as const },
