@@ -36,9 +36,9 @@ REM Build worker if missing
 		echo [%date% %time%] Build finished. >> "%RUN_LOG%"
 	)
 
-	echo [%date% %time%] Launching worker service... >> "%RUN_LOG%"
-	echo [%date% %time%] Launching worker service... >> "%TMP_LOG%"
-	"C:\Program Files\nodejs\node.exe" "%PROJECT_DIR%\dist\worker.cjs" provider-distribution-service >> "%RUN_LOG%" 2>&1
+	echo [%date% %time%] Launching provider distribution one-off... >> "%RUN_LOG%"
+	echo [%date% %time%] Launching provider distribution one-off... >> "%TMP_LOG%"
+	"C:\Program Files\nodejs\node.exe" "%PROJECT_DIR%\dist\worker.cjs" provider-distribution >> "%RUN_LOG%" 2>&1
 	if %ERRORLEVEL% neq 0 echo [%date% %time%] Worker exited with code %ERRORLEVEL% >> "%TMP_LOG%"
 
 	rem If the worker exits, release the lock
