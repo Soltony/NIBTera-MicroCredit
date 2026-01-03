@@ -3,6 +3,8 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
+
+  console.log("------Checking Status");
   try {
     // Keep this consistent with other mini-app payment routes.
     const session = await getSession();
@@ -27,7 +29,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    console.log("Checking Status", JSON.stringify(pending));
+    console.log("------Checking Status", JSON.stringify(pending));
     
 
     if (!pending) {

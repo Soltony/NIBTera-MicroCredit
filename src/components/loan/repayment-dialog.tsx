@@ -42,8 +42,6 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
-
-    const [stat, setStat] = useState<string | null>(null);
     const router = useRouter();
     const { toast } = useToast();
 
@@ -129,8 +127,6 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
 
                 const data = await res.json();
                 const status = String(data?.status ?? '').toUpperCase();
-
-                setStat(status);
 
                 if (status === 'COMPLETED') {
                     stopPolling();
@@ -323,8 +319,6 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                     </DialogClose>
                 </DialogHeader>
                 <div className="px-6 space-y-4">
-
-    {stat}
                     <div className="relative">
                         <input
                             type="text"
