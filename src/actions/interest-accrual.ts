@@ -24,6 +24,8 @@ export async function runDailyInterestAccrualOnce(asOf: Date = new Date()): Prom
 }> {
   const accrualThroughDate = startOfDay(asOf); // accrue interest for days strictly before "today"
 
+  const activeTaxConfigs = await prisma.tax.findMany({ where: { status: 'ACTIVE' } });
+
   const loans = await prisma.loan.findMany({
     where: {
       repaymentStatus: 'Unpaid',
@@ -100,11 +102,31 @@ export async function runDailyInterestAccrualOnce(asOf: Date = new Date()): Prom
     const provider = (loan.product as any).provider;
 
     const interestReceivable = provider.ledgerAccounts.find((a: any) => a.category === 'Interest' && a.type === 'Receivable');
-    const interestIncome = provider.ledgerAccounts.find((a: any) => a.category === 'Interest' && a.type === 'Income');
 
-    if (!interestReceivable || !interestIncome) {
-      throw new Error(`Interest ledger accounts not configured for provider ${provider.id}`);
+    // Income is recognized on receipt (payments), not on daily accrual.
+    if (!interestReceivable) {
+      throw new Error(`Interest receivable ledger account not configured for provider ${provider.id}`);
     }
+
+    const taxReceivable = provider.ledgerAccounts.find((a: any) => a.category === 'Tax' && a.type === 'Receivable');
+    const taxDelta = (() => {
+      if (!activeTaxConfigs || activeTaxConfigs.length === 0) return 0;
+      let totalTax = 0;
+      for (const taxConfig of activeTaxConfigs as any[]) {
+        const taxRate = Number(taxConfig?.rate ?? 0);
+        if (!taxRate || taxRate <= 0) continue;
+        let appliedTo: string[] = [];
+        try {
+          appliedTo = JSON.parse(String(taxConfig?.appliedTo ?? '[]'));
+        } catch {
+          appliedTo = [];
+        }
+        if (Array.isArray(appliedTo) && appliedTo.includes('interest')) {
+          totalTax += delta * (taxRate / 100);
+        }
+      }
+      return totalTax;
+    })();
 
     await prisma.$transaction(async (tx) => {
       const journalEntry = await tx.journalEntry.create({
@@ -116,15 +138,24 @@ export async function runDailyInterestAccrualOnce(asOf: Date = new Date()): Prom
         },
       });
 
-      await tx.ledgerEntry.createMany({
-        data: [
-          { journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Debit', amount: delta },
-          { journalEntryId: journalEntry.id, ledgerAccountId: interestIncome.id, type: 'Credit', amount: delta },
-        ],
-      });
+      const ledgerCreates: Array<{ journalEntryId: string; ledgerAccountId: string; type: string; amount: number }> = [
+        { journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Debit', amount: delta },
+      ];
 
-      await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { increment: delta } } });
-      await tx.ledgerAccount.update({ where: { id: interestIncome.id }, data: { balance: { increment: delta } } });
+      const updates: Array<Promise<any>> = [
+        tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { increment: delta } } }),
+      ];
+
+      if (taxDelta > 0.000001) {
+        if (!taxReceivable) {
+          throw new Error(`Tax receivable ledger account not configured for provider ${provider.id}`);
+        }
+        ledgerCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: taxReceivable.id, type: 'Debit', amount: taxDelta });
+        updates.push(tx.ledgerAccount.update({ where: { id: taxReceivable.id }, data: { balance: { increment: taxDelta } } }));
+      }
+
+      await tx.ledgerEntry.createMany({ data: ledgerCreates });
+      await Promise.all(updates);
 
       await tx.loan.update({
         where: { id: loan.id },

@@ -335,6 +335,22 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
         description: `${formatCurrency(amount)} has been paid towards your loan.`,
       });
 
+            try {
+                if (typeof window !== 'undefined') {
+                    const event = new CustomEvent('payment:completed', { detail: { loanId: updatedLoanData.id } });
+                    window.dispatchEvent(event);
+                    try {
+                        const bc = new BroadcastChannel('payments');
+                        bc.postMessage({ loanId: updatedLoanData.id });
+                        bc.close();
+                    } catch (e) {
+                        // BroadcastChannel may not be available in some environments, ignore
+                    }
+                }
+            } catch (e) {
+                // ignore
+            }
+
     } catch (error: any) {
        toast({
         title: 'Payment Error',
@@ -346,6 +362,32 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
       setRepayingLoanInfo(null);
     }
   }
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const onCustom = () => {
+            router.refresh();
+        };
+
+        window.addEventListener('payment:completed', onCustom as EventListener);
+        let bc: BroadcastChannel | null = null;
+        try {
+            bc = new BroadcastChannel('payments');
+            bc.addEventListener('message', onCustom as EventListener);
+        } catch (e) {
+            // ignore if BroadcastChannel not supported
+        }
+
+        return () => {
+            window.removeEventListener('payment:completed', onCustom as EventListener);
+            try {
+                bc?.close();
+            } catch (e) {
+                // ignore
+            }
+        };
+    }, [router]);
 
   const renderAmount = (amount: number, isVisible: boolean) => {
     if (!isVisible) {

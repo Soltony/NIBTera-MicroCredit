@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
         await createAuditLog({ actorId: borrowerIdForLogging || 'unknown', action: 'REPAYMENT_INITIATED', entity: 'LOAN', entityId: loanId, details: paymentDetailsForLogging });
 
-        const [loan, taxConfig] = await Promise.all([
+        const [loan, taxConfigs] = await Promise.all([
             prisma.loan.findUnique({
                 where: { id: loanId },
                 include: { 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
                     }
                 }
             }),
-            prisma.tax.findFirst()
+            prisma.tax.findMany({ where: { status: 'ACTIVE' } })
         ]);
 
 
@@ -51,20 +51,27 @@ export async function POST(req: NextRequest) {
         const provider = loan.product.provider;
         const paymentDate = new Date();
         
-        const { total, principal, interest, penalty, serviceFee, tax } = calculateTotalRepayable(loan as any, loan.product, taxConfig, paymentDate);
+        const { total, principal, interest, penalty, serviceFee, tax } = calculateTotalRepayable(
+            loan as any,
+            loan.product as any,
+            (taxConfigs ?? []) as any,
+            paymentDate
+        );
         const alreadyRepaid = loan.repaidAmount || 0;
         
         const totalDue = total - alreadyRepaid;
-        
-        const penaltyDue = Math.max(0, penalty - (loan.repaidAmount || 0));
-        const serviceFeeDue = Math.max(0, serviceFee - Math.max(0, (loan.repaidAmount || 0) - penalty));
-        const interestDue = Math.max(0, interest - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee));
-        const principalDue = Math.max(0, principal - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest));
-        
-        // Calculate tax for each component
-        const taxAppliedTo = taxConfig?.appliedTo ? JSON.parse(taxConfig.appliedTo) : [];
-        
-        const taxDue = Math.max(0, tax - Math.max(0, (loan.repaidAmount || 0) - penalty - serviceFee - interest - principal));
+
+        const alreadyPaidPenalty = Math.min(penalty, alreadyRepaid);
+        const alreadyPaidServiceFee = Math.min(serviceFee, Math.max(0, alreadyRepaid - penalty));
+        const alreadyPaidInterest = Math.min(interest, Math.max(0, alreadyRepaid - penalty - serviceFee));
+        const alreadyPaidTax = Math.min(tax, Math.max(0, alreadyRepaid - penalty - serviceFee - interest));
+        const alreadyPaidPrincipal = Math.min(principal, Math.max(0, alreadyRepaid - penalty - serviceFee - interest - tax));
+
+        const penaltyDue = Math.max(0, penalty - alreadyPaidPenalty);
+        const serviceFeeDue = Math.max(0, serviceFee - alreadyPaidServiceFee);
+        const interestDue = Math.max(0, interest - alreadyPaidInterest);
+        const taxDue = Math.max(0, tax - alreadyPaidTax);
+        const principalDue = Math.max(0, principal - alreadyPaidPrincipal);
 
 
         if (paymentAmount > totalDue + 0.01) { // Add tolerance for floating point
@@ -86,6 +93,10 @@ export async function POST(req: NextRequest) {
             const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
             const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
             const taxReceived = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Received');
+
+            const interestIncome = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Income');
+            const penaltyIncome = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Income');
+            const serviceFeeIncome = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Income');
             
             
             if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable || !taxReceivable ||
@@ -107,9 +118,12 @@ export async function POST(req: NextRequest) {
             if (penaltyToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
                 await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
+                if (!penaltyIncome) throw new Error(`Penalty Income ledger account not found for provider ${provider.id}`);
+                await tx.ledgerAccount.update({ where: { id: penaltyIncome.id }, data: { balance: { increment: penaltyToPay } } });
                 await tx.ledgerEntry.createMany({ data: [
                     { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceivable.id, type: 'Credit', amount: penaltyToPay },
-                    { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceived.id, type: 'Debit', amount: penaltyToPay }
+                    { journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceived.id, type: 'Debit', amount: penaltyToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: penaltyIncome.id, type: 'Credit', amount: penaltyToPay }
                 ]});
                 amountToApply -= penaltyToPay;
             }
@@ -118,9 +132,12 @@ export async function POST(req: NextRequest) {
             if (serviceFeeToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
                 await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
+                if (!serviceFeeIncome) throw new Error(`Service Fee Income ledger account not found for provider ${provider.id}`);
+                await tx.ledgerAccount.update({ where: { id: serviceFeeIncome.id }, data: { balance: { increment: serviceFeeToPay } } });
                 await tx.ledgerEntry.createMany({ data: [
                     { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivable.id, type: 'Credit', amount: serviceFeeToPay },
-                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceived.id, type: 'Debit', amount: serviceFeeToPay }
+                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceived.id, type: 'Debit', amount: serviceFeeToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeIncome.id, type: 'Credit', amount: serviceFeeToPay }
                 ]});
                 amountToApply -= serviceFeeToPay;
             }
@@ -129,9 +146,12 @@ export async function POST(req: NextRequest) {
              if (interestToPay > 0) {
                 await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
                 await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
+                if (!interestIncome) throw new Error(`Interest Income ledger account not found for provider ${provider.id}`);
+                await tx.ledgerAccount.update({ where: { id: interestIncome.id }, data: { balance: { increment: interestToPay } } });
                 await tx.ledgerEntry.createMany({ data: [
                     { journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Credit', amount: interestToPay },
-                    { journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay }
+                    { journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay },
+                    { journalEntryId: journalEntry.id, ledgerAccountId: interestIncome.id, type: 'Credit', amount: interestToPay }
                 ]});
                 amountToApply -= interestToPay;
             }

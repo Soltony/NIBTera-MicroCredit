@@ -69,15 +69,18 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
   for (const provider of providers) {
     try {
       logger.info(`Processing provider ${provider.id} (${provider.name})`);
-      const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
-      const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
-      const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
+      // Income balances represent amounts collected (cash-basis income).
+      // Provider distribution sends these balances upstream and clears them on success.
+      const interestIncome = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Income');
+      const serviceFeeIncome = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Income');
+      const penaltyIncome = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Income');
+      // Tax is tracked in Tax Received (no Tax Income account).
       const taxReceived = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Received');
 
       const breakdown: DistributionBreakdown = {
-        interestAmount: roundCurrency(interestReceived?.balance ?? 0),
-        serviceFeeAmount: roundCurrency(serviceFeeReceived?.balance ?? 0),
-        penaltyAmount: roundCurrency(penaltyReceived?.balance ?? 0),
+        interestAmount: roundCurrency(interestIncome?.balance ?? 0),
+        serviceFeeAmount: roundCurrency(serviceFeeIncome?.balance ?? 0),
+        penaltyAmount: roundCurrency(penaltyIncome?.balance ?? 0),
         taxAmount: roundCurrency(taxReceived?.balance ?? 0),
       };
 
@@ -86,7 +89,7 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
       );
 
       logger.info(
-        `Provider ${provider.id} received balances: interest=${breakdown.interestAmount} serviceFee=${breakdown.serviceFeeAmount} penalty=${breakdown.penaltyAmount} tax=${breakdown.taxAmount} total=${total}`,
+        `Provider ${provider.id} distributable balances (income/tax): interest=${breakdown.interestAmount} serviceFee=${breakdown.serviceFeeAmount} penalty=${breakdown.penaltyAmount} tax=${breakdown.taxAmount} total=${total}`,
       );
 
       if (total <= 0) {
@@ -167,11 +170,11 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
           },
         });
 
-        // Clear "Received" balances after successful distribution.
+        // Clear distributable balances after successful distribution.
         const updates: Array<Promise<any>> = [];
-        if (interestReceived) updates.push(tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: 0 } }));
-        if (serviceFeeReceived) updates.push(tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: 0 } }));
-        if (penaltyReceived) updates.push(tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: 0 } }));
+        if (interestIncome) updates.push(tx.ledgerAccount.update({ where: { id: interestIncome.id }, data: { balance: 0 } }));
+        if (serviceFeeIncome) updates.push(tx.ledgerAccount.update({ where: { id: serviceFeeIncome.id }, data: { balance: 0 } }));
+        if (penaltyIncome) updates.push(tx.ledgerAccount.update({ where: { id: penaltyIncome.id }, data: { balance: 0 } }));
         if (taxReceived) updates.push(tx.ledgerAccount.update({ where: { id: taxReceived.id }, data: { balance: 0 } }));
 
         await Promise.all(updates);

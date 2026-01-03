@@ -41,6 +41,8 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
         }
 
         const provider = product.provider;
+
+        const taxConfigs = await tx.tax.findMany({ where: { status: 'ACTIVE' } });
         
         const tempLoanForCalc = {
             id: 'temp',
@@ -56,13 +58,19 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             penaltyAmount: 0,
             product: product as any,
         };
-        const { serviceFee: calculatedServiceFee } = calculateTotalRepayable(tempLoanForCalc, product, new Date(data.disbursedDate));
+        const { serviceFee: calculatedServiceFee, tax: calculatedTax } = calculateTotalRepayable(
+            tempLoanForCalc as any,
+            product as any,
+            (taxConfigs ?? []) as any,
+            new Date(data.disbursedDate)
+        );
 
         const principalReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Principal' && acc.type === 'Receivable');
         const serviceFeeReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Receivable');
-        const serviceFeeIncomeAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'ServiceFee' && acc.type === 'Income');
+        const taxReceivableAccount = provider.ledgerAccounts.find((acc: any) => acc.category === 'Tax' && acc.type === 'Receivable');
         if (!principalReceivableAccount) throw new Error('Principal Receivable ledger account not found.');
-        if (calculatedServiceFee > 0 && (!serviceFeeReceivableAccount || !serviceFeeIncomeAccount)) throw new Error('Service Fee ledger accounts not configured.');
+        if (calculatedServiceFee > 0 && !serviceFeeReceivableAccount) throw new Error('Service Fee Receivable ledger account not found.');
+        if (calculatedTax > 0 && !taxReceivableAccount) throw new Error('Tax Receivable ledger account not found.');
 
 
         const createdLoan = await tx.loan.create({
@@ -98,15 +106,22 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             }]
         });
         
-        if (calculatedServiceFee > 0 && serviceFeeReceivableAccount && serviceFeeIncomeAccount) {
+        if (calculatedServiceFee > 0 && serviceFeeReceivableAccount) {
             await tx.ledgerEntry.createMany({
                 data: [
                     { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivableAccount.id, type: 'Debit', amount: calculatedServiceFee },
-                    { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeIncomeAccount.id, type: 'Credit', amount: calculatedServiceFee }
                 ]
             });
             await tx.ledgerAccount.update({ where: { id: serviceFeeReceivableAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
-            await tx.ledgerAccount.update({ where: { id: serviceFeeIncomeAccount.id }, data: { balance: { increment: calculatedServiceFee } } });
+        }
+
+        if (calculatedTax > 0.000001 && taxReceivableAccount) {
+            await tx.ledgerEntry.createMany({
+                data: [
+                    { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivableAccount.id, type: 'Debit', amount: calculatedTax },
+                ],
+            });
+            await tx.ledgerAccount.update({ where: { id: taxReceivableAccount.id }, data: { balance: { increment: calculatedTax } } });
         }
 
         await tx.ledgerAccount.update({ where: { id: principalReceivableAccount.id }, data: { balance: { increment: data.loanAmount } } });

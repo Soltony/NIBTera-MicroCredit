@@ -188,6 +188,9 @@ model Loan {
   // Interest accrual tracking (for daily ledger accrual)
   interestAccruedAmount      Float    @default(0)
   interestAccruedThroughDate DateTime?
+  // Penalty accrual tracking (for daily ledger accrual)
+  penaltyAccruedAmount      Float    @default(0)
+  penaltyAccruedThroughDate DateTime?
   payments          Payment[]
   installments      LoanInstallment[]
   journalEntries    JournalEntry[]

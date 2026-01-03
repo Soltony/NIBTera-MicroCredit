@@ -157,8 +157,35 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
             const penaltyDue = Math.max(0, activeInstallment.penaltyAmount || 0);
             return { principal: principalDue, interest: 0, penalty: penaltyDue, serviceFee: 0, tax: 0 };
         }
-        return calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
-    }, [loan, taxConfigs]);
+        // For full-loan repayment, show *due* amounts using the same allocation order as the backend
+        // (Penalty -> Service Fee -> Interest -> Tax -> Principal). This prevents UI from incorrectly
+        // deducting the entire repaid amount from principal.
+        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
+        const alreadyRepaid = loan.repaidAmount || 0;
+
+        const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
+        const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
+        const alreadyPaidInterest = Math.min(
+            totals.interest,
+            Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee)
+        );
+        const alreadyPaidTax = Math.min(
+            totals.tax,
+            Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest)
+        );
+        const alreadyPaidPrincipal = Math.min(
+            totals.principal,
+            Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest - totals.tax)
+        );
+
+        return {
+            principal: Math.max(0, totals.principal - alreadyPaidPrincipal),
+            serviceFee: Math.max(0, totals.serviceFee - alreadyPaidServiceFee),
+            interest: Math.max(0, totals.interest - alreadyPaidInterest),
+            penalty: Math.max(0, totals.penalty - alreadyPaidPenalty),
+            tax: Math.max(0, totals.tax - alreadyPaidTax),
+        };
+    }, [loan, taxConfigs, isInstallmentPayment, activeInstallment]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -212,7 +239,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                             )}
                             <div className="grid grid-cols-3 gap-2 text-xs text-left">
                                 <span className="col-span-2">Principal Due:</span>
-                                <span className="text-right font-medium text-foreground">{formatCurrency(isInstallmentPayment ? breakdown.principal : (breakdown.principal - (loan.repaidAmount || 0)))}</span>
+                                <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.principal)}</span>
 
                                 <span className="col-span-2">Service Fee Due:</span>
                                 <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.serviceFee)}</span>

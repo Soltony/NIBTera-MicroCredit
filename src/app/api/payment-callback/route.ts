@@ -168,18 +168,18 @@ if (!fixedAuthHeader) {
 
     const { loanId, amount: paymentAmount, borrowerId } = pendingPayment;
 
-    const [loan, taxConfig] = await Promise.all([
+    const [loan, taxConfigs] = await Promise.all([
       prisma.loan.findUnique({
         where: { id: loanId },
         include: {
           product: { include: { provider: { include: { ledgerAccounts: true } } } },
         },
       }),
-      prisma.tax.findMany(),
+      prisma.tax.findMany({ where: { status: 'ACTIVE' } }),
     ]);
 
     console.log('[payment-callback] loan fetched', { loanId, loanExists: !!loan, providerId: loan?.product?.providerId });
-    console.log('[payment-callback] taxConfig length', taxConfig?.length);
+    console.log('[payment-callback] taxConfigs length', taxConfigs?.length);
     if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
     const provider = loan.product.provider;
@@ -193,7 +193,7 @@ if (!fixedAuthHeader) {
     const hasInstallments = await prisma.loanInstallment.count({ where: { loanId } });
 
     // provider ledger accounts log removed to reduce console noise
-    const totals = calculateTotalRepayable(loan as any, loan.product as any, taxConfig, paymentDate);
+    const totals = calculateTotalRepayable(loan as any, loan.product as any, taxConfigs as any, paymentDate);
     const totalDue = totals.total - alreadyRepaid;
 
     console.log('[payment-callback] totals computed', { totals, totalDue });
@@ -397,6 +397,10 @@ if (!fixedAuthHeader) {
       const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
       const taxReceived = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Received');
 
+      const interestIncome = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Income');
+      const penaltyIncome = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Income');
+      const serviceFeeIncome = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Income');
+
       if (!principalReceivable || !interestReceivable || !penaltyReceivable || !serviceFeeReceivable || !taxReceivable ||
           !principalReceived || !interestReceived || !penaltyReceived || !serviceFeeReceived || !taxReceived) {
         throw new Error(`One or more ledger accounts not found for provider ${provider.id}`);
@@ -408,37 +412,62 @@ if (!fixedAuthHeader) {
       // Apply payment in order: Penalty -> ServiceFee -> Interest -> Principal
       let amountToApply = paymentAmount;
 
-      const penaltyDue = Math.max(0, totals.penalty - (loan.repaidAmount || 0));
+      const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
+      const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
+      const alreadyPaidInterest = Math.min(totals.interest, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee));
+      const alreadyPaidTax = Math.min(totals.tax, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest));
+      const alreadyPaidPrincipal = Math.min(totals.principal, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest - totals.tax));
+
+      const penaltyDue = Math.max(0, totals.penalty - alreadyPaidPenalty);
       const penaltyToPay = Math.min(amountToApply, penaltyDue);
       if (penaltyToPay > 0) {
         await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
         await tx.ledgerAccount.update({ where: { id: penaltyReceived.id }, data: { balance: { increment: penaltyToPay } } });
+        if (!penaltyIncome) throw new Error(`Penalty Income ledger account not found for provider ${provider.id}`);
+        await tx.ledgerAccount.update({ where: { id: penaltyIncome.id }, data: { balance: { increment: penaltyToPay } } });
         ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceivable.id, type: 'Credit', amount: penaltyToPay });
         ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: penaltyReceived.id, type: 'Debit', amount: penaltyToPay });
+        ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: penaltyIncome.id, type: 'Credit', amount: penaltyToPay });
         amountToApply -= penaltyToPay;
       }
 
-      const serviceFeeDue = Math.max(0, totals.serviceFee - Math.max(0, (loan.repaidAmount || 0) - penaltyToPay));
+      const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFee);
       const serviceFeeToPay = Math.min(amountToApply, serviceFeeDue);
       if (serviceFeeToPay > 0) {
         await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
         await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
+        if (!serviceFeeIncome) throw new Error(`Service Fee Income ledger account not found for provider ${provider.id}`);
+        await tx.ledgerAccount.update({ where: { id: serviceFeeIncome.id }, data: { balance: { increment: serviceFeeToPay } } });
         ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivable.id, type: 'Credit', amount: serviceFeeToPay });
         ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceived.id, type: 'Debit', amount: serviceFeeToPay });
+        ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeIncome.id, type: 'Credit', amount: serviceFeeToPay });
         amountToApply -= serviceFeeToPay;
       }
 
-      const interestDue = Math.max(0, totals.interest - Math.max(0, (loan.repaidAmount || 0) - penaltyToPay - serviceFeeToPay));
+      const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
       const interestToPay = Math.min(amountToApply, interestDue);
       if (interestToPay > 0) {
         await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
         await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
+        if (!interestIncome) throw new Error(`Interest Income ledger account not found for provider ${provider.id}`);
+        await tx.ledgerAccount.update({ where: { id: interestIncome.id }, data: { balance: { increment: interestToPay } } });
         ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Credit', amount: interestToPay });
         ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay });
+        ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: interestIncome.id, type: 'Credit', amount: interestToPay });
         amountToApply -= interestToPay;
       }
 
-      const principalDue = Math.max(0, totals.principal - Math.max(0, (loan.repaidAmount || 0) - penaltyToPay - serviceFeeToPay - interestToPay));
+      const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
+      const taxToPay = Math.min(amountToApply, taxDue);
+      if (taxToPay > 0) {
+        await tx.ledgerAccount.update({ where: { id: taxReceivable.id }, data: { balance: { decrement: taxToPay } } });
+        await tx.ledgerAccount.update({ where: { id: taxReceived.id }, data: { balance: { increment: taxToPay } } });
+        ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: taxReceivable.id, type: 'Credit', amount: taxToPay });
+        ledgerEntryCreates.push({ journalEntryId: journalEntry.id, ledgerAccountId: taxReceived.id, type: 'Debit', amount: taxToPay });
+        amountToApply -= taxToPay;
+      }
+
+      const principalDue = Math.max(0, totals.principal - alreadyPaidPrincipal);
       const principalToPay = Math.min(amountToApply, principalDue);
       if (principalToPay > 0) {
         await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });

@@ -141,6 +141,22 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
         description: `${formatCurrency(amount)} ETB has been paid towards your loan.`,
       });
 
+      try {
+        if (typeof window !== 'undefined') {
+          const event = new CustomEvent('payment:completed', { detail: { loanId: updatedLoanData.id } });
+          window.dispatchEvent(event);
+          try {
+            const bc = new BroadcastChannel('payments');
+            bc.postMessage({ loanId: updatedLoanData.id });
+            bc.close();
+          } catch (e) {
+            // ignore
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
     } catch (error: any) {
        toast({
         title: 'Payment Error',
@@ -152,6 +168,34 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
       setRepayingLoanInfo(null);
     }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPayment = () => {
+      // Simply reload server data by refreshing the router
+      try {
+        // dynamic import to avoid circular client/server issues
+        // using window.location.reload as fallback if router isn't available in this component
+        window.location.reload();
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    window.addEventListener('payment:completed', onPayment as EventListener);
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('payments');
+      bc.addEventListener('message', onPayment as EventListener);
+    } catch (e) {
+      // ignore
+    }
+
+    return () => {
+      window.removeEventListener('payment:completed', onPayment as EventListener);
+      try { bc?.close(); } catch (e) { }
+    };
+  }, []);
 
 
   const renderLoanCard = (loan: LoanDetails) => {
