@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
     const taxConfig = await prisma.tax.findMany();
 
     // Fetch journal entries that relate to loans
-    const whereAny: any = { loanId: { not: null } };
+    const whereAny: any = {
+      loanId: { not: null },
+      loan: { repaymentStatus: { not: 'REVERSED' } },
+    };
     if (providerId && providerId !== 'all' && providerId !== 'none') {
       whereAny.providerId = providerId;
     }

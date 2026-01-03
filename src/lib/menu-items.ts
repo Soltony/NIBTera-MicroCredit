@@ -10,6 +10,7 @@ import {
   FolderArchive,
   BookUser,
   CheckSquare,
+  Ban,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -28,6 +29,18 @@ export const allMenuItems = [
    {
     path: '/admin/approvals',
     label: 'Approvals',
+    icon: CheckSquare,
+    roles: ['Super Admin', 'Loan Manager'],
+  },
+  {
+    path: '/admin/reversals',
+    label: 'Reversals',
+    icon: FolderArchive,
+    roles: ['Super Admin', 'Loan Manager'],
+  },
+  {
+    path: '/admin/reversal-approvals',
+    label: 'Revesal Approval',
     icon: CheckSquare,
     roles: ['Super Admin', 'Loan Manager'],
   },
@@ -60,6 +73,12 @@ export const allMenuItems = [
     label: 'Settings',
     icon: Settings,
     roles: ['Super Admin', 'Loan Manager', 'Loan Provider'],
+  },
+  {
+    path: '/admin/disbursement-control',
+    label: 'Disbursement Control',
+    icon: Ban,
+    roles: ['Super Admin'],
   },
   {
     path: '/admin/audit-logs',

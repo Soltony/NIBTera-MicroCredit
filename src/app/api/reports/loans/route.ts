@@ -93,6 +93,10 @@ export async function GET(req: NextRequest) {
 
     const whereClause: any = {};
 
+    // Failed external disbursements can be reversed internally; those loans are marked REVERSED
+    // and should not appear in reporting outputs.
+    whereClause.repaymentStatus = { not: 'REVERSED' };
+
     if (dateRange.gte && dateRange.lte) {
         whereClause.disbursedDate = {
             gte: dateRange.gte,

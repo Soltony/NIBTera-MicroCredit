@@ -117,6 +117,9 @@ export async function GET(req: NextRequest) {
             _sum: { loanAmount: true },
             where: {
                 product: { providerId },
+                // Failed external disbursements can be reversed internally; those loans are marked REVERSED
+                // and should not count as disbursed in reports.
+                repaymentStatus: { not: 'REVERSED' },
                 ...(dateRange.gte && { disbursedDate: { gte: dateRange.gte } }),
                 ...(dateRange.lte && { disbursedDate: { lte: dateRange.lte } }),
             },
@@ -156,7 +159,15 @@ export async function GET(req: NextRequest) {
 
         // 4. Fund Utilization
         const provider = await prisma.loanProvider.findUnique({ where: { id: providerId } });
-        const totalDisbursedEver = (await prisma.loan.aggregate({ _sum: { loanAmount: true }, where: { product: { providerId } } }))._sum.loanAmount || 0;
+        const totalDisbursedEver = (
+            await prisma.loan.aggregate({
+                _sum: { loanAmount: true },
+                where: {
+                    product: { providerId },
+                    repaymentStatus: { not: 'REVERSED' },
+                },
+            })
+        )._sum.loanAmount || 0;
         const fundUtilization = provider && provider.startingCapital > 0 ? (totalDisbursedEver / provider.startingCapital) * 100 : 0;
 
         // 5. Aging Report (snapshot as of today) - borrower level amounts and provider classification

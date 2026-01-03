@@ -20,14 +20,17 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     const ledgerEntryWhere = providerId ? { ledgerAccount: { providerId: providerId } } : {};
 
     const loans = await prisma.loan.findMany({ 
-        where: providerFilter,
+        where: {
+            ...providerFilter,
+            repaymentStatus: { not: 'REVERSED' },
+        },
         include: { product: true }
     });
     
     const usersCount = providerId 
         ? await prisma.loan.groupBy({
             by: ['borrowerId'],
-            where: { product: { providerId: providerId } },
+                        where: { product: { providerId: providerId }, repaymentStatus: { not: 'REVERSED' } },
           }).then(results => results.length)
         : await prisma.borrower.count();
 
@@ -84,6 +87,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
                 gte: startOfTodayDate,
                 lt: endOfTodayDate,
             },
+            repaymentStatus: { not: 'REVERSED' },
             ...(providerFilter && { product: providerFilter.product })
         },
     });
@@ -110,6 +114,7 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
                         gte: date,
                         lt: nextDate,
                     },
+                    repaymentStatus: { not: 'REVERSED' },
                     ...(providerFilter && { product: providerFilter.product })
                 },
             });
@@ -130,7 +135,10 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     ];
 
     const recentActivity = await prisma.loan.findMany({
-        where: providerFilter,
+        where: {
+            ...providerFilter,
+            repaymentStatus: { not: 'REVERSED' },
+        },
         take: 5,
         orderBy: { disbursedDate: 'desc' },
         include: { product: true }
@@ -150,13 +158,14 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
     const productOverview = await Promise.all(allProducts.map(async p => {
         const active = await prisma.loan.count({ where: { productId: p.id, repaymentStatus: 'Unpaid' } });
         const defaulted = await prisma.loan.count({ where: { productId: p.id, repaymentStatus: 'Unpaid', dueDate: { lt: new Date() } } });
+        const total = await prisma.loan.count({ where: { productId: p.id, repaymentStatus: { not: 'REVERSED' } } });
         return {
             name: p.name,
             provider: p.provider.name,
             active,
             defaulted,
-            total: p._count.loans,
-            defaultRate: p._count.loans > 0 ? (defaulted / p._count.loans) * 100 : 0
+            total,
+            defaultRate: total > 0 ? (defaulted / total) * 100 : 0
         };
     }));
 

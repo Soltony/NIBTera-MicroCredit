@@ -49,7 +49,7 @@ async function applyDataProvisioningUpload(change: any, data: any) {
 
     const buffer = Buffer.from(fileContent, 'base64');
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as any);
     const worksheet = workbook.worksheets[0];
 
     const columnCount = worksheet.columnCount || 0;
@@ -118,7 +118,7 @@ async function applyEligibilityList(change: any, data: any) {
 
     const buffer = Buffer.from(fileContent, 'base64');
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as any);
     const worksheet = workbook.worksheets[0];
 
     const columnCount = worksheet.columnCount || 0;
@@ -199,11 +199,146 @@ async function applyEligibilityList(change: any, data: any) {
 
 
 // Main function to apply an approved change
-async function applyChange(change: any) {
+async function applyChange(change: any, context?: { actorId?: string; ipAddress?: string; userAgent?: string }) {
   const { entityType, entityId, changeType, payload } = change;
   const data = JSON.parse(payload);
 
   switch (entityType) {
+    case 'DisbursementReversal':
+        if (changeType !== 'CREATE') {
+            throw new Error('Invalid changeType for DisbursementReversal');
+        }
+
+        {
+            const actorId = context?.actorId;
+            const ipAddress = context?.ipAddress || 'N/A';
+            const userAgent = context?.userAgent || 'N/A';
+            const disbursementTransactionId = data?.created?.disbursementTransactionId || entityId;
+            if (!disbursementTransactionId) throw new Error('Missing disbursementTransactionId');
+
+            const tx = await prisma.disbursementTransaction.findUnique({ where: { id: String(disbursementTransactionId) } });
+            if (!tx) throw new Error('DisbursementTransaction not found');
+
+            const statusCode = tx.statusCode;
+            const isFailure = statusCode == null ? true : statusCode < 200 || statusCode >= 300;
+            if (!isFailure) throw new Error('This disbursement is not marked as failed; reversal is blocked.');
+
+            const alreadyReversed = await prisma.auditLog.findFirst({
+                where: {
+                    action: 'DISBURSEMENT_REVERSED',
+                    entity: 'DisbursementTransaction',
+                    entityId: tx.id,
+                },
+                select: { id: true },
+            });
+            if (alreadyReversed) {
+                return;
+            }
+
+            const phoneMap = await prisma.phoneAccount.findFirst({
+                where: { accountNumber: String(tx.creditAccount) },
+                select: { phoneNumber: true },
+            });
+            const borrowerId = phoneMap?.phoneNumber;
+            if (!borrowerId) throw new Error('Cannot resolve borrower (no phone-account mapping for creditAccount).');
+
+            const internalProviderId = tx.originalProviderId || tx.providerId;
+            const windowStart = new Date(tx.createdAt.getTime() - 60 * 60 * 1000);
+            const windowEnd = new Date(tx.createdAt.getTime() + 60 * 60 * 1000);
+
+            const loan = await prisma.loan.findFirst({
+                where: {
+                    borrowerId,
+                    ...(tx.amount != null ? { loanAmount: Number(tx.amount) } : {}),
+                    createdAt: { gte: windowStart, lte: windowEnd },
+                    product: { providerId: internalProviderId },
+                },
+                include: {
+                    payments: { select: { id: true } },
+                    pendingPayments: { select: { id: true } },
+                    product: { include: { provider: { include: { ledgerAccounts: true } } } },
+                    journalEntries: { include: { entries: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            if (!loan) throw new Error('No matching loan found to reverse for this failed disbursement.');
+            if ((loan.payments?.length ?? 0) > 0 || (loan.pendingPayments?.length ?? 0) > 0) {
+                throw new Error('Loan already has payment activity; reversal is blocked.');
+            }
+
+            const disbJournalEntries = (loan.journalEntries || []).filter((j) =>
+                String(j.description || '').toLowerCase().includes('loan disbursement'),
+            );
+            if (!disbJournalEntries.length) throw new Error('No loan disbursement journal entry found; reversal is blocked.');
+
+            const provider = loan.product.provider;
+
+            const reversalResult = await prisma.$transaction(async (db) => {
+                const reversalJe = await db.journalEntry.create({
+                    data: {
+                        providerId: provider.id,
+                        loanId: loan.id,
+                        date: new Date(),
+                        description: `Reversal: failed external disbursement for loan ${loan.id} (tx ${tx.id})`,
+                    },
+                });
+
+                for (const je of disbJournalEntries) {
+                    for (const e of je.entries) {
+                        const reverseType = e.type === 'Debit' ? 'Credit' : 'Debit';
+                        await db.ledgerEntry.create({
+                            data: {
+                                journalEntryId: reversalJe.id,
+                                ledgerAccountId: e.ledgerAccountId,
+                                type: reverseType,
+                                amount: e.amount,
+                            },
+                        });
+
+                        const delta = e.type === 'Debit' ? -e.amount : e.amount;
+                        await db.ledgerAccount.update({
+                            where: { id: e.ledgerAccountId },
+                            data: { balance: { increment: delta } },
+                        });
+                    }
+                }
+
+                await db.loanProvider.update({
+                    where: { id: provider.id },
+                    data: { initialBalance: { increment: loan.loanAmount } },
+                });
+
+                await db.loan.update({
+                    where: { id: loan.id },
+                    data: { repaymentStatus: 'REVERSED', repaymentBehavior: 'REVERSED' },
+                });
+
+                await db.loanApplication
+                    .update({ where: { id: loan.loanApplicationId }, data: { status: 'REVERSED' } })
+                    .catch(() => null);
+
+                return { loanId: loan.id, reversalJournalEntryId: reversalJe.id };
+            });
+
+            await createAuditLog({
+                actorId: actorId || 'N/A',
+                action: 'DISBURSEMENT_REVERSED',
+                entity: 'DisbursementTransaction',
+                entityId: tx.id,
+                details: {
+                    disbursementTransactionId: tx.id,
+                    loanId: reversalResult.loanId,
+                    reversalJournalEntryId: reversalResult.reversalJournalEntryId,
+                    creditAccount: tx.creditAccount,
+                    providerId: internalProviderId,
+                    statusCode: tx.statusCode,
+                },
+                ipAddress,
+                userAgent,
+            });
+        }
+        break;
     case 'EligibilityList':
         if (changeType === 'CREATE') {
             await applyEligibilityList(change, data);
@@ -550,6 +685,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
+    const ipAddress = (req as any).ip || req.headers.get('x-forwarded-for') || 'N/A';
+    const userAgent = req.headers.get('user-agent') || 'N/A';
+
   try {
     const body = await req.json();
     const { changeId, approved, rejectionReason } = approvalSchema.parse(body);
@@ -571,7 +709,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (approved) {
-      await applyChange(change);
+            await applyChange(change, { actorId: user.id, ipAddress, userAgent });
 
       await prisma.pendingChange.update({
         where: { id: changeId },
@@ -586,7 +724,7 @@ export async function POST(req: NextRequest) {
         actorId: user.id,
         action: 'CHANGE_APPROVED',
         entity: change.entityType,
-        entityId: change.entityId,
+                entityId: change.entityId ?? undefined,
         details: { changeId },
       });
 
@@ -629,7 +767,7 @@ export async function POST(req: NextRequest) {
                 actorId: user.id,
                 action: 'CHANGE_REJECTED',
                 entity: change.entityType,
-                entityId: change.entityId,
+                entityId: change.entityId ?? undefined,
                 details: { changeId, reason: rejectionReason },
             });
         }

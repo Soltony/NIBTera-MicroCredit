@@ -8,6 +8,7 @@ import { createAuditLog } from '@/lib/audit-log';
 import { getUserFromSession } from '@/lib/user';
 import { loanCreationSchema } from '@/lib/schemas';
 import { addDays } from 'date-fns';
+import { areDisbursementsEnabled } from '@/lib/disbursement-control';
 
 // This is an internal helper function and should not be exported from the route file.
 // It is moved here because it's only used by this route.
@@ -251,6 +252,11 @@ export async function PUT(req: NextRequest) {
         }
 
         if (status === 'APPROVED') {
+
+            const enabled = await areDisbursementsEnabled();
+            if (!enabled) {
+                return NextResponse.json({ error: 'Disbursements are currently disabled.' }, { status: 503 });
+            }
             
             const disbursementDate = new Date();
             const loanData = {

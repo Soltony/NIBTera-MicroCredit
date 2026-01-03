@@ -19,6 +19,7 @@ const ENTITY_TO_MODULE: Record<string, string[]> = {
   approval: ['approvals'],
   approvals: ['approvals'],
   pendingchange: ['approvals'],
+  disbursementreversal: ['approvals'],
   eligibilitylist: ['settings'],
   dataprovisioningupload: ['settings', 'scoring-engine'],
   termsandconditions: ['settings'],

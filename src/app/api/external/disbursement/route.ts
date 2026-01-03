@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import sendSms from '@/lib/sms';
+import { areDisbursementsEnabled } from '@/lib/disbursement-control';
 
 type Body = {
   creditAccount: string;
@@ -10,6 +11,11 @@ type Body = {
 
 export async function POST(req: Request) {
   try {
+    const enabled = await areDisbursementsEnabled();
+    if (!enabled) {
+      return NextResponse.json({ error: 'Disbursements are currently disabled.' }, { status: 503 });
+    }
+
     const body: Body = await req.json();
     const { creditAccount, providerId, amount } = body;
     // For testing: force the provider id to PRO0001 unless overridden by env
@@ -38,6 +44,28 @@ export async function POST(req: Request) {
       // ignore logging errors
     }
 
+    if (!apiUrl) {
+      const errMsg = 'Missing EXTERNAL_DISBURSEMENT_URL env var';
+      console.error('[external][disbursement] config error', { error: errMsg });
+      try {
+        await prisma.disbursementTransaction.create({
+          data: {
+            providerId: sendProviderId,
+            originalProviderId: providerId ?? undefined,
+            creditAccount: String(creditAccount),
+            amount: typeof amount === 'number' ? amount : (Number(String(amount)) || undefined),
+            requestPayload: JSON.stringify({ creditAccount, providerId: sendProviderId, amount }),
+            responsePayload: JSON.stringify({ error: errMsg }),
+            rawResponse: errMsg,
+            statusCode: null,
+          },
+        });
+      } catch (e) {
+        console.error('[external][disbursement] failed to save disbursement transaction (missing url)', e);
+      }
+      return NextResponse.json({ error: errMsg }, { status: 500 });
+    }
+
     let res;
     try {
       res = await fetch(apiUrl, {
@@ -46,8 +74,27 @@ export async function POST(req: Request) {
         body: JSON.stringify({ creditAccount, providerId: sendProviderId, amount }),
       });
     } catch (fetchErr: any) {
-      console.error('[external][disbursement] fetch failed', { apiUrl, error: String(fetchErr?.message ?? fetchErr) });
-      return NextResponse.json({ error: 'Upstream fetch failed', details: String(fetchErr?.message ?? fetchErr) }, { status: 502 });
+      const details = String(fetchErr?.message ?? fetchErr);
+      console.error('[external][disbursement] fetch failed', { apiUrl, error: details });
+
+      try {
+        await prisma.disbursementTransaction.create({
+          data: {
+            providerId: sendProviderId,
+            originalProviderId: providerId ?? undefined,
+            creditAccount: String(creditAccount),
+            amount: typeof amount === 'number' ? amount : (Number(String(amount)) || undefined),
+            requestPayload: JSON.stringify({ creditAccount, providerId: sendProviderId, amount }),
+            responsePayload: JSON.stringify({ error: 'Upstream fetch failed', details }),
+            rawResponse: details,
+            statusCode: null,
+          },
+        });
+      } catch (e) {
+        console.error('[external][disbursement] failed to save disbursement transaction (fetch error)', e);
+      }
+
+      return NextResponse.json({ error: 'Upstream fetch failed', details }, { status: 502 });
     }
 
     const txt = await res.text().catch(() => null);

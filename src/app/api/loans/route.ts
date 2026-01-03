@@ -10,6 +10,7 @@ import { loanCreationSchema } from '@/lib/schemas';
 import { checkLoanEligibility } from '@/actions/eligibility';
 import { createAuditLog } from '@/lib/audit-log';
 import { MiniAppAuthError, requireMiniAppAuthContext, assertBorrowerMatches } from '@/lib/miniapp-auth';
+import { areDisbursementsEnabled } from '@/lib/disbursement-control';
 
 async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
     return await prisma.$transaction(async (tx) => {
@@ -174,6 +175,12 @@ export async function POST(req: NextRequest) {
     let loanDetailsForLogging: any = {};
     try {
         const ctx = await requireMiniAppAuthContext();
+
+        const enabled = await areDisbursementsEnabled();
+        if (!enabled) {
+            return NextResponse.json({ error: 'Disbursements are currently disabled.' }, { status: 503 });
+        }
+
         const body = await req.json();
         const data = loanCreationSchema.parse(body);
         loanDetailsForLogging = { ...data };
