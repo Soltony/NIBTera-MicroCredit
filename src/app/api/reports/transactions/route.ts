@@ -193,7 +193,38 @@ export async function GET(request: NextRequest) {
       } catch (e) { }
 
       const transactionStatus = je.payment ? 'COMPLETED' : 'POSTED';
-      const reference = je.id;
+      // Default reference is the journal entry id, but prefer an upstream
+      // transactionId when available (human-friendly reference shown in UI).
+      let reference = je.id;
+
+      try {
+        // 1) Try to extract TxRef from the journal entry description (the
+        // payment callback writes `TxRef ${txnRef}` into descriptions).
+        const desc = String((je as any).description || '');
+        const m = desc.match(/TxRef\s*[:#]?\s*([A-Za-z0-9-]+)/i) || desc.match(/TxRef[:#]?\s*([A-Za-z0-9-]+)/i);
+        if (m && m[1]) {
+          const foundTxnRef = m[1];
+          const pt = await prisma.paymentTransaction.findFirst({ where: { txnRef: foundTxnRef } });
+          if (pt && pt.transactionId) {
+            reference = pt.transactionId;
+          }
+        }
+
+        // 2) If still default and this is a repayment, try to resolve via
+        // a completed PendingPayment row for the loan (latest). The
+        // PendingPayment.transactionId holds the txnRef; PaymentTransaction
+        // stores the upstream transactionId in `transactionId` and the
+        // gateway reference GUID in `txnRef`.
+        if (reference === je.id && je.payment && loan?.id) {
+          const pending = await prisma.pendingPayment.findFirst({ where: { loanId: loan.id, status: 'COMPLETED' }, orderBy: { updatedAt: 'desc' } });
+          if (pending && pending.transactionId) {
+            const pt2 = await prisma.paymentTransaction.findFirst({ where: { txnRef: pending.transactionId } });
+            if (pt2 && pt2.transactionId) reference = pt2.transactionId;
+          }
+        }
+      } catch (e) {
+        // ignore lookup errors and keep default reference
+      }
 
       // try to find a matching disbursement transaction by borrower account and amount
       let cbsReference: string | null = null;
