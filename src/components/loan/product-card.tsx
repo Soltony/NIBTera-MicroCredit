@@ -106,43 +106,38 @@ export function ProductCard({
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
-        // Prefer active installment amount when available (installment schedule)
+        
+        // Calculate total repayable using asOfDate
+        // Note: calculateTotalRepayable already accounts for payments in interest calculation
+        // (payments reduce the outstanding principal, which reduces subsequent interest)
+        const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
+        const alreadyRepaid = activeLoan.repaidAmount || 0;
+        
+        // For installment-based loans, we need to handle penalty at installment level
         if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
             const activeInst = (activeLoan as any).installments.find((i: any) => i.isActive);
             if (activeInst) {
-                // Installment schedule amounts represent principal-only.
-                // Interest/service-fee/tax accrue separately and are payable during installment repayment.
+                // Calculate installment-level penalty (may differ from loan-level)
                 const penaltyRules = product.penaltyRules || [];
-                const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
-                const alreadyRepaid = activeLoan.repaidAmount || 0;
-
-                const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
-                const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
-                const alreadyPaidInterest = Math.min(totals.interest, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee));
-                const alreadyPaidTax = Math.min(totals.tax, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest));
-
-                const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFee);
-                const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
-                const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
-
-                const penaltyForInstallment = calculateInstallmentPenalty({
+                const installmentPenalty = calculateInstallmentPenalty({
                     dueDate: new Date(activeInst.dueDate),
-                    principalOutstanding: Math.max(0, activeInst.amount || 0),
+                    principalOutstanding: Math.max(0, (activeInst.amount || 0) - (activeInst.paidAmount || 0)),
                     penaltyRules,
                     asOfDate: asOfDate,
                 });
-                const penaltyPaidSoFar = Math.min((activeInst.paidAmount || 0), penaltyForInstallment);
-                const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);
-                const principalPaidSoFar = Math.max(0, (activeInst.paidAmount || 0) - penaltyPaidSoFar);
-                const principalRemaining = Math.max(0, (activeInst.amount || 0) - principalPaidSoFar);
-
-                return Math.max(0, principalRemaining + penaltyRemaining + serviceFeeDue + interestDue + taxDue);
+                
+                // Total due = principal + serviceFee + interest + tax + installment penalty
+                // We use installment penalty instead of loan-level penalty
+                const totalWithInstallmentPenalty = totals.principal + totals.serviceFee + totals.interest + totals.tax + installmentPenalty;
+                
+                return Math.max(0, totalWithInstallmentPenalty - alreadyRepaid);
             }
         }
-        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
-        const remainingBalance = total - (activeLoan.repaidAmount || 0);
+        
+        // For non-installment loans, simple calculation
+        const remainingBalance = totals.total - alreadyRepaid;
         return Math.max(0, remainingBalance);
-    }, [activeLoan, taxConfigs, asOfDate]);
+    }, [activeLoan, taxConfigs, asOfDate, product.penaltyRules]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general

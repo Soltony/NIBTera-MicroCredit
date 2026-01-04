@@ -153,75 +153,97 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     
     const breakdown = useMemo(() => {
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
-        // If paying an installment, show installment-level amounts so the penalty is visible pre-payment.
+        
+        // Calculate totals - note that interest already accounts for payments reducing principal
+        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
+        const alreadyRepaid = loan.repaidAmount || 0;
+        
+        // Calculate what's remaining to be paid
+        // The total includes: principal + serviceFee + interest + penalty + tax
+        // We need to estimate how much of each component is still due
+        
+        // Since calculateTotalRepayable already accounts for payments in interest calculation,
+        // and we don't have exact payment allocation records, we estimate the breakdown
+        // by calculating what the remaining balance is and distributing it
+        
+        const totalDue = totals.total;
+        const remainingBalance = Math.max(0, totalDue - alreadyRepaid);
+        
+        if (remainingBalance <= 0) {
+            return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
+        }
+        
+        // For installment-based loans
         if (isInstallmentPayment && activeInstallment) {
-            const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
-            const alreadyRepaid = loan.repaidAmount || 0;
-
-            const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
-            const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
-            const alreadyPaidInterest = Math.min(
-                totals.interest,
-                Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee)
-            );
-            const alreadyPaidTax = Math.min(
-                totals.tax,
-                Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest)
-            );
-
-            const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFee);
-            const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
-            const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
-
-            // Recompute penalty "as of today" for the active installment.
+            // Calculate installment-level penalty
             const penaltyRules = (loan.product as any).penaltyRules || [];
-            const penaltyForInstallment = calculateInstallmentPenalty({
+            const installmentPenalty = calculateInstallmentPenalty({
                 dueDate: new Date(activeInstallment.dueDate),
-                principalOutstanding: Math.max(0, activeInstallment.amount || 0),
+                principalOutstanding: Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0)),
                 penaltyRules,
                 asOfDate: asOfDate,
             });
-
-            const penaltyPaidSoFar = Math.min((activeInstallment.paidAmount || 0), penaltyForInstallment);
-            const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);
-            const principalPaidSoFar = Math.max(0, (activeInstallment.paidAmount || 0) - penaltyPaidSoFar);
-            const principalRemaining = Math.max(0, (activeInstallment.amount || 0) - principalPaidSoFar);
-
+            
+            // Estimate remaining amounts using payment priority order:
+            // Payments typically go to: Penalty → ServiceFee → Interest → Tax → Principal
+            // But since totals.interest already reflects reduced principal from payments,
+            // we show the current totals as the breakdown
+            
+            // Calculate how much of each component should still be due
+            let remaining = alreadyRepaid;
+            
+            // Subtract from penalty first
+            const penaltyPaid = Math.min(installmentPenalty, remaining);
+            remaining = Math.max(0, remaining - penaltyPaid);
+            
+            // Then service fee
+            const serviceFeePaid = Math.min(totals.serviceFee, remaining);
+            remaining = Math.max(0, remaining - serviceFeePaid);
+            
+            // Then interest (note: totals.interest is already reduced by principal payments)
+            const interestPaid = Math.min(totals.interest, remaining);
+            remaining = Math.max(0, remaining - interestPaid);
+            
+            // Then tax
+            const taxPaid = Math.min(totals.tax, remaining);
+            remaining = Math.max(0, remaining - taxPaid);
+            
+            // Rest goes to principal
+            const principalPaid = remaining;
+            
             return {
-                principal: principalRemaining,
-                interest: interestDue,
-                penalty: penaltyRemaining,
-                serviceFee: serviceFeeDue,
-                tax: taxDue,
+                principal: Math.max(0, totals.principal - principalPaid),
+                interest: Math.max(0, totals.interest - interestPaid),
+                penalty: Math.max(0, installmentPenalty - penaltyPaid),
+                serviceFee: Math.max(0, totals.serviceFee - serviceFeePaid),
+                tax: Math.max(0, totals.tax - taxPaid),
             };
         }
-        // For full-loan repayment, show *due* amounts using the same allocation order as the backend
-        // (Penalty -> Service Fee -> Interest -> Tax -> Principal). This prevents UI from incorrectly
-        // deducting the entire repaid amount from principal.
-        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
-        const alreadyRepaid = loan.repaidAmount || 0;
-
-        const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
-        const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
-        const alreadyPaidInterest = Math.min(
-            totals.interest,
-            Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee)
-        );
-        const alreadyPaidTax = Math.min(
-            totals.tax,
-            Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest)
-        );
-        const alreadyPaidPrincipal = Math.min(
-            totals.principal,
-            Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest - totals.tax)
-        );
+        
+        // For non-installment loans
+        // Use the same payment priority estimation
+        let remaining = alreadyRepaid;
+        
+        const penaltyPaid = Math.min(totals.penalty, remaining);
+        remaining = Math.max(0, remaining - penaltyPaid);
+        
+        const serviceFeePaid = Math.min(totals.serviceFee, remaining);
+        remaining = Math.max(0, remaining - serviceFeePaid);
+        
+        const interestPaid = Math.min(totals.interest, remaining);
+        remaining = Math.max(0, remaining - interestPaid);
+        
+        const taxPaid = Math.min(totals.tax, remaining);
+        remaining = Math.max(0, remaining - taxPaid);
+        
+        const principalPaid = remaining;
 
         return {
-            principal: Math.max(0, totals.principal - alreadyPaidPrincipal),
-            serviceFee: Math.max(0, totals.serviceFee - alreadyPaidServiceFee),
-            interest: Math.max(0, totals.interest - alreadyPaidInterest),
-            penalty: Math.max(0, totals.penalty - alreadyPaidPenalty),
-            tax: Math.max(0, totals.tax - alreadyPaidTax),
+            principal: Math.max(0, totals.principal - principalPaid),
+            serviceFee: Math.max(0, totals.serviceFee - serviceFeePaid),
+            interest: Math.max(0, totals.interest - interestPaid),
+            penalty: Math.max(0, totals.penalty - penaltyPaid),
+            tax: Math.max(0, totals.tax - taxPaid),
         };
     }, [loan, taxConfigs, isInstallmentPayment, activeInstallment, asOfDate]);
 
