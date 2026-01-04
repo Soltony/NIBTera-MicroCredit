@@ -108,18 +108,33 @@ export function ProductCard({
         if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
             const activeInst = (activeLoan as any).installments.find((i: any) => i.isActive);
             if (activeInst) {
-                const outstanding = Math.max(0, (activeInst.amount - (activeInst.paidAmount || 0)));
-                // Use server-provided penaltyAmount when available; otherwise compute locally.
+                // Installment schedule amounts represent principal-only.
+                // Interest/service-fee/tax accrue separately and are payable during installment repayment.
                 const penaltyRules = product.penaltyRules || [];
-                const penalty = (activeInst.penaltyAmount && activeInst.penaltyAmount > 0)
-                    ? activeInst.penaltyAmount
-                    : calculateInstallmentPenalty({
-                        dueDate: new Date(activeInst.dueDate),
-                        principalOutstanding: outstanding,
-                        penaltyRules,
-                        asOfDate: new Date(),
-                    });
-                return Math.max(0, outstanding + (penalty || 0));
+                const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, new Date());
+                const alreadyRepaid = activeLoan.repaidAmount || 0;
+
+                const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
+                const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
+                const alreadyPaidInterest = Math.min(totals.interest, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee));
+                const alreadyPaidTax = Math.min(totals.tax, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest));
+
+                const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFee);
+                const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
+                const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
+
+                const penaltyForInstallment = calculateInstallmentPenalty({
+                    dueDate: new Date(activeInst.dueDate),
+                    principalOutstanding: Math.max(0, activeInst.amount || 0),
+                    penaltyRules,
+                    asOfDate: new Date(),
+                });
+                const penaltyPaidSoFar = Math.min((activeInst.paidAmount || 0), penaltyForInstallment);
+                const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);
+                const principalPaidSoFar = Math.max(0, (activeInst.paidAmount || 0) - penaltyPaidSoFar);
+                const principalRemaining = Math.max(0, (activeInst.amount || 0) - principalPaidSoFar);
+
+                return Math.max(0, principalRemaining + penaltyRemaining + serviceFeeDue + interestDue + taxDue);
             }
         }
         const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, new Date());

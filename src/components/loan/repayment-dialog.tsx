@@ -9,6 +9,7 @@ import { X, Delete, Loader2 } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle } from 'lucide-react';
@@ -153,9 +154,45 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
         // If paying an installment, show installment-level amounts so the penalty is visible pre-payment.
         if (isInstallmentPayment && activeInstallment) {
-            const principalDue = Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0));
-            const penaltyDue = Math.max(0, activeInstallment.penaltyAmount || 0);
-            return { principal: principalDue, interest: 0, penalty: penaltyDue, serviceFee: 0, tax: 0 };
+            const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
+            const alreadyRepaid = loan.repaidAmount || 0;
+
+            const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
+            const alreadyPaidServiceFee = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
+            const alreadyPaidInterest = Math.min(
+                totals.interest,
+                Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee)
+            );
+            const alreadyPaidTax = Math.min(
+                totals.tax,
+                Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest)
+            );
+
+            const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFee);
+            const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
+            const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
+
+            // Recompute penalty "as of today" for the active installment.
+            const penaltyRules = (loan.product as any).penaltyRules || [];
+            const penaltyForInstallment = calculateInstallmentPenalty({
+                dueDate: new Date(activeInstallment.dueDate),
+                principalOutstanding: Math.max(0, activeInstallment.amount || 0),
+                penaltyRules,
+                asOfDate: new Date(),
+            });
+
+            const penaltyPaidSoFar = Math.min((activeInstallment.paidAmount || 0), penaltyForInstallment);
+            const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);
+            const principalPaidSoFar = Math.max(0, (activeInstallment.paidAmount || 0) - penaltyPaidSoFar);
+            const principalRemaining = Math.max(0, (activeInstallment.amount || 0) - principalPaidSoFar);
+
+            return {
+                principal: principalRemaining,
+                interest: interestDue,
+                penalty: penaltyRemaining,
+                serviceFee: serviceFeeDue,
+                tax: taxDue,
+            };
         }
         // For full-loan repayment, show *due* amounts using the same allocation order as the backend
         // (Penalty -> Service Fee -> Interest -> Tax -> Principal). This prevents UI from incorrectly
