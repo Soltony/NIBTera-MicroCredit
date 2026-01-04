@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
 import { startOfDay } from 'date-fns';
+import { getAsOfDate } from '@/lib/date-utils';
 
 // Helper function to safely parse JSON from DB
 const safeJsonParse = (jsonString: string | null | undefined, defaultValue: any) => {
@@ -171,7 +172,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                     dueDate: i.dueDate,
                     principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
                     penaltyRules: (safeJsonParse(loan.product.penaltyRules, []) as any) || [],
-                    asOfDate: new Date(),
+                    asOfDate: getAsOfDate(),
                 }),
             })) || []
         })) as unknown as LoanDetails[];
@@ -213,6 +214,9 @@ export default async function LoanPage({ searchParams }: { searchParams: any }) 
 
     const borrowerId = String(ctx.borrowerId);
     
+    // Get the asOfDate for all calculations - this allows testing by changing ASOF_DATE env var
+    const asOfDate = getAsOfDate();
+    
     const [providers, loanHistory, taxConfigs] = await Promise.all([
         getProviders(),
         getLoanHistory(borrowerId),
@@ -225,7 +229,7 @@ export default async function LoanPage({ searchParams }: { searchParams: any }) 
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <DashboardClient providers={providers} initialLoanHistory={loanHistory} taxConfigs={taxConfigs} />
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} taxConfigs={taxConfigs} asOfDate={asOfDate} />
         </Suspense>
     );
 }

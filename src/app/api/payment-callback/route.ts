@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import prisma from '@/lib/prisma';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay, isBefore, isEqual } from 'date-fns';
+import { getAsOfDate } from '@/lib/date-utils';
 
 // Local alias for repayment behavior values used in the code
 type RepaymentBehavior = 'EARLY' | 'ON_TIME' | 'LATE';
@@ -204,7 +205,8 @@ if (!fixedAuthHeader) {
     if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
     const provider = loan.product.provider;
-    const paymentDate = new Date();
+    // Use getAsOfDate() for calculations to match UI display during testing
+    const paymentDate = getAsOfDate();
     const alreadyRepaid = loan.repaidAmount || 0;
 
     console.log('[payment-callback] paymentDate/alreadyRepaid', { paymentDate: paymentDate.toISOString(), alreadyRepaid });

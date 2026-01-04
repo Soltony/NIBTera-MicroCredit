@@ -8,6 +8,7 @@ import { LoanDetailClient } from './client';
 import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
+import { getAsOfDate } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,7 @@ async function getLoanDetails(loanId: string, borrowerId: string): Promise<LoanD
         };
 
         // Here we perform the calculation on the server side
-        const calculated = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, new Date());
+        const calculated = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, getAsOfDate());
 
         return {
             id: loan.id,

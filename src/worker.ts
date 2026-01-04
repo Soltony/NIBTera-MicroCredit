@@ -13,6 +13,7 @@
  */
 
 import { logger } from './lib/logger';
+import { getAsOfDate } from './lib/date-utils';
 
 const REPAYMENT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const PROVIDER_DISTRIBUTION_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -39,10 +40,11 @@ async function runInterestAccrualServiceLoop() {
   logger.info('Interest accrual service started');
   while (true) {
     try {
-      logger.info(`Interest accrual tick at ${new Date().toISOString()}`);
+      const asOfDate = getAsOfDate();
+      logger.info(`Interest accrual tick at ${asOfDate.toISOString()}`);
       logger.info('Starting daily interest accrual scheduled run');
       const { runDailyInterestAccrualOnce } = await import('./actions/interest-accrual');
-      const result = await runDailyInterestAccrualOnce(new Date());
+      const result = await runDailyInterestAccrualOnce(asOfDate);
       logger.info(`Daily interest accrual finished processedLoans=${result.processedLoans} totalAccrued=${result.totalAccrued}`);
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Error during interest accrual cycle:`, error);
@@ -57,10 +59,11 @@ async function runPenaltyAccrualServiceLoop() {
   logger.info('Penalty accrual service started');
   while (true) {
     try {
-      logger.info(`Penalty accrual tick at ${new Date().toISOString()}`);
+      const asOfDate = getAsOfDate();
+      logger.info(`Penalty accrual tick at ${asOfDate.toISOString()}`);
       logger.info('Starting daily penalty accrual scheduled run');
       const { runDailyPenaltyAccrualOnce } = await import('./actions/penalty-accrual');
-      const result = await runDailyPenaltyAccrualOnce(new Date());
+      const result = await runDailyPenaltyAccrualOnce(asOfDate);
       logger.info(`Daily penalty accrual finished processedLoans=${result.processedLoans} totalAccrued=${result.totalAccrued}`);
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Error during penalty accrual cycle:`, error);

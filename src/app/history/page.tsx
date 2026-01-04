@@ -8,6 +8,7 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
+import { getAsOfDate } from '@/lib/date-utils';
 import { startOfDay } from 'date-fns';
 
 
@@ -99,7 +100,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                 penaltyRules: safeJsonParse(loan.product.penaltyRules as string, []),
             };
 
-            const { total: totalRepayable } = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, new Date());
+            const { total: totalRepayable } = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, getAsOfDate());
 
             return {
                 id: loan.id,
@@ -134,7 +135,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                         dueDate: i.dueDate,
                         principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
                         penaltyRules: (parsedProduct as any).penaltyRules || [],
-                        asOfDate: new Date(),
+                        asOfDate: getAsOfDate(),
                     }),
                 }))
             } as LoanDetails;

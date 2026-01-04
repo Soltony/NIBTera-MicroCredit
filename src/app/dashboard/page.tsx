@@ -1,6 +1,6 @@
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
-import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule } from '@/lib/types';
+import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule, Tax } from '@/lib/types';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
@@ -8,6 +8,7 @@ import { startOfDay } from 'date-fns';
 import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
+import { getAsOfDate } from '@/lib/date-utils';
 
 // Ensure dashboard always renders dynamically and bypasses cache so rollover runs
 export const dynamic = 'force-dynamic';
@@ -130,7 +131,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                     dueDate: i.dueDate,
                     principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
                     penaltyRules: (safeJsonParse(loan.product.penaltyRules as any, []) as any) || [],
-                    asOfDate: new Date(),
+                    asOfDate: getAsOfDate(),
                 }),
                 isActive: i.isActive,
             })) : []
@@ -139,6 +140,10 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
         console.error(e);
         return [];
     }
+}
+
+async function getTaxConfigs(): Promise<Tax[]> {
+    return await prisma.tax.findMany();
 }
 
 
@@ -164,8 +169,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
     }
 
     const borrowerId = String(ctx.borrowerId);
-    const providers = await getProviders();
-    const loanHistory = await getLoanHistory(borrowerId);
+    
+    // Get the asOfDate for all calculations - this allows testing by changing ASOF_DATE env var
+    const asOfDate = getAsOfDate();
+    
+    const [providers, loanHistory, taxConfigs] = await Promise.all([
+        getProviders(),
+        getLoanHistory(borrowerId),
+        getTaxConfigs(),
+    ]);
     
     return (
         <Suspense fallback={
@@ -173,7 +185,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <DashboardClient providers={providers} initialLoanHistory={loanHistory} />
+            <DashboardClient providers={providers} initialLoanHistory={loanHistory} taxConfigs={taxConfigs} asOfDate={asOfDate} />
         </Suspense>
     );
 }

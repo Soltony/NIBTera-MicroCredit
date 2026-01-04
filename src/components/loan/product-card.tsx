@@ -80,6 +80,7 @@ interface ProductCardProps {
     isEligible: boolean;
     eligibilityReason: string;
     availableToBorrow: number;
+    asOfDate: Date;
 }
 
 export function ProductCard({ 
@@ -92,7 +93,8 @@ export function ProductCard({
     IconDisplayComponent,
     isEligible,
     eligibilityReason,
-    availableToBorrow
+    availableToBorrow,
+    asOfDate
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -100,7 +102,7 @@ export function ProductCard({
     const mergedNextInstallment = activeLoan && activeInstallment && Array.isArray((activeLoan as any).installments)
         ? (activeLoan as any).installments.find((i: any) => i && i.status === 'Merged' && i.installmentNumber === activeInstallment.installmentNumber + 1)
         : undefined;
-    const isOverdue = activeInstallment ? new Date() > new Date(activeInstallment.dueDate) : (activeLoan ? new Date() > new Date(activeLoan.dueDate) : false);
+    const isOverdue = activeInstallment ? asOfDate > new Date(activeInstallment.dueDate) : (activeLoan ? asOfDate > new Date(activeLoan.dueDate) : false);
 
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
@@ -111,7 +113,7 @@ export function ProductCard({
                 // Installment schedule amounts represent principal-only.
                 // Interest/service-fee/tax accrue separately and are payable during installment repayment.
                 const penaltyRules = product.penaltyRules || [];
-                const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, new Date());
+                const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
                 const alreadyRepaid = activeLoan.repaidAmount || 0;
 
                 const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
@@ -127,7 +129,7 @@ export function ProductCard({
                     dueDate: new Date(activeInst.dueDate),
                     principalOutstanding: Math.max(0, activeInst.amount || 0),
                     penaltyRules,
-                    asOfDate: new Date(),
+                    asOfDate: asOfDate,
                 });
                 const penaltyPaidSoFar = Math.min((activeInst.paidAmount || 0), penaltyForInstallment);
                 const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);
@@ -137,10 +139,10 @@ export function ProductCard({
                 return Math.max(0, principalRemaining + penaltyRemaining + serviceFeeDue + interestDue + taxDue);
             }
         }
-        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, new Date());
+        const { total } = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
         const remainingBalance = total - (activeLoan.repaidAmount || 0);
         return Math.max(0, remainingBalance);
-    }, [activeLoan, taxConfigs]);
+    }, [activeLoan, taxConfigs, asOfDate]);
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general

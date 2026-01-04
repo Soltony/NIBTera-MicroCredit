@@ -27,6 +27,7 @@ interface RepaymentDialogProps {
     totalBalanceDue: number;
     providerColor?: string;
     taxConfigs: Tax[];
+    asOfDate: Date;
 }
 
 // Extend the window type to include myJsChannel
@@ -38,7 +39,7 @@ declare global {
   }
 }
 
-export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913', taxConfigs }: RepaymentDialogProps) {
+export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalanceDue, providerColor = '#fdb913', taxConfigs, asOfDate }: RepaymentDialogProps) {
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -154,7 +155,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
         // If paying an installment, show installment-level amounts so the penalty is visible pre-payment.
         if (isInstallmentPayment && activeInstallment) {
-            const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
+            const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
             const alreadyRepaid = loan.repaidAmount || 0;
 
             const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
@@ -178,7 +179,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                 dueDate: new Date(activeInstallment.dueDate),
                 principalOutstanding: Math.max(0, activeInstallment.amount || 0),
                 penaltyRules,
-                asOfDate: new Date(),
+                asOfDate: asOfDate,
             });
 
             const penaltyPaidSoFar = Math.min((activeInstallment.paidAmount || 0), penaltyForInstallment);
@@ -197,7 +198,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         // For full-loan repayment, show *due* amounts using the same allocation order as the backend
         // (Penalty -> Service Fee -> Interest -> Tax -> Principal). This prevents UI from incorrectly
         // deducting the entire repaid amount from principal.
-        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, new Date());
+        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
         const alreadyRepaid = loan.repaidAmount || 0;
 
         const alreadyPaidPenalty = Math.min(totals.penalty, alreadyRepaid);
@@ -222,7 +223,7 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
             penalty: Math.max(0, totals.penalty - alreadyPaidPenalty),
             tax: Math.max(0, totals.tax - alreadyPaidTax),
         };
-    }, [loan, taxConfigs, isInstallmentPayment, activeInstallment]);
+    }, [loan, taxConfigs, isInstallmentPayment, activeInstallment, asOfDate]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

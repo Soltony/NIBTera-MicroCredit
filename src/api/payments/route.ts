@@ -6,6 +6,7 @@ import { calculateTotalRepayable } from '@/lib/loan-calculator';
 import { startOfDay, isBefore, isEqual } from 'date-fns';
 import type { RepaymentBehavior } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit-log';
+import { getAsOfDate } from '@/lib/date-utils';
 
 const paymentSchema = z.object({
   loanId: z.string(),
@@ -49,7 +50,8 @@ export async function POST(req: NextRequest) {
         }
         
         const provider = loan.product.provider;
-        const paymentDate = new Date();
+        // Use getAsOfDate() for calculations to match UI display during testing
+        const paymentDate = getAsOfDate();
         
         const { total, principal, interest, penalty, serviceFee, tax } = calculateTotalRepayable(
             loan as any,

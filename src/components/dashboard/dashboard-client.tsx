@@ -39,6 +39,7 @@ interface DashboardClientProps {
   providers: LoanProvider[];
   initialLoanHistory: LoanDetails[];
   taxConfigs: Tax[];
+  asOfDate: Date;
 }
 
 interface EligibilityState {
@@ -51,7 +52,7 @@ interface AgreementState {
     hasAgreed?: boolean;
 }
 
-export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: DashboardClientProps) {
+export function DashboardClient({ providers, initialLoanHistory, taxConfigs, asOfDate }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const providerIdFromUrl = searchParams.get('providerId');
@@ -520,6 +521,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
                                                     isEligible={isEligible}
                                                     eligibilityReason={reason}
                                                     availableToBorrow={availableToBorrow}
+                                                    asOfDate={asOfDate}
                                                 />
                                             )
                                         })}
@@ -544,6 +546,7 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs }: D
             totalBalanceDue={repayingLoanInfo.balanceDue}
             providerColor={selectedProvider?.colorHex}
             taxConfigs={taxConfigs}
+            asOfDate={asOfDate}
         />
       )}
        <Dialog open={isAgreementDialogOpen} onOpenChange={setIsAgreementDialogOpen}>
