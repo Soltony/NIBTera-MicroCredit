@@ -83,7 +83,7 @@ function sanitizeForAudit(value: any, opts?: { maxDepth?: number; maxArrayLen?: 
     const maxArrayLen = opts?.maxArrayLen ?? 50;
     const maxStringLen = opts?.maxStringLen ?? 4000;
 
-    const redactKey = (k: string) => /pass(word)?|secret|token|authorization|api[_-]?key/i.test(k);
+    const redactKey = (k: string) => /pass(word)?|secret|token|authorization|api[_-]?key|signature/i.test(k);
 
     const walk = (v: any, depth: number): any => {
         if (v == null) return v;

@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import prisma from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit-log';
 import { getSession } from '@/lib/session';
-import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
+import { auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
     
@@ -148,7 +148,8 @@ export async function POST(req: NextRequest) {
                     companyName: COMPANY_NAME,
                     transactionId,
                     transactionTime,
-                    // signature + token intentionally omitted from audit details
+                    token,
+                    signature,
                 },
             },
         ).catch(() => null);
@@ -210,19 +211,6 @@ export async function POST(req: NextRequest) {
         if (!paymentResponse.ok) {
             const errorData = await paymentResponse.text();
             console.error('❌ PAYMENT GATEWAY ERROR RESPONSE:', errorData);
-            await auditExternalApiError(
-                {
-                    actorId: loan.borrowerId,
-                    ipAddress,
-                    userAgent,
-                    integration: 'PAYMENT_GATEWAY',
-                    entity: 'LOAN',
-                    entityId: loanId,
-                    correlationId,
-                },
-                new Error(`Payment gateway request failed: ${errorData}`),
-                { durationMs: Date.now() - startedAt },
-            ).catch(() => null);
             throw new Error(`Payment gateway request failed: ${errorData}`);
         }
 

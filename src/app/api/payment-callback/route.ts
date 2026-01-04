@@ -8,7 +8,6 @@ import { startOfDay, isBefore, isEqual } from 'date-fns';
 // Local alias for repayment behavior values used in the code
 type RepaymentBehavior = 'EARLY' | 'ON_TIME' | 'LATE';
 import { createAuditLog } from '@/lib/audit-log';
-import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 const safeJsonParse = (value: any, defaultValue: any) => {
   if (value == null) return defaultValue;
@@ -60,23 +59,6 @@ async function validateAuthHeader(authHeader: string | null) {
     throw new Error("Authorization header is malformed or missing.");
   }
 
-  const correlationId = newAuditCorrelationId();
-  const startedAt = Date.now();
-  await auditExternalApiRequest(
-    {
-      actorId: 'system',
-      integration: 'TOKEN_VALIDATION',
-      entity: 'PAYMENT_CALLBACK',
-      correlationId,
-    },
-    {
-      method: 'GET',
-      url: TOKEN_VALIDATION_API_URL,
-      headers: { Authorization: authHeader, Accept: 'application/json' },
-      body: { authHeaderPresent: Boolean(authHeader) },
-    },
-  ).catch(() => null);
-
   const response = await fetch(TOKEN_VALIDATION_API_URL, {
     method: 'GET',
     headers: {
@@ -84,76 +66,13 @@ async function validateAuthHeader(authHeader: string | null) {
       'Accept': 'application/json'
     },
     cache: 'no-store',
-  }).catch(async (e) => {
-    await auditExternalApiError(
-      {
-        actorId: 'system',
-        integration: 'TOKEN_VALIDATION',
-        entity: 'PAYMENT_CALLBACK',
-        correlationId,
-      },
-      e,
-      { durationMs: Date.now() - startedAt, request: { method: 'GET', url: TOKEN_VALIDATION_API_URL } },
-    ).catch(() => null);
-    throw e;
   });
 
   if (!response.ok) {
     const errorData = await response.text();
     console.error("Token validation failed:", errorData);
-    await auditExternalApiResponse(
-      {
-        actorId: 'system',
-        integration: 'TOKEN_VALIDATION',
-        entity: 'PAYMENT_CALLBACK',
-        correlationId,
-      },
-      {
-        status: response.status,
-        statusText: (response as any).statusText,
-        headers: (() => {
-          const headersObj: Record<string, string> = {};
-          try {
-            for (const [k, v] of (response.headers as any).entries()) {
-              headersObj[k] = v;
-            }
-          } catch {
-            // ignore
-          }
-          return headersObj;
-        })(),
-        body: errorData,
-        durationMs: Date.now() - startedAt,
-      },
-    ).catch(() => null);
     throw new Error("External token validation failed.");
   }
-
-  await auditExternalApiResponse(
-    {
-      actorId: 'system',
-      integration: 'TOKEN_VALIDATION',
-      entity: 'PAYMENT_CALLBACK',
-      correlationId,
-    },
-    {
-      status: response.status,
-      statusText: (response as any).statusText,
-      headers: (() => {
-        const headersObj: Record<string, string> = {};
-        try {
-          for (const [k, v] of (response.headers as any).entries()) {
-            headersObj[k] = v;
-          }
-        } catch {
-          // ignore
-        }
-        return headersObj;
-      })(),
-      body: { ok: true },
-      durationMs: Date.now() - startedAt,
-    },
-  ).catch(() => null);
 
   return true;
 }

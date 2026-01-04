@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { startOfDay } from 'date-fns';
 import { calculateInterestWithPayments, normalizePayments } from '@/lib/interest-accrual';
 import { calculatePenaltyWithPayments, normalizeInstallmentPayments } from '@/lib/penalty-accrual';
+import { createAuditLog, newAuditCorrelationId } from '@/lib/audit-log';
 
 const safeJsonParse = <T,>(field: any, defaultValue: T): T => {
   if (typeof field === 'string') {
@@ -24,30 +25,44 @@ export async function runDailyPenaltyAccrualOnce(asOf: Date = new Date()): Promi
   skippedLoans: number;
 }> {
   const accrualThroughDate = startOfDay(asOf); // accrue penalty for days strictly before "today"
+  const runId = newAuditCorrelationId();
 
-  const activeTaxConfigs = await prisma.tax.findMany({ where: { status: 'ACTIVE' } });
+  try {
+    const activeTaxConfigs = await prisma.tax.findMany({ where: { status: 'ACTIVE' } });
 
-  const loans = await prisma.loan.findMany({
-    where: {
-      repaymentStatus: 'Unpaid',
-      dueDate: { lt: accrualThroughDate },
-    },
-    include: {
-      payments: { orderBy: { date: 'asc' } },
-      installments: true,
-      product: {
-        include: {
-          provider: { include: { ledgerAccounts: true } },
+    const loans = await prisma.loan.findMany({
+      where: {
+        repaymentStatus: 'Unpaid',
+        dueDate: { lt: accrualThroughDate },
+      },
+      include: {
+        payments: { orderBy: { date: 'asc' } },
+        installments: true,
+        product: {
+          include: {
+            provider: { include: { ledgerAccounts: true } },
+          },
         },
       },
-    },
-  });
+    });
 
-  let processedLoans = 0;
-  let skippedLoans = 0;
-  let totalAccrued = 0;
+    await createAuditLog({
+      actorId: 'system',
+      action: 'PENALTY_ACCRUAL_RUN_STARTED',
+      entity: 'Service',
+      entityId: 'penalty-accrual',
+      details: {
+        runId,
+        accrualThroughDate: accrualThroughDate.toISOString(),
+        candidateLoans: loans.length,
+      },
+    });
 
-  for (const loan of loans) {
+    let processedLoans = 0;
+    let skippedLoans = 0;
+    let totalAccrued = 0;
+
+    for (const loan of loans) {
     const dueDate = startOfDay(new Date(loan.dueDate));
     const loanStartDate = startOfDay(new Date(loan.disbursedDate));
 
@@ -215,11 +230,41 @@ export async function runDailyPenaltyAccrualOnce(asOf: Date = new Date()): Promi
     totalAccrued += delta;
   }
 
-  return {
-    success: true,
-    accrualThroughDate,
-    processedLoans,
-    totalAccrued,
-    skippedLoans,
-  };
+    const result = {
+      success: true,
+      accrualThroughDate,
+      processedLoans,
+      totalAccrued,
+      skippedLoans,
+    };
+
+    await createAuditLog({
+      actorId: 'system',
+      action: 'PENALTY_ACCRUAL_RUN_FINISHED',
+      entity: 'Service',
+      entityId: 'penalty-accrual',
+      details: {
+        runId,
+        accrualThroughDate: accrualThroughDate.toISOString(),
+        processedLoans,
+        skippedLoans,
+        totalAccrued,
+      },
+    });
+
+    return result;
+  } catch (e: any) {
+    await createAuditLog({
+      actorId: 'system',
+      action: 'PENALTY_ACCRUAL_RUN_FAILED',
+      entity: 'Service',
+      entityId: 'penalty-accrual',
+      details: {
+        runId,
+        accrualThroughDate: accrualThroughDate.toISOString(),
+        error: String(e?.message ?? e),
+      },
+    });
+    throw e;
+  }
 }

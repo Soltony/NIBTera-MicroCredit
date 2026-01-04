@@ -1,7 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, createLegacySession } from '@/lib/session';
-import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
 
 function snippet(text: string, maxLen = 300) {
     const normalized = text.replace(/\s+/g, ' ').trim();
@@ -30,26 +29,6 @@ export async function POST(req: NextRequest) {
         const authHeader = superAppToken;
         const token = authHeader.substring(7);
 
-        const correlationId = newAuditCorrelationId();
-        const startedAt = Date.now();
-        await auditExternalApiRequest(
-            {
-                actorId: 'system',
-                ipAddress,
-                userAgent,
-                integration: 'TOKEN_VALIDATION',
-                entity: 'AUTH',
-                entityId: undefined,
-                correlationId,
-            },
-            {
-                method: 'GET',
-                url: TOKEN_VALIDATION_API_URL,
-                headers: { Authorization: authHeader, Accept: 'application/json' },
-                body: { tokenLength: token?.length },
-            },
-        ).catch(() => null);
-
         let externalResponse: Response;
         try {
             externalResponse = await fetch(TOKEN_VALIDATION_API_URL, {
@@ -68,19 +47,6 @@ export async function POST(req: NextRequest) {
                 TOKEN_VALIDATION_API_URL,
                 tokenLength: token?.length,
             });
-
-            await auditExternalApiError(
-                {
-                    actorId: 'system',
-                    ipAddress,
-                    userAgent,
-                    integration: 'TOKEN_VALIDATION',
-                    entity: 'AUTH',
-                    correlationId,
-                },
-                err,
-                { durationMs: Date.now() - startedAt, request: { method: 'GET', url: TOKEN_VALIDATION_API_URL, body: { tokenLength: token?.length } } },
-            ).catch(() => null);
 
             return NextResponse.json(
                 { error: `Token validation request failed: ${message}` },
@@ -131,35 +97,6 @@ export async function POST(req: NextRequest) {
         }
 
         const responseData = await externalResponse.json();
-
-        await auditExternalApiResponse(
-            {
-                actorId: 'system',
-                ipAddress,
-                userAgent,
-                integration: 'TOKEN_VALIDATION',
-                entity: 'AUTH',
-                correlationId,
-            },
-            {
-                status: externalResponse.status,
-                statusText: (externalResponse as any).statusText,
-                headers: (() => {
-                    const headersObj: Record<string, string> = {};
-                    try {
-                        for (const [k, v] of (externalResponse.headers as any).entries()) {
-                            headersObj[k] = v;
-                        }
-                    } catch {
-                        // ignore
-                    }
-                    return headersObj;
-                })(),
-                body: { phonePresent: Boolean((responseData as any)?.phone) },
-                durationMs: Date.now() - startedAt,
-            },
-        ).catch(() => null);
-
         let phone = responseData.phone;
 
         console.log('[auth/connect] token validated', {

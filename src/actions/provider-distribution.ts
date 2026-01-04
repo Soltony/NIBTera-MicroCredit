@@ -1,8 +1,7 @@
  'use server';
 
 import prisma from '@/lib/prisma';
-import { createAuditLog } from '@/lib/audit-log';
-import { auditExternalApiError, auditExternalApiRequest, auditExternalApiResponse, newAuditCorrelationId } from '@/lib/audit-log';
+import { createAuditLog, newAuditCorrelationId } from '@/lib/audit-log';
 import { format, startOfDay, subDays } from 'date-fns';
 import { logger } from '@/lib/logger';
 
@@ -51,25 +50,39 @@ export type ProviderDistributionRunResult = {
 export async function runProviderDistributionOnce(input?: { distributionDate?: Date }): Promise<ProviderDistributionRunResult> {
   const distributionDate = startOfDay(input?.distributionDate ?? subDays(new Date(), 1));
   const distributionDateStr = format(distributionDate, 'yyyy-MM-dd');
+  const runId = newAuditCorrelationId();
 
   logger.info(`Provider distribution run started for date=${distributionDateStr}`);
 
-  const providers = await prisma.loanProvider.findMany({
-    include: { ledgerAccounts: true },
-  });
+  try {
+    const providers = await prisma.loanProvider.findMany({
+      include: { ledgerAccounts: true },
+    });
 
-  logger.info(`Found ${providers.length} providers for distribution run`);
+    await createAuditLog({
+      actorId: 'system',
+      action: 'PROVIDER_DISTRIBUTION_RUN_STARTED',
+      entity: 'Service',
+      entityId: 'provider-distribution',
+      details: {
+        runId,
+        distributionDate: distributionDateStr,
+        providerCount: providers.length,
+      },
+    });
 
-  const upstream = getUpstreamConfig();
+    logger.info(`Found ${providers.length} providers for distribution run`);
 
-  let processedProviders = 0;
-  let skippedProviders = 0;
-  let alreadyDistributed = 0;
-  let errors = 0;
+    const upstream = getUpstreamConfig();
 
-  for (const provider of providers) {
-    try {
-      logger.info(`Processing provider ${provider.id} (${provider.name})`);
+    let processedProviders = 0;
+    let skippedProviders = 0;
+    let alreadyDistributed = 0;
+    let errors = 0;
+
+    for (const provider of providers) {
+      try {
+        logger.info(`Processing provider ${provider.id} (${provider.name})`);
       // Income balances represent amounts collected (cash-basis income).
       // Provider distribution sends these balances upstream and clears them on success.
       const interestIncome = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Income');
@@ -125,27 +138,6 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
 
       logger.info(`Posting distribution to upstream for provider ${provider.id} -> externalId=${externalProviderId}`);
 
-      const correlationId = newAuditCorrelationId();
-      const startedAt = Date.now();
-      await auditExternalApiRequest(
-        {
-          actorId: 'system',
-          integration: 'PROVIDER_DISTRIBUTION',
-          entity: 'LoanProvider',
-          entityId: provider.id,
-          correlationId,
-        },
-        {
-          method: 'POST',
-          url: upstream.url,
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: upstream.auth,
-          },
-          body: payload,
-        },
-      ).catch(() => null);
-
       const res = await fetch(upstream.url, {
         method: 'POST',
         headers: {
@@ -157,35 +149,9 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
 
       const responseJson = await res.json().catch(() => null);
 
-      await auditExternalApiResponse(
-        {
-          actorId: 'system',
-          integration: 'PROVIDER_DISTRIBUTION',
-          entity: 'LoanProvider',
-          entityId: provider.id,
-          correlationId,
-        },
-        {
-          status: res.status,
-          statusText: (res as any).statusText,
-          headers: (() => {
-            const headersObj: Record<string, string> = {};
-            try {
-              for (const [k, v] of (res.headers as any).entries()) {
-                headersObj[k] = v;
-              }
-            } catch {
-              // ignore
-            }
-            return headersObj;
-          })(),
-          body: responseJson,
-          durationMs: Date.now() - startedAt,
-        },
-      ).catch(() => null);
-
       if (!res.ok || !isUpstreamSuccess(responseJson)) {
         const details = {
+          runId,
           providerId: provider.id,
           externalProviderId,
           distributionDate: distributionDateStr,
@@ -193,17 +159,6 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
           upstreamBody: responseJson,
         };
         logger.error(`Upstream failed for provider ${provider.id}: status=${res.status} body=${JSON.stringify(responseJson)}`);
-        await auditExternalApiError(
-          {
-            actorId: 'system',
-            integration: 'PROVIDER_DISTRIBUTION',
-            entity: 'LoanProvider',
-            entityId: provider.id,
-            correlationId,
-          },
-          new Error(`Upstream failed status=${res.status}`),
-          { durationMs: Date.now() - startedAt },
-        ).catch(() => null);
         await createAuditLog({
           actorId: 'system',
           action: 'PROVIDER_DISTRIBUTION_FAILED',
@@ -246,6 +201,7 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
         entity: 'LoanProvider',
         entityId: provider.id,
         details: {
+          runId,
           providerId: provider.id,
           externalProviderId,
           distributionDate: distributionDateStr,
@@ -258,31 +214,57 @@ export async function runProviderDistributionOnce(input?: { distributionDate?: D
       logger.info(`Provider ${provider.id} distribution succeeded total=${total} ref=${distributionReference || 'n/a'}`);
 
       processedProviders++;
-    } catch (e: any) {
-      errors++;
-      logger.error(`Provider ${provider.id} distribution error: ${String(e?.message ?? e)}`);
-      await createAuditLog({
-        actorId: 'system',
-        action: 'PROVIDER_DISTRIBUTION_ERROR',
-        entity: 'LoanProvider',
-        entityId: provider.id,
-        details: {
-          providerId: provider.id,
-          distributionDate: distributionDateStr,
-          error: String(e?.message ?? e),
-        },
-      });
+      } catch (e: any) {
+        errors++;
+        logger.error(`Provider ${provider.id} distribution error: ${String(e?.message ?? e)}`);
+        await createAuditLog({
+          actorId: 'system',
+          action: 'PROVIDER_DISTRIBUTION_ERROR',
+          entity: 'LoanProvider',
+          entityId: provider.id,
+          details: {
+            runId,
+            providerId: provider.id,
+            distributionDate: distributionDateStr,
+            error: String(e?.message ?? e),
+          },
+        });
+      }
     }
+
+    const result = {
+      distributionDate: distributionDateStr,
+      processedProviders,
+      skippedProviders,
+      alreadyDistributed,
+      errors,
+    };
+
+    await createAuditLog({
+      actorId: 'system',
+      action: 'PROVIDER_DISTRIBUTION_RUN_FINISHED',
+      entity: 'Service',
+      entityId: 'provider-distribution',
+      details: {
+        runId,
+        ...result,
+      },
+    });
+
+    logger.info(`Provider distribution run finished: ${JSON.stringify(result)}`);
+    return result;
+  } catch (e: any) {
+    await createAuditLog({
+      actorId: 'system',
+      action: 'PROVIDER_DISTRIBUTION_RUN_FAILED',
+      entity: 'Service',
+      entityId: 'provider-distribution',
+      details: {
+        runId,
+        distributionDate: distributionDateStr,
+        error: String(e?.message ?? e),
+      },
+    });
+    throw e;
   }
-
-  const result = {
-    distributionDate: distributionDateStr,
-    processedProviders,
-    skippedProviders,
-    alreadyDistributed,
-    errors,
-  };
-
-  logger.info(`Provider distribution run finished: ${JSON.stringify(result)}`);
-  return result;
 }

@@ -85,9 +85,9 @@ export async function POST(req: Request) {
     }
 
     let res;
+    const correlationId = newAuditCorrelationId();
+    const startedAt = Date.now();
     try {
-      const correlationId = newAuditCorrelationId();
-      const startedAt = Date.now();
       await auditExternalApiRequest(
         {
           actorId,
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
           headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
           body: { creditAccount, providerId: sendProviderId, amount },
         },
-      );
+      ).catch(() => null);
 
       res = await fetch(apiUrl, {
         method: 'POST',
@@ -119,9 +119,17 @@ export async function POST(req: Request) {
       console.error('[external][disbursement] fetch failed', { apiUrl, error: details });
 
       await auditExternalApiError(
-        { actorId, ipAddress, userAgent, integration: 'DISBURSEMENT', entity: 'DisbursementTransaction' },
+        { actorId, ipAddress, userAgent, integration: 'DISBURSEMENT', entity: 'DisbursementTransaction', correlationId },
         fetchErr,
-        { request: { method: 'POST', url: apiUrl, body: { creditAccount, providerId: sendProviderId, amount } } },
+        {
+          durationMs: Date.now() - startedAt,
+          request: {
+            method: 'POST',
+            url: apiUrl,
+            headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
+            body: { creditAccount, providerId: sendProviderId, amount },
+          },
+        },
       ).catch(() => null);
 
       try {
