@@ -270,7 +270,32 @@ if (!fixedAuthHeader) {
 
         const penaltyRules = safeJsonParse((loan.product as any).penaltyRules, []);
         const penaltyForInstallment = calculatePenaltyForInstallment(activeInstallment.amount || 0, activeInstallment.dueDate, penaltyRules, paymentDate);
-        const totalDueForInstallment = (activeInstallment.amount || 0) + penaltyForInstallment - (activeInstallment.paidAmount || 0);
+
+        // Loan-level due buckets (service fee / interest / tax) are payable alongside installment repayments.
+        // Only installment-level penalty+principal count toward installment.paidAmount.
+        const totals = calculateTotalRepayable(loan as any, loan.product as any, taxConfigs, paymentDate);
+        const alreadyRepaid = loan.repaidAmount || 0;
+
+        const alreadyPaidPenaltyLoan = Math.min(totals.penalty, alreadyRepaid);
+        const alreadyPaidServiceFeeLoan = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
+        const alreadyPaidInterestLoan = Math.min(totals.interest, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee));
+        const alreadyPaidTaxLoan = Math.min(totals.tax, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest));
+
+        const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFeeLoan);
+        const interestDue = Math.max(0, totals.interest - alreadyPaidInterestLoan);
+        const taxDue = Math.max(0, totals.tax - alreadyPaidTaxLoan);
+
+        const penaltyPaidSoFar = Math.min((activeInstallment.paidAmount || 0), penaltyForInstallment);
+        const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);
+        const principalPaidSoFar = Math.max(0, (activeInstallment.paidAmount || 0) - penaltyPaidSoFar);
+        const principalRemaining = Math.max(0, (activeInstallment.amount || 0) - principalPaidSoFar);
+
+        const totalDueForInstallment =
+          principalRemaining +
+          penaltyRemaining +
+          serviceFeeDue +
+          interestDue +
+          taxDue;
 
         if (paymentAmount > totalDueForInstallment + 0.01) {
           console.error(`[PAYMENT_CALLBACK_ERROR] Overpayment detected. Payment amount (${paymentAmount}) exceeds installment due (${totalDueForInstallment}).`);
@@ -291,8 +316,17 @@ if (!fixedAuthHeader) {
 
         const principalReceivable = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Receivable');
         const penaltyReceivable = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Receivable');
+        const serviceFeeReceivable = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Receivable');
+        const interestReceivable = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Receivable');
+        const taxReceivable = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Receivable');
         const principalReceived = provider.ledgerAccounts.find(a => a.category === 'Principal' && a.type === 'Received');
         const penaltyReceived = provider.ledgerAccounts.find(a => a.category === 'Penalty' && a.type === 'Received');
+        const serviceFeeReceived = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Received');
+        const interestReceived = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Received');
+        const taxReceived = provider.ledgerAccounts.find(a => a.category === 'Tax' && a.type === 'Received');
+
+        const serviceFeeIncome = provider.ledgerAccounts.find(a => a.category === 'ServiceFee' && a.type === 'Income');
+        const interestIncome = provider.ledgerAccounts.find(a => a.category === 'Interest' && a.type === 'Income');
 
         if (!principalReceivable || !principalReceived) {
           throw new Error(`Ledger accounts not configured for provider ${provider.id}`);
@@ -300,8 +334,6 @@ if (!fixedAuthHeader) {
 
         let amountToApply = paymentAmount;
 
-        const alreadyPaidPenalty = activeInstallment.paidAmount ? Math.max(0, (activeInstallment.paidAmount || 0) - (activeInstallment.amount || 0)) : 0;
-        const penaltyRemaining = Math.max(0, penaltyForInstallment - alreadyPaidPenalty);
         const penaltyToPay = Math.min(amountToApply, penaltyRemaining);
         if (penaltyToPay > 0 && penaltyReceivable && penaltyReceived) {
           await tx.ledgerAccount.update({ where: { id: penaltyReceivable.id }, data: { balance: { decrement: penaltyToPay } } });
@@ -316,7 +348,52 @@ if (!fixedAuthHeader) {
           console.log('[payment-callback] applied penaltyToPay', { penaltyToPay, remainingAmount: amountToApply });
         }
 
-        const principalRemaining = Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0));
+        const serviceFeeToPay = Math.min(amountToApply, serviceFeeDue);
+        if (serviceFeeToPay > 0) {
+          if (!serviceFeeReceivable || !serviceFeeReceived || !serviceFeeIncome) throw new Error(`Service Fee ledger accounts not configured for provider ${provider.id}`);
+          await tx.ledgerAccount.update({ where: { id: serviceFeeReceivable.id }, data: { balance: { decrement: serviceFeeToPay } } });
+          await tx.ledgerAccount.update({ where: { id: serviceFeeReceived.id }, data: { balance: { increment: serviceFeeToPay } } });
+          await tx.ledgerAccount.update({ where: { id: serviceFeeIncome.id }, data: { balance: { increment: serviceFeeToPay } } });
+          await tx.ledgerEntry.createMany({
+            data: [
+              { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceivable.id, type: 'Credit', amount: serviceFeeToPay },
+              { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeReceived.id, type: 'Debit', amount: serviceFeeToPay },
+              { journalEntryId: journalEntry.id, ledgerAccountId: serviceFeeIncome.id, type: 'Credit', amount: serviceFeeToPay },
+            ]
+          });
+          amountToApply -= serviceFeeToPay;
+        }
+
+        const interestToPay = Math.min(amountToApply, interestDue);
+        if (interestToPay > 0) {
+          if (!interestReceivable || !interestReceived || !interestIncome) throw new Error(`Interest ledger accounts not configured for provider ${provider.id}`);
+          await tx.ledgerAccount.update({ where: { id: interestReceivable.id }, data: { balance: { decrement: interestToPay } } });
+          await tx.ledgerAccount.update({ where: { id: interestReceived.id }, data: { balance: { increment: interestToPay } } });
+          await tx.ledgerAccount.update({ where: { id: interestIncome.id }, data: { balance: { increment: interestToPay } } });
+          await tx.ledgerEntry.createMany({
+            data: [
+              { journalEntryId: journalEntry.id, ledgerAccountId: interestReceivable.id, type: 'Credit', amount: interestToPay },
+              { journalEntryId: journalEntry.id, ledgerAccountId: interestReceived.id, type: 'Debit', amount: interestToPay },
+              { journalEntryId: journalEntry.id, ledgerAccountId: interestIncome.id, type: 'Credit', amount: interestToPay },
+            ]
+          });
+          amountToApply -= interestToPay;
+        }
+
+        const taxToPay = Math.min(amountToApply, taxDue);
+        if (taxToPay > 0) {
+          if (!taxReceivable || !taxReceived) throw new Error(`Tax ledger accounts not configured for provider ${provider.id}`);
+          await tx.ledgerAccount.update({ where: { id: taxReceivable.id }, data: { balance: { decrement: taxToPay } } });
+          await tx.ledgerAccount.update({ where: { id: taxReceived.id }, data: { balance: { increment: taxToPay } } });
+          await tx.ledgerEntry.createMany({
+            data: [
+              { journalEntryId: journalEntry.id, ledgerAccountId: taxReceivable.id, type: 'Credit', amount: taxToPay },
+              { journalEntryId: journalEntry.id, ledgerAccountId: taxReceived.id, type: 'Debit', amount: taxToPay },
+            ]
+          });
+          amountToApply -= taxToPay;
+        }
+
         const principalToPay = Math.min(amountToApply, principalRemaining);
         if (principalToPay > 0) {
           await tx.ledgerAccount.update({ where: { id: principalReceivable.id }, data: { balance: { decrement: principalToPay } } });
@@ -344,7 +421,7 @@ if (!fixedAuthHeader) {
 
         console.log('[payment-callback] created payment record for installment', { loanId, installmentId: activeInstallment.id, amount: paymentAmount });
 
-        const newPaidAmount = (activeInstallment.paidAmount || 0) + paymentAmount;
+        const newPaidAmount = (activeInstallment.paidAmount || 0) + penaltyToPay + principalToPay;
         const isInstallmentFullyPaid = newPaidAmount >= (activeInstallment.amount || 0) + penaltyForInstallment - 1e-9;
 
         await tx.loanInstallment.update({

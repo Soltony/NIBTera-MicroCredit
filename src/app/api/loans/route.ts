@@ -137,16 +137,16 @@ async function handlePersonalLoan(data: z.infer<typeof loanCreationSchema>) {
             const installmentsCount = product.installments || null;
             const repaymentIntervalDays = product.repaymentIntervalDays ?? null;
             if (installmentsCount && installmentsCount > 0) {
-                const calc = calculateTotalRepayable(tempLoanForCalc, product as any, taxConfigs, new Date(data.dueDate));
-                const totalRepayable = calc.total;
                 const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
 
                 const interval = (repaymentIntervalDays ?? Math.floor(((new Date(data.dueDate).getTime() - new Date(data.disbursedDate).getTime()) / (1000 * 60 * 60 * 24)) / installmentsCount)) || 0;
 
-                let remaining = round2(totalRepayable);
+                // Installments represent principal-only. Interest/service-fee/tax accrue separately over time.
+                const totalPrincipal = Number(data.loanAmount) || 0;
+                let remaining = round2(totalPrincipal);
                 for (let i = 1; i <= installmentsCount; i++) {
                     const isLast = i === installmentsCount;
-                    const amount = isLast ? remaining : round2(Math.floor((totalRepayable / installmentsCount) * 100) / 100);
+                    const amount = isLast ? remaining : round2(Math.floor((totalPrincipal / installmentsCount) * 100) / 100);
                     const due = addDays(new Date(data.disbursedDate), interval * i);
                     await tx.loanInstallment.create({ data: {
                         loanId: createdLoan.id,
