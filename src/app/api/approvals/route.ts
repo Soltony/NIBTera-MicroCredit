@@ -474,6 +474,20 @@ async function applyChange(change: any, context?: { actorId?: string; ipAddress?
       break;
     case 'LoanProduct':
         if (changeType === 'UPDATE') {
+            const activeLoanCount = await prisma.loan.count({
+                where: {
+                    productId: entityId,
+                    repaymentStatus: 'Unpaid',
+                },
+            });
+
+            if (activeLoanCount > 0) {
+                throw new Error(
+                    `Cannot approve edits to this loan product because it has active loans (${activeLoanCount}). ` +
+                    'Create a new product/version for new terms to preserve contract integrity.',
+                );
+            }
+
             const { loanAmountTiers, eligibilityUpload, ...restOfUpdateData } = data.updated;
             // Keep product disabled even after an approved update per requested policy
             const updateData = { ...restOfUpdateData, status: 'Disabled' };
