@@ -136,24 +136,39 @@ if (!fixedAuthHeader) {
 
   // --- Log payment transaction ---
   try {
-    // Persist both ids: the code historically keyed PaymentTransaction by
-    // the `transactionId` column mapped from the incoming `txnRef` value.
-    // Keep that behavior for lookup compatibility, but also store the
-    // incoming `txnRef` payload field in its own column.
-    await prisma.paymentTransaction.upsert({
-      where: { transactionId: txnRef }, // keep legacy key behavior
-      update: ({
-        status: 'RECEIVED',
-        payload: JSON.stringify(requestBody),
-        txnRef: txnRef,
-      } as any),
-      create: ({
-        transactionId: txnRef,
-        txnRef: txnRef,
-        status: 'RECEIVED',
-        payload: JSON.stringify(requestBody),
-      } as any),
+    // Try to find an existing PaymentTransaction by either payload.transactionId
+    // (the upstream's id) or by txnRef. If found, update that record and
+    // ensure both columns are populated; otherwise create a new row.
+    const existing = await prisma.paymentTransaction.findFirst({
+      where: {
+        OR: [
+          transactionId ? { transactionId: transactionId } : undefined,
+          txnRef ? { txnRef: txnRef } : undefined,
+        ].filter(Boolean) as any,
+      },
     });
+
+    if (existing) {
+      const existingAny: any = existing;
+      await prisma.paymentTransaction.update({
+        where: { id: existing.id },
+        data: ({
+          status: 'RECEIVED',
+          payload: JSON.stringify(requestBody),
+          transactionId: transactionId || existingAny.transactionId,
+          txnRef: txnRef || existingAny.txnRef,
+        } as any),
+      });
+    } else {
+      await prisma.paymentTransaction.create({
+        data: ({
+          transactionId: transactionId || txnRef,
+          txnRef: txnRef,
+          status: 'RECEIVED',
+          payload: JSON.stringify(requestBody),
+        } as any),
+      });
+    }
   } catch (e) {
     console.error("Failed to log payment transaction:", e);
   }
