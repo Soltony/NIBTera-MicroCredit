@@ -136,17 +136,23 @@ if (!fixedAuthHeader) {
 
   // --- Log payment transaction ---
   try {
+    // Persist both ids: the code historically keyed PaymentTransaction by
+    // the `transactionId` column mapped from the incoming `txnRef` value.
+    // Keep that behavior for lookup compatibility, but also store the
+    // incoming `txnRef` payload field in its own column.
     await prisma.paymentTransaction.upsert({
-      where: { transactionId: txnRef }, // Use txnRef as the unique identifier
-      update: {
+      where: { transactionId: txnRef }, // keep legacy key behavior
+      update: ({
         status: 'RECEIVED',
-        payload: JSON.stringify(requestBody)
-      },
-      create: {
-        transactionId: txnRef, // Use txnRef as the unique identifier
+        payload: JSON.stringify(requestBody),
+        txnRef: txnRef,
+      } as any),
+      create: ({
+        transactionId: txnRef,
+        txnRef: txnRef,
         status: 'RECEIVED',
-        payload: JSON.stringify(requestBody)
-      }
+        payload: JSON.stringify(requestBody),
+      } as any),
     });
   } catch (e) {
     console.error("Failed to log payment transaction:", e);

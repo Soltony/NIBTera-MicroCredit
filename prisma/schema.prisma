@@ -538,6 +538,7 @@ model PendingPayment {
 model PaymentTransaction {
   id            String   @id @default(cuid())
   transactionId String   @unique
+  txnRef        String?
   status        String // e.g., RECEIVED, PROCESSED, FAILED_VALIDATION
   payload       String   @db.NVarChar(Max)
   receivedAt    DateTime @default(now())
