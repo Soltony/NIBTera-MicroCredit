@@ -272,6 +272,11 @@ async function applyChange(change: any, context?: { actorId?: string; ipAddress?
             );
             if (!disbJournalEntries.length) throw new Error('No loan disbursement journal entry found; reversal is blocked.');
 
+            const accrualJournalEntries = (loan.journalEntries || []).filter((j) => {
+                const d = String(j.description || '').toLowerCase();
+                return d.includes('daily interest accrual') || d.includes('daily penalty accrual');
+            });
+
             const provider = loan.product.provider;
 
             const reversalResult = await prisma.$transaction(async (db) => {
@@ -304,6 +309,30 @@ async function applyChange(change: any, context?: { actorId?: string; ipAddress?
                     }
                 }
 
+                // Also unwind any receivable accrual postings that may have been
+                // created before the disbursement failure was identified.
+                // Without this, Interest/Penalty/Tax receivables can remain on
+                // the books even after the loan is marked REVERSED.
+                for (const je of accrualJournalEntries) {
+                    for (const e of je.entries) {
+                        const reverseType = e.type === 'Debit' ? 'Credit' : 'Debit';
+                        await db.ledgerEntry.create({
+                            data: {
+                                journalEntryId: reversalJe.id,
+                                ledgerAccountId: e.ledgerAccountId,
+                                type: reverseType,
+                                amount: e.amount,
+                            },
+                        });
+
+                        const delta = e.type === 'Debit' ? -e.amount : e.amount;
+                        await db.ledgerAccount.update({
+                            where: { id: e.ledgerAccountId },
+                            data: { balance: { increment: delta } },
+                        });
+                    }
+                }
+
                 await db.loanProvider.update({
                     where: { id: provider.id },
                     data: { initialBalance: { increment: loan.loanAmount } },
@@ -311,7 +340,17 @@ async function applyChange(change: any, context?: { actorId?: string; ipAddress?
 
                 await db.loan.update({
                     where: { id: loan.id },
-                    data: { repaymentStatus: 'REVERSED', repaymentBehavior: 'REVERSED' },
+                    data: {
+                        repaymentStatus: 'REVERSED',
+                        repaymentBehavior: 'REVERSED',
+                        // Reset accrual tracking so the reversed loan doesn't
+                        // carry orphaned receivable balances.
+                        interestAccruedAmount: 0,
+                        interestAccruedThroughDate: null,
+                        penaltyAccruedAmount: 0,
+                        penaltyAccruedThroughDate: null,
+                        penaltyAmount: 0,
+                    },
                 });
 
                 await db.loanApplication
