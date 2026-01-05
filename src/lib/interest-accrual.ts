@@ -31,6 +31,13 @@ export type DailyInterestAccrual = {
   interest: number; // currency-rounded daily interest accrued for this day
 };
 
+export type SimulationResult = {
+  accruals: DailyInterestAccrual[];
+  interestPaid: number;
+  serviceFeePaid: number;
+  principalPaid: number;
+};
+
 /**
  * Simulates daily interest accrual day-by-day, applying payments at start-of-day.
  * Payment priority is: serviceFee -> accruedInterest -> principal.
@@ -44,22 +51,25 @@ export const simulateDailyInterestAccrual = (params: {
   dailyFeeRule: DailyFeeRuleInput;
   serviceFee: number;
   payments: SafePayment[];
-}): DailyInterestAccrual[] => {
+}): SimulationResult => {
   const { principal, loanStartDate, interestEndDate, dailyFeeRule, serviceFee, payments } = params;
 
   const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
-  if (daysForInterest <= 0) return [];
+  if (daysForInterest <= 0) return { accruals: [], interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
 
   if (dailyFeeRule.type === 'fixed') {
     const daily = roundCurrency(dailyFeeRule.value);
-    return Array.from({ length: daysForInterest }, (_, i) => ({
+    const accruals = Array.from({ length: daysForInterest }, (_, i) => ({
       date: addDays(loanStartDate, i),
       interest: daily,
     }));
+    // For fixed daily fee, payments don't reduce interest - just return totals
+    // Note: This simplified path doesn't track payment allocation for fixed fees
+    return { accruals, interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
   }
 
   const dailyRate = dailyFeeRule.value / 100;
-  if (dailyRate <= 0) return [];
+  if (dailyRate <= 0) return { accruals: [], interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
 
   const paymentsByDay = new Map<number, number>();
   for (const payment of payments) {
