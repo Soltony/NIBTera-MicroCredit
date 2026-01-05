@@ -154,93 +154,73 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
     const breakdown = useMemo(() => {
         if (!loan || !loan.product) return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
         
-        // For installment-based loans: show only the active installment's breakdown
+        // Calculate totals - note that interest already accounts for payments reducing principal
+        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
+        const alreadyRepaid = loan.repaidAmount || 0;
+        
+        // Calculate what's remaining to be paid
+        // The total includes: principal + serviceFee + interest + penalty + tax
+        // We need to estimate how much of each component is still due
+        
+        // Since calculateTotalRepayable already accounts for payments in interest calculation,
+        // and we don't have exact payment allocation records, we estimate the breakdown
+        // by calculating what the remaining balance is and distributing it
+        
+        const totalDue = totals.total;
+        const remainingBalance = Math.max(0, totalDue - alreadyRepaid);
+        
+        if (remainingBalance <= 0) {
+            return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
+        }
+        
+        // For installment-based loans
         if (isInstallmentPayment && activeInstallment) {
+            // Calculate installment-level penalty
             const penaltyRules = (loan.product as any).penaltyRules || [];
-            
-            // Get installment-specific amounts
-            const installmentPrincipal = activeInstallment.amount || 0;
-            const installmentPaidAmount = activeInstallment.paidAmount || 0;
-            const principalOutstanding = Math.max(0, installmentPrincipal - installmentPaidAmount);
-            
-            // Calculate installment-level penalty based on outstanding principal
             const installmentPenalty = calculateInstallmentPenalty({
                 dueDate: new Date(activeInstallment.dueDate),
-                principalOutstanding: principalOutstanding,
+                principalOutstanding: Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0)),
                 penaltyRules,
                 asOfDate: asOfDate,
             });
             
-            // Calculate interest for this installment only
-            // Interest is based on installment's outstanding principal and its duration
-            const disbursedDate = new Date(loan.disbursedDate!);
-            const installmentDueDate = new Date(activeInstallment.dueDate);
-            const dailyFeeRate = (loan.product?.dailyFee?.value as number) || 0;
+            // Estimate remaining amounts using payment priority order:
+            // Payments typically go to: Penalty → ServiceFee → Interest → Tax → Principal
+            // But since totals.interest already reflects reduced principal from payments,
+            // we show the current totals as the breakdown
             
-            // For installment loans, interest accrues from the previous installment's due date (or disbursement for first)
-            const installments = Array.isArray((loan as any)?.installments) ? (loan as any).installments : [];
-            const sortedInstallments = [...installments].sort((a: any, b: any) => a.installmentNumber - b.installmentNumber);
-            const currentIndex = sortedInstallments.findIndex((i: any) => i.id === activeInstallment.id);
+            // Calculate how much of each component should still be due
+            let remaining = alreadyRepaid;
             
-            // Interest start date: previous installment's due date or disbursement date for first installment
-            const interestStartDate = currentIndex > 0 
-                ? new Date(sortedInstallments[currentIndex - 1].dueDate)
-                : disbursedDate;
-            
-            // Interest end date: min(today, installment due date) - interest caps at due date
-            const today = asOfDate;
-            const interestEndDate = today > installmentDueDate ? installmentDueDate : today;
-            
-            // Calculate days of interest for this installment period
-            const interestDays = Math.max(0, Math.ceil((interestEndDate.getTime() - interestStartDate.getTime()) / (1000 * 60 * 60 * 24)));
-            
-            // Interest is calculated on the ORIGINAL installment amount, not remaining
-            // This is because the daily fee is on the principal borrowed for this period
-            const installmentInterest = installmentPrincipal * dailyFeeRate * interestDays;
-            
-            // Service fee: proportional to this installment (total serviceFee / number of installments)
-            const totalInstallments = sortedInstallments.length || 1;
-            const installmentServiceFee = (loan.serviceFee || 0) / totalInstallments;
-            
-            // Tax: calculated on service fee + interest for this installment
-            const installmentTax = ((loan.product?.tax || 0) / 100) * (installmentServiceFee + installmentInterest);
-            
-            // Calculate how much of each component has been paid for this installment
-            // Using payment priority: Penalty → ServiceFee → Interest → Tax → Principal
-            let remaining = installmentPaidAmount;
-            
+            // Subtract from penalty first
             const penaltyPaid = Math.min(installmentPenalty, remaining);
             remaining = Math.max(0, remaining - penaltyPaid);
             
-            const serviceFeePaid = Math.min(installmentServiceFee, remaining);
+            // Then service fee
+            const serviceFeePaid = Math.min(totals.serviceFee, remaining);
             remaining = Math.max(0, remaining - serviceFeePaid);
             
-            const interestPaid = Math.min(installmentInterest, remaining);
+            // Then interest (note: totals.interest is already reduced by principal payments)
+            const interestPaid = Math.min(totals.interest, remaining);
             remaining = Math.max(0, remaining - interestPaid);
             
-            const taxPaid = Math.min(installmentTax, remaining);
+            // Then tax
+            const taxPaid = Math.min(totals.tax, remaining);
             remaining = Math.max(0, remaining - taxPaid);
             
             // Rest goes to principal
             const principalPaid = remaining;
             
             return {
-                principal: Math.max(0, installmentPrincipal - principalPaid),
-                interest: Math.max(0, installmentInterest - interestPaid),
+                principal: Math.max(0, totals.principal - principalPaid),
+                interest: Math.max(0, totals.interest - interestPaid),
                 penalty: Math.max(0, installmentPenalty - penaltyPaid),
-                serviceFee: Math.max(0, installmentServiceFee - serviceFeePaid),
-                tax: Math.max(0, installmentTax - taxPaid),
+                serviceFee: Math.max(0, totals.serviceFee - serviceFeePaid),
+                tax: Math.max(0, totals.tax - taxPaid),
             };
         }
         
-        // For non-installment loans: use total loan amounts
-        const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
-        const alreadyRepaid = loan.repaidAmount || 0;
-        
-        if (totals.total - alreadyRepaid <= 0) {
-            return { principal: 0, interest: 0, penalty: 0, serviceFee: 0, tax: 0 };
-        }
-        
+        // For non-installment loans
         // Use the same payment priority estimation
         let remaining = alreadyRepaid;
         

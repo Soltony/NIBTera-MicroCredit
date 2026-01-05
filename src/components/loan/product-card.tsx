@@ -107,65 +107,34 @@ export function ProductCard({
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
         
-        // For installment-based loans, calculate only the active installment's balance
+        // Calculate total repayable using asOfDate
+        // Note: calculateTotalRepayable already accounts for payments in interest calculation
+        // (payments reduce the outstanding principal, which reduces subsequent interest)
+        const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
+        const alreadyRepaid = activeLoan.repaidAmount || 0;
+        
+        // For installment-based loans, we need to handle penalty at installment level
         if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
-            const installments = (activeLoan as any).installments;
-            const activeInst = installments.find((i: any) => i.isActive);
+            const activeInst = (activeLoan as any).installments.find((i: any) => i.isActive);
             if (activeInst) {
-                // Get installment-specific amounts
-                const installmentPrincipal = activeInst.amount || 0;
-                const installmentPaidAmount = activeInst.paidAmount || 0;
-                const principalOutstanding = Math.max(0, installmentPrincipal - installmentPaidAmount);
-                
-                // Calculate installment-level penalty
+                // Calculate installment-level penalty (may differ from loan-level)
                 const penaltyRules = product.penaltyRules || [];
                 const installmentPenalty = calculateInstallmentPenalty({
                     dueDate: new Date(activeInst.dueDate),
-                    principalOutstanding: principalOutstanding,
+                    principalOutstanding: Math.max(0, (activeInst.amount || 0) - (activeInst.paidAmount || 0)),
                     penaltyRules,
                     asOfDate: asOfDate,
                 });
                 
-                // Calculate interest for this installment only
-                const disbursedDate = new Date(activeLoan.disbursedDate!);
-                const installmentDueDate = new Date(activeInst.dueDate);
-                const dailyFeeRate = (activeLoan.product?.dailyFee?.value as number) || 0;
+                // Total due = principal + serviceFee + interest + tax + installment penalty
+                // We use installment penalty instead of loan-level penalty
+                const totalWithInstallmentPenalty = totals.principal + totals.serviceFee + totals.interest + totals.tax + installmentPenalty;
                 
-                // Sort installments to find the previous one
-                const sortedInstallments = [...installments].sort((a: any, b: any) => a.installmentNumber - b.installmentNumber);
-                const currentIndex = sortedInstallments.findIndex((i: any) => i.id === activeInst.id);
-                
-                // Interest start date: previous installment's due date or disbursement for first
-                const interestStartDate = currentIndex > 0 
-                    ? new Date(sortedInstallments[currentIndex - 1].dueDate)
-                    : disbursedDate;
-                
-                // Interest end date: min(asOfDate, installment due date) - interest caps at due date
-                const interestEndDate = asOfDate > installmentDueDate ? installmentDueDate : asOfDate;
-                
-                // Calculate days of interest for this installment period
-                const interestDays = Math.max(0, Math.ceil((interestEndDate.getTime() - interestStartDate.getTime()) / (1000 * 60 * 60 * 24)));
-                
-                // Interest is calculated on the installment's principal amount
-                const installmentInterest = installmentPrincipal * dailyFeeRate * interestDays;
-                
-                // Service fee and tax: proportional to this installment
-                const totalInstallments = sortedInstallments.length || 1;
-                const installmentServiceFee = (activeLoan.serviceFee || 0) / totalInstallments;
-                const installmentTax = ((activeLoan.product?.tax || 0) / 100) * (installmentServiceFee + installmentInterest);
-                
-                // Total for this installment
-                const installmentTotal = installmentPrincipal + installmentServiceFee + installmentInterest + installmentTax + installmentPenalty;
-                
-                // Subtract what's already been paid for this installment
-                return Math.max(0, installmentTotal - installmentPaidAmount);
+                return Math.max(0, totalWithInstallmentPenalty - alreadyRepaid);
             }
         }
         
-        // For non-installment loans, use total loan calculation
-        const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
-        const alreadyRepaid = activeLoan.repaidAmount || 0;
-        
+        // For non-installment loans, simple calculation
         const remainingBalance = totals.total - alreadyRepaid;
         return Math.max(0, remainingBalance);
     }, [activeLoan, taxConfigs, asOfDate, product.penaltyRules]);
