@@ -67,30 +67,17 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
         const ensureRollover = async (loanId: string) => {
             const today = startOfDay(getAsOfDate());
             const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
-            // Find the first unpaid overdue installment
-            const overdueIdx = installments.findIndex(inst => {
-                const due = startOfDay(new Date(inst.dueDate));
-                return inst.status !== 'Paid' && inst.status !== 'Merged' && due < today;
-            });
-            if (overdueIdx === -1) return; // No overdue installment
-            const overdue = installments[overdueIdx];
-            // Merge ALL subsequent unpaid installments into the overdue one
-            let totalAmount = overdue.amount || 0;
-            let totalPenalty = overdue.penaltyAmount || 0;
             const updates: any[] = [];
-            for (let i = overdueIdx + 1; i < installments.length; i++) {
-                const inst = installments[i];
-                if (inst.status === 'Merged' || inst.status === 'Paid') continue;
-                if ((inst.amount || 0) > 0) {
-                    totalAmount += inst.amount || 0;
-                    totalPenalty += inst.penaltyAmount || 0;
-                    updates.push(prisma.loanInstallment.update({ where: { id: inst.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
+            for (let i = 0; i < installments.length - 1; i++) {
+                const cur = installments[i];
+                const nxt = installments[i + 1];
+                const curDue = startOfDay(new Date(cur.dueDate));
+                if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
+                    updates.push(prisma.loanInstallment.update({ where: { id: cur.id }, data: { amount: (cur.amount || 0) + (nxt.amount || 0), isActive: true, penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0) } }));
+                    updates.push(prisma.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
                 }
             }
-            if (updates.length) {
-                updates.unshift(prisma.loanInstallment.update({ where: { id: overdue.id }, data: { amount: totalAmount, isActive: true, penaltyAmount: totalPenalty } }));
-                await prisma.$transaction(updates);
-            }
+            if (updates.length) await prisma.$transaction(updates);
         };
 
         for (const l of loans) {
