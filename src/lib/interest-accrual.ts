@@ -120,7 +120,14 @@ export const simulateDailyInterestAccrual = (params: {
     accruals.push({ date: day, interest: dailyInterest });
   }
 
-  return accruals;
+  return { accruals, interestPaid, serviceFeePaid, principalPaid };
+};
+
+export type InterestWithPaymentsResult = {
+  totalInterest: number;
+  interestPaid: number;
+  serviceFeePaid: number;
+  principalPaid: number;
 };
 
 export const calculateInterestWithPayments = (params: {
@@ -131,19 +138,43 @@ export const calculateInterestWithPayments = (params: {
   serviceFee: number;
   payments: SafePayment[];
 }): number => {
+  const result = calculateInterestWithPaymentsDetailed(params);
+  return result.totalInterest;
+};
+
+export const calculateInterestWithPaymentsDetailed = (params: {
+  principal: number;
+  loanStartDate: Date;
+  interestEndDate: Date;
+  dailyFeeRule: DailyFeeRuleInput;
+  serviceFee: number;
+  payments: SafePayment[];
+}): InterestWithPaymentsResult => {
   const { dailyFeeRule } = params;
 
-  const accruals = simulateDailyInterestAccrual(params);
-  if (accruals.length === 0) return 0;
+  const result = simulateDailyInterestAccrual(params);
+  if (result.accruals.length === 0) {
+    return { totalInterest: 0, interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
+  }
 
   // For fixed-per-day: sum is exact; for percentage: we intentionally round daily in the simulation
   // so this total matches what would be posted to the ledger in a daily accrual process.
-  const total = accruals.reduce((sum, a) => sum + a.interest, 0);
+  const total = result.accruals.reduce((sum, a) => sum + a.interest, 0);
 
   if (dailyFeeRule.type === 'fixed') {
     // avoid cumulative floating drift for long durations
-    return roundCurrency(total);
+    return {
+      totalInterest: roundCurrency(total),
+      interestPaid: roundCurrency(result.interestPaid),
+      serviceFeePaid: roundCurrency(result.serviceFeePaid),
+      principalPaid: roundCurrency(result.principalPaid),
+    };
   }
 
-  return roundCurrency(total);
+  return {
+    totalInterest: roundCurrency(total),
+    interestPaid: roundCurrency(result.interestPaid),
+    serviceFeePaid: roundCurrency(result.serviceFeePaid),
+    principalPaid: roundCurrency(result.principalPaid),
+  };
 };

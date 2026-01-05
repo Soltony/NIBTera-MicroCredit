@@ -9,7 +9,7 @@ import type { LoanProduct, LoanDetails, FeeRule, Tax, PenaltyRule } from '@/lib/
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { calculateTotalRepayableDetailed } from '@/lib/loan-calculator';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
 
@@ -107,9 +107,8 @@ export function ProductCard({
     const balanceDue = useMemo(() => {
         if (!activeLoan) return 0;
         
-        // Calculate total repayable using asOfDate
-        const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
-        const alreadyRepaid = activeLoan.repaidAmount || 0;
+        // Calculate total repayable using asOfDate with detailed breakdown
+        const totals = calculateTotalRepayableDetailed(activeLoan, activeLoan.product, taxConfigs, asOfDate);
         
         // For installment-based loans, only show the CURRENT installment amount due
         if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
@@ -119,45 +118,34 @@ export function ProductCard({
                 // Get installment principal amount remaining
                 const instPrincipalOutstanding = Math.max(0, (activeInst.amount || 0) - (activeInst.paidAmount || 0));
                 
-                // Calculate penalty on FULL remaining loan principal (not just installment)
-                const fullPrincipalOutstanding = Math.max(0, activeLoan.loanAmount - alreadyRepaid);
+                // Calculate penalty on FULL remaining loan principal (after principal payments)
+                const fullPrincipalOutstanding = Math.max(0, activeLoan.loanAmount - totals.principalPaidFromInterestCalc);
                 const penaltyRules = product.penaltyRules || [];
                 const installmentPenalty = calculateInstallmentPenalty({
                     dueDate: new Date(activeInst.dueDate),
-                    principalOutstanding: fullPrincipalOutstanding, // Use full loan outstanding
+                    principalOutstanding: fullPrincipalOutstanding,
                     penaltyRules,
                     asOfDate: asOfDate,
                 });
                 
-                // Calculate what's already been paid using payment priority order:
-                // Penalty → ServiceFee → Interest → Tax → Principal
-                let remainingFromPaid = alreadyRepaid;
-                
-                const alreadyPaidPenalty = Math.min(installmentPenalty, remainingFromPaid);
-                remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidPenalty);
-                
-                const alreadyPaidServiceFee = Math.min(totals.serviceFee, remainingFromPaid);
-                remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidServiceFee);
-                
-                const alreadyPaidInterest = Math.min(totals.interest, remainingFromPaid);
-                remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidInterest);
-                
-                const alreadyPaidTax = Math.min(totals.tax, remainingFromPaid);
-                remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidTax);
-                
+                // Use accurate paid amounts from the detailed calculation
                 // Service fee is only charged with first installment
                 const serviceFeeDue = activeInst.installmentNumber === 1 
-                    ? Math.max(0, totals.serviceFee - alreadyPaidServiceFee) 
+                    ? Math.max(0, totals.serviceFee - totals.serviceFeePaid) 
                     : 0;
                 
-                // Interest remaining after what's been paid
-                const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
+                // Interest remaining after what's been paid (accurate from simulation)
+                const interestDue = Math.max(0, totals.interest - totals.interestPaid);
                 
-                // Tax remaining
-                const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
+                // Tax remaining (proportional to what's still due)
+                const totalTaxableOriginal = totals.interest + totals.serviceFee;
+                const totalTaxableDue = interestDue + serviceFeeDue;
+                const taxDue = totalTaxableOriginal > 0 
+                    ? Math.max(0, (totals.tax / totalTaxableOriginal) * totalTaxableDue)
+                    : 0;
                 
                 // Penalty remaining
-                const penaltyDue = Math.max(0, installmentPenalty - alreadyPaidPenalty);
+                const penaltyDue = Math.max(0, installmentPenalty);
                 
                 // Total due: installment principal + remaining interest + remaining penalty + service fee (if 1st) + tax
                 const installmentTotal = instPrincipalOutstanding + serviceFeeDue + interestDue + taxDue + penaltyDue;
@@ -166,7 +154,8 @@ export function ProductCard({
             }
         }
         
-        // For non-installment loans, simple calculation
+        // For non-installment loans, use accurate paid amounts from detailed calculation
+        const alreadyRepaid = activeLoan.repaidAmount || 0;
         const remainingBalance = totals.total - alreadyRepaid;
         return Math.max(0, remainingBalance);
     }, [activeLoan, taxConfigs, asOfDate, product.penaltyRules]);
