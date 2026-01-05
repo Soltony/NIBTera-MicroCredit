@@ -174,21 +174,45 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                 asOfDate: asOfDate,
             });
             
+            // Calculate what's already been paid using payment priority order:
+            // Penalty → ServiceFee → Interest → Tax → Principal
+            // This mirrors the logic in payment-callback route
+            let remainingFromPaid = alreadyRepaid;
+            
+            const alreadyPaidPenalty = Math.min(installmentPenalty, remainingFromPaid);
+            remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidPenalty);
+            
+            const alreadyPaidServiceFee = Math.min(totals.serviceFee, remainingFromPaid);
+            remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidServiceFee);
+            
+            const alreadyPaidInterest = Math.min(totals.interest, remainingFromPaid);
+            remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidInterest);
+            
+            const alreadyPaidTax = Math.min(totals.tax, remainingFromPaid);
+            remainingFromPaid = Math.max(0, remainingFromPaid - alreadyPaidTax);
+            
+            // Remaining amount would be principal paid (tracked in installment.paidAmount)
+            
             // Service fee is only charged with first installment
-            const serviceFeePortion = activeInstallment.installmentNumber === 1 ? totals.serviceFee : 0;
+            const serviceFeeDue = activeInstallment.installmentNumber === 1 
+                ? Math.max(0, totals.serviceFee - alreadyPaidServiceFee) 
+                : 0;
             
-            // Interest is on FULL loan amount (already calculated in totals.interest)
-            const interestPortion = totals.interest;
+            // Interest remaining after what's been paid
+            const interestDue = Math.max(0, totals.interest - alreadyPaidInterest);
             
-            // Tax on full interest + serviceFee
-            const taxPortion = totals.tax;
+            // Tax remaining
+            const taxDue = Math.max(0, totals.tax - alreadyPaidTax);
+            
+            // Penalty remaining
+            const penaltyDue = Math.max(0, installmentPenalty - alreadyPaidPenalty);
             
             return {
                 principal: Math.round(instPrincipalOutstanding * 100) / 100,
-                interest: Math.round(interestPortion * 100) / 100,
-                penalty: Math.round(installmentPenalty * 100) / 100,
-                serviceFee: Math.round(serviceFeePortion * 100) / 100,
-                tax: Math.round(taxPortion * 100) / 100,
+                interest: Math.round(interestDue * 100) / 100,
+                penalty: Math.round(penaltyDue * 100) / 100,
+                serviceFee: Math.round(serviceFeeDue * 100) / 100,
+                tax: Math.round(taxDue * 100) / 100,
             };
         }
         
