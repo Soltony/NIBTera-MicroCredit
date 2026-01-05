@@ -108,29 +108,49 @@ export function ProductCard({
         if (!activeLoan) return 0;
         
         // Calculate total repayable using asOfDate
-        // Note: calculateTotalRepayable already accounts for payments in interest calculation
-        // (payments reduce the outstanding principal, which reduces subsequent interest)
         const totals = calculateTotalRepayable(activeLoan, activeLoan.product, taxConfigs, asOfDate);
         const alreadyRepaid = activeLoan.repaidAmount || 0;
         
-        // For installment-based loans, we need to handle penalty at installment level
+        // For installment-based loans, only show the CURRENT installment amount due
         if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
-            const activeInst = (activeLoan as any).installments.find((i: any) => i.isActive);
+            const installments = (activeLoan as any).installments;
+            const activeInst = installments.find((i: any) => i.isActive);
             if (activeInst) {
-                // Calculate installment-level penalty (may differ from loan-level)
+                // Get installment principal amount remaining
+                const instPrincipalOutstanding = Math.max(0, (activeInst.amount || 0) - (activeInst.paidAmount || 0));
+                
+                // Calculate installment-level penalty
                 const penaltyRules = product.penaltyRules || [];
                 const installmentPenalty = calculateInstallmentPenalty({
                     dueDate: new Date(activeInst.dueDate),
-                    principalOutstanding: Math.max(0, (activeInst.amount || 0) - (activeInst.paidAmount || 0)),
+                    principalOutstanding: instPrincipalOutstanding,
                     penaltyRules,
                     asOfDate: asOfDate,
                 });
                 
-                // Total due = principal + serviceFee + interest + tax + installment penalty
-                // We use installment penalty instead of loan-level penalty
-                const totalWithInstallmentPenalty = totals.principal + totals.serviceFee + totals.interest + totals.tax + installmentPenalty;
+                // Calculate proportional fees for this installment
+                // Total installments count and this installment's share
+                const totalInstallments = installments.length;
+                const instShare = 1 / totalInstallments;
                 
-                return Math.max(0, totalWithInstallmentPenalty - alreadyRepaid);
+                // Service fee is typically a one-time fee, charged proportionally per installment
+                // For the first installment that hasn't been fully paid, include remaining service fee
+                const serviceFeePortion = activeInst.installmentNumber === 1 
+                    ? Math.max(0, totals.serviceFee - (activeLoan.serviceFee || 0) + (activeLoan.serviceFee || totals.serviceFee))
+                    : 0; // Service fee is paid with first installment only
+                
+                // Interest portion - calculate proportionally based on installment principal
+                const interestPortion = (instPrincipalOutstanding / activeLoan.loanAmount) * totals.interest;
+                
+                // Tax portion - proportional to interest+serviceFee
+                const taxPortion = activeInst.installmentNumber === 1
+                    ? (interestPortion + serviceFeePortion) > 0 ? (totals.tax / (totals.interest + totals.serviceFee)) * (interestPortion + serviceFeePortion) : 0
+                    : interestPortion > 0 && totals.interest > 0 ? (totals.tax / totals.interest) * interestPortion : 0;
+                
+                // Total due for this installment only
+                const installmentTotal = instPrincipalOutstanding + serviceFeePortion + interestPortion + taxPortion + installmentPenalty;
+                
+                return Math.max(0, Math.round(installmentTotal * 100) / 100);
             }
         }
         
