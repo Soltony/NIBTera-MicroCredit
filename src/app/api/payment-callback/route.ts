@@ -232,13 +232,13 @@ if (!fixedAuthHeader) {
         });
         return NextResponse.json({ message: "Overpayment detected, transaction will not be processed." }, { status: 200 });
     }
-
+    //test
     const updatedLoan = await prisma.$transaction(async (tx) => {
       if (hasInstallments) {
         console.log('[payment-callback] loan has installments, running installment flow');
         // Rollover merge: if an installment is past due and the next exists,
         // merge next into current and mark next as Merged.
-        const today = startOfDay(new Date());
+        const today = startOfDay(paymentDate); // Use paymentDate (from getAsOfDate) for testing
         const installments = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
         console.log('[payment-callback] installments before rollover', installments.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, dueDate: i.dueDate })));
         const rolloverUpdates: Promise<any>[] = [];

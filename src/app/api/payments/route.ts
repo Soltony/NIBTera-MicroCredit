@@ -8,6 +8,7 @@ import type { RepaymentBehavior } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit-log';
 import sendSms from '@/lib/sms';
 import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
+import { getAsOfDate } from '@/lib/date-utils';
 
 const paymentSchema = z.object({
     loanId: z.string(),
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
         // installment so the borrower owes both at once. The next installment is
         // marked as 'Merged' and made inactive.
         const ensureRollover = async (loanId: string) => {
-            const today = startOfDay(new Date());
+            const today = startOfDay(getAsOfDate());
             const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
             const updates: Promise<any>[] = [];
             for (let i = 0; i < installments.length - 1; i++) {
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
         await ensureRollover(loanId);
 
         const provider = loan.product.provider;
-        const paymentDate = new Date();
+        const paymentDate = getAsOfDate();
 
         const totals = calculateTotalRepayable(
             loan as any,

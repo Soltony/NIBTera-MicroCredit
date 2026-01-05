@@ -65,7 +65,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
         const loans = await prisma.loan.findMany({ where: { borrowerId }, select: { id: true } });
 
         const ensureRollover = async (loanId: string) => {
-            const today = startOfDay(new Date());
+            const today = startOfDay(getAsOfDate());
             const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
             const updates: any[] = [];
             for (let i = 0; i < installments.length - 1; i++) {
@@ -111,6 +111,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
               serviceFee: safeJsonParse(loan.product.serviceFee, { type: 'percentage', value: 0 }),
               dailyFee: safeJsonParse(loan.product.dailyFee, { type: 'percentage', value: 0 }),
               penaltyRules: safeJsonParse(loan.product.penaltyRules, []),
+              penaltyPerInstallment: loan.product.penaltyPerInstallment ?? false,
             },
             payments: loan.payments.map(p => ({
                 id: p.id,
@@ -119,22 +120,27 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                 outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment,
             }))
             ,
-            installments: loan.installments ? loan.installments.map(i => ({
-                id: i.id,
-                installmentNumber: i.installmentNumber,
-                dueDate: i.dueDate,
-                amount: i.amount,
-                paidAmount: i.paidAmount || 0,
-                paidAt: i.paidAt,
-                status: i.status,
-                penaltyAmount: calculateInstallmentPenalty({
+            installments: loan.installments ? loan.installments.map(i => {
+                const penaltyPerInstallment = loan.product.penaltyPerInstallment ?? false;
+                // If penaltyPerInstallment is OFF, use loan due date for penalty calculation
+                const penaltyDueDate = penaltyPerInstallment ? i.dueDate : loan.dueDate;
+                return {
+                    id: i.id,
+                    installmentNumber: i.installmentNumber,
                     dueDate: i.dueDate,
-                    principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
-                    penaltyRules: (safeJsonParse(loan.product.penaltyRules as any, []) as any) || [],
-                    asOfDate: getAsOfDate(),
-                }),
-                isActive: i.isActive,
-            })) : []
+                    amount: i.amount,
+                    paidAmount: i.paidAmount || 0,
+                    paidAt: i.paidAt,
+                    status: i.status,
+                    penaltyAmount: calculateInstallmentPenalty({
+                        dueDate: penaltyDueDate,
+                        principalOutstanding: Math.max(0, (i.amount || 0) - (i.paidAmount || 0)),
+                        penaltyRules: (safeJsonParse(loan.product.penaltyRules as any, []) as any) || [],
+                        asOfDate: getAsOfDate(),
+                    }),
+                    isActive: i.isActive,
+                };
+            }) : []
         })) as LoanDetails[];
     } catch(e) {
         console.error(e);

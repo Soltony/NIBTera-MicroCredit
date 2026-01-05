@@ -41,7 +41,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
         });
 
         const ensureRollover = async (loanId: string) => {
-            const today = startOfDay(new Date());
+            const today = startOfDay(getAsOfDate());
             const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
             const updates: Promise<any>[] = [];
             for (let i = 0; i < installments.length - 1; i++) {
