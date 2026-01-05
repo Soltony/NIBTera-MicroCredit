@@ -301,12 +301,32 @@ if (!fixedAuthHeader) {
         const principalPaidSoFar = Math.max(0, (activeInstallment.paidAmount || 0) - penaltyPaidSoFar);
         const principalRemaining = Math.max(0, (activeInstallment.amount || 0) - principalPaidSoFar);
 
+        console.log('[payment-callback] installment breakdown', {
+          'installment.amount': activeInstallment.amount,
+          'installment.paidAmount': activeInstallment.paidAmount,
+          penaltyForInstallment,
+          penaltyPaidSoFar,
+          penaltyRemaining,
+          principalPaidSoFar,
+          principalRemaining,
+        });
+
         const totalDueForInstallment =
           principalRemaining +
           penaltyRemaining +
           serviceFeeDue +
           interestDue +
           taxDue;
+
+        console.log('[payment-callback] totalDueForInstallment breakdown', {
+          principalRemaining,
+          penaltyRemaining,
+          serviceFeeDue,
+          interestDue,
+          taxDue,
+          totalDueForInstallment,
+          paymentAmount,
+        });
 
         if (paymentAmount > totalDueForInstallment + 0.01) {
           console.error(`[PAYMENT_CALLBACK_ERROR] Overpayment detected. Payment amount (${paymentAmount}) exceeds installment due (${totalDueForInstallment}).`);
@@ -419,6 +439,15 @@ if (!fixedAuthHeader) {
           console.log('[payment-callback] applied principalToPay', { principalToPay, remainingAmount: amountToApply });
         }
 
+        console.log('[payment-callback] payment allocation summary', {
+          penaltyToPay,
+          serviceFeeToPay,
+          interestToPay,
+          taxToPay,
+          principalToPay,
+          amountToApply,  // should be 0 or very small if all allocated
+        });
+
         await tx.payment.create({
           data: {
             loanId,
@@ -434,6 +463,15 @@ if (!fixedAuthHeader) {
 
         const newPaidAmount = (activeInstallment.paidAmount || 0) + penaltyToPay + principalToPay;
         const isInstallmentFullyPaid = newPaidAmount >= (activeInstallment.amount || 0) + penaltyForInstallment - 1e-9;
+
+        console.log('[payment-callback] installment payment check', {
+          oldPaidAmount: activeInstallment.paidAmount,
+          newPaidAmount,
+          installmentAmount: activeInstallment.amount,
+          penaltyForInstallment,
+          threshold: (activeInstallment.amount || 0) + penaltyForInstallment - 1e-9,
+          isInstallmentFullyPaid,
+        });
 
         await tx.loanInstallment.update({
           where: { id: activeInstallment.id },
