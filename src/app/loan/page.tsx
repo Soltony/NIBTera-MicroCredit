@@ -12,6 +12,7 @@ import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { requireMiniAppAuthContext } from "@/lib/miniapp-auth";
 import { calculateInstallmentPenalty } from "@/lib/installment-penalty";
+import { startOfDay } from "date-fns";
 import { getAsOfDate } from "@/lib/date-utils";
 
 // Helper function to safely parse JSON from DB
@@ -89,8 +90,55 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
   try {
     if (!borrowerId) return [];
 
-    // NO ROLLOVER/MERGE: Installments remain separate rows in the schedule.
-    // Each installment is displayed independently with its own due date and status.
+    // Ensure overdue installments are rolled over (merged) so the borrower UI
+    // reflects the combined installment amount as soon as a due date passes.
+    const loanIds = await prisma.loan.findMany({
+      where: { borrowerId, repaymentStatus: "Unpaid" },
+      select: { id: true },
+    });
+
+    const ensureRollover = async (loanId: string) => {
+      const today = startOfDay(getAsOfDate());
+      const installments = await prisma.loanInstallment.findMany({
+        where: { loanId },
+        orderBy: { installmentNumber: "asc" },
+      });
+      const updates: Promise<any>[] = [];
+      for (let i = 0; i < installments.length - 1; i++) {
+        const cur = installments[i];
+        const nxt = installments[i + 1];
+        const curDue = startOfDay(new Date(cur.dueDate));
+        if (
+          cur.status !== "Paid" &&
+          curDue < today &&
+          (nxt.amount || 0) > 0 &&
+          nxt.status !== "Merged"
+        ) {
+          updates.push(
+            prisma.loanInstallment.update({
+              where: { id: cur.id },
+              data: {
+                amount: (cur.amount || 0) + (nxt.amount || 0),
+                isActive: true,
+                penaltyAmount:
+                  (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0),
+              },
+            })
+          );
+          updates.push(
+            prisma.loanInstallment.update({
+              where: { id: nxt.id },
+              data: { amount: 0, status: "Merged", isActive: false },
+            })
+          );
+        }
+      }
+      if (updates.length) await prisma.$transaction(updates);
+    };
+
+    for (const l of loanIds) {
+      await ensureRollover(l.id);
+    }
 
     const loans = await prisma.loan.findMany({
       where: { borrowerId },
