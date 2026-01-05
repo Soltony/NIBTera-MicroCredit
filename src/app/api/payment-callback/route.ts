@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import prisma from '@/lib/prisma';
-import { calculateTotalRepayable } from '@/lib/loan-calculator';
+import { calculateTotalRepayable, calculateTotalRepayableDetailed } from '@/lib/loan-calculator';
 import { startOfDay, isBefore, isEqual } from 'date-fns';
 import { getAsOfDate } from '@/lib/date-utils';
 
@@ -275,17 +275,26 @@ if (!fixedAuthHeader) {
 
         // Loan-level due buckets (service fee / interest / tax) are payable alongside installment repayments.
         // Only installment-level penalty+principal count toward installment.paidAmount.
-        const totals = calculateTotalRepayable(loan as any, loan.product as any, taxConfigs, paymentDate);
+        // Use detailed calculation to get accurate paid amounts from day-by-day simulation
+        const totals = calculateTotalRepayableDetailed(loan as any, loan.product as any, taxConfigs, paymentDate);
         const alreadyRepaid = loan.repaidAmount || 0;
 
-        const alreadyPaidPenaltyLoan = Math.min(totals.penalty, alreadyRepaid);
-        const alreadyPaidServiceFeeLoan = Math.min(totals.serviceFee, Math.max(0, alreadyRepaid - totals.penalty));
-        const alreadyPaidInterestLoan = Math.min(totals.interest, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee));
-        const alreadyPaidTaxLoan = Math.min(totals.tax, Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFee - totals.interest));
+        // Use actual tracked values from the simulation
+        const serviceFeeDue = Math.max(0, totals.serviceFee - totals.serviceFeePaid);
+        const interestDue = Math.max(0, totals.interest - totals.interestPaid);
+        // Tax allocation: tax is paid after interest in priority
+        const taxPaidSoFar = Math.max(0, alreadyRepaid - totals.penalty - totals.serviceFeePaid - totals.interestPaid - totals.principalPaidFromInterestCalc);
+        const taxDue = Math.max(0, totals.tax - taxPaidSoFar);
 
-        const serviceFeeDue = Math.max(0, totals.serviceFee - alreadyPaidServiceFeeLoan);
-        const interestDue = Math.max(0, totals.interest - alreadyPaidInterestLoan);
-        const taxDue = Math.max(0, totals.tax - alreadyPaidTaxLoan);
+        console.log('[payment-callback] detailed totals', {
+          interest: totals.interest,
+          interestPaid: totals.interestPaid,
+          interestDue,
+          serviceFee: totals.serviceFee,
+          serviceFeePaid: totals.serviceFeePaid,
+          serviceFeeDue,
+          taxDue
+        });
 
         const penaltyPaidSoFar = Math.min((activeInstallment.paidAmount || 0), penaltyForInstallment);
         const penaltyRemaining = Math.max(0, penaltyForInstallment - penaltyPaidSoFar);

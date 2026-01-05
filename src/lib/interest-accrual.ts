@@ -57,26 +57,75 @@ export const simulateDailyInterestAccrual = (params: {
   const daysForInterest = differenceInDays(interestEndDate, loanStartDate);
   if (daysForInterest <= 0) return { accruals: [], interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
 
+  // Build payment map by day for all types
+  // Include payments up to AND INCLUDING interestEndDate (payments on the end date should still be applied)
+  const paymentsByDay = new Map<number, number>();
+  for (const payment of payments) {
+    const day = startOfDay(payment.date);
+    if (day < loanStartDate || day > interestEndDate) continue;
+    paymentsByDay.set(day.getTime(), (paymentsByDay.get(day.getTime()) ?? 0) + payment.amount);
+  }
+
   if (dailyFeeRule.type === 'fixed') {
     const daily = roundCurrency(dailyFeeRule.value);
-    const accruals = Array.from({ length: daysForInterest }, (_, i) => ({
-      date: addDays(loanStartDate, i),
-      interest: daily,
-    }));
-    // For fixed daily fee, payments don't reduce interest - just return totals
-    // Note: This simplified path doesn't track payment allocation for fixed fees
-    return { accruals, interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
+    const accruals: DailyInterestAccrual[] = [];
+    
+    let serviceFeePaid = 0;
+    let interestPaid = 0;
+    let principalPaid = 0;
+    let interestAccrued = 0;
+
+    // Process each day in range [loanStartDate, interestEndDate)
+    for (let dayIndex = 0; dayIndex < daysForInterest; dayIndex++) {
+      const day = addDays(loanStartDate, dayIndex);
+      let paymentAmount = paymentsByDay.get(day.getTime()) ?? 0;
+
+      // Process payments in priority order: serviceFee -> interest -> principal
+      if (paymentAmount > 0) {
+        const serviceFeeDue = Math.max(0, serviceFee - serviceFeePaid);
+        const serviceFeeToPay = Math.min(paymentAmount, serviceFeeDue);
+        serviceFeePaid += serviceFeeToPay;
+        paymentAmount -= serviceFeeToPay;
+
+        const interestDue = Math.max(0, interestAccrued - interestPaid);
+        const interestToPay = Math.min(paymentAmount, interestDue);
+        interestPaid += interestToPay;
+        paymentAmount -= interestToPay;
+
+        const principalDue = Math.max(0, principal - principalPaid);
+        const principalToPay = Math.min(paymentAmount, principalDue);
+        principalPaid += principalToPay;
+        paymentAmount -= principalToPay;
+      }
+
+      // Fixed daily fee - always accrues the same amount regardless of principal
+      interestAccrued += daily;
+      accruals.push({ date: day, interest: daily });
+    }
+
+    // Process any payment on interestEndDate (after all interest has accrued)
+    let endDayPayment = paymentsByDay.get(startOfDay(interestEndDate).getTime()) ?? 0;
+    if (endDayPayment > 0) {
+      const serviceFeeDue = Math.max(0, serviceFee - serviceFeePaid);
+      const serviceFeeToPay = Math.min(endDayPayment, serviceFeeDue);
+      serviceFeePaid += serviceFeeToPay;
+      endDayPayment -= serviceFeeToPay;
+
+      const interestDue = Math.max(0, interestAccrued - interestPaid);
+      const interestToPay = Math.min(endDayPayment, interestDue);
+      interestPaid += interestToPay;
+      endDayPayment -= interestToPay;
+
+      const principalDue = Math.max(0, principal - principalPaid);
+      const principalToPay = Math.min(endDayPayment, principalDue);
+      principalPaid += principalToPay;
+    }
+
+    return { accruals, interestPaid, serviceFeePaid, principalPaid };
   }
 
   const dailyRate = dailyFeeRule.value / 100;
   if (dailyRate <= 0) return { accruals: [], interestPaid: 0, serviceFeePaid: 0, principalPaid: 0 };
-
-  const paymentsByDay = new Map<number, number>();
-  for (const payment of payments) {
-    const day = startOfDay(payment.date);
-    if (day < loanStartDate || day >= interestEndDate) continue;
-    paymentsByDay.set(day.getTime(), (paymentsByDay.get(day.getTime()) ?? 0) + payment.amount);
-  }
 
   let serviceFeePaid = 0;
   let interestPaid = 0;
@@ -128,6 +177,31 @@ export const simulateDailyInterestAccrual = (params: {
     }
 
     accruals.push({ date: day, interest: dailyInterest });
+  }
+
+  // Process any payment on interestEndDate (after all interest has accrued)
+  let endDayPayment = paymentsByDay.get(startOfDay(interestEndDate).getTime()) ?? 0;
+  if (endDayPayment > 0) {
+    const serviceFeeDue = Math.max(0, serviceFee - serviceFeePaid);
+    const serviceFeeToPay = Math.min(endDayPayment, serviceFeeDue);
+    serviceFeePaid += serviceFeeToPay;
+    endDayPayment -= serviceFeeToPay;
+
+    const interestDue = Math.max(0, interestAccrued - interestPaid);
+    const interestToPay = Math.min(endDayPayment, interestDue);
+    interestPaid += interestToPay;
+    endDayPayment -= interestToPay;
+
+    const principalDue = Math.max(0, principal - principalPaid);
+    const principalToPay = Math.min(endDayPayment, principalDue);
+    principalPaid += principalToPay;
+
+    // Update outstanding for any future calculations (though we're at the end)
+    if (isCompound) {
+      compoundBase = Math.max(0, compoundBase - interestToPay - principalToPay);
+    } else {
+      principalOutstanding = Math.max(0, principalOutstanding - principalToPay);
+    }
   }
 
   return { accruals, interestPaid, serviceFeePaid, principalPaid };
