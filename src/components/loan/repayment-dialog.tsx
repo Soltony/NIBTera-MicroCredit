@@ -157,19 +157,19 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         // Calculate totals - note that interest already accounts for payments reducing principal
         const totals = calculateTotalRepayable(loan, loan.product, taxConfigs, asOfDate);
         
-        // For installment-based loans - show ONLY the current installment breakdown
+        // For installment-based loans - principal is per installment, but interest/penalty on full loan
         if (isInstallmentPayment && activeInstallment) {
-            const installments = Array.isArray((loan as any).installments) ? (loan as any).installments : [];
-            const totalInstallments = installments.length;
+            const alreadyRepaid = loan.repaidAmount || 0;
             
-            // Get installment principal amount remaining
+            // Get installment principal amount remaining (only this installment's share)
             const instPrincipalOutstanding = Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0));
             
-            // Calculate installment-level penalty
+            // Calculate penalty on FULL remaining loan principal
+            const fullPrincipalOutstanding = Math.max(0, loan.loanAmount - alreadyRepaid);
             const penaltyRules = (loan.product as any).penaltyRules || [];
             const installmentPenalty = calculateInstallmentPenalty({
                 dueDate: new Date(activeInstallment.dueDate),
-                principalOutstanding: instPrincipalOutstanding,
+                principalOutstanding: fullPrincipalOutstanding, // Use full loan outstanding
                 penaltyRules,
                 asOfDate: asOfDate,
             });
@@ -177,16 +177,11 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
             // Service fee is only charged with first installment
             const serviceFeePortion = activeInstallment.installmentNumber === 1 ? totals.serviceFee : 0;
             
-            // Interest portion - proportional based on installment principal
-            const interestPortion = loan.loanAmount > 0 
-                ? (instPrincipalOutstanding / loan.loanAmount) * totals.interest 
-                : 0;
+            // Interest is on FULL loan amount (already calculated in totals.interest)
+            const interestPortion = totals.interest;
             
-            // Tax portion - proportional to interest+serviceFee
-            const taxBase = totals.interest + totals.serviceFee;
-            const taxPortion = taxBase > 0 
-                ? (totals.tax / taxBase) * (interestPortion + serviceFeePortion) 
-                : 0;
+            // Tax on full interest + serviceFee
+            const taxPortion = totals.tax;
             
             return {
                 principal: Math.round(instPrincipalOutstanding * 100) / 100,
