@@ -210,7 +210,19 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs, asO
 
   const { overallMaxLimit, totalBorrowed, availableToBorrow } = useMemo(() => {
     const unpaidLoans = loanHistory.filter(loan => loan.repaymentStatus === 'Unpaid');
-    const outstandingPrincipal = unpaidLoans.reduce((acc, loan) => acc + (loan.loanAmount - (loan.repaidAmount || 0)), 0);
+    
+    // Calculate total outstanding principal across all unpaid installments
+    const outstandingPrincipal = unpaidLoans.reduce((acc, loan) => {
+      // For installment-based loans, sum remaining principal from all unpaid installments
+      if (Array.isArray((loan as any).installments) && (loan as any).installments.length > 0) {
+        const instPrincipal = (loan as any).installments
+          .filter((inst: any) => inst.status !== 'Paid')
+          .reduce((sum: number, inst: any) => sum + Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0)), 0);
+        return acc + instPrincipal;
+      }
+      // For non-installment loans, use loan-level remaining principal
+      return acc + (loan.loanAmount - (loan.repaidAmount || 0));
+    }, 0);
 
     const maxLimitFromTiers = Object.values(eligibility.limits).reduce((max, limit) => Math.max(max, limit), 0);
     
@@ -232,7 +244,11 @@ export function DashboardClient({ providers, initialLoanHistory, taxConfigs, asO
           const activeInst = Array.isArray((loan as any).installments) ? (loan as any).installments.find((i: any) => i.isActive) : undefined;
           const effectiveDue = activeInst ? new Date(activeInst.dueDate) : new Date(loan.dueDate);
           const existing = acc[loan.product.id];
-          const existingEffectiveDue = existing ? (Array.isArray(existing.installments) ? (existing.installments.find((i: any) => i.isActive)?.dueDate ? new Date(existing.installments.find((i: any) => i.isActive)?.dueDate) : new Date(existing.dueDate)) : new Date(existing.dueDate)) : null;
+          let existingEffectiveDue: Date | null = null;
+          if (existing) {
+              const existingActiveInst = Array.isArray(existing.installments) ? existing.installments.find((i: any) => i.isActive) : undefined;
+              existingEffectiveDue = existingActiveInst?.dueDate ? new Date(existingActiveInst.dueDate) : new Date(existing.dueDate);
+          }
           if (!acc[loan.product.id] || effectiveDue > (existingEffectiveDue || new Date(0))) {
               acc[loan.product.id] = loan;
           }

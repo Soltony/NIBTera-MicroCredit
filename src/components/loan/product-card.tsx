@@ -99,74 +99,104 @@ export function ProductCard({
     const [isExpanded, setIsExpanded] = useState(false);
     
     const activeInstallment = activeLoan && Array.isArray((activeLoan as any).installments) ? (activeLoan as any).installments.find((i: any) => i.isActive) : undefined;
-    const mergedNextInstallment = activeLoan && activeInstallment && Array.isArray((activeLoan as any).installments)
-        ? (activeLoan as any).installments.find((i: any) => i && i.status === 'Merged' && i.installmentNumber === activeInstallment.installmentNumber + 1)
-        : undefined;
+    // No more merging - all installments are separate
     const isOverdue = activeInstallment ? asOfDate > new Date(activeInstallment.dueDate) : (activeLoan ? asOfDate > new Date(activeLoan.dueDate) : false);
 
-    const balanceDue = useMemo(() => {
-        if (!activeLoan) return 0;
+    // Calculate full loan outstanding (sum of all unpaid installments)
+    const { fullLoanOutstanding, activeInstallmentDue, totalPrincipalRemaining } = useMemo(() => {
+        if (!activeLoan) return { fullLoanOutstanding: 0, activeInstallmentDue: 0, totalPrincipalRemaining: 0 };
         
         // Calculate total repayable using asOfDate with detailed breakdown
         const totals = calculateTotalRepayableDetailed(activeLoan, activeLoan.product, taxConfigs, asOfDate);
         
-        // For installment-based loans, only show the CURRENT installment amount due
+        // For installment-based loans, calculate FULL loan outstanding (all installments)
         if (Array.isArray((activeLoan as any).installments) && (activeLoan as any).installments.length > 0) {
             const installments = (activeLoan as any).installments;
             const activeInst = installments.find((i: any) => i.isActive);
+            const penaltyRules = product.penaltyRules || [];
+            const penaltyPerInstallment = (product as any).penaltyPerInstallment ?? false;
+            
+            // Sum all unpaid installment principals
+            let totalPrincipal = 0;
+            let totalPenalty = 0;
+            
+            for (const inst of installments) {
+                if (inst.status === 'Paid') continue;
+                const instPrincipalRemaining = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
+                totalPrincipal += instPrincipalRemaining;
+                
+                // Calculate penalty for this installment if penaltyPerInstallment is enabled
+                if (penaltyPerInstallment && instPrincipalRemaining > 0) {
+                    totalPenalty += calculateInstallmentPenalty({
+                        dueDate: new Date(inst.dueDate),
+                        principalOutstanding: instPrincipalRemaining,
+                        penaltyRules,
+                        asOfDate,
+                    });
+                }
+            }
+            
+            // If loan-level penalty (not per-installment), calculate once
+            if (!penaltyPerInstallment) {
+                totalPenalty = calculateInstallmentPenalty({
+                    dueDate: new Date(activeLoan.dueDate),
+                    principalOutstanding: totalPrincipal,
+                    penaltyRules,
+                    asOfDate,
+                });
+            }
+            
+            // Loan-level fees
+            const serviceFeeDue = Math.max(0, totals.serviceFee - totals.serviceFeePaid);
+            const interestDue = Math.max(0, totals.interest - totals.interestPaid);
+            const totalTaxableOriginal = totals.interest + totals.serviceFee;
+            const totalTaxableDue = interestDue + serviceFeeDue;
+            const taxDue = totalTaxableOriginal > 0 
+                ? Math.max(0, (totals.tax / totalTaxableOriginal) * totalTaxableDue)
+                : 0;
+            
+            const fullTotal = totalPrincipal + totalPenalty + serviceFeeDue + interestDue + taxDue;
+            
+            // Calculate active installment due separately
+            let activeInstDue = 0;
             if (activeInst) {
-                // Get installment principal amount remaining
                 const instPrincipalOutstanding = Math.max(0, (activeInst.amount || 0) - (activeInst.paidAmount || 0));
-                
-                // Calculate penalty on FULL remaining loan principal (after principal payments)
-                const fullPrincipalOutstanding = Math.max(0, activeLoan.loanAmount - totals.principalPaidFromInterestCalc);
-                const penaltyRules = product.penaltyRules || [];
-                const penaltyPerInstallment = (product as any).penaltyPerInstallment ?? false;
-                
-                // If penaltyPerInstallment is ON, use installment due date
-                // If penaltyPerInstallment is OFF, use loan due date
                 const penaltyDueDate = penaltyPerInstallment 
                     ? new Date(activeInst.dueDate) 
                     : new Date(activeLoan.dueDate);
-                    
-                const installmentPenalty = calculateInstallmentPenalty({
+                const instPenalty = calculateInstallmentPenalty({
                     dueDate: penaltyDueDate,
-                    principalOutstanding: fullPrincipalOutstanding,
+                    principalOutstanding: penaltyPerInstallment ? instPrincipalOutstanding : totalPrincipal,
                     penaltyRules,
-                    asOfDate: asOfDate,
+                    asOfDate,
                 });
                 
-                // Use accurate paid amounts from the detailed calculation
-                // Service fee is only charged with first installment
-                const serviceFeeDue = activeInst.installmentNumber === 1 
-                    ? Math.max(0, totals.serviceFee - totals.serviceFeePaid) 
-                    : 0;
+                // Service fee only on first installment
+                const instServiceFee = activeInst.installmentNumber === 1 ? serviceFeeDue : 0;
                 
-                // Interest remaining after what's been paid (accurate from simulation)
-                const interestDue = Math.max(0, totals.interest - totals.interestPaid);
-                
-                // Tax remaining (proportional to what's still due)
-                const totalTaxableOriginal = totals.interest + totals.serviceFee;
-                const totalTaxableDue = interestDue + serviceFeeDue;
-                const taxDue = totalTaxableOriginal > 0 
-                    ? Math.max(0, (totals.tax / totalTaxableOriginal) * totalTaxableDue)
-                    : 0;
-                
-                // Penalty remaining
-                const penaltyDue = Math.max(0, installmentPenalty);
-                
-                // Total due: installment principal + remaining interest + remaining penalty + service fee (if 1st) + tax
-                const installmentTotal = instPrincipalOutstanding + serviceFeeDue + interestDue + taxDue + penaltyDue;
-                
-                return Math.max(0, Math.round(installmentTotal * 100) / 100);
+                activeInstDue = instPrincipalOutstanding + instPenalty + instServiceFee + interestDue + taxDue;
             }
+            
+            return { 
+                fullLoanOutstanding: Math.max(0, Math.round(fullTotal * 100) / 100),
+                activeInstallmentDue: Math.max(0, Math.round(activeInstDue * 100) / 100),
+                totalPrincipalRemaining: Math.max(0, Math.round(totalPrincipal * 100) / 100),
+            };
         }
         
-        // For non-installment loans, use accurate paid amounts from detailed calculation
+        // For non-installment loans
         const alreadyRepaid = activeLoan.repaidAmount || 0;
         const remainingBalance = totals.total - alreadyRepaid;
-        return Math.max(0, remainingBalance);
+        const principalRemaining = Math.max(0, activeLoan.loanAmount - totals.principalPaidFromInterestCalc);
+        return { 
+            fullLoanOutstanding: Math.max(0, remainingBalance),
+            activeInstallmentDue: Math.max(0, remainingBalance),
+            totalPrincipalRemaining: principalRemaining,
+        };
     }, [activeLoan, taxConfigs, asOfDate, product.penaltyRules]);
+
+    // For backward compatibility, expose balanceDue as the active installment due
+    const balanceDue = activeInstallmentDue;
 
     const trueAvailableLimit = useMemo(() => {
         // The available limit for this specific product is the smaller of the product's general
@@ -227,7 +257,11 @@ export function ProductCard({
 
     if (activeLoan) {
         const instOutstanding = activeInstallment ? Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0)) : null;
-        const instPenalty = activeInstallment ? Math.max(0, activeInstallment.penaltyAmount || 0) : 0;
+        const totalInstallments = Array.isArray((activeLoan as any).installments) ? (activeLoan as any).installments.length : 0;
+        const paidInstallments = Array.isArray((activeLoan as any).installments) 
+            ? (activeLoan as any).installments.filter((i: any) => i.status === 'Paid').length 
+            : 0;
+        
         return (
             <Card>
                 <CardContent className="p-4">
@@ -240,26 +274,28 @@ export function ProductCard({
                             </p>
                             {activeInstallment && (
                                 <p className="text-sm text-muted-foreground">
-                                    Active installment: {activeInstallment.installmentNumber}
-                                    {mergedNextInstallment && (
-                                        <span className="ml-2">• Merged</span>
-                                    )}
-                                    {instPenalty > 0 && (
-                                        <span className="ml-2">• Penalty: {formatCurrency(instPenalty)} ETB</span>
+                                    Installment {activeInstallment.installmentNumber} of {totalInstallments}
+                                    {paidInstallments > 0 && (
+                                        <span className="ml-2">• {paidInstallments} paid</span>
                                     )}
                                 </p>
                             )}
                         </div>
                         <div className="text-right">
-                             <p className="text-xl font-bold">{formatCurrency(balanceDue)}</p>
-                             <p className="text-xs text-muted-foreground">Outstanding</p>
-                             {activeInstallment && instOutstanding !== null && (
-                                <p className="text-xs text-muted-foreground">Principal: {formatCurrency(instOutstanding)} ETB</p>
+                             {/* Show full loan outstanding */}
+                             <p className="text-xl font-bold">{formatCurrency(fullLoanOutstanding)}</p>
+                             <p className="text-xs text-muted-foreground">Total Outstanding</p>
+                             {/* Show remaining principal */}
+                             <p className="text-xs text-muted-foreground">Principal: {formatCurrency(totalPrincipalRemaining)} ETB</p>
+                             {/* Show active installment due if different */}
+                             {activeInstallment && activeInstallmentDue !== fullLoanOutstanding && (
+                                <p className="text-xs text-primary font-medium mt-1">Active Inst: {formatCurrency(activeInstallmentDue)} ETB</p>
                              )}
                         </div>
                     </div>
                      <div className="flex justify-end mt-2">
-                        <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
+                        {/* Pass full loan outstanding so user can pay more than active installment */}
+                        <Button onClick={() => onRepay(activeLoan, fullLoanOutstanding)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
                     </div>
                 </CardContent>
             </Card>
@@ -272,7 +308,7 @@ export function ProductCard({
             <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <IconDisplayComponent iconName={product.icon} className="h-6 w-6" style={{ color: providerColor }} />
+                        <IconDisplayComponent iconName={product.icon} className="h-6 w-6" />
                         <div>
                             <p className="font-semibold">{product.name}</p>
                             <p className="text-xs text-muted-foreground">

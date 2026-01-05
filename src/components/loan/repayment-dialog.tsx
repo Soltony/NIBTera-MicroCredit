@@ -141,13 +141,11 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         return installments.find((i: any) => i && i.isActive);
     }, [loan]);
 
-    const mergedNextInstallment = useMemo(() => {
+    // Get all unpaid installments for allocation preview
+    const unpaidInstallments = useMemo(() => {
         const installments = Array.isArray((loan as any)?.installments) ? (loan as any).installments : [];
-        if (!activeInstallment) return undefined;
-        return installments.find((i: any) =>
-            i && i.status === 'Merged' && i.installmentNumber === activeInstallment.installmentNumber + 1
-        );
-    }, [loan, activeInstallment]);
+        return installments.filter((i: any) => i && i.status !== 'Paid').sort((a: any, b: any) => a.installmentNumber - b.installmentNumber);
+    }, [loan]);
 
     const isInstallmentPayment = !!activeInstallment;
     
@@ -156,56 +154,63 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
         
         // Calculate totals with detailed breakdown of what's been paid
         const totals = calculateTotalRepayableDetailed(loan, loan.product, taxConfigs, asOfDate);
+        const penaltyRules = (loan.product as any).penaltyRules || [];
+        const penaltyPerInstallment = (loan.product as any).penaltyPerInstallment ?? false;
         
-        // For installment-based loans - principal is per installment, but interest/penalty on full loan
-        if (isInstallmentPayment && activeInstallment) {
-            const alreadyRepaid = loan.repaidAmount || 0;
+        // For installment-based loans - show FULL loan breakdown (all installments)
+        if (isInstallmentPayment && unpaidInstallments.length > 0) {
+            // Sum all unpaid installment principals
+            let totalPrincipal = 0;
+            let totalPenalty = 0;
             
-            // Get installment principal amount remaining (only this installment's share)
-            const instPrincipalOutstanding = Math.max(0, (activeInstallment.amount || 0) - (activeInstallment.paidAmount || 0));
+            for (const inst of unpaidInstallments) {
+                const instPrincipalRemaining = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
+                totalPrincipal += instPrincipalRemaining;
+                
+                // Calculate penalty for this installment if penaltyPerInstallment is enabled
+                if (penaltyPerInstallment && instPrincipalRemaining > 0) {
+                    totalPenalty += calculateInstallmentPenalty({
+                        dueDate: new Date(inst.dueDate),
+                        principalOutstanding: instPrincipalRemaining,
+                        penaltyRules,
+                        asOfDate,
+                    });
+                }
+            }
             
-            // Calculate penalty on FULL remaining loan principal
-            const fullPrincipalOutstanding = Math.max(0, loan.loanAmount - totals.principalPaidFromInterestCalc);
-            const penaltyRules = (loan.product as any).penaltyRules || [];
-            const installmentPenalty = calculateInstallmentPenalty({
-                dueDate: new Date(activeInstallment.dueDate),
-                principalOutstanding: fullPrincipalOutstanding,
-                penaltyRules,
-                asOfDate: asOfDate,
-            });
+            // If loan-level penalty (not per-installment), calculate once
+            if (!penaltyPerInstallment) {
+                totalPenalty = calculateInstallmentPenalty({
+                    dueDate: new Date(loan.dueDate),
+                    principalOutstanding: totalPrincipal,
+                    penaltyRules,
+                    asOfDate,
+                });
+            }
             
-            // Use the accurate paid amounts from the detailed calculation
-            // Service fee is only charged with first installment
-            const serviceFeeDue = activeInstallment.installmentNumber === 1 
-                ? Math.max(0, totals.serviceFee - totals.serviceFeePaid) 
-                : 0;
+            // Service fee remaining
+            const serviceFeeDue = Math.max(0, totals.serviceFee - totals.serviceFeePaid);
             
-            // Interest remaining after what's been paid (accurate from simulation)
+            // Interest remaining
             const interestDue = Math.max(0, totals.interest - totals.interestPaid);
             
-            // Tax is calculated on the remaining taxable amounts
-            // For simplicity, assume tax is proportional to what's still due
+            // Tax remaining
             const totalTaxableOriginal = totals.interest + totals.serviceFee;
             const totalTaxableDue = interestDue + serviceFeeDue;
             const taxDue = totalTaxableOriginal > 0 
                 ? Math.max(0, (totals.tax / totalTaxableOriginal) * totalTaxableDue)
                 : 0;
             
-            // Penalty - for now we track it separately (not paid via interest simulation)
-            // Check if any penalty has been paid from alreadyRepaid that wasn't captured
-            const penaltyDue = Math.max(0, installmentPenalty);
-            
             return {
-                principal: Math.round(instPrincipalOutstanding * 100) / 100,
+                principal: Math.round(totalPrincipal * 100) / 100,
                 interest: Math.round(interestDue * 100) / 100,
-                penalty: Math.round(penaltyDue * 100) / 100,
+                penalty: Math.round(totalPenalty * 100) / 100,
                 serviceFee: Math.round(serviceFeeDue * 100) / 100,
                 tax: Math.round(taxDue * 100) / 100,
             };
         }
         
         // For non-installment loans
-        // Use the same payment priority estimation
         const alreadyRepaid = loan.repaidAmount || 0;
         let remaining = alreadyRepaid;
         
@@ -230,7 +235,87 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
             penalty: Math.max(0, totals.penalty - penaltyPaid),
             tax: Math.max(0, totals.tax - taxPaid),
         };
-    }, [loan, taxConfigs, isInstallmentPayment, activeInstallment, asOfDate]);
+    }, [loan, taxConfigs, isInstallmentPayment, unpaidInstallments, asOfDate]);
+
+    // Calculate allocation preview based on entered amount
+    const allocationPreview = useMemo(() => {
+        const enteredAmount = parseFloat(amount) || 0;
+        if (enteredAmount <= 0 || !isInstallmentPayment || unpaidInstallments.length === 0) {
+            return null;
+        }
+
+        const penaltyRules = (loan?.product as any)?.penaltyRules || [];
+        const penaltyPerInstallment = (loan?.product as any)?.penaltyPerInstallment ?? false;
+        const totals = loan?.product ? calculateTotalRepayableDetailed(loan, loan.product, taxConfigs, asOfDate) : null;
+        
+        let remaining = enteredAmount;
+        const allocations: { installmentNumber: number; principal: number; penalty: number; serviceFee: number; interest: number; tax: number; total: number }[] = [];
+        
+        // Track loan-level fees (only paid once)
+        let serviceFeePaid = totals?.serviceFeePaid || 0;
+        let interestPaid = totals?.interestPaid || 0;
+        const totalServiceFee = totals?.serviceFee || 0;
+        const totalInterest = totals?.interest || 0;
+        const totalTax = totals?.tax || 0;
+        
+        for (const inst of unpaidInstallments) {
+            if (remaining <= 0) break;
+            
+            const instPrincipalRemaining = Math.max(0, (inst.amount || 0) - (inst.paidAmount || 0));
+            
+            // Calculate penalty for this installment
+            const penaltyDueDate = penaltyPerInstallment 
+                ? new Date(inst.dueDate) 
+                : new Date(loan?.dueDate || inst.dueDate);
+            const instPenalty = calculateInstallmentPenalty({
+                dueDate: penaltyDueDate,
+                principalOutstanding: instPrincipalRemaining,
+                penaltyRules,
+                asOfDate,
+            });
+            
+            // Service fee only on first installment
+            const serviceFeeDue = inst.installmentNumber === 1 ? Math.max(0, totalServiceFee - serviceFeePaid) : 0;
+            const interestDue = Math.max(0, totalInterest - interestPaid);
+            const taxDue = totalTax > 0 && (interestDue + serviceFeeDue) > 0 
+                ? (totalTax / (totalInterest + totalServiceFee)) * (interestDue + serviceFeeDue)
+                : 0;
+            
+            // Allocate in priority order
+            const penaltyPaid = Math.min(remaining, instPenalty);
+            remaining -= penaltyPaid;
+            
+            const sfPaid = Math.min(remaining, serviceFeeDue);
+            remaining -= sfPaid;
+            serviceFeePaid += sfPaid;
+            
+            const intPaid = Math.min(remaining, interestDue);
+            remaining -= intPaid;
+            interestPaid += intPaid;
+            
+            const txPaid = Math.min(remaining, taxDue);
+            remaining -= txPaid;
+            
+            const princPaid = Math.min(remaining, instPrincipalRemaining);
+            remaining -= princPaid;
+            
+            const total = penaltyPaid + sfPaid + intPaid + txPaid + princPaid;
+            
+            if (total > 0) {
+                allocations.push({
+                    installmentNumber: inst.installmentNumber,
+                    principal: Math.round(princPaid * 100) / 100,
+                    penalty: Math.round(penaltyPaid * 100) / 100,
+                    serviceFee: Math.round(sfPaid * 100) / 100,
+                    interest: Math.round(intPaid * 100) / 100,
+                    tax: Math.round(txPaid * 100) / 100,
+                    total: Math.round(total * 100) / 100,
+                });
+            }
+        }
+        
+        return allocations.length > 0 ? allocations : null;
+    }, [amount, isInstallmentPayment, unpaidInstallments, loan, taxConfigs, asOfDate]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -269,21 +354,40 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                             <AlertDescription>{error}</AlertDescription>
                          </Alert>
                     ) : (
-                        <div className="text-center text-sm text-muted-foreground space-y-1">
+                        <div className="text-center text-sm text-muted-foreground space-y-2">
                             {isInstallmentPayment && activeInstallment && (
                                 <div className="text-xs space-y-1">
-                                    <p>
-                                        Paying installment {activeInstallment.installmentNumber} (penalty shown as of today)
+                                    <p className="font-medium">
+                                        Active: Installment {activeInstallment.installmentNumber} of {unpaidInstallments.length + ((loan as any)?.installments?.filter((i: any) => i.status === 'Paid').length || 0)}
                                     </p>
-                                    {mergedNextInstallment && (
-                                        <p className="text-muted-foreground">
-                                            Installments merged: includes installment {mergedNextInstallment.installmentNumber}
-                                        </p>
-                                    )}
+                                    <p className="text-muted-foreground">
+                                        Pay more than active installment to settle multiple installments
+                                    </p>
                                 </div>
                             )}
+                            
+                            {/* Allocation Preview */}
+                            {allocationPreview && allocationPreview.length > 0 && (
+                                <div className="text-xs text-left border rounded-md p-2 bg-muted/30 space-y-2">
+                                    <p className="font-semibold text-foreground">Payment Allocation Preview:</p>
+                                    {allocationPreview.map((alloc) => (
+                                        <div key={alloc.installmentNumber} className="border-l-2 pl-2 py-1" style={{ borderColor: providerColor }}>
+                                            <p className="font-medium text-foreground">Installment {alloc.installmentNumber}: {formatCurrency(alloc.total)}</p>
+                                            <div className="grid grid-cols-2 gap-1 text-muted-foreground">
+                                                {alloc.penalty > 0 && <span>Penalty: {formatCurrency(alloc.penalty)}</span>}
+                                                {alloc.serviceFee > 0 && <span>Service Fee: {formatCurrency(alloc.serviceFee)}</span>}
+                                                {alloc.interest > 0 && <span>Interest: {formatCurrency(alloc.interest)}</span>}
+                                                {alloc.tax > 0 && <span>Tax: {formatCurrency(alloc.tax)}</span>}
+                                                {alloc.principal > 0 && <span>Principal: {formatCurrency(alloc.principal)}</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* Total breakdown */}
                             <div className="grid grid-cols-3 gap-2 text-xs text-left">
-                                <span className="col-span-2">Principal Due:</span>
+                                <span className="col-span-2">Total Principal Due:</span>
                                 <span className="text-right font-medium text-foreground">{formatCurrency(breakdown.principal)}</span>
 
                                 <span className="col-span-2">Service Fee Due:</span>
