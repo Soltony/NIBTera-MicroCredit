@@ -195,12 +195,13 @@ if (!fixedAuthHeader) {
         where: { id: loanId },
         include: {
           product: { include: { provider: { include: { ledgerAccounts: true } } } },
+          payments: { orderBy: { date: 'asc' } },
         },
       }),
       prisma.tax.findMany({ where: { status: 'ACTIVE' } }),
     ]);
 
-    console.log('[payment-callback] loan fetched', { loanId, loanExists: !!loan, providerId: loan?.product?.providerId });
+    console.log('[payment-callback] loan fetched', { loanId, loanExists: !!loan, providerId: loan?.product?.providerId, paymentsCount: loan?.payments?.length ?? 0 });
     console.log('[payment-callback] taxConfigs length', taxConfigs?.length);
     if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
