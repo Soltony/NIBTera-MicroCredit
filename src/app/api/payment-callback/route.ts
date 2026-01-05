@@ -272,7 +272,14 @@ if (!fixedAuthHeader) {
         }
 
         const penaltyRules = safeJsonParse((loan.product as any).penaltyRules, []);
-        const penaltyForInstallment = calculatePenaltyForInstallment(activeInstallment.amount || 0, activeInstallment.dueDate, penaltyRules, paymentDate);
+        const penaltyPerInstallment = (loan.product as any).penaltyPerInstallment ?? false;
+        
+        // If penaltyPerInstallment is ON, calculate penalty based on installment due date
+        // If penaltyPerInstallment is OFF, calculate penalty based on loan due date only
+        const penaltyDueDate = penaltyPerInstallment ? activeInstallment.dueDate : loan.dueDate;
+        const penaltyForInstallment = calculatePenaltyForInstallment(activeInstallment.amount || 0, penaltyDueDate, penaltyRules, paymentDate);
+        
+        console.log('[payment-callback] penalty calculation', { penaltyPerInstallment, penaltyDueDate, penaltyForInstallment });
 
         // Loan-level due buckets (service fee / interest / tax) are payable alongside installment repayments.
         // Only installment-level penalty+principal count toward installment.paidAmount.
@@ -490,6 +497,25 @@ if (!fixedAuthHeader) {
         await tx.loan.update({ where: { id: loanId }, data: { repaidAmount: alreadyRepaid + paymentAmount } });
 
         if (isInstallmentFullyPaid) {
+          // Mark all merged installments (that were merged INTO this active installment) as Paid
+          // These are installments with status 'Merged' and installmentNumber > activeInstallment.installmentNumber
+          // that had their amount rolled into the active installment
+          const mergedInstallments = refreshedInstallments.filter(
+            i => i.status === 'Merged' && i.installmentNumber > activeInstallment.installmentNumber
+          );
+          
+          if (mergedInstallments.length > 0) {
+            await Promise.all(
+              mergedInstallments.map(merged =>
+                tx.loanInstallment.update({
+                  where: { id: merged.id },
+                  data: { status: 'Paid', paidAt: paymentDate }
+                })
+              )
+            );
+            console.log('[payment-callback] marked merged installments as Paid', mergedInstallments.map(m => m.installmentNumber));
+          }
+          
           const nextPayable = await tx.loanInstallment.findFirst({
             where: {
               loanId,

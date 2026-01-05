@@ -121,8 +121,16 @@ export function ProductCard({
                 // Calculate penalty on FULL remaining loan principal (after principal payments)
                 const fullPrincipalOutstanding = Math.max(0, activeLoan.loanAmount - totals.principalPaidFromInterestCalc);
                 const penaltyRules = product.penaltyRules || [];
+                const penaltyPerInstallment = (product as any).penaltyPerInstallment ?? false;
+                
+                // If penaltyPerInstallment is ON, use installment due date
+                // If penaltyPerInstallment is OFF, use loan due date
+                const penaltyDueDate = penaltyPerInstallment 
+                    ? new Date(activeInst.dueDate) 
+                    : new Date(activeLoan.dueDate);
+                    
                 const installmentPenalty = calculateInstallmentPenalty({
-                    dueDate: new Date(activeInst.dueDate),
+                    dueDate: penaltyDueDate,
                     principalOutstanding: fullPrincipalOutstanding,
                     penaltyRules,
                     asOfDate: asOfDate,
