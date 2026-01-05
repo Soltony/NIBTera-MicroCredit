@@ -236,26 +236,33 @@ if (!fixedAuthHeader) {
     const updatedLoan = await prisma.$transaction(async (tx) => {
       if (hasInstallments) {
         console.log('[payment-callback] loan has installments, running installment flow');
-        // Rollover merge: if an installment is past due and the next exists,
-        // merge next into current and mark next as Merged.
+        // Rollover merge: if an installment is past due, merge ALL subsequent
+        // unpaid installments into that overdue installment.
         const today = startOfDay(paymentDate); // Use paymentDate (from getAsOfDate) for testing
         const installments = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
         console.log('[payment-callback] installments before rollover', installments.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, dueDate: i.dueDate })));
+        // Find the first unpaid overdue installment
+        const overdueIdx = installments.findIndex(inst => {
+          const due = startOfDay(new Date(inst.dueDate));
+          return inst.status !== 'Paid' && inst.status !== 'Merged' && due < today;
+        });
         const rolloverUpdates: Promise<any>[] = [];
-        for (let i = 0; i < installments.length - 1; i++) {
-          const cur = installments[i];
-          const nxt = installments[i + 1];
-          const curDue = startOfDay(new Date(cur.dueDate));
-          if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
-            rolloverUpdates.push(tx.loanInstallment.update({
-              where: { id: cur.id },
-              data: {
-                amount: (cur.amount || 0) + (nxt.amount || 0),
-                isActive: true,
-                penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0),
-              }
-            }));
-            rolloverUpdates.push(tx.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
+        if (overdueIdx !== -1) {
+          const overdue = installments[overdueIdx];
+          // Merge ALL subsequent unpaid installments into the overdue one
+          let totalAmount = overdue.amount || 0;
+          let totalPenalty = overdue.penaltyAmount || 0;
+          for (let i = overdueIdx + 1; i < installments.length; i++) {
+            const inst = installments[i];
+            if (inst.status === 'Merged' || inst.status === 'Paid') continue;
+            if ((inst.amount || 0) > 0) {
+              totalAmount += inst.amount || 0;
+              totalPenalty += inst.penaltyAmount || 0;
+              rolloverUpdates.push(tx.loanInstallment.update({ where: { id: inst.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
+            }
+          }
+          if (rolloverUpdates.length) {
+            rolloverUpdates.unshift(tx.loanInstallment.update({ where: { id: overdue.id }, data: { amount: totalAmount, isActive: true, penaltyAmount: totalPenalty } }));
           }
         }
         if (rolloverUpdates.length) {
