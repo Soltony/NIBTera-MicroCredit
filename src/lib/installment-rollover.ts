@@ -37,7 +37,9 @@ export interface RolloverResult {
  * @returns RolloverResult with information about what was updated
  */
 export async function ensureInstallmentRollover(
-  prisma: PrismaClient | Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0],
+  prisma:
+    | PrismaClient
+    | Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0],
   loanId: string,
   asOfDate?: Date
 ): Promise<RolloverResult> {
@@ -104,10 +106,16 @@ export async function ensureInstallmentRollover(
         })
       );
 
-      // Merge the current installment's amount and penalty into the next installment
+      // Calculate the remaining unpaid amount for partial payment scenarios
+      // Only the unpaid portion should be merged into the next installment
+      const paidAmount = current.paidAmount || 0;
+      const remainingAmount = Math.max(0, (current.amount || 0) - paidAmount);
+
+      // Merge the remaining unpaid amount and penalty into the next installment
       // Also update in-memory to handle cascading rollovers in the same loop
-      const mergedAmount = (current.amount || 0) + (next.amount || 0);
-      const mergedPenalty = (current.penaltyAmount || 0) + (next.penaltyAmount || 0);
+      const mergedAmount = remainingAmount + (next.amount || 0);
+      const mergedPenalty =
+        (current.penaltyAmount || 0) + (next.penaltyAmount || 0);
 
       updates.push(
         (prisma as any).loanInstallment.update({
