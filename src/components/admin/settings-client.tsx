@@ -813,12 +813,33 @@ function ProvidersTab({ providers, onProvidersChange }: {
     
     if (providers.length === 0) {
         return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Providers &amp; Products</CardTitle>
-                    <CardDescription>No providers available. Please contact a Super Admin.</CardDescription>
-                </CardHeader>
-            </Card>
+            <>
+                <div className="flex items-center justify-between space-y-2 mb-4">
+                    <div></div>
+                    {canCreateProvider && (
+                        <Button onClick={() => handleOpenProviderDialog(null)} style={{ backgroundColor: themeColor }} className="text-white">
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Provider
+                        </Button>
+                    )}
+                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Providers &amp; Products</CardTitle>
+                        <CardDescription>
+                            {canCreateProvider 
+                                ? 'No providers available yet. Click "Add Provider" to create one.'
+                                : 'No providers available. Please contact a Super Admin.'}
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+                <AddProviderDialog
+                    isOpen={isProviderDialogOpen}
+                    onClose={() => setIsProviderDialogOpen(false)}
+                    onSave={handleSaveProvider}
+                    provider={editingProvider}
+                    primaryColor={themeColor}
+                />
+            </>
         );
     }
 

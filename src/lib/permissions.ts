@@ -13,8 +13,8 @@ const MODULE_KEYS = allMenuItems.map((i) => i.label.toLowerCase().replace(/\s+/g
 
 // Explicit map from entity types to the module permission keys exposed in the UI.
 const ENTITY_TO_MODULE: Record<string, string[]> = {
-  loanprovider: ['settings'],
-  loanproduct: ['settings'],
+  loanprovider: ['settings', 'providers'],
+  loanproduct: ['settings', 'products'],
   tax: ['tax', 'settings'],
   approval: ['approvals'],
   approvals: ['approvals'],
