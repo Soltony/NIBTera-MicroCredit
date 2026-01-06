@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { calculateTotalRepayable, calculateTotalRepayableDetailed } from '@/lib/loan-calculator';
 import { startOfDay, isBefore, isEqual } from 'date-fns';
 import { getAsOfDate } from '@/lib/date-utils';
+import { ensureInstallmentRollover } from '@/lib/installment-rollover';
 
 // Local alias for repayment behavior values used in the code
 type RepaymentBehavior = 'EARLY' | 'ON_TIME' | 'LATE';
@@ -236,32 +237,14 @@ if (!fixedAuthHeader) {
     const updatedLoan = await prisma.$transaction(async (tx) => {
       if (hasInstallments) {
         console.log('[payment-callback] loan has installments, running installment flow');
-        // Rollover merge: if an installment is past due and the next exists,
-        // merge next into current and mark next as Merged.
-        const today = startOfDay(paymentDate); // Use paymentDate (from getAsOfDate) for testing
-        const installments = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
-        console.log('[payment-callback] installments before rollover', installments.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, dueDate: i.dueDate })));
-        const rolloverUpdates: Promise<any>[] = [];
-        for (let i = 0; i < installments.length - 1; i++) {
-          const cur = installments[i];
-          const nxt = installments[i + 1];
-          const curDue = startOfDay(new Date(cur.dueDate));
-          if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
-            rolloverUpdates.push(tx.loanInstallment.update({
-              where: { id: cur.id },
-              data: {
-                amount: (cur.amount || 0) + (nxt.amount || 0),
-                isActive: true,
-                penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0),
-              }
-            }));
-            rolloverUpdates.push(tx.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
-          }
-        }
-        if (rolloverUpdates.length) {
-          await Promise.all(rolloverUpdates);
-          console.log('[payment-callback] applied rollover updates');
-        }
+        // Rollover merge: when an installment is past due, close it and merge
+        // its amount into the next installment. The next installment becomes active.
+        const installmentsBefore = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
+        console.log('[payment-callback] installments before rollover', installmentsBefore.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, dueDate: i.dueDate })));
+        
+        // Use centralized rollover logic with transaction client
+        await ensureInstallmentRollover(tx as any, loanId, paymentDate);
+        console.log('[payment-callback] applied rollover updates');
 
         const refreshedInstallments = await tx.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
         console.log('[payment-callback] installments after rollover', refreshedInstallments.map(i => ({ id: i.id, installmentNumber: i.installmentNumber, amount: i.amount, status: i.status, isActive: i.isActive })));

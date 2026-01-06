@@ -9,6 +9,7 @@ import { createAuditLog } from '@/lib/audit-log';
 import sendSms from '@/lib/sms';
 import { MiniAppAuthError, requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 import { getAsOfDate } from '@/lib/date-utils';
+import { ensureInstallmentRollover } from '@/lib/installment-rollover';
 
 const paymentSchema = z.object({
     loanId: z.string(),
@@ -58,28 +59,10 @@ export async function POST(req: NextRequest) {
             throw new Error('Loan not found');
         }
 
-        // Ensure installment rollover: if an installment is past due and the next
-        // installment exists, merge the next installment amount into the overdue
-        // installment so the borrower owes both at once. The next installment is
-        // marked as 'Merged' and made inactive.
-        const ensureRollover = async (loanId: string) => {
-            const today = startOfDay(getAsOfDate());
-            const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
-            const updates: Promise<any>[] = [];
-            for (let i = 0; i < installments.length - 1; i++) {
-                const cur = installments[i];
-                const nxt = installments[i + 1];
-                const curDue = startOfDay(new Date(cur.dueDate));
-                if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
-                    // merge next into current: sum amounts and penalties, activate current, mark next as merged/inactive
-                    updates.push(prisma.loanInstallment.update({ where: { id: cur.id }, data: { amount: (cur.amount || 0) + (nxt.amount || 0), isActive: true, penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0) } }));
-                    updates.push(prisma.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
-                }
-            }
-            if (updates.length) await prisma.$transaction(updates);
-        };
-
-        await ensureRollover(loanId);
+        // Ensure installment rollover: when an installment is past due,
+        // close it and merge its amount into the next installment.
+        // The next installment becomes active with the combined amount.
+        await ensureInstallmentRollover(prisma, loanId);
 
         const provider = loan.product.provider;
         const paymentDate = getAsOfDate();

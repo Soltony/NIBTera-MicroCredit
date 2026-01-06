@@ -4,11 +4,11 @@ import type { LoanDetails, LoanProvider, FeeRule, PenaltyRule, Tax } from '@/lib
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import prisma from '@/lib/prisma';
-import { startOfDay } from 'date-fns';
 import { redirect } from 'next/navigation';
 import { requireMiniAppAuthContext } from '@/lib/miniapp-auth';
 import { calculateInstallmentPenalty } from '@/lib/installment-penalty';
 import { getAsOfDate } from '@/lib/date-utils';
+import { ensureInstallmentRollover } from '@/lib/installment-rollover';
 
 // Ensure dashboard always renders dynamically and bypasses cache so rollover runs
 export const dynamic = 'force-dynamic';
@@ -64,24 +64,10 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
         // the user to open the loan detail page.
         const loans = await prisma.loan.findMany({ where: { borrowerId }, select: { id: true } });
 
-        const ensureRollover = async (loanId: string) => {
-            const today = startOfDay(getAsOfDate());
-            const installments = await prisma.loanInstallment.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } });
-            const updates: any[] = [];
-            for (let i = 0; i < installments.length - 1; i++) {
-                const cur = installments[i];
-                const nxt = installments[i + 1];
-                const curDue = startOfDay(new Date(cur.dueDate));
-                if (cur.status !== 'Paid' && curDue < today && (nxt.amount || 0) > 0 && nxt.status !== 'Merged') {
-                    updates.push(prisma.loanInstallment.update({ where: { id: cur.id }, data: { amount: (cur.amount || 0) + (nxt.amount || 0), isActive: true, penaltyAmount: (cur.penaltyAmount || 0) + (nxt.penaltyAmount || 0) } }));
-                    updates.push(prisma.loanInstallment.update({ where: { id: nxt.id }, data: { amount: 0, status: 'Merged', isActive: false } }));
-                }
-            }
-            if (updates.length) await prisma.$transaction(updates);
-        };
-
+        // Use centralized rollover logic: when an installment is overdue,
+        // close it and merge its amount into the next installment
         for (const l of loans) {
-            await ensureRollover(l.id);
+            await ensureInstallmentRollover(prisma, l.id);
         }
 
         const refreshedLoans = await prisma.loan.findMany({
