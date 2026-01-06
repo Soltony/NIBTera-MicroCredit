@@ -53,13 +53,21 @@ export async function ensureInstallmentRollover(
   });
 
   console.log(`[rollover] ====== START Processing loan ${loanId} ======`);
-  console.log(`[rollover] Raw asOfDate=${rawAsOfDate.toISOString()}, today (startOfDay)=${today.toISOString()}`);
+  console.log(
+    `[rollover] Raw asOfDate=${rawAsOfDate.toISOString()}, today (startOfDay)=${today.toISOString()}`
+  );
   console.log(`[rollover] Installments count=${installments.length}`);
-  
+
   // Log all installments upfront to see the current state
   installments.forEach((inst: any, idx: number) => {
     const dueDate = new Date(inst.dueDate);
-    console.log(`[rollover] Inst[${idx}] #${inst.installmentNumber}: status="${inst.status}", amount=${inst.amount}, dueDate=${dueDate.toISOString()}, paidAmount=${inst.paidAmount}, isActive=${inst.isActive}`);
+    console.log(
+      `[rollover] Inst[${idx}] #${inst.installmentNumber}: status="${
+        inst.status
+      }", amount=${inst.amount}, dueDate=${dueDate.toISOString()}, paidAmount=${
+        inst.paidAmount
+      }, isActive=${inst.isActive}`
+    );
   });
 
   if (installments.length === 0) {
@@ -79,19 +87,25 @@ export async function ensureInstallmentRollover(
     // Check if current installment is overdue and unpaid
     // An installment is eligible for rollover if:
     // - It's not already Paid
-    // - It's not already Merged (already processed)
+    // - It's not already MERGED (already processed)
     // - Its due date is before today
     // - It has an amount > 0 (something to merge)
     const isOverdue = currentDueDate < today;
-    const isUnpaid = current.status !== "Paid";
-    const notMerged = current.status !== "Merged";
+    const isUnpaid = current.status !== "PAID";
+    const notMerged = current.status !== "MERGED";
     const hasAmount = (current.amount || 0) > 0;
 
-    console.log(`[rollover] i=${i}, inst#${current.installmentNumber}: status="${current.status}", amount=${current.amount}, dueDate=${currentDueDate.toISOString()}, isOverdue=${isOverdue}, isUnpaid=${isUnpaid}, notMerged=${notMerged}, hasAmount=${hasAmount}`);
+    console.log(
+      `[rollover] i=${i}, inst#${current.installmentNumber}: status="${
+        current.status
+      }", amount=${
+        current.amount
+      }, dueDate=${currentDueDate.toISOString()}, isOverdue=${isOverdue}, isUnpaid=${isUnpaid}, notMerged=${notMerged}, hasAmount=${hasAmount}`
+    );
 
     if (isOverdue && isUnpaid && notMerged && hasAmount) {
       // Check that the next installment hasn't been paid or merged already
-      if (next.status === "Paid") {
+      if (next.status === "PAID") {
         // Next installment is already paid, can't merge into it
         // Just mark current as active if not already
         if (!current.isActive) {
@@ -110,7 +124,7 @@ export async function ensureInstallmentRollover(
         (prisma as any).loanInstallment.update({
           where: { id: current.id },
           data: {
-            status: "Merged",
+            status: "MERGED",
             isActive: false,
             // Keep the original amount for audit purposes, or set to 0 if preferred
             // Setting to 0 as per the requirement "clear the overdue installment"
@@ -149,7 +163,7 @@ export async function ensureInstallmentRollover(
 
       // Clear current's in-memory values
       current.amount = 0;
-      current.status = "Merged";
+      current.status = "MERGED";
       current.isActive = false;
 
       mergedCount++;
@@ -159,7 +173,9 @@ export async function ensureInstallmentRollover(
   // Execute all updates
   if (updates.length > 0) {
     await Promise.all(updates);
-    console.log(`[rollover] Executed ${updates.length} DB updates, merged ${mergedCount} installments`);
+    console.log(
+      `[rollover] Executed ${updates.length} DB updates, merged ${mergedCount} installments`
+    );
   } else {
     console.log(`[rollover] No updates needed`);
   }
@@ -167,14 +183,14 @@ export async function ensureInstallmentRollover(
   // Find the active installment after rollover
   // Re-check the in-memory state to find active
   const activeInstallment = installments.find(
-    (i: any) => i.isActive && i.status !== "Paid" && i.status !== "Merged"
+    (i: any) => i.isActive && i.status !== "PAID" && i.status !== "MERGED"
   );
 
   // If no active installment found (e.g., all merged), set the last non-paid installment as active
   if (!activeInstallment) {
     const lastUnpaid = [...installments]
       .reverse()
-      .find((i: any) => i.status !== "Paid" && i.status !== "Merged");
+      .find((i: any) => i.status !== "PAID" && i.status !== "MERGED");
     if (lastUnpaid && !lastUnpaid.isActive) {
       await (prisma as any).loanInstallment.update({
         where: { id: lastUnpaid.id },
@@ -188,8 +204,12 @@ export async function ensureInstallmentRollover(
     }
   }
 
-  console.log(`[rollover] ====== END Processing loan ${loanId}, result: mergedCount=${mergedCount}, activeInstallmentId=${activeInstallment?.id ?? 'null'} ======`);
-  
+  console.log(
+    `[rollover] ====== END Processing loan ${loanId}, result: mergedCount=${mergedCount}, activeInstallmentId=${
+      activeInstallment?.id ?? "null"
+    } ======`
+  );
+
   return {
     updated: updates.length > 0,
     mergedCount,
