@@ -33,7 +33,7 @@ export interface RolloverResult {
  *
  * @param prisma - Prisma client instance (can be transaction client)
  * @param loanId - The loan ID to process
- * @param asOfDate - Optional date to use for determining overdue status (defaults to getAsOfDate())
+ * @param asOfDate - Optional date to use for determining overdue status (defaults to current date)
  * @returns RolloverResult with information about what was updated
  */
 export async function ensureInstallmentRollover(
@@ -50,24 +50,6 @@ export async function ensureInstallmentRollover(
   const installments = await (prisma as any).loanInstallment.findMany({
     where: { loanId },
     orderBy: { installmentNumber: "asc" },
-  });
-
-  console.log(`[rollover] ====== START Processing loan ${loanId} ======`);
-  console.log(
-    `[rollover] Raw asOfDate=${rawAsOfDate.toISOString()}, today (startOfDay)=${today.toISOString()}`
-  );
-  console.log(`[rollover] Installments count=${installments.length}`);
-
-  // Log all installments upfront to see the current state
-  installments.forEach((inst: any, idx: number) => {
-    const dueDate = new Date(inst.dueDate);
-    console.log(
-      `[rollover] Inst[${idx}] #${inst.installmentNumber}: status="${
-        inst.status
-      }", amount=${inst.amount}, dueDate=${dueDate.toISOString()}, paidAmount=${
-        inst.paidAmount
-      }, isActive=${inst.isActive}`
-    );
   });
 
   if (installments.length === 0) {
@@ -94,14 +76,6 @@ export async function ensureInstallmentRollover(
     const isUnpaid = current.status !== "PAID";
     const notMerged = current.status !== "MERGED";
     const hasAmount = (current.amount || 0) > 0;
-
-    console.log(
-      `[rollover] i=${i}, inst#${current.installmentNumber}: status="${
-        current.status
-      }", amount=${
-        current.amount
-      }, dueDate=${currentDueDate.toISOString()}, isOverdue=${isOverdue}, isUnpaid=${isUnpaid}, notMerged=${notMerged}, hasAmount=${hasAmount}`
-    );
 
     if (isOverdue && isUnpaid && notMerged && hasAmount) {
       // Check that the next installment hasn't been paid or merged already
@@ -173,11 +147,6 @@ export async function ensureInstallmentRollover(
   // Execute all updates
   if (updates.length > 0) {
     await Promise.all(updates);
-    console.log(
-      `[rollover] Executed ${updates.length} DB updates, merged ${mergedCount} installments`
-    );
-  } else {
-    console.log(`[rollover] No updates needed`);
   }
 
   // Find the active installment after rollover
@@ -203,12 +172,6 @@ export async function ensureInstallmentRollover(
       };
     }
   }
-
-  console.log(
-    `[rollover] ====== END Processing loan ${loanId}, result: mergedCount=${mergedCount}, activeInstallmentId=${
-      activeInstallment?.id ?? "null"
-    } ======`
-  );
 
   return {
     updated: updates.length > 0,

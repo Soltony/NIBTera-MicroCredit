@@ -10,7 +10,7 @@ describe('interest accrual', () => {
     const principal = 1000;
     const dailyRatePercent = 0.1; // 0.1% per day
 
-    const accruals = simulateDailyInterestAccrual({
+    const result = simulateDailyInterestAccrual({
       principal,
       loanStartDate,
       interestEndDate,
@@ -22,7 +22,7 @@ describe('interest accrual', () => {
       ],
     });
 
-    expect(accruals.map(a => a.interest)).toEqual([1.0, 1.0, 0.5, 0.5, 0.5]);
+    expect(result.accruals.map(a => a.interest)).toEqual([1.0, 1.0, 0.5, 0.5, 0.5]);
     expect(calculateInterestWithPayments({
       principal,
       loanStartDate,

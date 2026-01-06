@@ -9,8 +9,6 @@ export async function POST(req: Request) {
     const ctx = await requireMiniAppAuthContext();
     const body = await req.json();
     const { phoneNumber, accountNumber, providerId } = body;
-    console.info('[phone-accounts][fetch-customer] request', { phoneNumber, accountNumber });
-
     if (!phoneNumber || !accountNumber) return NextResponse.json({ error: 'phoneNumber and accountNumber required' }, { status: 400 });
 
     if (String(phoneNumber) !== String(ctx.borrowerId)) {
@@ -47,8 +45,7 @@ export async function POST(req: Request) {
       if (!config) {
         const created = await prisma.dataProvisioningConfig.create({ data: { providerId: providerId, name: 'ExternalCustomerInfo', columns: JSON.stringify(desiredColumns) } });
         config = created;
-        console.info('[phone-accounts][fetch-customer] created ExternalCustomerInfo config for provider:', providerId, created.id);
-      }
+    }
     } else {
       // No providerId supplied: attempt to find any provider-scoped ExternalCustomerInfo config
       config = await prisma.dataProvisioningConfig.findFirst({ where: { name: 'ExternalCustomerInfo' } });
@@ -91,11 +88,9 @@ export async function POST(req: Request) {
             const existingForTarget = await prisma.provisionedData.findFirst({ where: { borrowerId, configId: config.id } });
             if (existingForTarget) {
               const updated = await prisma.provisionedData.update({ where: { id: existingForTarget.id }, data: { data: JSON.stringify(payload) } });
-              console.info('[phone-accounts][fetch-customer] copied existing provisionedData into provider config (updated):', updated.id);
               return NextResponse.json({ ok: true, copied: true, provisionedDataId: updated.id });
             } else {
               const created = await prisma.provisionedData.create({ data: { borrowerId, configId: config.id, data: JSON.stringify(payload) } });
-              console.info('[phone-accounts][fetch-customer] copied existing provisionedData into provider config (created):', created.id);
               return NextResponse.json({ ok: true, copied: true, provisionedDataId: created.id });
             }
           }
@@ -134,12 +129,10 @@ export async function POST(req: Request) {
     const existing = await prisma.provisionedData.findFirst({ where: { borrowerId, configId: config.id } });
     if (existing) {
       const updated = await prisma.provisionedData.update({ where: { id: existing.id }, data: { data: JSON.stringify(payload) } });
-      console.info('[phone-accounts][fetch-customer] updated provisionedData', updated.id);
-      return NextResponse.json({ ok: true, saved: true, provisionedDataId: updated.id });
+    return NextResponse.json({ ok: true, saved: true, provisionedDataId: updated.id });
     } else {
       const created = await prisma.provisionedData.create({ data: { borrowerId, configId: config.id, data: JSON.stringify(payload) } });
-      console.info('[phone-accounts][fetch-customer] created provisionedData', created.id);
-      return NextResponse.json({ ok: true, saved: true, provisionedDataId: created.id });
+    return NextResponse.json({ ok: true, saved: true, provisionedDataId: created.id });
     }
 
   } catch (err: any) {
@@ -150,3 +143,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }
 }
+

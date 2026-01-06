@@ -97,21 +97,6 @@ export async function POST(request: NextRequest) {
   try {
     requestBody = await request.json();
     // Log incoming payload and headers for debugging
-    try {
-      console.log(
-        "[payment-callback] received payload:",
-        JSON.stringify(requestBody)
-      );
-      console.log(
-        "[payment-callback] headers:",
-        Array.from(request.headers.entries())
-      );
-    } catch (e) {
-      console.log(
-        "[payment-callback] could not stringify payload or headers",
-        e
-      );
-    }
 
     // ✅ Extract and normalize Authorization header
     const authHeader = request.headers.get("Authorization");
@@ -134,8 +119,6 @@ export async function POST(request: NextRequest) {
 
     // ✅ Validate fixed token
     await validateAuthHeader(fixedAuthHeader);
-
-    console.log("[payment-callback] fixedAuthHeader validated");
   } catch (e: any) {
     console.error("Callback Error: Initial validation failed.", e);
     return NextResponse.json(
@@ -154,15 +137,6 @@ export async function POST(request: NextRequest) {
     token,
     Signature: receivedSignature,
   } = requestBody;
-
-  console.log("[payment-callback] parsed fields", {
-    txnRef,
-    transactionId,
-    paidAmount,
-    paidByNumber,
-    transactionTime,
-    accountNo,
-  });
 
   // --- Log payment transaction ---
   try {
@@ -208,11 +182,6 @@ export async function POST(request: NextRequest) {
     const pendingPayment = await prisma.pendingPayment.findUnique({
       where: { transactionId: txnRef },
     });
-
-    console.log(
-      "[payment-callback] pendingPayment lookup result",
-      pendingPayment
-    );
     if (!pendingPayment) {
       console.error(
         `Callback Error: No pending payment found for txnRef: ${txnRef}`
@@ -237,25 +206,12 @@ export async function POST(request: NextRequest) {
       }),
       prisma.tax.findMany({ where: { status: "ACTIVE" } }),
     ]);
-
-    console.log("[payment-callback] loan fetched", {
-      loanId,
-      loanExists: !!loan,
-      providerId: loan?.product?.providerId,
-      paymentsCount: loan?.payments?.length ?? 0,
-    });
-    console.log("[payment-callback] taxConfigs length", taxConfigs?.length);
     if (!loan) throw new Error(`Loan with ID ${loanId} not found.`);
 
     const provider = loan.product.provider;
     // Use getAsOfDate() for calculations to match UI display during testing
     const paymentDate = getAsOfDate();
     const alreadyRepaid = loan.repaidAmount || 0;
-
-    console.log("[payment-callback] paymentDate/alreadyRepaid", {
-      paymentDate: paymentDate.toISOString(),
-      alreadyRepaid,
-    });
 
     // If this loan has an installment schedule, apply this payment to the active installment.
     // This is necessary for Salary Advance products where repayments are installment-based.
@@ -271,8 +227,6 @@ export async function POST(request: NextRequest) {
       paymentDate
     );
     const totalDue = totals.total - alreadyRepaid;
-
-    console.log("[payment-callback] totals computed", { totals, totalDue });
 
     if (!hasInstallments && paymentAmount > totalDue + 0.01) {
       // Add tolerance for floating point
@@ -293,48 +247,23 @@ export async function POST(request: NextRequest) {
     //test
     const updatedLoan = await prisma.$transaction(async (tx) => {
       if (hasInstallments) {
-        console.log(
-          "[payment-callback] loan has installments, running installment flow"
-        );
         // Rollover merge: when an installment is past due, close it and merge
         // its amount into the next installment. The next installment becomes active.
         const installmentsBefore = await tx.loanInstallment.findMany({
           where: { loanId },
           orderBy: { installmentNumber: "asc" },
         });
-        console.log(
-          "[payment-callback] installments before rollover",
-          installmentsBefore.map((i) => ({
-            id: i.id,
-            installmentNumber: i.installmentNumber,
-            amount: i.amount,
-            status: i.status,
-            dueDate: i.dueDate,
-          }))
-        );
 
         // Use centralized rollover logic with transaction client
         await ensureInstallmentRollover(tx as any, loanId, paymentDate);
-        console.log("[payment-callback] applied rollover updates");
 
         const refreshedInstallments = await tx.loanInstallment.findMany({
           where: { loanId },
           orderBy: { installmentNumber: "asc" },
         });
-        console.log(
-          "[payment-callback] installments after rollover",
-          refreshedInstallments.map((i) => ({
-            id: i.id,
-            installmentNumber: i.installmentNumber,
-            amount: i.amount,
-            status: i.status,
-            isActive: i.isActive,
-          }))
-        );
         const activeInstallment = refreshedInstallments.find(
           (i) => i.isActive && i.status !== "PAID"
         );
-        console.log("[payment-callback] activeInstallment", activeInstallment);
         if (!activeInstallment) {
           throw new Error("No active installment found for this loan.");
         }
@@ -357,12 +286,6 @@ export async function POST(request: NextRequest) {
           penaltyRules,
           paymentDate
         );
-
-        console.log("[payment-callback] penalty calculation", {
-          penaltyPerInstallment,
-          penaltyDueDate,
-          penaltyForInstallment,
-        });
 
         // Loan-level due buckets (service fee / interest / tax) are payable alongside installment repayments.
         // Only installment-level penalty+principal count toward installment.paidAmount.
@@ -392,16 +315,6 @@ export async function POST(request: NextRequest) {
         );
         const taxDue = Math.max(0, totals.tax - taxPaidSoFar);
 
-        console.log("[payment-callback] detailed totals", {
-          interest: totals.interest,
-          interestPaid: totals.interestPaid,
-          interestDue,
-          serviceFee: totals.serviceFee,
-          serviceFeePaid: totals.serviceFeePaid,
-          serviceFeeDue,
-          taxDue,
-        });
-
         const penaltyPaidSoFar = Math.min(
           activeInstallment.paidAmount || 0,
           penaltyForInstallment
@@ -419,32 +332,12 @@ export async function POST(request: NextRequest) {
           (activeInstallment.amount || 0) - principalPaidSoFar
         );
 
-        console.log("[payment-callback] installment breakdown", {
-          "installment.amount": activeInstallment.amount,
-          "installment.paidAmount": activeInstallment.paidAmount,
-          penaltyForInstallment,
-          penaltyPaidSoFar,
-          penaltyRemaining,
-          principalPaidSoFar,
-          principalRemaining,
-        });
-
         const totalDueForInstallment =
           principalRemaining +
           penaltyRemaining +
           serviceFeeDue +
           interestDue +
           taxDue;
-
-        console.log("[payment-callback] totalDueForInstallment breakdown", {
-          principalRemaining,
-          penaltyRemaining,
-          serviceFeeDue,
-          interestDue,
-          taxDue,
-          totalDueForInstallment,
-          paymentAmount,
-        });
 
         if (paymentAmount > totalDueForInstallment + 0.01) {
           console.error(
@@ -464,10 +357,6 @@ export async function POST(request: NextRequest) {
             date: paymentDate,
             description: `SuperApp repayment for installment ${activeInstallment.installmentNumber} of loan ${loan.id} via TxRef ${txnRef}`,
           },
-        });
-
-        console.log("[payment-callback] created journalEntry", {
-          id: journalEntry.id,
         });
 
         const principalReceivable = provider.ledgerAccounts.find(
@@ -543,10 +432,6 @@ export async function POST(request: NextRequest) {
             ],
           });
           amountToApply -= penaltyToPay;
-          console.log("[payment-callback] applied penaltyToPay", {
-            penaltyToPay,
-            remainingAmount: amountToApply,
-          });
         }
 
         const serviceFeeToPay = Math.min(amountToApply, serviceFeeDue);
@@ -695,20 +580,7 @@ export async function POST(request: NextRequest) {
             ],
           });
           amountToApply -= principalToPay;
-          console.log("[payment-callback] applied principalToPay", {
-            principalToPay,
-            remainingAmount: amountToApply,
-          });
         }
-
-        console.log("[payment-callback] payment allocation summary", {
-          penaltyToPay,
-          serviceFeeToPay,
-          interestToPay,
-          taxToPay,
-          principalToPay,
-          amountToApply, // should be 0 or very small if all allocated
-        });
 
         await tx.payment.create({
           data: {
@@ -721,26 +593,11 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        console.log(
-          "[payment-callback] created payment record for installment",
-          { loanId, installmentId: activeInstallment.id, amount: paymentAmount }
-        );
-
         const newPaidAmount =
           (activeInstallment.paidAmount || 0) + penaltyToPay + principalToPay;
         const isInstallmentFullyPaid =
           newPaidAmount >=
           (activeInstallment.amount || 0) + penaltyForInstallment - 1e-9;
-
-        console.log("[payment-callback] installment payment check", {
-          oldPaidAmount: activeInstallment.paidAmount,
-          newPaidAmount,
-          installmentAmount: activeInstallment.amount,
-          penaltyForInstallment,
-          threshold:
-            (activeInstallment.amount || 0) + penaltyForInstallment - 1e-9,
-          isInstallmentFullyPaid,
-        });
 
         await tx.loanInstallment.update({
           where: { id: activeInstallment.id },
@@ -752,15 +609,6 @@ export async function POST(request: NextRequest) {
             isActive: !isInstallmentFullyPaid,
           },
         });
-
-        console.log(
-          "[payment-callback] updated installment paidAmount/status",
-          {
-            id: activeInstallment.id,
-            newPaidAmount: newPaidAmount,
-            isInstallmentFullyPaid,
-          }
-        );
 
         await tx.loan.update({
           where: { id: loanId },
@@ -786,10 +634,6 @@ export async function POST(request: NextRequest) {
                 })
               )
             );
-            console.log(
-              "[payment-callback] marked merged installments as Paid",
-              mergedInstallments.map((m) => m.installmentNumber)
-            );
           }
 
           const nextPayable = await tx.loanInstallment.findFirst({
@@ -806,21 +650,11 @@ export async function POST(request: NextRequest) {
               where: { id: nextPayable.id },
               data: { isActive: true },
             });
-            console.log(
-              "[payment-callback] activated nextPayable installment",
-              {
-                id: nextPayable.id,
-                installmentNumber: nextPayable.installmentNumber,
-              }
-            );
           } else {
             await tx.loan.update({
               where: { id: loanId },
               data: { repaymentStatus: "Paid" },
             });
-            console.log(
-              "[payment-callback] no next payable installment; marked loan Paid"
-            );
           }
         }
 
@@ -841,11 +675,6 @@ export async function POST(request: NextRequest) {
           where: { transactionId: txnRef },
           data: { status: "COMPLETED" },
         });
-
-        console.log(
-          "[payment-callback] marked pendingPayment COMPLETED for txnRef",
-          txnRef
-        );
 
         return await tx.loan.findUniqueOrThrow({ where: { id: loanId } });
       }
@@ -1203,3 +1032,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
