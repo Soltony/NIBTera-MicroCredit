@@ -57,8 +57,7 @@ export async function POST(req: Request) {
 
     if (!res.ok) {
       const txt = await res.text().catch(() => null);
-      console.warn('[phone-accounts][fetch-statement] upstream returned', res.status, txt);
-
+      // upstream returned non-ok status
       return NextResponse.json({ error: 'Upstream error', status: res.status, body: txt }, { status: 502 });
     }
 
@@ -172,8 +171,8 @@ export async function POST(req: Request) {
         avgBalance: metrics.avgBalance ?? null,
         derived: JSON.stringify(metrics.derived ?? {}),
       }});
-    } catch (e) {
-      console.warn('[phone-accounts][fetch-statement] metrics compute/save failed', e);
+    } catch (_) {
+      // ignore metrics compute/save errors
     }
 
     return NextResponse.json({ ok: true, statementId: created.id });
@@ -182,7 +181,6 @@ export async function POST(req: Request) {
     if (err instanceof MiniAppAuthError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    console.error('[phone-accounts][fetch-statement] error', err);
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }
 }

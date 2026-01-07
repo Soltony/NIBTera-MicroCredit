@@ -43,7 +43,6 @@ export async function POST(req: Request) {
 
     if (!apiUrl) {
       const errMsg = 'Missing EXTERNAL_DISBURSEMENT_URL env var';
-      console.error('[external][disbursement] config error', { error: errMsg });
 
       await auditExternalApiError(
         { actorId, ipAddress, userAgent, integration: 'DISBURSEMENT', entity: 'DisbursementTransaction' },
@@ -70,8 +69,8 @@ export async function POST(req: Request) {
             statusCode: null,
           },
         });
-      } catch (e) {
-        console.error('[external][disbursement] failed to save disbursement transaction (missing url)', e);
+      } catch (_) {
+        // ignore DB save errors
       }
       return NextResponse.json({ error: errMsg }, { status: 500 });
     }
@@ -108,7 +107,6 @@ export async function POST(req: Request) {
       (res as any).__audit = { correlationId, durationMs };
     } catch (fetchErr: any) {
       const details = String(fetchErr?.message ?? fetchErr);
-      console.error('[external][disbursement] fetch failed', { apiUrl, error: details });
 
       await auditExternalApiError(
         { actorId, ipAddress, userAgent, integration: 'DISBURSEMENT', entity: 'DisbursementTransaction', correlationId },
@@ -137,8 +135,8 @@ export async function POST(req: Request) {
             statusCode: null,
           },
         });
-      } catch (e) {
-        console.error('[external][disbursement] failed to save disbursement transaction (fetch error)', e);
+      } catch (_) {
+        // ignore DB save errors
       }
 
       return NextResponse.json({ error: 'Upstream fetch failed', details }, { status: 502 });
@@ -219,11 +217,9 @@ export async function POST(req: Request) {
         responsePayload: typeof payload === 'string' ? payload : (payload ? JSON.stringify(payload) : undefined),
         rawResponse: txt ?? undefined,
         statusCode: typeof res.status === 'number' ? res.status : undefined,
-      }}).catch((e) => {
-        console.error('[external][disbursement] failed to save disbursement transaction', e);
-      });
+      } });
     } catch (e) {
-      console.error('[external][disbursement] saving transaction failed', e);
+      // ignore saving errors
     }
 
     // Attempt to send SMS notification to the phone tied to the credited account (fire-and-forget)
@@ -247,9 +243,11 @@ export async function POST(req: Request) {
           message = `Disbursement to account ${creditAccount} failed: ${reason}`;
         }
     const smsRes = await sendSms(phoneNumber, message);
-    if (!smsRes.ok) console.warn('[external][disbursement] sms send failed', smsRes);
+    if (!smsRes.ok) {
+      // ignore SMS send failures
+    }
       } catch (e) {
-        console.error('[external][disbursement] sms notify failed', e);
+        // ignore sms notify errors
       }
     })();
 
@@ -259,7 +257,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(payload ?? { status: 'OK', status_code: res.status }, { status: res.status });
   } catch (err: any) {
-    console.error('[external][disbursement] error', err);
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }
 }

@@ -59,14 +59,7 @@ export async function POST(req: NextRequest) {
             const wwwAuthenticate = externalResponse.headers.get('www-authenticate') || '';
             const rawBody = await externalResponse.text().catch(() => '');
 
-            console.log('[auth/connect] token validation response', {
-                requestId,
-                upstreamStatus: externalResponse.status,
-                upstreamContentType: contentType,
-                upstreamWwwAuthenticate: wwwAuthenticate || undefined,
-                upstreamBodySnippet: rawBody ? snippet(rawBody, 1200) : undefined,
-                TOKEN_VALIDATION_API_URL,
-            });
+    
 
             let errorMessage = `Token validation failed (status ${externalResponse.status}).`;
             try {
@@ -98,12 +91,6 @@ export async function POST(req: NextRequest) {
 
         const responseData = await externalResponse.json();
         let phone = responseData.phone;
-
-        console.log('[auth/connect] token validated', {
-            requestId,
-            phonePresent: Boolean(phone),
-            TOKEN_VALIDATION_API_URL,
-        });
         
         if (!phone) {
             return NextResponse.json({ error: "Phone number not found in validation response." }, { status: 400 });

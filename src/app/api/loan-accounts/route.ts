@@ -14,9 +14,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const apiUrl = process.env.EXTERNAL_API_URL ?? 'http://192.168.100.56:8280/nibtera-loan/get-accounts';
-    const user = process.env.EXTERNAL_API_USERNAME ?? 'nibLoan';
-    const pass = process.env.EXTERNAL_API_PASSWORD ?? '123456';
+    const apiUrl = process.env.EXTERNAL_API_URL;
+    const user = process.env.EXTERNAL_API_USERNAME;
+    const pass = process.env.EXTERNAL_API_PASSWORD;
+    if (!apiUrl) {
+      console.error('[loan-accounts] missing EXTERNAL_API_URL');
+      return NextResponse.json({ error: 'EXTERNAL_API_URL not configured' }, { status: 500 });
+    }
     console.info(`[loan-accounts] proxy request phone=${phoneNumber} -> ${apiUrl}`);
     
     const auth = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');

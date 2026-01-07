@@ -8,7 +8,6 @@ export async function GET(req: Request) {
     const ctx = await requireMiniAppAuthContext();
     const url = new URL(req.url);
     const phoneNumber = url.searchParams.get('phoneNumber');
-    console.info(`[phone-accounts][GET] phoneNumber=${phoneNumber}`);
     if (!phoneNumber) return NextResponse.json({ error: 'phoneNumber is required' }, { status: 400 });
 
     if (String(phoneNumber) !== String(ctx.borrowerId)) {
@@ -20,7 +19,7 @@ export async function GET(req: Request) {
       orderBy: { isActive: 'desc' },
     });
 
-    console.info(`[phone-accounts][GET] found ${items.length} associations for ${phoneNumber}`);
+    // info logging removed
 
     return NextResponse.json(items);
   } catch (err: any) {
@@ -37,7 +36,6 @@ export async function POST(req: Request) {
   try {
     const ctx = await requireMiniAppAuthContext();
     const body = await req.json();
-    console.info('[phone-accounts][POST] body=', body);
     const { phoneNumber, accountNumber, customerName, isActive } = body;
     if (!phoneNumber || !accountNumber) return NextResponse.json({ error: 'phoneNumber and accountNumber are required' }, { status: 400 });
 
@@ -50,7 +48,7 @@ export async function POST(req: Request) {
     // If setting active, deactivate others for this phone first
     return await prisma.$transaction(async (tx) => {
       if (isActive) {
-        console.info(`[phone-accounts][POST] deactivating other accounts for ${phoneNumber}`);
+        // deactivating other accounts for this phone (logging removed)
         await tx.phoneAccount.updateMany({ where: { phoneNumber }, data: { isActive: false } });
       }
 
@@ -60,15 +58,15 @@ export async function POST(req: Request) {
         create: { phoneNumber, accountNumber: accNum, customerName, isActive: !!isActive },
       });
 
-      console.info('[phone-accounts][POST] upserted=', upserted);
+      // upsert completed (logging removed)
 
       return NextResponse.json(upserted);
     });
-  } catch (err: any) {
+    } catch (err: any) {
     if (err instanceof MiniAppAuthError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    console.error('[phone-accounts][POST] error', err);
+    // error logging removed
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }
 }
@@ -79,7 +77,6 @@ export async function PATCH(req: Request) {
   try {
     const ctx = await requireMiniAppAuthContext();
     const body = await req.json();
-    console.info('[phone-accounts][PATCH] body=', body);
     const { phoneNumber, accountNumber } = body;
     if (!phoneNumber || !accountNumber) return NextResponse.json({ error: 'phoneNumber and accountNumber are required' }, { status: 400 });
 
@@ -90,22 +87,22 @@ export async function PATCH(req: Request) {
     const accNum = String(accountNumber);
 
     const result = await prisma.$transaction(async (tx) => {
-      console.info(`[phone-accounts][PATCH] deactivating others for ${phoneNumber}`);
+      // deactivating other accounts for this phone (logging removed)
       await tx.phoneAccount.updateMany({ where: { phoneNumber }, data: { isActive: false } });
       const updated = await tx.phoneAccount.update({
         where: { phoneNumber_accountNumber: { phoneNumber, accountNumber: accNum } },
         data: { isActive: true },
       });
-      console.info('[phone-accounts][PATCH] updated=', updated);
+      // update completed (logging removed)
       return updated;
     });
 
     return NextResponse.json(result);
-  } catch (err: any) {
+    } catch (err: any) {
     if (err instanceof MiniAppAuthError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    console.error('[phone-accounts][PATCH] error', err);
+    // error logging removed
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }
 }

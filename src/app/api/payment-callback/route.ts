@@ -85,7 +85,6 @@ async function validateAuthHeader(authHeader: string | null) {
 
   if (!response.ok) {
     const errorData = await response.text();
-    console.error("Token validation failed:", errorData);
     throw new Error("External token validation failed.");
   }
 
@@ -120,7 +119,6 @@ export async function POST(request: NextRequest) {
     // ✅ Validate fixed token
     await validateAuthHeader(fixedAuthHeader);
   } catch (e: any) {
-    console.error("Callback Error: Initial validation failed.", e);
     return NextResponse.json(
       { message: e.message || "Authentication or parsing error." },
       { status: 400 }
@@ -174,7 +172,6 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (e) {
-    console.error("Failed to log payment transaction:", e);
   }
 
   // Step 3: Process payment
@@ -183,9 +180,6 @@ export async function POST(request: NextRequest) {
       where: { transactionId: txnRef },
     });
     if (!pendingPayment) {
-      console.error(
-        `Callback Error: No pending payment found for txnRef: ${txnRef}`
-      );
       return NextResponse.json(
         { message: "Transaction reference not found or already processed." },
         { status: 200 }
@@ -230,9 +224,6 @@ export async function POST(request: NextRequest) {
 
     if (!hasInstallments && paymentAmount > totalDue + 0.01) {
       // Add tolerance for floating point
-      console.error(
-        `[PAYMENT_CALLBACK_ERROR] Overpayment detected. Payment amount (${paymentAmount}) exceeds balance due (${totalDue}).`
-      );
       // We still have to accept the callback, but we will not process the payment.
       // And we will flag the pending payment as failed.
       await prisma.pendingPayment.update({
@@ -340,9 +331,6 @@ export async function POST(request: NextRequest) {
           taxDue;
 
         if (paymentAmount > totalDueForInstallment + 0.01) {
-          console.error(
-            `[PAYMENT_CALLBACK_ERROR] Overpayment detected. Payment amount (${paymentAmount}) exceeds installment due (${totalDueForInstallment}).`
-          );
           await tx.pendingPayment.update({
             where: { transactionId: txnRef },
             data: { status: "FAILED" },
@@ -1022,7 +1010,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    console.error("Callback Error: Failed to process payment update.", error);
     return NextResponse.json(
       {
         message:
