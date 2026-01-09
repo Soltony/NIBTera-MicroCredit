@@ -188,6 +188,14 @@ export async function GET(request: NextRequest) {
           serviceFeeOutstanding +
           penaltyOutstanding;
 
+        // Paid amounts (from collected/received ledger entries)
+        const principalPaid = collected["Principal"] || 0;
+        const interestPaid = collected["Interest"] || 0;
+        const serviceFeePaid = collected["ServiceFee"] || 0;
+        const penaltyPaid = collected["Penalty"] || 0;
+        const totalPaid =
+          principalPaid + interestPaid + serviceFeePaid + penaltyPaid;
+
         const configuredDebit = process.env.ACCOUNT_NO || null;
         let debitAccounts = configuredDebit
           ? [configuredDebit]
@@ -263,7 +271,7 @@ export async function GET(request: NextRequest) {
             if (reference === je.id && je.payment) {
               const paymentDate = new Date(je.payment.date);
               const paymentAmount = je.payment.amount;
-              
+
               // Find PendingPayment that matches this specific payment's date/amount
               const matchingPending = await prisma.pendingPayment.findFirst({
                 where: {
@@ -424,6 +432,12 @@ export async function GET(request: NextRequest) {
           serviceFeeOutstanding,
           penaltyOutstanding,
           totalOutstanding,
+          // Paid amounts for repayment reports
+          principalPaid,
+          interestPaid,
+          serviceFeePaid,
+          penaltyPaid,
+          totalPaid,
           status: loan?.repaymentStatus || null,
           cbsReference,
           cbsCreditAmount,
