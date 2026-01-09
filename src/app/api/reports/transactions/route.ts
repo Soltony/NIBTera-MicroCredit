@@ -188,11 +188,33 @@ export async function GET(request: NextRequest) {
           serviceFeeOutstanding +
           penaltyOutstanding;
 
-        // Paid amounts (from collected/received ledger entries)
-        const principalPaid = collected["Principal"] || 0;
-        const interestPaid = collected["Interest"] || 0;
-        const serviceFeePaid = collected["ServiceFee"] || 0;
-        const penaltyPaid = collected["Penalty"] || 0;
+        // For repayments: calculate transaction-specific paid amounts from THIS journal entry's ledger entries
+        // (not cumulative totals from all payments)
+        let principalPaid = 0;
+        let interestPaid = 0;
+        let serviceFeePaid = 0;
+        let penaltyPaid = 0;
+
+        if (je.payment) {
+          // This is a repayment - get amounts from THIS specific transaction's ledger entries
+          for (const entry of je.entries) {
+            if (entry.ledgerAccount?.type === "Received") {
+              const category = entry.ledgerAccount?.category as string;
+              const amount = entry.amount || 0;
+              if (category === "Principal") principalPaid += amount;
+              else if (category === "Interest") interestPaid += amount;
+              else if (category === "ServiceFee") serviceFeePaid += amount;
+              else if (category === "Penalty") penaltyPaid += amount;
+            }
+          }
+        } else {
+          // For non-repayment transactions, use cumulative collected amounts
+          principalPaid = collected["Principal"] || 0;
+          interestPaid = collected["Interest"] || 0;
+          serviceFeePaid = collected["ServiceFee"] || 0;
+          penaltyPaid = collected["Penalty"] || 0;
+        }
+
         const totalPaid =
           principalPaid + interestPaid + serviceFeePaid + penaltyPaid;
 
