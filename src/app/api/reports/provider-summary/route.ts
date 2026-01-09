@@ -159,7 +159,21 @@ export async function GET(req: NextRequest) {
 
         // 4. Fund Utilization
         const provider = await prisma.loanProvider.findUnique({ where: { id: providerId } });
-        const totalDisbursedEver = (
+        
+        // Sum successful disbursements from DisbursementTransaction (statusCode = 200 indicates success)
+        const successfulDisbursements = await prisma.disbursementTransaction.aggregate({
+            _sum: { amount: true },
+            where: {
+                OR: [
+                    { providerId: providerId },
+                    { originalProviderId: providerId }
+                ],
+                statusCode: 200,
+            },
+        });
+        
+        // Fallback to Loan table aggregate if no DisbursementTransaction records exist
+        const loanDisbursedTotal = (
             await prisma.loan.aggregate({
                 _sum: { loanAmount: true },
                 where: {
@@ -168,6 +182,12 @@ export async function GET(req: NextRequest) {
                 },
             })
         )._sum.loanAmount || 0;
+        
+        // Use DisbursementTransaction sum if available, otherwise use Loan table sum
+        const totalDisbursedEver = (successfulDisbursements._sum.amount ?? 0) > 0 
+            ? (successfulDisbursements._sum.amount ?? 0) 
+            : loanDisbursedTotal;
+        
         const fundUtilization = provider && provider.startingCapital > 0 ? (totalDisbursedEver / provider.startingCapital) * 100 : 0;
 
         // 5. Aging Report (snapshot as of today) - borrower level amounts and provider classification
