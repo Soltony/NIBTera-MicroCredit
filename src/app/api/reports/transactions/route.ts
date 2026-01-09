@@ -197,33 +197,64 @@ export async function GET(request: NextRequest) {
       // transactionId when available (human-friendly reference shown in UI).
       let reference = je.id;
 
-      try {
-        // 1) Try to extract TxRef from the journal entry description (the
-        // payment callback writes `TxRef ${txnRef}` into descriptions).
-        const desc = String((je as any).description || '');
-        const m = desc.match(/TxRef\s*[:#]?\s*([A-Za-z0-9-]+)/i) || desc.match(/TxRef[:#]?\s*([A-Za-z0-9-]+)/i);
-        if (m && m[1]) {
-          const foundTxnRef = m[1];
-          const pt = await prisma.paymentTransaction.findFirst({ where: { txnRef: foundTxnRef } });
-          if (pt && pt.transactionId) {
-            reference = pt.transactionId;
-          }
-        }
-
-        // 2) If still default and this is a repayment, try to resolve via
-        // a completed PendingPayment row for the loan (latest). The
-        // PendingPayment.transactionId holds the txnRef; PaymentTransaction
-        // stores the upstream transactionId in `transactionId` and the
-        // gateway reference GUID in `txnRef`.
-        if (reference === je.id && je.payment && loan?.id) {
-          const pending = await prisma.pendingPayment.findFirst({ where: { loanId: loan.id, status: 'COMPLETED' }, orderBy: { updatedAt: 'desc' } });
+      // For repayments: resolve the CBS transaction reference (FT number) from PaymentTransaction
+      // This mirrors how disbursements get cbsReference from DisbursementTransaction.transactionId
+      if (je.payment && loan?.id) {
+        try {
+          // 1) Try to find via completed PendingPayment for this loan
+          // PendingPayment.transactionId is the gateway reference (txnRef in PaymentTransaction)
+          // PaymentTransaction.transactionId is the CBS FT number we want to display
+          const pending = await prisma.pendingPayment.findFirst({
+            where: { loanId: loan.id, status: 'COMPLETED' },
+            orderBy: { updatedAt: 'desc' }
+          });
+          
           if (pending && pending.transactionId) {
-            const pt2 = await prisma.paymentTransaction.findFirst({ where: { txnRef: pending.transactionId } });
-            if (pt2 && pt2.transactionId) reference = pt2.transactionId;
+            // Look up PaymentTransaction by txnRef (gateway reference)
+            const pt = await prisma.paymentTransaction.findFirst({
+              where: { txnRef: pending.transactionId }
+            });
+            // Use transactionId (FT number) if it looks like a CBS reference (starts with FT)
+            if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
+              reference = pt.transactionId;
+            }
           }
+
+          // 2) If still default, try extracting TxRef from journal entry description
+          if (reference === je.id) {
+            const desc = String((je as any).description || '');
+            const m = desc.match(/TxRef\s*[:#]?\s*([A-Za-z0-9-]+)/i);
+            if (m && m[1]) {
+              const foundTxnRef = m[1];
+              const pt = await prisma.paymentTransaction.findFirst({ where: { txnRef: foundTxnRef } });
+              if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
+                reference = pt.transactionId;
+              }
+            }
+          }
+
+          // 3) Fallback: search all pending payments for this loan to find any FT reference
+          if (reference === je.id) {
+            const allPending = await prisma.pendingPayment.findMany({
+              where: { loanId: loan.id },
+              orderBy: { updatedAt: 'desc' },
+              take: 5
+            });
+            for (const p of allPending) {
+              if (p.transactionId) {
+                const pt = await prisma.paymentTransaction.findFirst({
+                  where: { txnRef: p.transactionId }
+                });
+                if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
+                  reference = pt.transactionId;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // ignore lookup errors and keep default reference
         }
-      } catch (e) {
-        // ignore lookup errors and keep default reference
       }
 
       // try to find a matching disbursement transaction by borrower account and amount
