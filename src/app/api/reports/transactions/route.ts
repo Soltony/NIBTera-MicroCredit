@@ -241,58 +241,49 @@ export async function GET(request: NextRequest) {
 
         // For repayments: resolve the CBS transaction reference (FT number) from PaymentTransaction
         // Similar to how disbursements get cbsReference from DisbursementTransaction.transactionId
+        // Each partial repayment has its own TxRef in the journal entry description
         if (je.payment && loan?.id) {
           try {
-            // 1) Try to find via completed PendingPayment for this loan
-            // PendingPayment.transactionId is the gateway reference (matches PaymentTransaction.txnRef)
-            // PaymentTransaction.transactionId is the CBS FT number we want to display
-            const pending = await prisma.pendingPayment.findFirst({
-              where: { loanId: loan.id, status: "COMPLETED" },
-              orderBy: { updatedAt: "desc" },
-            });
-
-            if (pending && pending.transactionId) {
-              // Look up PaymentTransaction by txnRef (gateway reference)
+            // 1) FIRST: Extract TxRef from journal entry description (unique per payment)
+            // The description contains "via TxRef {txnRef}" which is specific to this payment
+            const desc = String((je as any).description || "");
+            const m = desc.match(/TxRef\s*[:#]?\s*([A-Za-z0-9-]+)/i);
+            if (m && m[1]) {
+              const foundTxnRef = m[1];
+              // Look up PaymentTransaction by txnRef to get the FT number
               const pt = await prisma.paymentTransaction.findFirst({
-                where: { txnRef: pending.transactionId },
+                where: { txnRef: foundTxnRef },
               });
-              // Use transactionId (FT number) if it looks like a CBS reference (starts with FT)
               if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
                 reference = pt.transactionId;
               }
             }
 
-            // 2) If still default, try extracting TxRef from journal entry description
-            if (reference === je.id) {
-              const desc = String((je as any).description || "");
-              const m = desc.match(/TxRef\s*[:#]?\s*([A-Za-z0-9-]+)/i);
-              if (m && m[1]) {
-                const foundTxnRef = m[1];
+            // 2) If still default, try to match by payment date and amount via PendingPayment
+            if (reference === je.id && je.payment) {
+              const paymentDate = new Date(je.payment.date);
+              const paymentAmount = je.payment.amount;
+              
+              // Find PendingPayment that matches this specific payment's date/amount
+              const matchingPending = await prisma.pendingPayment.findFirst({
+                where: {
+                  loanId: loan.id,
+                  status: "COMPLETED",
+                  amount: paymentAmount,
+                  updatedAt: {
+                    gte: new Date(paymentDate.getTime() - 60000), // within 1 minute
+                    lte: new Date(paymentDate.getTime() + 60000),
+                  },
+                },
+                orderBy: { updatedAt: "desc" },
+              });
+
+              if (matchingPending && matchingPending.transactionId) {
                 const pt = await prisma.paymentTransaction.findFirst({
-                  where: { txnRef: foundTxnRef },
+                  where: { txnRef: matchingPending.transactionId },
                 });
                 if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
                   reference = pt.transactionId;
-                }
-              }
-            }
-
-            // 3) Fallback: search all pending payments for this loan to find any FT reference
-            if (reference === je.id) {
-              const allPending = await prisma.pendingPayment.findMany({
-                where: { loanId: loan.id },
-                orderBy: { updatedAt: "desc" },
-                take: 5,
-              });
-              for (const p of allPending) {
-                if (p.transactionId) {
-                  const pt = await prisma.paymentTransaction.findFirst({
-                    where: { txnRef: p.transactionId },
-                  });
-                  if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
-                    reference = pt.transactionId;
-                    break;
-                  }
                 }
               }
             }
