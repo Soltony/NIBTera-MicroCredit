@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 type ExternalAccount = {
   AccountNumber: number | string;
@@ -22,7 +22,9 @@ type Props = {
 };
 
 export default function AccountSelector({ phoneNumber, onSelected }: Props) {
-  const [externalAccounts, setExternalAccounts] = useState<ExternalAccount[] | null>(null);
+  const [externalAccounts, setExternalAccounts] = useState<
+    ExternalAccount[] | null
+  >(null);
   const [associations, setAssociations] = useState<PhoneAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,38 +41,54 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
     setError(null);
     setExternalAccounts(null);
     try {
-      console.info(`[AccountSelector] fetching external accounts for ${phoneNumber}`);
-      const res = await fetch('/api/loan-accounts', { method: 'POST', body: JSON.stringify({ phoneNumber }), headers: { 'Content-Type': 'application/json' } });
+      console.info(
+        `[AccountSelector] fetching external accounts for ${phoneNumber}`
+      );
+      const res = await fetch("/api/loan-accounts", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber }),
+        headers: { "Content-Type": "application/json" },
+      });
       if (!res.ok) {
         const txt = await res.text();
-        console.warn(`[AccountSelector] external service returned ${res.status} ${txt}`);
+        console.warn(
+          `[AccountSelector] external service returned ${res.status} ${txt}`
+        );
         setError(`External service error: ${res.status} ${txt}`);
         return;
       }
       const data = await res.json();
       // upstream returns { details: [...] }
       const list = data?.details ?? [];
-      console.info(`[AccountSelector] external accounts fetched: ${list.length}`);
+      console.info(
+        `[AccountSelector] external accounts fetched: ${list.length}`
+      );
       setExternalAccounts(list);
     } catch (err: any) {
-      console.error('[AccountSelector] fetchExternalAccounts error', err);
+      console.error("[AccountSelector] fetchExternalAccounts error", err);
       setError(String(err?.message ?? err));
     }
   }
 
   async function fetchAssociations() {
     try {
-      console.info(`[AccountSelector] fetching associations for ${phoneNumber}`);
-      const url = `/api/phone-accounts?phoneNumber=${encodeURIComponent(phoneNumber)}`;
+      console.info(
+        `[AccountSelector] fetching associations for ${phoneNumber}`
+      );
+      const url = `/api/phone-accounts?phoneNumber=${encodeURIComponent(
+        phoneNumber
+      )}`;
       const res = await fetch(url);
       if (!res.ok) return;
       const items = await res.json();
-      console.info(`[AccountSelector] associations fetched: ${items?.length ?? 0}`);
+      console.info(
+        `[AccountSelector] associations fetched: ${items?.length ?? 0}`
+      );
       setAssociations(items);
       const active = items.find((i: PhoneAccount) => i.isActive);
       if (active) setSelected(active.accountNumber);
     } catch (err) {
-      console.error('[AccountSelector] fetchAssociations error', err);
+      console.error("[AccountSelector] fetchAssociations error", err);
       // ignore
     }
   }
@@ -78,12 +96,19 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
   async function handleSave(accountNumber: string, customerName?: string) {
     setLoading(true);
     setError(null);
-    console.info(`[AccountSelector] saving association ${accountNumber} for ${phoneNumber}`);
+    console.info(
+      `[AccountSelector] saving association ${accountNumber} for ${phoneNumber}`
+    );
     try {
-      const res = await fetch('/api/phone-accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, accountNumber, customerName, isActive: true }),
+      const res = await fetch("/api/phone-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber,
+          accountNumber,
+          customerName,
+          isActive: true,
+        }),
       });
       if (!res.ok) {
         const txt = await res.text();
@@ -92,35 +117,36 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
         return;
       }
       const saved = await res.json();
-      console.info('[AccountSelector] association saved', saved);
+      console.info("[AccountSelector] association saved", saved);
       // refresh
       await fetchAssociations();
       setSelected(saved.accountNumber);
       onSelected?.(saved);
       // fetch account statement for the selected account (last 12 months)
-      (async () => {
-        try {
-          const end = new Date();
-          const start = new Date();
-          start.setFullYear(end.getFullYear() - 1);
-          const fmt = (d: Date) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-            const resp = await fetch('/api/phone-accounts/fetch-statement', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phoneNumber, accountNumber, startDate: fmt(start), endDate: fmt(end) })
-          });
-          if (!resp.ok) {
-            const txt = await resp.text().catch(() => null);
-            console.warn('[AccountSelector] fetch-statement failed', resp.status, txt);
-          } else {
-            console.info('[AccountSelector] fetch-statement triggered', await resp.json().catch(() => null));
-          }
-        } catch (e) {
-          // ignore background errors
-        }
-      })();
+      // COMMENTED OUT: Statement fetching disabled
+      // (async () => {
+      //   try {
+      //     const end = new Date();
+      //     const start = new Date();
+      //     start.setFullYear(end.getFullYear() - 1);
+      //     const fmt = (d: Date) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+      //       const resp = await fetch('/api/phone-accounts/fetch-statement', {
+      //       method: 'POST',
+      //       headers: { 'Content-Type': 'application/json' },
+      //       body: JSON.stringify({ phoneNumber, accountNumber, startDate: fmt(start), endDate: fmt(end) })
+      //     });
+      //     if (!resp.ok) {
+      //       const txt = await resp.text().catch(() => null);
+      //       console.warn('[AccountSelector] fetch-statement failed', resp.status, txt);
+      //     } else {
+      //       console.info('[AccountSelector] fetch-statement triggered', await resp.json().catch(() => null));
+      //     }
+      //   } catch (e) {
+      //     // ignore background errors
+      //   }
+      // })();
     } catch (err: any) {
-      console.error('[AccountSelector] handleSave error', err);
+      console.error("[AccountSelector] handleSave error", err);
       setError(String(err?.message ?? err));
     } finally {
       setLoading(false);
@@ -129,41 +155,48 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
 
   async function handleSetActive(accountNumber: string) {
     setLoading(true);
-    console.info(`[AccountSelector] setting active account ${accountNumber} for ${phoneNumber}`);
+    console.info(
+      `[AccountSelector] setting active account ${accountNumber} for ${phoneNumber}`
+    );
     try {
-      const res = await fetch('/api/phone-accounts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber, accountNumber }) });
+      const res = await fetch("/api/phone-accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, accountNumber }),
+      });
       if (!res.ok) {
         console.warn(`[AccountSelector] setActive failed ${res.status}`);
         setError(`Set active failed: ${res.status}`);
       } else {
         const updated = await res.json();
-        console.info('[AccountSelector] active set', updated);
+        console.info("[AccountSelector] active set", updated);
         await fetchAssociations();
         setSelected(updated.accountNumber);
         onSelected?.(updated);
         // fetch account statement for the activated account (last 12 months)
-        (async () => {
-          try {
-            const end = new Date();
-            const start = new Date();
-            start.setFullYear(end.getFullYear() - 1);
-            const fmt = (d: Date) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-            const resp = await fetch('/api/phone-accounts/fetch-statement', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ phoneNumber, accountNumber, startDate: fmt(start), endDate: fmt(end) })
-            });
-            if (!resp.ok) {
-              const txt = await resp.text().catch(() => null);
-              console.warn('[AccountSelector] fetch-statement failed', resp.status, txt);
-            } else {
-              console.info('[AccountSelector] fetch-statement triggered', await resp.json().catch(() => null));
-            }
-          } catch (e) {}
-        })();
+        // COMMENTED OUT: Statement fetching disabled
+        // (async () => {
+        //   try {
+        //     const end = new Date();
+        //     const start = new Date();
+        //     start.setFullYear(end.getFullYear() - 1);
+        //     const fmt = (d: Date) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+        //     const resp = await fetch('/api/phone-accounts/fetch-statement', {
+        //       method: 'POST',
+        //       headers: { 'Content-Type': 'application/json' },
+        //       body: JSON.stringify({ phoneNumber, accountNumber, startDate: fmt(start), endDate: fmt(end) })
+        //     });
+        //     if (!resp.ok) {
+        //       const txt = await resp.text().catch(() => null);
+        //       console.warn('[AccountSelector] fetch-statement failed', resp.status, txt);
+        //     } else {
+        //       console.info('[AccountSelector] fetch-statement triggered', await resp.json().catch(() => null));
+        //     }
+        //   } catch (e) {}
+        // })();
       }
     } catch (err: any) {
-      console.error('[AccountSelector] handleSetActive error', err);
+      console.error("[AccountSelector] handleSetActive error", err);
       setError(String(err?.message ?? err));
     } finally {
       setLoading(false);
@@ -192,7 +225,13 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
                   {a.isActive ? (
                     <span className="text-green-600 font-medium">Active</span>
                   ) : (
-                    <button className="btn" onClick={() => handleSetActive(a.accountNumber)} disabled={loading}>Set Active</button>
+                    <button
+                      className="btn"
+                      onClick={() => handleSetActive(a.accountNumber)}
+                      disabled={loading}
+                    >
+                      Set Active
+                    </button>
                   )}
                 </div>
               </li>
@@ -207,27 +246,45 @@ export default function AccountSelector({ phoneNumber, onSelected }: Props) {
         {externalAccounts === null ? (
           <div className="text-sm text-muted-foreground">Loading...</div>
         ) : externalAccounts.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No accounts found for this phone</div>
+          <div className="text-sm text-muted-foreground">
+            No accounts found for this phone
+          </div>
         ) : (
           <ul className="space-y-2 overflow-y-auto max-h-56 pr-2">
             {externalAccounts.map((ea, idx) => {
               const accNum = String(ea.AccountNumber);
-              const associated = associations.find((s) => s.accountNumber === accNum);
+              const associated = associations.find(
+                (s) => s.accountNumber === accNum
+              );
               return (
                 <li key={idx} className="flex items-center justify-between">
                   <div>
                     <div className="font-mono">{accNum}</div>
-                    <div className="text-sm">{ea.Name} {ea.Status ? `(${ea.Status})` : ''}</div>
+                    <div className="text-sm">
+                      {ea.Name} {ea.Status ? `(${ea.Status})` : ""}
+                    </div>
                   </div>
                   <div>
                     {associated ? (
                       associated.isActive ? (
                         <span className="text-green-600">Selected</span>
                       ) : (
-                        <button className="btn" onClick={() => handleSetActive(accNum)} disabled={loading}>Use</button>
+                        <button
+                          className="btn"
+                          onClick={() => handleSetActive(accNum)}
+                          disabled={loading}
+                        >
+                          Use
+                        </button>
                       )
                     ) : (
-                      <button className="btn" onClick={() => handleSave(accNum, ea.Name)} disabled={loading}>Select</button>
+                      <button
+                        className="btn"
+                        onClick={() => handleSave(accNum, ea.Name)}
+                        disabled={loading}
+                      >
+                        Select
+                      </button>
                     )}
                   </div>
                 </li>
