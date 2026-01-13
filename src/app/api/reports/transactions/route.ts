@@ -107,10 +107,21 @@ export async function GET(request: NextRequest) {
     const disbursementTxs = await prisma.disbursementTransaction.findMany({
       where: disbursementWhere,
     });
+
+    // Create map by loanId for direct matching (highest priority)
+    const disbByLoanId = new Map<string, any>();
+    for (const d of disbursementTxs) {
+      const loanId = (d as any).loanId;
+      if (loanId && !disbByLoanId.has(loanId)) {
+        disbByLoanId.set(loanId, d);
+      }
+    }
+
+    // Create map by account for fallback matching
     const disbMap = new Map<string, any[]>();
     for (const d of disbursementTxs) {
       const key = String(
-        d.creditAccountNormalized || d.creditAccount || ""
+        (d as any).creditAccountNormalized || d.creditAccount || ""
       ).trim();
       if (!disbMap.has(key)) disbMap.set(key, []);
       disbMap.get(key)!.push(d);
@@ -322,7 +333,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // --- Disbursement Matching by Account + Amount + Date ±3 minutes ---
+        // --- Disbursement Matching: First by loanId, then by Account + Amount + Date ±3 minutes ---
         let cbsReference: string | null = null;
         let cbsCreditAmount: number | null = null;
         let disbursementCreatedAt: Date | null = null;
@@ -352,43 +363,53 @@ export async function GET(request: NextRequest) {
 
           let foundMatch: any = null;
 
-          const normalizedBorrowerAcc = String(borrowerAccount || "")
-            .replace(/\D/g, "")
-            .replace(/^0+/, "");
-          const candidates =
-            disbMap.get(String(normalizedBorrowerAcc)) ||
-            disbMap.get(String(borrowerAccount)) ||
-            [];
+          // 1️⃣ PRIORITY: Direct match by loanId from DisbursementTransaction table
+          if (loan.id && disbByLoanId.has(loan.id)) {
+            foundMatch = disbByLoanId.get(loan.id);
+          }
 
-          if (candidates.length > 0) {
-            // 1️⃣ Filter by exact amount
-            const amountMatches = candidates.filter(
-              (c) => Math.abs((c.amount || 0) - principalDisbursed) < 0.01
-            );
+          // 2️⃣ FALLBACK: Match by Account + Amount + Timestamp if no direct loanId match
+          if (!foundMatch) {
+            const normalizedBorrowerAcc = String(borrowerAccount || "")
+              .replace(/\D/g, "")
+              .replace(/^0+/, "");
+            const candidates =
+              disbMap.get(String(normalizedBorrowerAcc)) ||
+              disbMap.get(String(borrowerAccount)) ||
+              [];
 
-            // 2️⃣ Filter by timestamp ±3 minutes
-            const matches = amountMatches.filter((c) => {
-              const jeTime = new Date(je.date).getTime();
-              const cTime = new Date(c.createdAt).getTime();
-              return Math.abs(jeTime - cTime) <= 3 * 60 * 1000; // 3 minutes in ms
-            });
-
-            // 3️⃣ Pick the closest timestamp
-            if (matches.length > 0) {
-              let best = matches[0];
-              let bestDiff = Math.abs(
-                new Date(best.createdAt).getTime() - new Date(je.date).getTime()
+            if (candidates.length > 0) {
+              // Filter by exact amount
+              const amountMatches = candidates.filter(
+                (c) => Math.abs((c.amount || 0) - principalDisbursed) < 0.01
               );
-              for (const c of matches) {
-                const diff = Math.abs(
-                  new Date(c.createdAt).getTime() - new Date(je.date).getTime()
+
+              // Filter by timestamp ±3 minutes
+              const matches = amountMatches.filter((c) => {
+                const jeTime = new Date(je.date).getTime();
+                const cTime = new Date(c.createdAt).getTime();
+                return Math.abs(jeTime - cTime) <= 3 * 60 * 1000; // 3 minutes in ms
+              });
+
+              // Pick the closest timestamp
+              if (matches.length > 0) {
+                let best = matches[0];
+                let bestDiff = Math.abs(
+                  new Date(best.createdAt).getTime() -
+                    new Date(je.date).getTime()
                 );
-                if (diff < bestDiff) {
-                  bestDiff = diff;
-                  best = c;
+                for (const c of matches) {
+                  const diff = Math.abs(
+                    new Date(c.createdAt).getTime() -
+                      new Date(je.date).getTime()
+                  );
+                  if (diff < bestDiff) {
+                    bestDiff = diff;
+                    best = c;
+                  }
                 }
+                foundMatch = best;
               }
-              foundMatch = best;
             }
           }
 
