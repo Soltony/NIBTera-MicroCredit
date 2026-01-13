@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/user';
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { getUserFromSession } from "@/lib/user";
 
 function isFailureStatus(statusCode: number | null | undefined) {
   if (statusCode == null) return true;
@@ -9,17 +9,20 @@ function isFailureStatus(statusCode: number | null | undefined) {
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromSession();
-  if (!user || !user.permissions?.['approvals']?.read) {
-    return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  if (!user || !user.permissions?.["approvals"]?.read) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
-  const page = Math.max(1, Number(searchParams.get('page') || 1));
-  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || 20)));
+  const page = Math.max(1, Number(searchParams.get("page") || 1));
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(searchParams.get("limit") || 20))
+  );
 
   // Optional date filters
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   const createdAt: any = {};
   if (from) createdAt.gte = new Date(from);
   if (to) createdAt.lte = new Date(to);
@@ -41,7 +44,7 @@ export async function GET(req: NextRequest) {
     prisma.disbursementTransaction.count({ where }),
     prisma.disbursementTransaction.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -51,8 +54,19 @@ export async function GET(req: NextRequest) {
   const reversalLogs = ids.length
     ? await prisma.auditLog.findMany({
         where: {
-          action: 'DISBURSEMENT_REVERSED',
-          entity: 'DisbursementTransaction',
+          action: "DISBURSEMENT_REVERSED",
+          entity: "DisbursementTransaction",
+          entityId: { in: ids },
+        },
+        select: { entityId: true, createdAt: true, actorId: true },
+      })
+    : [];
+
+  const cancelLogs = ids.length
+    ? await prisma.auditLog.findMany({
+        where: {
+          action: "DISBURSEMENT_CANCELLED",
+          entity: "DisbursementTransaction",
           entityId: { in: ids },
         },
         select: { entityId: true, createdAt: true, actorId: true },
@@ -62,32 +76,62 @@ export async function GET(req: NextRequest) {
   const pendingRequests = ids.length
     ? await prisma.pendingChange.findMany({
         where: {
-          status: 'PENDING',
-          entityType: 'DisbursementReversal',
+          status: "PENDING",
+          entityType: { in: ["DisbursementReversal", "DisbursementCancel"] },
           entityId: { in: ids },
         },
-        select: { id: true, entityId: true, createdAt: true, createdById: true },
+        select: {
+          id: true,
+          entityId: true,
+          entityType: true,
+          createdAt: true,
+          createdById: true,
+        },
       })
     : [];
 
-  const reversalById = new Map<string, { reversedAt: string; reversedBy: string }>();
+  const reversalById = new Map<
+    string,
+    { reversedAt: string; reversedBy: string }
+  >();
   for (const r of reversalLogs) {
     if (!r.entityId) continue;
-    reversalById.set(r.entityId, { reversedAt: r.createdAt.toISOString(), reversedBy: r.actorId });
+    reversalById.set(r.entityId, {
+      reversedAt: r.createdAt.toISOString(),
+      reversedBy: r.actorId,
+    });
   }
 
-  const pendingByTxId = new Map<string, { changeId: string; requestedAt: string; requestedBy: string }>();
+  const cancelledById = new Map<
+    string,
+    { cancelledAt: string; cancelledBy: string }
+  >();
+  for (const c of cancelLogs) {
+    if (!c.entityId) continue;
+    cancelledById.set(c.entityId, {
+      cancelledAt: c.createdAt.toISOString(),
+      cancelledBy: c.actorId,
+    });
+  }
+
+  const pendingByTxId = new Map<
+    string,
+    { changeId: string; requestedAt: string; requestedBy: string; type: string }
+  >();
   for (const p of pendingRequests) {
     if (!p.entityId) continue;
     pendingByTxId.set(p.entityId, {
       changeId: p.id,
       requestedAt: p.createdAt.toISOString(),
       requestedBy: p.createdById,
+      type: p.entityType,
     });
   }
 
   // Try to resolve borrowerId + loanId for convenience in UI
-  const creditAccounts = Array.from(new Set(txs.map((t) => t.creditAccount).filter(Boolean)));
+  const creditAccounts = Array.from(
+    new Set(txs.map((t) => t.creditAccount).filter(Boolean))
+  );
   const phoneMaps = creditAccounts.length
     ? await prisma.phoneAccount.findMany({
         where: { accountNumber: { in: creditAccounts } },
@@ -117,7 +161,7 @@ export async function GET(req: NextRequest) {
             product: { providerId: internalProviderId },
           },
           select: { id: true },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
         });
         loanId = loan?.id ?? null;
       }
@@ -134,10 +178,11 @@ export async function GET(req: NextRequest) {
         borrowerId,
         loanId,
         reversed,
+        cancelled: cancelledById.get(t.id) ?? null,
         pendingApproval: pendingByTxId.get(t.id) ?? null,
         isFailure: isFailureStatus(t.statusCode),
       };
-    }),
+    })
   );
 
   return NextResponse.json({

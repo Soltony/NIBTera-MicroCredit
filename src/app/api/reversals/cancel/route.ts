@@ -3,12 +3,18 @@ import prisma from "@/lib/prisma";
 import { getUserFromSession } from "@/lib/user";
 import { createAuditLog } from "@/lib/audit-log";
 
+function isFailureStatus(statusCode: number | null | undefined) {
+  if (statusCode == null) return true;
+  return statusCode < 200 || statusCode >= 300;
+}
+
 /**
  * Cancel a "failed" disbursement by marking it as successful.
  * This is used when an external disbursement was recorded as failed
  * but actually succeeded on the CBS side.
  *
- * Updates the transactionId and statusCode on the DisbursementTransaction record.
+ * Creates a pending change request for maker-checker approval.
+ * Upon approval, the transactionId and statusCode on the DisbursementTransaction will be updated.
  */
 export async function POST(req: NextRequest) {
   const user = await getUserFromSession();
@@ -29,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!disbursementTransactionId) {
     await createAuditLog({
       actorId: user.id,
-      action: "CANCEL_DISBURSEMENT_INVALID",
+      action: "CANCEL_REQUEST_INVALID",
       entity: "DisbursementTransaction",
       details: { reason: "Missing id" },
       ipAddress,
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (!cbsTransactionId) {
     await createAuditLog({
       actorId: user.id,
-      action: "CANCEL_DISBURSEMENT_INVALID",
+      action: "CANCEL_REQUEST_INVALID",
       entity: "DisbursementTransaction",
       entityId: disbursementTransactionId,
       details: { reason: "Missing transactionId" },
@@ -63,7 +69,7 @@ export async function POST(req: NextRequest) {
   if (!tx) {
     await createAuditLog({
       actorId: user.id,
-      action: "CANCEL_DISBURSEMENT_NOT_FOUND",
+      action: "CANCEL_REQUEST_NOT_FOUND",
       entity: "DisbursementTransaction",
       entityId: disbursementTransactionId,
       details: { reason: "DisbursementTransaction not found" },
@@ -73,6 +79,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "DisbursementTransaction not found" },
       { status: 404 }
+    );
+  }
+
+  // Check if this is actually a failure status
+  if (!isFailureStatus(tx.statusCode)) {
+    await createAuditLog({
+      actorId: user.id,
+      action: "CANCEL_REQUEST_BLOCKED",
+      entity: "DisbursementTransaction",
+      entityId: tx.id,
+      details: { reason: "Not marked as failed", statusCode: tx.statusCode },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
+    return NextResponse.json(
+      {
+        error: "This disbursement is not marked as failed; cancel is blocked.",
+      },
+      { status: 400 }
     );
   }
 
@@ -88,7 +113,7 @@ export async function POST(req: NextRequest) {
   if (alreadyReversed) {
     await createAuditLog({
       actorId: user.id,
-      action: "CANCEL_DISBURSEMENT_BLOCKED",
+      action: "CANCEL_REQUEST_BLOCKED",
       entity: "DisbursementTransaction",
       entityId: tx.id,
       details: { reason: "Already reversed, cannot cancel" },
@@ -104,44 +129,107 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Update the disbursement transaction with the CBS transaction ID and mark as success (200)
-  const previousTransactionId = tx.transactionId;
-  const previousStatusCode = tx.statusCode;
+  // Check if it was already cancelled
+  const alreadyCancelled = await prisma.auditLog.findFirst({
+    where: {
+      action: "DISBURSEMENT_CANCELLED",
+      entity: "DisbursementTransaction",
+      entityId: tx.id,
+    },
+    select: { id: true },
+  });
+  if (alreadyCancelled) {
+    await createAuditLog({
+      actorId: user.id,
+      action: "CANCEL_REQUEST_ALREADY_CANCELLED",
+      entity: "DisbursementTransaction",
+      entityId: tx.id,
+      details: { reason: "Already cancelled" },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
+    return NextResponse.json(
+      { ok: true, message: "Already cancelled" },
+      { status: 200 }
+    );
+  }
 
-  await prisma.disbursementTransaction.update({
-    where: { id: disbursementTransactionId },
+  // Check for existing pending approval (either reversal or cancel)
+  const existingPending = await prisma.pendingChange.findFirst({
+    where: {
+      status: "PENDING",
+      entityType: { in: ["DisbursementReversal", "DisbursementCancel"] },
+      entityId: tx.id,
+    },
+    select: { id: true, entityType: true },
+  });
+  if (existingPending) {
+    await createAuditLog({
+      actorId: user.id,
+      action: "CANCEL_REQUEST_ALREADY_PENDING",
+      entity: "DisbursementTransaction",
+      entityId: tx.id,
+      details: {
+        reason: "Already submitted for approval",
+        changeId: existingPending.id,
+        existingType: existingPending.entityType,
+      },
+      ipAddress,
+      userAgent,
+    }).catch(() => null);
+    return NextResponse.json(
+      {
+        ok: true,
+        message: `Already submitted for approval (${existingPending.entityType})`,
+        changeId: existingPending.id,
+      },
+      { status: 200 }
+    );
+  }
+
+  // Create a pending change for maker-checker approval
+  const payload = JSON.stringify({
+    created: {
+      disbursementTransactionId: tx.id,
+      cbsTransactionId,
+      previousTransactionId: tx.transactionId,
+      previousStatusCode: tx.statusCode,
+      providerId: tx.providerId,
+      originalProviderId: tx.originalProviderId,
+      creditAccount: tx.creditAccount,
+      amount: tx.amount,
+      loanId: (tx as any).loanId ?? null,
+      createdAt: tx.createdAt?.toISOString?.() ?? null,
+    },
+  });
+
+  const pending = await prisma.pendingChange.create({
     data: {
-      transactionId: cbsTransactionId,
-      statusCode: 200, // Mark as successful
+      entityType: "DisbursementCancel",
+      entityId: tx.id,
+      changeType: "CREATE",
+      payload,
+      status: "PENDING",
+      createdById: user.id,
     },
   });
 
   await createAuditLog({
     actorId: user.id,
-    action: "DISBURSEMENT_CANCELLED",
+    action: "CANCEL_APPROVAL_REQUESTED",
     entity: "DisbursementTransaction",
     entityId: tx.id,
     details: {
-      reason: "Marked as successful with CBS transaction ID",
+      changeId: pending.id,
+      disbursementTransactionId: tx.id,
       cbsTransactionId,
-      previousTransactionId,
-      previousStatusCode,
-      newStatusCode: 200,
-      loanId: (tx as any).loanId ?? null,
-      providerId: tx.providerId,
-      creditAccount: tx.creditAccount,
-      amount: tx.amount,
     },
     ipAddress,
     userAgent,
   });
 
   return NextResponse.json(
-    {
-      ok: true,
-      message: "Disbursement marked as successful",
-      transactionId: cbsTransactionId,
-    },
-    { status: 200 }
+    { ok: true, message: "Submitted for approval", changeId: pending.id },
+    { status: 201 }
   );
 }

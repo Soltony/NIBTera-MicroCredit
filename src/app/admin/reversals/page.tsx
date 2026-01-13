@@ -46,10 +46,12 @@ type ReversalRow = {
   borrowerId: string | null;
   loanId: string | null;
   reversed: { reversedAt: string; reversedBy: string } | null;
+  cancelled: { cancelledAt: string; cancelledBy: string } | null;
   pendingApproval: {
     changeId: string;
     requestedAt: string;
     requestedBy: string;
+    type: string;
   } | null;
   isFailure: boolean;
 };
@@ -167,9 +169,8 @@ export default function ReversalsPage() {
       if (!res.ok) throw new Error(data?.error || "Cancel failed");
 
       toast({
-        title: "Success",
-        description:
-          "Disbursement marked as successful with CBS transaction ID.",
+        title: "Submitted",
+        description: "Cancel request submitted for approval.",
       });
       setCancelDialogOpen(false);
       setCancellingRow(null);
@@ -194,8 +195,15 @@ export default function ReversalsPage() {
   const statusBadge = (row: ReversalRow) => {
     if (row.reversed)
       return <Badge className="bg-green-600 text-white">Reversed</Badge>;
-    if (row.pendingApproval)
-      return <Badge variant="outline">Pending Approval</Badge>;
+    if (row.cancelled)
+      return <Badge className="bg-blue-600 text-white">Cancelled</Badge>;
+    if (row.pendingApproval) {
+      const type =
+        row.pendingApproval.type === "DisbursementCancel"
+          ? "Cancel"
+          : "Reversal";
+      return <Badge variant="outline">Pending {type}</Badge>;
+    }
     if (row.statusCode == null)
       return <Badge className="bg-red-600 text-white">Failed</Badge>;
     if (row.statusCode >= 200 && row.statusCode < 300)
@@ -268,7 +276,10 @@ export default function ReversalsPage() {
                   const internalProviderId =
                     r.originalProviderId || r.providerId;
                   const canReverse =
-                    !r.reversed && !r.pendingApproval && r.isFailure;
+                    !r.reversed &&
+                    !r.cancelled &&
+                    !r.pendingApproval &&
+                    r.isFailure;
                   return (
                     <TableRow key={r.id}>
                       <TableCell>
