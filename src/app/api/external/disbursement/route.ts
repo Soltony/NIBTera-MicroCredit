@@ -13,6 +13,7 @@ type Body = {
   creditAccount: string;
   providerId: string;
   amount: string | number;
+  loanId?: string;
 };
 
 export async function POST(req: Request) {
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     }
 
     const body: Body = await req.json();
-    const { creditAccount, providerId, amount } = body;
+    const { creditAccount, providerId, amount, loanId } = body;
     // For testing: force the provider id to PRO0001 unless overridden by env
     const forcedProviderId = process.env.FORCE_PROVIDER_ID ?? "PRO0001";
     const sendProviderId = forcedProviderId;
@@ -81,6 +82,7 @@ export async function POST(req: Request) {
       try {
         await prisma.disbursementTransaction.create({
           data: {
+            loanId: loanId ?? undefined,
             providerId: sendProviderId,
             originalProviderId: providerId ?? undefined,
             creditAccount: String(creditAccount),
@@ -92,6 +94,7 @@ export async function POST(req: Request) {
               creditAccount,
               providerId: sendProviderId,
               amount,
+              loanId,
             }),
             responsePayload: JSON.stringify({ error: errMsg }),
             rawResponse: errMsg,
@@ -181,6 +184,7 @@ export async function POST(req: Request) {
       try {
         await prisma.disbursementTransaction.create({
           data: {
+            loanId: loanId ?? undefined,
             providerId: sendProviderId,
             originalProviderId: providerId ?? undefined,
             creditAccount: String(creditAccount),
@@ -192,6 +196,7 @@ export async function POST(req: Request) {
               creditAccount,
               providerId: sendProviderId,
               amount,
+              loanId,
             }),
             responsePayload: JSON.stringify({
               error: "Upstream fetch failed",
@@ -296,6 +301,7 @@ export async function POST(req: Request) {
         .create({
           data: {
             transactionId: upstreamTransactionId ?? undefined,
+            loanId: loanId ?? undefined,
             providerId: sendProviderId,
             originalProviderId: providerId ?? undefined,
             creditAccount: String(creditAccount),
@@ -307,6 +313,7 @@ export async function POST(req: Request) {
               creditAccount,
               providerId: sendProviderId,
               amount,
+              loanId,
             }),
             responsePayload:
               typeof payload === "string"

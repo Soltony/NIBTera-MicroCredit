@@ -213,6 +213,7 @@ model Loan {
   installments               LoanInstallment[]
   journalEntries             JournalEntry[]
   pendingPayments            PendingPayment[]
+  disbursementTransactions   DisbursementTransaction[]
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
 }
@@ -548,6 +549,8 @@ model PaymentTransaction {
 model DisbursementTransaction {
   id                 String   @id @default(cuid())
   transactionId      String? // transaction id returned by upstream, if any
+  loanId             String?
+  loan               Loan?    @relation(fields: [loanId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   providerId         String
   originalProviderId String? // provider id received from caller before any forced override
   creditAccount      String
@@ -558,6 +561,7 @@ model DisbursementTransaction {
   statusCode         Int?
   createdAt          DateTime @default(now())
 
+  @@index([loanId])
   @@index([providerId])
   @@index([transactionId])
 }

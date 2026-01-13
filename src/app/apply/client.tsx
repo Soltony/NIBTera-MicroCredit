@@ -176,6 +176,7 @@ export function ApplyClient({
               creditAccount: selectedAccount.accountNumber,
               providerId: provider.id,
               amount: savedLoan.loanAmount,
+              loanId: savedLoan.id,
             }),
           });
 
