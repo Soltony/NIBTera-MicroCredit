@@ -421,6 +421,11 @@ async function applyChange(
             })
             .catch(() => null);
 
+          // Delete all DisbursementTransaction records associated with this loan
+          await db.disbursementTransaction.deleteMany({
+            where: { loanId: loan.id } as any, // Type assertion until Prisma client is regenerated
+          });
+
           return { loanId: loan.id, reversalJournalEntryId: reversalJe.id };
         });
 

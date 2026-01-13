@@ -139,6 +139,7 @@ export function ApplyClient({
         loanAmount: details.loanAmount,
         disbursedDate: details.disbursedDate,
         dueDate: details.dueDate,
+        creditAccount: selectedAccount?.accountNumber || undefined,
       };
 
       const response = await fetch("/api/loans", {

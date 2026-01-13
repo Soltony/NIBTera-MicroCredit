@@ -188,13 +188,13 @@ model LoanCycleConfig {
 }
 
 model Loan {
-  id                         String            @id @default(cuid())
+  id                         String                    @id @default(cuid())
   borrowerId                 String
-  borrower                   Borrower          @relation(fields: [borrowerId], references: [id])
+  borrower                   Borrower                  @relation(fields: [borrowerId], references: [id])
   productId                  String
-  product                    LoanProduct       @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  loanApplicationId          String            @unique
-  loanApplication            LoanApplication   @relation(fields: [loanApplicationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  product                    LoanProduct               @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loanApplicationId          String                    @unique
+  loanApplication            LoanApplication           @relation(fields: [loanApplicationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   loanAmount                 Float
   serviceFee                 Float
   penaltyAmount              Float
@@ -204,18 +204,18 @@ model Loan {
   repaymentBehavior          String? // ON_TIME, LATE, EARLY
   repaidAmount               Float?
   // Interest accrual tracking (for daily ledger accrual)
-  interestAccruedAmount      Float             @default(0)
+  interestAccruedAmount      Float                     @default(0)
   interestAccruedThroughDate DateTime?
   // Penalty accrual tracking (for daily ledger accrual)
-  penaltyAccruedAmount       Float             @default(0)
+  penaltyAccruedAmount       Float                     @default(0)
   penaltyAccruedThroughDate  DateTime?
   payments                   Payment[]
   installments               LoanInstallment[]
   journalEntries             JournalEntry[]
   pendingPayments            PendingPayment[]
   disbursementTransactions   DisbursementTransaction[]
-  createdAt                  DateTime          @default(now())
-  updatedAt                  DateTime          @updatedAt
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
 }
 
 model Payment {
@@ -555,6 +555,7 @@ model DisbursementTransaction {
   originalProviderId String? // provider id received from caller before any forced override
   creditAccount      String
   amount             Float?
+  disbursementStatus String   @default("PENDING") // PENDING, SENT, SUCCESS, FAILED
   requestPayload     String   @db.NVarChar(Max)
   responsePayload    String?  @db.NVarChar(Max)
   rawResponse        String?  @db.NVarChar(Max)
@@ -564,6 +565,7 @@ model DisbursementTransaction {
   @@index([loanId])
   @@index([providerId])
   @@index([transactionId])
+  @@index([disbursementStatus])
 }
 
 // Maps phone numbers to external bank account numbers returned by the

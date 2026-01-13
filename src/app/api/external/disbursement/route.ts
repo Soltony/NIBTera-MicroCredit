@@ -16,6 +16,68 @@ type Body = {
   loanId?: string;
 };
 
+// Helper to find existing DisbursementTransaction by loanId or create new one
+async function findOrCreateDisbursementTransaction(
+  loanId: string | undefined,
+  data: {
+    providerId: string;
+    originalProviderId?: string;
+    creditAccount: string;
+    amount?: number;
+    requestPayload: string;
+    responsePayload?: string;
+    rawResponse?: string;
+    statusCode?: number | null;
+    transactionId?: string | null;
+    disbursementStatus: string;
+  }
+) {
+  // If loanId is provided, try to find existing PENDING record and update it
+  if (loanId) {
+    const existing = await prisma.disbursementTransaction.findFirst({
+      where: {
+        loanId,
+        disbursementStatus: "PENDING",
+      } as any, // Type assertion until Prisma client is regenerated
+    });
+
+    if (existing) {
+      return await prisma.disbursementTransaction.update({
+        where: { id: existing.id },
+        data: {
+          transactionId: data.transactionId ?? undefined,
+          providerId: data.providerId,
+          originalProviderId: data.originalProviderId,
+          creditAccount: data.creditAccount,
+          amount: data.amount,
+          disbursementStatus: data.disbursementStatus,
+          requestPayload: data.requestPayload,
+          responsePayload: data.responsePayload,
+          rawResponse: data.rawResponse,
+          statusCode: data.statusCode,
+        } as any, // Type assertion until Prisma client is regenerated
+      });
+    }
+  }
+
+  // No existing record found, create new one
+  return await prisma.disbursementTransaction.create({
+    data: {
+      loanId: loanId ?? undefined,
+      transactionId: data.transactionId ?? undefined,
+      providerId: data.providerId,
+      originalProviderId: data.originalProviderId,
+      creditAccount: data.creditAccount,
+      amount: data.amount,
+      disbursementStatus: data.disbursementStatus,
+      requestPayload: data.requestPayload,
+      responsePayload: data.responsePayload,
+      rawResponse: data.rawResponse,
+      statusCode: data.statusCode,
+    } as any, // Type assertion until Prisma client is regenerated
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const ipAddress = req.headers.get("x-forwarded-for") || "N/A";
@@ -80,26 +142,24 @@ export async function POST(req: Request) {
       ).catch(() => null);
 
       try {
-        await prisma.disbursementTransaction.create({
-          data: {
-            loanId: loanId ?? undefined,
+        await findOrCreateDisbursementTransaction(loanId, {
+          providerId: sendProviderId,
+          originalProviderId: providerId ?? undefined,
+          creditAccount: String(creditAccount),
+          amount:
+            typeof amount === "number"
+              ? amount
+              : Number(String(amount)) || undefined,
+          requestPayload: JSON.stringify({
+            creditAccount,
             providerId: sendProviderId,
-            originalProviderId: providerId ?? undefined,
-            creditAccount: String(creditAccount),
-            amount:
-              typeof amount === "number"
-                ? amount
-                : Number(String(amount)) || undefined,
-            requestPayload: JSON.stringify({
-              creditAccount,
-              providerId: sendProviderId,
-              amount,
-              loanId,
-            }),
-            responsePayload: JSON.stringify({ error: errMsg }),
-            rawResponse: errMsg,
-            statusCode: null,
-          },
+            amount,
+            loanId,
+          }),
+          responsePayload: JSON.stringify({ error: errMsg }),
+          rawResponse: errMsg,
+          statusCode: null,
+          disbursementStatus: "FAILED",
         });
       } catch (e) {
         console.error(
@@ -182,29 +242,27 @@ export async function POST(req: Request) {
       ).catch(() => null);
 
       try {
-        await prisma.disbursementTransaction.create({
-          data: {
-            loanId: loanId ?? undefined,
+        await findOrCreateDisbursementTransaction(loanId, {
+          providerId: sendProviderId,
+          originalProviderId: providerId ?? undefined,
+          creditAccount: String(creditAccount),
+          amount:
+            typeof amount === "number"
+              ? amount
+              : Number(String(amount)) || undefined,
+          requestPayload: JSON.stringify({
+            creditAccount,
             providerId: sendProviderId,
-            originalProviderId: providerId ?? undefined,
-            creditAccount: String(creditAccount),
-            amount:
-              typeof amount === "number"
-                ? amount
-                : Number(String(amount)) || undefined,
-            requestPayload: JSON.stringify({
-              creditAccount,
-              providerId: sendProviderId,
-              amount,
-              loanId,
-            }),
-            responsePayload: JSON.stringify({
-              error: "Upstream fetch failed",
-              details,
-            }),
-            rawResponse: details,
-            statusCode: null,
-          },
+            amount,
+            loanId,
+          }),
+          responsePayload: JSON.stringify({
+            error: "Upstream fetch failed",
+            details,
+          }),
+          rawResponse: details,
+          statusCode: null,
+          disbursementStatus: "FAILED",
         });
       } catch (e) {
         console.error(
@@ -297,40 +355,44 @@ export async function POST(req: Request) {
         if (m) upstreamTransactionId = m[1];
       }
 
-      await prisma.disbursementTransaction
-        .create({
-          data: {
-            transactionId: upstreamTransactionId ?? undefined,
-            loanId: loanId ?? undefined,
-            providerId: sendProviderId,
-            originalProviderId: providerId ?? undefined,
-            creditAccount: String(creditAccount),
-            amount:
-              typeof amount === "number"
-                ? amount
-                : Number(String(amount)) || undefined,
-            requestPayload: JSON.stringify({
-              creditAccount,
-              providerId: sendProviderId,
-              amount,
-              loanId,
-            }),
-            responsePayload:
-              typeof payload === "string"
-                ? payload
-                : payload
-                ? JSON.stringify(payload)
-                : undefined,
-            rawResponse: txt ?? undefined,
-            statusCode: typeof res.status === "number" ? res.status : undefined,
-          },
-        })
-        .catch((e) => {
-          console.error(
-            "[external][disbursement] failed to save disbursement transaction",
-            e
-          );
-        });
+      // Determine disbursement status based on response
+      const isSuccess =
+        res.ok &&
+        (typeof res.status === "number"
+          ? res.status >= 200 && res.status < 300
+          : false);
+      const disbursementStatus = isSuccess ? "SUCCESS" : "FAILED";
+
+      await findOrCreateDisbursementTransaction(loanId, {
+        transactionId: upstreamTransactionId ?? undefined,
+        providerId: sendProviderId,
+        originalProviderId: providerId ?? undefined,
+        creditAccount: String(creditAccount),
+        amount:
+          typeof amount === "number"
+            ? amount
+            : Number(String(amount)) || undefined,
+        requestPayload: JSON.stringify({
+          creditAccount,
+          providerId: sendProviderId,
+          amount,
+          loanId,
+        }),
+        responsePayload:
+          typeof payload === "string"
+            ? payload
+            : payload
+            ? JSON.stringify(payload)
+            : undefined,
+        rawResponse: txt ?? undefined,
+        statusCode: typeof res.status === "number" ? res.status : undefined,
+        disbursementStatus,
+      }).catch((e) => {
+        console.error(
+          "[external][disbursement] failed to save disbursement transaction",
+          e
+        );
+      });
     } catch (e) {
       console.error("[external][disbursement] saving transaction failed", e);
     }
