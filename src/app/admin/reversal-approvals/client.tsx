@@ -1,15 +1,28 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useRequirePermission } from '@/hooks/use-require-permission';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Loader2, Check, X, Eye } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { useState } from "react";
+import { useRequirePermission } from "@/hooks/use-require-permission";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Loader2, Check, X, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +30,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import type { PendingReversalApproval } from './page';
-import type { User } from '@/lib/types';
-import { usePermissions } from '@/hooks/use-permissions';
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import type { PendingReversalApproval } from "./page";
+import type { User } from "@/lib/types";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export function ReversalApprovalsClient({
   pendingChanges: initialChanges,
@@ -30,65 +43,84 @@ export function ReversalApprovalsClient({
   pendingChanges: PendingReversalApproval[];
   currentUser: User;
 }) {
-  useRequirePermission('approvals');
+  useRequirePermission("approvals");
   const [changes, setChanges] = useState(initialChanges);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [changeToReject, setChangeToReject] = useState<PendingReversalApproval | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [changeToReject, setChangeToReject] =
+    useState<PendingReversalApproval | null>(null);
   const { toast } = useToast();
   const router = useRouter();
   const { canModule } = usePermissions();
-  const canProcessApprovals = canModule('approvals', 'update');
+  const canProcessApprovals = canModule("approvals", "update");
 
-  const handleProcessChange = async (changeId: string, approved: boolean, reason?: string) => {
+  const handleProcessChange = async (
+    changeId: string,
+    approved: boolean,
+    reason?: string
+  ) => {
     if (!canProcessApprovals) {
       toast({
-        title: 'Not authorized',
-        description: 'You are not authorized to approve or reject changes.',
-        variant: 'destructive',
+        title: "Not authorized",
+        description: "You are not authorized to approve or reject changes.",
+        variant: "destructive",
       });
       return;
     }
 
     setProcessingId(changeId);
     try {
-      const response = await fetch('/api/approvals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ changeId, approved, rejectionReason: reason }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${approved ? 'approve' : 'reject'} request.`);
+        throw new Error(
+          errorData.error ||
+            `Failed to ${approved ? "approve" : "reject"} request.`
+        );
       }
 
       setChanges((prev) => prev.filter((c) => c.id !== changeId));
       toast({
-        title: 'Success',
-        description: `Reversal request has been ${approved ? 'approved' : 'rejected'}.`,
+        title: "Success",
+        description: `Reversal request has been ${
+          approved ? "approved" : "rejected"
+        }.`,
       });
 
       if (approved) {
         router.refresh();
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setProcessingId(null);
       setChangeToReject(null);
-      setRejectionReason('');
+      setRejectionReason("");
     }
   };
 
   return (
     <>
       <div className="flex-1 space-y-4 p-8 pt-6">
-        <h2 className="text-3xl font-bold tracking-tight">Reversal Approvals</h2>
+        <h2 className="text-3xl font-bold tracking-tight">
+          Reversal Approvals
+        </h2>
         <Card>
           <CardHeader>
-            <CardTitle>Reversal Requests</CardTitle>
-            <CardDescription>Review and approve or reject pending disbursement reversals.</CardDescription>
+            <CardTitle>Reversal & Cancel Requests</CardTitle>
+            <CardDescription>
+              Review and approve or reject pending disbursement reversals and
+              cancel requests.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -103,62 +135,84 @@ export function ReversalApprovalsClient({
               </TableHeader>
               <TableBody>
                 {changes.length > 0 ? (
-                  changes.map((change) => (
-                    <TableRow key={change.id}>
-                      <TableCell className="font-medium">
-                        <div>{change.entityType}</div>
-                        <div className="text-sm text-muted-foreground">{change.entityName}</div>
-                        {change.providerName && (
-                          <div className="text-xs text-muted-foreground">({change.providerName})</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={change.changeType === 'DELETE' ? 'destructive' : 'secondary'}>
-                          {change.changeType}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{change.createdBy?.fullName || 'Unknown User'}</TableCell>
-                      <TableCell>
-                        {formatDistanceToNow(new Date(change.createdAt), { addSuffix: true })}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => router.push(`/admin/approvals/${change.id}`)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {canProcessApprovals && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleProcessChange(change.id, true)}
-                              disabled={processingId === change.id || change.createdById === currentUser.id}
-                              className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-                            >
-                              {processingId === change.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Check className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setChangeToReject(change)}
-                              disabled={processingId === change.id || change.createdById === currentUser.id}
-                              className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  changes.map((change) => {
+                    const isCancel = change.entityType === "DisbursementCancel";
+                    const displayType = isCancel ? "Cancel" : "Reversal";
+                    return (
+                      <TableRow key={change.id}>
+                        <TableCell className="font-medium">
+                          <div>{displayType}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {change.entityName}
+                          </div>
+                          {change.providerName && (
+                            <div className="text-xs text-muted-foreground">
+                              ({change.providerName})
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={isCancel ? "default" : "secondary"}>
+                            {isCancel ? "Mark Success" : change.changeType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {change.createdBy?.fullName || "Unknown User"}
+                        </TableCell>
+                        <TableCell>
+                          {formatDistanceToNow(new Date(change.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() =>
+                              router.push(`/admin/approvals/${change.id}`)
+                            }
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {canProcessApprovals && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleProcessChange(change.id, true)
+                                }
+                                disabled={
+                                  processingId === change.id ||
+                                  change.createdById === currentUser.id
+                                }
+                                className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                              >
+                                {processingId === change.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setChangeToReject(change)}
+                                disabled={
+                                  processingId === change.id ||
+                                  change.createdById === currentUser.id
+                                }
+                                className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
@@ -172,11 +226,16 @@ export function ReversalApprovalsClient({
         </Card>
       </div>
 
-      <Dialog open={!!changeToReject} onOpenChange={() => setChangeToReject(null)}>
+      <Dialog
+        open={!!changeToReject}
+        onOpenChange={() => setChangeToReject(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject Reversal</DialogTitle>
-            <DialogDescription>Please provide a reason for rejecting this reversal request.</DialogDescription>
+            <DialogDescription>
+              Please provide a reason for rejecting this reversal request.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea
@@ -192,7 +251,9 @@ export function ReversalApprovalsClient({
             </Button>
             <Button
               variant="destructive"
-              onClick={() => handleProcessChange(changeToReject!.id, false, rejectionReason)}
+              onClick={() =>
+                handleProcessChange(changeToReject!.id, false, rejectionReason)
+              }
               disabled={!canProcessApprovals || !rejectionReason.trim()}
             >
               Confirm Rejection
