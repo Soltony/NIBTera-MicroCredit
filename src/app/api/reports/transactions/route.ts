@@ -4,6 +4,9 @@ import { calculateTotalRepayable } from "@/lib/loan-calculator";
 import { subDays } from "date-fns";
 import { getUserFromSession } from "@/lib/user";
 
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromSession();
@@ -15,6 +18,14 @@ export async function GET(request: NextRequest) {
     let providerId = url.searchParams.get("providerId");
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
+
+    // Pagination parameters
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+    const pageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, parseInt(url.searchParams.get("pageSize") || String(DEFAULT_PAGE_SIZE), 10))
+    );
+    const skip = (page - 1) * pageSize;
 
     const isSuperAdminOrRecon =
       user.role === "Super Admin" || user.role === "Reconciliation";
@@ -32,7 +43,7 @@ export async function GET(request: NextRequest) {
       whereAny.providerId = providerId;
     }
     if (providerId === "none") {
-      return NextResponse.json([]);
+      return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
     }
 
     if (from || to) {
@@ -48,6 +59,10 @@ export async function GET(request: NextRequest) {
     } else if (type === "disbursement") {
       whereAny.payment = { is: null };
     }
+
+    // Get total count for pagination
+    const totalCount = await prisma.journalEntry.count({ where: whereAny });
+    const totalPages = Math.ceil(totalCount / pageSize);
 
     const journalEntries = await prisma.journalEntry.findMany({
       where: whereAny,
@@ -68,7 +83,8 @@ export async function GET(request: NextRequest) {
         payment: true,
       },
       orderBy: { date: "desc" },
-      take: 2000,
+      skip,
+      take: pageSize,
     });
 
     const borrowerIds = Array.from(
@@ -106,6 +122,17 @@ export async function GET(request: NextRequest) {
 
     const disbursementTxs = await prisma.disbursementTransaction.findMany({
       where: disbursementWhere,
+      select: {
+        id: true,
+        transactionId: true,
+        providerId: true,
+        originalProviderId: true,
+        creditAccount: true,
+        amount: true,
+        statusCode: true,
+        createdAt: true,
+        // Exclude large text fields: rawResponse, responsePayload, requestPayload
+      },
     });
 
     // Create map by loanId for direct matching (highest priority)
@@ -418,35 +445,17 @@ export async function GET(request: NextRequest) {
             const match = foundMatch;
             disbursementCreatedAt = match.createdAt ?? null;
             disbursementStatusCode = match.statusCode ?? null;
-            disbursementRawResponse =
-              match.rawResponse ?? match.responsePayload ?? null;
+            // rawResponse and responsePayload are excluded from the query to avoid large string issues
+            disbursementRawResponse = null;
 
-            try {
-              const raw = match.rawResponse ?? match.responsePayload ?? null;
-              if (raw) {
-                let parsed: any =
-                  typeof raw === "string"
-                    ? JSON.parse(raw.replace(/'/g, '"'))
-                    : raw;
-                disbursementStatusText =
-                  parsed?.status ||
-                  parsed?.Status ||
-                  parsed?.status_message ||
-                  parsed?.message ||
-                  (parsed?.status_code ? String(parsed.status_code) : null) ||
-                  null;
-              }
-            } catch (e) {}
-
-            if (
-              disbursementStatusCode === 200 ||
-              (disbursementStatusText &&
-                /success|completed|ok|200/i.test(disbursementStatusText))
-            ) {
+            // Determine status based on statusCode since we don't have rawResponse
+            if (disbursementStatusCode === 200) {
+              disbursementStatusText = "Success";
               disbursementOutcome = "Success";
               cbsReference = match.transactionId ?? null;
               cbsCreditAmount = match.amount ?? null;
-            } else {
+            } else if (disbursementStatusCode !== null) {
+              disbursementStatusText = `Status ${disbursementStatusCode}`;
               disbursementOutcome = "Failure";
               cbsReference = null;
               cbsCreditAmount = 0;
@@ -493,7 +502,13 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json(rows);
+    return NextResponse.json({
+      data: rows,
+      total: totalCount,
+      page,
+      pageSize,
+      totalPages,
+    });
   } catch (error: any) {
     console.error("Transactions report error", error);
     return NextResponse.json(

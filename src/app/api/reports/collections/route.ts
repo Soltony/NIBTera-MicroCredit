@@ -62,6 +62,15 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get('to');
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
+    // Pagination parameters
+    const DEFAULT_PAGE_SIZE = 50;
+    const MAX_PAGE_SIZE = 200;
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = Math.min(
+        MAX_PAGE_SIZE,
+        Math.max(1, parseInt(searchParams.get("pageSize") || String(DEFAULT_PAGE_SIZE), 10))
+    );
+
     const whereClause: any = {
         type: 'Debit',
         ledgerAccount: {
@@ -84,7 +93,7 @@ export async function GET(req: NextRequest) {
     }
     
     if (providerId === 'none') {
-        return NextResponse.json([]);
+        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
     }
 
     try {
@@ -151,7 +160,19 @@ export async function GET(req: NextRequest) {
         
         reportData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        return NextResponse.json(reportData);
+        // Apply pagination on aggregated data
+        const total = reportData.length;
+        const totalPages = Math.ceil(total / pageSize);
+        const skip = (page - 1) * pageSize;
+        const paginatedData = reportData.slice(skip, skip + pageSize);
+
+        return NextResponse.json({
+            data: paginatedData,
+            total,
+            page,
+            pageSize,
+            totalPages,
+        });
 
     } catch (error) {
         console.error('Failed to fetch collections report:', error);

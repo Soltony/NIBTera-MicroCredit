@@ -91,6 +91,16 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get('to');
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
+    // Pagination parameters
+    const DEFAULT_PAGE_SIZE = 50;
+    const MAX_PAGE_SIZE = 200;
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = Math.min(
+        MAX_PAGE_SIZE,
+        Math.max(1, parseInt(searchParams.get("pageSize") || String(DEFAULT_PAGE_SIZE), 10))
+    );
+    const skip = (page - 1) * pageSize;
+
     const whereClause: any = {};
 
     // Failed external disbursements can be reversed internally; those loans are marked REVERSED
@@ -115,10 +125,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (providerId === 'none') {
-        return NextResponse.json([]);
+        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
     }
 
     try {
+        // Get total count for pagination
+        const totalCount = await prisma.loan.count({ where: whereClause });
+        const totalPages = Math.ceil(totalCount / pageSize);
+
         const [loans, taxConfigs] = await Promise.all([
             prisma.loan.findMany({
                 where: whereClause,
@@ -143,6 +157,8 @@ export async function GET(req: NextRequest) {
                 orderBy: {
                     disbursedDate: 'desc',
                 },
+                skip,
+                take: pageSize,
             }),
             prisma.tax.findMany()
         ]);
@@ -198,7 +214,13 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        return NextResponse.json(reportData);
+        return NextResponse.json({
+            data: reportData,
+            total: totalCount,
+            page,
+            pageSize,
+            totalPages,
+        });
 
     } catch (error) {
         console.error('Failed to fetch loans report:', error);

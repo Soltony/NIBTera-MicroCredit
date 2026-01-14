@@ -74,12 +74,19 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("providerReport");
 
+  // Paginated data states with metadata
   const [loansData, setLoansData] = useState<LoanReportData[]>([]);
-  const [collectionsData, setCollectionsData] = useState<
-    CollectionsReportData[]
-  >([]);
+  const [loansPagination, setLoansPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
+  
+  const [collectionsData, setCollectionsData] = useState<CollectionsReportData[]>([]);
+  const [collectionsPagination, setCollectionsPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
+  
   const [disbursementsData, setDisbursementsData] = useState<any[]>([]);
+  const [disbursementsPagination, setDisbursementsPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
+  
   const [repaymentsData, setRepaymentsData] = useState<any[]>([]);
+  const [repaymentsPagination, setRepaymentsPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
+  
   const [providerSummaryData, setProviderSummaryData] = useState<
     Record<string, ProviderReportData>
   >({});
@@ -96,7 +103,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     pageSize: number;
   };
 
-  const DEFAULT_PAGE_SIZE = 25;
+  const DEFAULT_PAGE_SIZE = 50;
 
   function compareValues(a: any, b: any, dir: SortDir) {
     if (a == null && b == null) return 0;
@@ -193,6 +200,85 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     setTableState(activeTab, { page: 1 });
   }, [activeTab]);
 
+  // Helper to build URL with pagination params
+  const buildPaginatedUrl = useCallback((
+    baseUrl: string,
+    currentProviderId: string,
+    currentTimeframe: string,
+    currentDateRange?: DateRange,
+    page: number = 1,
+    pageSize: number = DEFAULT_PAGE_SIZE
+  ) => {
+    const params = new URLSearchParams({
+      providerId: currentProviderId,
+      timeframe: currentTimeframe,
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (currentDateRange?.from) {
+      params.set("from", currentDateRange.from.toISOString());
+    }
+    if (currentDateRange?.to) {
+      params.set("to", currentDateRange.to.toISOString());
+    }
+    return `${baseUrl}?${params.toString()}`;
+  }, []);
+
+  // Individual fetch functions for each report type
+  const fetchLoansData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    if (!providerId || providerId === "none") return;
+    try {
+      const response = await fetch(buildPaginatedUrl("/api/reports/loans", providerId, timeframe, dateRange, page, pageSize));
+      if (!response.ok) throw new Error("Failed to fetch loans data");
+      const result = await response.json();
+      setLoansData(result.data || []);
+      setLoansPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+
+  const fetchCollectionsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    if (!providerId || providerId === "none") return;
+    try {
+      const response = await fetch(buildPaginatedUrl("/api/reports/collections", providerId, timeframe, dateRange, page, pageSize));
+      if (!response.ok) throw new Error("Failed to fetch collections data");
+      const result = await response.json();
+      setCollectionsData(result.data || []);
+      setCollectionsPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+
+  const fetchDisbursementsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    if (!providerId || providerId === "none") return;
+    try {
+      const url = buildPaginatedUrl("/api/reports/transactions", providerId, timeframe, dateRange, page, pageSize) + "&type=disbursement";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch disbursements data");
+      const result = await response.json();
+      setDisbursementsData(result.data || []);
+      setDisbursementsPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+
+  const fetchRepaymentsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    if (!providerId || providerId === "none") return;
+    try {
+      const url = buildPaginatedUrl("/api/reports/transactions", providerId, timeframe, dateRange, page, pageSize) + "&type=repayment";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch repayments data");
+      const result = await response.json();
+      setRepaymentsData(result.data || []);
+      setRepaymentsPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+
   const fetchAllReportData = useCallback(
     async (
       currentProviderId: string,
@@ -210,10 +296,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           return response.json();
         };
 
-        const buildUrl = (baseUrl: string) => {
+        const buildUrl = (baseUrl: string, page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
           const params = new URLSearchParams({
             providerId: currentProviderId,
             timeframe: currentTimeframe,
+            page: String(page),
+            pageSize: String(pageSize),
           });
           if (currentDateRange?.from) {
             params.set("from", currentDateRange.from.toISOString());
@@ -262,10 +350,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         );
 
         const [
-          loans,
-          collections,
-          disbursements,
-          repayments,
+          loansResult,
+          collectionsResult,
+          disbursementsResult,
+          repaymentsResult,
           ...summaryResults
         ] = await Promise.all([
           loansPromise,
@@ -275,11 +363,38 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           ...summaryPromises,
         ]);
 
-        setLoansData(loans);
-        setCollectionsData(collections);
+        // Handle paginated responses
+        setLoansData(loansResult.data || []);
+        setLoansPagination({ 
+          total: loansResult.total || 0, 
+          page: loansResult.page || 1, 
+          pageSize: loansResult.pageSize || DEFAULT_PAGE_SIZE, 
+          totalPages: loansResult.totalPages || 0 
+        });
 
-        setDisbursementsData(disbursements || []);
-        setRepaymentsData(repayments || []);
+        setCollectionsData(collectionsResult.data || []);
+        setCollectionsPagination({ 
+          total: collectionsResult.total || 0, 
+          page: collectionsResult.page || 1, 
+          pageSize: collectionsResult.pageSize || DEFAULT_PAGE_SIZE, 
+          totalPages: collectionsResult.totalPages || 0 
+        });
+
+        setDisbursementsData(disbursementsResult.data || []);
+        setDisbursementsPagination({ 
+          total: disbursementsResult.total || 0, 
+          page: disbursementsResult.page || 1, 
+          pageSize: disbursementsResult.pageSize || DEFAULT_PAGE_SIZE, 
+          totalPages: disbursementsResult.totalPages || 0 
+        });
+
+        setRepaymentsData(repaymentsResult.data || []);
+        setRepaymentsPagination({ 
+          total: repaymentsResult.total || 0, 
+          page: repaymentsResult.page || 1, 
+          pageSize: repaymentsResult.pageSize || DEFAULT_PAGE_SIZE, 
+          totalPages: repaymentsResult.totalPages || 0 
+        });
 
         const newSummaryData = summaryResults.reduce(
           (acc, current) => ({ ...acc, ...current }),
@@ -640,9 +755,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const PaginationControls = ({
     tab,
     meta,
+    onPageChange,
+    onPageSizeChange,
   }: {
     tab: string;
     meta: { total: number; totalPages: number; page: number; pageSize: number };
+    onPageChange?: (page: number) => void;
+    onPageSizeChange?: (pageSize: number) => void;
   }) => {
     if (meta.total === 0) return null;
     return (
@@ -654,9 +773,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         <div className="flex items-center space-x-2">
           <select
             value={meta.pageSize}
-            onChange={(e) =>
-              setTableState(tab, { pageSize: Number(e.target.value), page: 1 })
-            }
+            onChange={(e) => {
+              const newPageSize = Number(e.target.value);
+              if (onPageSizeChange) {
+                onPageSizeChange(newPageSize);
+              } else {
+                setTableState(tab, { pageSize: newPageSize, page: 1 });
+              }
+            }}
             className="border rounded px-2 py-1"
           >
             {[10, 25, 50, 100].map((n) => (
@@ -669,12 +793,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setTableState(tab, (s) => ({
-                  ...s,
-                  page: Math.max(1, s.page - 1),
-                }))
-              }
+              onClick={() => {
+                const newPage = Math.max(1, meta.page - 1);
+                if (onPageChange) {
+                  onPageChange(newPage);
+                } else {
+                  setTableState(tab, (s) => ({ ...s, page: newPage }));
+                }
+              }}
               disabled={meta.page <= 1}
             >
               Prev
@@ -685,12 +811,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setTableState(tab, (s) => ({
-                  ...s,
-                  page: Math.min(meta.totalPages, s.page + 1),
-                }))
-              }
+              onClick={() => {
+                const newPage = Math.min(meta.totalPages, meta.page + 1);
+                if (onPageChange) {
+                  onPageChange(newPage);
+                } else {
+                  setTableState(tab, (s) => ({ ...s, page: newPage }));
+                }
+              }}
               disabled={meta.page >= meta.totalPages}
             >
               Next
@@ -701,22 +829,34 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     );
   };
 
-  // derive processed datasets
+  // derive processed datasets - for server-paginated tabs, just return the data directly
   const providerTable = useMemo(
-    () => applySortAndPaginate("providerReport", loansData),
-    [loansData, tableStates.providerReport]
+    () => ({
+      items: loansData,
+      ...loansPagination,
+    }),
+    [loansData, loansPagination]
   );
   const disbursementTable = useMemo(
-    () => applySortAndPaginate("disbursementsReport", disbursementsData),
-    [disbursementsData, tableStates.disbursementsReport]
+    () => ({
+      items: disbursementsData,
+      ...disbursementsPagination,
+    }),
+    [disbursementsData, disbursementsPagination]
   );
   const repaymentTable = useMemo(
-    () => applySortAndPaginate("repaymentsReport", repaymentsData),
-    [repaymentsData, tableStates.repaymentsReport]
+    () => ({
+      items: repaymentsData,
+      ...repaymentsPagination,
+    }),
+    [repaymentsData, repaymentsPagination]
   );
   const collectionsTable = useMemo(
-    () => applySortAndPaginate("collectionsReport", collectionsData),
-    [collectionsData, tableStates.collectionsReport]
+    () => ({
+      items: collectionsData,
+      ...collectionsPagination,
+    }),
+    [collectionsData, collectionsPagination]
   );
 
   const utilizationTable = useMemo(() => {
@@ -1079,6 +1219,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 page: providerTable.page,
                 pageSize: providerTable.pageSize,
               }}
+              onPageChange={(page) => fetchLoansData(page, providerTable.pageSize)}
+              onPageSizeChange={(pageSize) => fetchLoansData(1, pageSize)}
             />
           </TabsContent>
           <TabsContent value="disbursementsReport">
@@ -1240,6 +1382,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 page: disbursementTable.page,
                 pageSize: disbursementTable.pageSize,
               }}
+              onPageChange={(page) => fetchDisbursementsData(page, disbursementTable.pageSize)}
+              onPageSizeChange={(pageSize) => fetchDisbursementsData(1, pageSize)}
             />
           </TabsContent>
           <TabsContent value="repaymentsReport">
@@ -1373,6 +1517,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 page: repaymentTable.page,
                 pageSize: repaymentTable.pageSize,
               }}
+              onPageChange={(page) => fetchRepaymentsData(page, repaymentTable.pageSize)}
+              onPageSizeChange={(pageSize) => fetchRepaymentsData(1, pageSize)}
             />
           </TabsContent>
           <TabsContent value="collectionsReport">
@@ -1455,6 +1601,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 page: collectionsTable.page,
                 pageSize: collectionsTable.pageSize,
               }}
+              onPageChange={(page) => fetchCollectionsData(page, collectionsTable.pageSize)}
+              onPageSizeChange={(pageSize) => fetchCollectionsData(1, pageSize)}
             />
           </TabsContent>
 
