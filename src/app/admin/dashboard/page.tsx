@@ -24,7 +24,21 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
             ...providerFilter,
             repaymentStatus: { not: 'REVERSED' },
         },
-        include: { product: true }
+        select: {
+            id: true,
+            loanAmount: true,
+            repaymentStatus: true,
+            dueDate: true,
+            borrowerId: true,
+            productId: true,
+            product: {
+                select: {
+                    id: true,
+                    name: true,
+                    providerId: true,
+                }
+            }
+        }
     });
     
     const usersCount = providerId 
@@ -141,7 +155,17 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
         },
         take: 5,
         orderBy: { disbursedDate: 'desc' },
-        include: { product: true }
+        select: {
+            id: true,
+            borrowerId: true,
+            loanAmount: true,
+            repaymentStatus: true,
+            product: {
+                select: {
+                    name: true,
+                }
+            }
+        }
     }).then(loans => loans.map(l => ({
         id: l.id,
         customer: `Borrower #${l.borrowerId.substring(0,8)}...`,
@@ -152,7 +176,18 @@ async function getProviderData(providerId?: string): Promise<DashboardData> {
 
     const allProducts = await prisma.loanProduct.findMany({
         where: providerId ? { providerId: providerId } : {},
-        include: { provider: true, _count: { select: { loans: true } } }
+        select: {
+            id: true,
+            name: true,
+            providerId: true,
+            provider: {
+                select: {
+                    id: true,
+                    name: true,
+                }
+            },
+            _count: { select: { loans: true } }
+        }
     });
 
     const productOverview = await Promise.all(allProducts.map(async p => {
@@ -196,14 +231,41 @@ export async function getDashboardData(userId: string): Promise<{
 }> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { loanProvider: true }
+        select: {
+            id: true,
+            roleId: true,
+            loanProviderId: true,
+            role: {
+                select: {
+                    id: true,
+                    name: true,
+                }
+            },
+            loanProvider: {
+                select: {
+                    id: true,
+                    name: true,
+                    displayOrder: true,
+                    startingCapital: true,
+                    initialBalance: true,
+                }
+            }
+        }
     });
 
-    const isSuperAdminOrAdmin = user?.role === 'Super Admin' || user?.role === 'Admin';
+    const isSuperAdminOrAdmin = user?.role?.name === 'Super Admin' || user?.role?.name === 'Admin';
     
     // For non-admins, get their specific provider or an empty array
     const providers = isSuperAdminOrAdmin
-        ? await prisma.loanProvider.findMany()
+        ? await prisma.loanProvider.findMany({
+            select: {
+                id: true,
+                name: true,
+                displayOrder: true,
+                startingCapital: true,
+                initialBalance: true,
+            }
+        })
         : (user?.loanProvider ? [user.loanProvider] : []);
 
     const overallData = await getProviderData(isSuperAdminOrAdmin ? undefined : user?.loanProvider?.id);
