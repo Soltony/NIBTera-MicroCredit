@@ -187,8 +187,50 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
 
     const handleFileSalaryUpload = async (file?: File | null) => {
         if (!file) return;
+        
+        // Client-side validation: reject unsupported file types and oversized files early
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const allowedTypes = [
+            'text/csv',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+        const allowedExtensions = ['csv', 'xlsx', 'xls'];
+        
         const name = file.name || '';
         const ext = name.split('.').pop()?.toLowerCase();
+        
+        // Validate file extension
+        if (!ext || !allowedExtensions.includes(ext)) {
+            toast({ 
+                title: 'Invalid file type', 
+                description: 'Only .csv, .xlsx, and .xls files are allowed.', 
+                variant: 'destructive' 
+            });
+            return;
+        }
+        
+        // Validate file type (MIME type) - allow if either MIME type matches or extension is valid
+        // Some systems may not report correct MIME types for CSV files
+        if (file.type && !allowedTypes.includes(file.type) && !file.type.includes('sheet') && !file.type.includes('csv')) {
+            toast({ 
+                title: 'Invalid file type', 
+                description: 'Only .csv, .xlsx, and .xls files are allowed.', 
+                variant: 'destructive' 
+            });
+            return;
+        }
+        
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+            toast({ 
+                title: 'File too large', 
+                description: 'Maximum file size is 100MB.', 
+                variant: 'destructive' 
+            });
+            return;
+        }
+        
         try {
             let mappings: Array<any> = [];
             if (ext === 'xlsx' || ext === 'xls' || (file.type && file.type.includes('sheet'))) {
@@ -244,10 +286,28 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             }
 
             mappings = mappings.filter((m: any) => m.accountNumber);
+            
+            if (mappings.length === 0) {
+                toast({ 
+                    title: 'No valid data found', 
+                    description: 'The file must contain at least one row with an account number.', 
+                    variant: 'destructive' 
+                });
+                return;
+            }
+            
             onUpdate({ salaryAdvanceMappings: JSON.stringify(mappings) });
-        } catch (err) {
+            toast({ 
+                title: 'File uploaded', 
+                description: `Successfully parsed ${mappings.length} salary mapping${mappings.length !== 1 ? 's' : ''}.` 
+            });
+        } catch (err: any) {
             console.error('Failed to parse salary mapping file', err);
-            // keep previous mappings unchanged on error
+            toast({ 
+                title: 'Failed to parse file', 
+                description: err?.message || 'Could not read the salary mapping file. Please check the file format.', 
+                variant: 'destructive' 
+            });
         }
     }
 

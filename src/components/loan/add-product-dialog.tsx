@@ -19,6 +19,7 @@ import { Briefcase, Home, PersonStanding, type LucideIcon, Upload } from 'lucide
 import { cn } from '@/lib/utils';
 import type { LoanProduct } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useToast } from '@/hooks/use-toast';
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -43,8 +44,74 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
   const [advancePercent, setAdvancePercent] = useState('');
   const [installments, setInstallments] = useState('');
   const [salaryFile, setSalaryFile] = useState<File | null>(null);
+  const [salaryFileError, setSalaryFileError] = useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const salaryFileInputRef = React.useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleSalaryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setSalaryFileError(null);
+    
+    if (!file) {
+      setSalaryFile(null);
+      return;
+    }
+    
+    // Client-side validation: reject unsupported file types and oversized files
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+    const allowedTypes = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+    const allowedExtensions = ['csv', 'xlsx', 'xls'];
+    
+    const name = file.name || '';
+    const ext = name.split('.').pop()?.toLowerCase();
+    
+    // Validate file extension
+    if (!ext || !allowedExtensions.includes(ext)) {
+      toast({ 
+        title: 'Invalid file type', 
+        description: 'Only .csv, .xlsx, and .xls files are allowed.', 
+        variant: 'destructive' 
+      });
+      setSalaryFileError('Only .csv, .xlsx, and .xls files are allowed.');
+      if (event.target) event.target.value = '';
+      setSalaryFile(null);
+      return;
+    }
+    
+    // Validate file type (MIME type) - allow if either MIME type matches or extension is valid
+    if (file.type && !allowedTypes.includes(file.type) && !file.type.includes('sheet') && !file.type.includes('csv')) {
+      toast({ 
+        title: 'Invalid file type', 
+        description: 'Only .csv, .xlsx, and .xls files are allowed.', 
+        variant: 'destructive' 
+      });
+      setSalaryFileError('Only .csv, .xlsx, and .xls files are allowed.');
+      if (event.target) event.target.value = '';
+      setSalaryFile(null);
+      return;
+    }
+    
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      toast({ 
+        title: 'File too large', 
+        description: 'Maximum file size is 100MB.', 
+        variant: 'destructive' 
+      });
+      setSalaryFileError('Maximum file size is 100MB.');
+      if (event.target) event.target.value = '';
+      setSalaryFile(null);
+      return;
+    }
+    
+    setSalaryFile(file);
+  };
 
   const handleCustomIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -335,8 +402,16 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Upload Salary CSV</Label>
                   <div className="col-span-3">
-                    <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setSalaryFile(e.target.files ? e.target.files[0] : null)} />
+                    <input 
+                      ref={salaryFileInputRef}
+                      type="file" 
+                      accept=".csv,.xlsx,.xls" 
+                      onChange={handleSalaryFileChange} 
+                    />
                     <div className="text-sm text-muted-foreground">CSV columns: accountNumber,salary</div>
+                    {salaryFileError && (
+                      <div className="text-sm text-destructive mt-1">{salaryFileError}</div>
+                    )}
                   </div>
                 </div>
               </>
