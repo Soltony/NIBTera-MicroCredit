@@ -28,7 +28,7 @@ async function getPendingReversalApprovals(): Promise<
   const changes = await prisma.pendingChange.findMany({
     where: {
       status: "PENDING",
-      entityType: { in: ["DisbursementReversal", "DisbursementCancel"] },
+      entityType: { in: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
     },
     include: {
       createdBy: {
@@ -88,9 +88,37 @@ async function getPendingReversalApprovals(): Promise<
           ? String(created.cbsTransactionId)
           : null;
         const amount = created.amount != null ? Number(created.amount) : null;
+        const loanId = created.loanId ? String(created.loanId) : null;
+        const borrowerId = created.borrowerId ? String(created.borrowerId) : null;
+        const isPosted = created.isPosted === true;
 
-        // For cancel requests, show the CBS transaction ID they want to set
-        if (change.entityType === "DisbursementCancel" && cbsTxId) {
+        // For LoanReversal and LoanCancel (posted loans)
+        if (change.entityType === "LoanReversal" || change.entityType === "LoanCancel") {
+          if (change.entityType === "LoanCancel" && cbsTxId) {
+            entityName =
+              [
+                loanId ? `Loan ${loanId}` : null,
+                borrowerId ? `Borrower ${borrowerId}` : null,
+                `CBS Txn ${cbsTxId}`,
+                amount != null ? `Amt ${amount}` : null,
+                isPosted ? "(Posted)" : null,
+              ]
+                .filter(Boolean)
+                .join(" • ") || entityName;
+          } else {
+            entityName =
+              [
+                loanId ? `Loan ${loanId}` : null,
+                borrowerId ? `Borrower ${borrowerId}` : null,
+                amount != null ? `Amt ${amount}` : null,
+                isPosted ? "(Posted)" : null,
+              ]
+                .filter(Boolean)
+                .join(" • ") || entityName;
+          }
+        }
+        // For DisbursementCancel, show the CBS transaction ID they want to set
+        else if (change.entityType === "DisbursementCancel" && cbsTxId) {
           entityName =
             [
               credit ? `Acct ${credit}` : null,

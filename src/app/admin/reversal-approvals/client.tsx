@@ -136,12 +136,14 @@ export function ReversalApprovalsClient({
               <TableBody>
                 {changes.length > 0 ? (
                   changes.map((change) => {
-                    const isCancel = change.entityType === "DisbursementCancel";
+                    const isCancel = change.entityType === "DisbursementCancel" || change.entityType === "LoanCancel";
+                    const isPostedLoan = change.entityType === "LoanReversal" || change.entityType === "LoanCancel";
                     const displayType = isCancel ? "Cancel" : "Reversal";
+                    const displaySubtype = isPostedLoan ? " (Posted Loan)" : "";
                     return (
                       <TableRow key={change.id}>
                         <TableCell className="font-medium">
-                          <div>{displayType}</div>
+                          <div>{displayType}{displaySubtype}</div>
                           <div className="text-sm text-muted-foreground">
                             {change.entityName}
                           </div>
