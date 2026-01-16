@@ -104,8 +104,10 @@ export async function GET(req: NextRequest) {
     }
     
     // Authorization check
+    // Users with loanProviderId are restricted to their own provider
+    // Users without loanProviderId (and with reports permission) can access any provider
     const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
-    if (!isSuperAdminOrRecon && user.loanProviderId !== providerId) {
+    if (user.loanProviderId && user.loanProviderId !== providerId) {
         return NextResponse.json({ error: 'Forbidden: You can only access reports for your own provider.' }, { status: 403 });
     }
 

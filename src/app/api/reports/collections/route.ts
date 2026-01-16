@@ -84,8 +84,10 @@ export async function GET(req: NextRequest) {
     
     const isSuperAdminOrRecon = user.role === 'Super Admin' || user.role === 'Reconciliation';
 
-    if (!isSuperAdminOrRecon) {
-        providerId = user.loanProviderId || 'none';
+    // Users with loanProviderId are restricted to their own provider
+    // Users without loanProviderId (and with reports permission) can access all providers
+    if (user.loanProviderId) {
+        providerId = user.loanProviderId;
     }
 
     if (providerId && providerId !== 'all' && providerId !== 'none') {

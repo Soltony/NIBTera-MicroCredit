@@ -121,8 +121,10 @@ export async function GET(req: NextRequest) {
 
     try {
         let providersToQuery;
-        if (!isSuperAdminOrRecon) {
-            providersToQuery = user.loanProviderId ? [await prisma.loanProvider.findUnique({ where: { id: user.loanProviderId } })].filter(Boolean) : [];
+        // Users with loanProviderId are restricted to their own provider
+        // Users without loanProviderId (and with reports permission) can access all providers
+        if (user.loanProviderId) {
+            providersToQuery = [await prisma.loanProvider.findUnique({ where: { id: user.loanProviderId } })].filter(Boolean);
         } else if (providerId && providerId !== 'all') {
             providersToQuery = [await prisma.loanProvider.findUnique({ where: { id: providerId } })].filter(Boolean);
         } else {

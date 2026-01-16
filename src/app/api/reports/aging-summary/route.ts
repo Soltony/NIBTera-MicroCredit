@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { differenceInDays } from 'date-fns';
+import { getUserFromSession } from '@/lib/user';
 
 // Aging buckets
 const BUCKETS = [
@@ -21,9 +22,20 @@ function classifyAging(daysOverdue: number) {
 }
 
 export async function GET(req: NextRequest) {
+  const user = await getUserFromSession();
+  if (!user || !user.permissions?.['reports']?.read) {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  }
+
   // Optionally filter by providerId
   const { searchParams } = new URL(req.url);
-  const providerId = searchParams.get('providerId');
+  let providerId = searchParams.get('providerId');
+
+  // Users with loanProviderId are restricted to their own provider
+  // Users without loanProviderId (and with reports permission) can access all providers
+  if (user.loanProviderId) {
+    providerId = user.loanProviderId;
+  }
 
   // Get all active loans with overdue principal/interest
   const loans = await prisma.loan.findMany({
