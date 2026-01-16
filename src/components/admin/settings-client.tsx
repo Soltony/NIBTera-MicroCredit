@@ -1825,6 +1825,47 @@ function EligibilityTab({ providers, onProvidersChange }: {
             return;
         }
 
+        // Client-side validation: reject unsupported file types and oversized files early
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        const allowedExtensions = ['xlsx'];
+        
+        const fileName = file.name || '';
+        const ext = fileName.split('.').pop()?.toLowerCase();
+        
+        // Validate file extension
+        if (!ext || !allowedExtensions.includes(ext)) {
+            toast({ 
+                title: 'Invalid file type', 
+                description: 'Only .xlsx files are allowed.', 
+                variant: 'destructive' 
+            });
+            if (event.target) event.target.value = '';
+            return;
+        }
+        
+        // Validate file type (MIME type)
+        if (file.type && !allowedTypes.includes(file.type) && !file.type.includes('sheet')) {
+            toast({ 
+                title: 'Invalid file type', 
+                description: 'Only .xlsx files are allowed.', 
+                variant: 'destructive' 
+            });
+            if (event.target) event.target.value = '';
+            return;
+        }
+        
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+            toast({ 
+                title: 'File too large', 
+                description: 'Maximum file size is 100MB.', 
+                variant: 'destructive' 
+            });
+            if (event.target) event.target.value = '';
+            return;
+        }
+
         setIsSaving(true);
         try {
             const fileReader = new FileReader();
@@ -2545,6 +2586,47 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
 
         const file = event.target.files?.[0];
         if (!file) return;
+
+        // Client-side validation: reject unsupported file types and oversized files early
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        const allowedExtensions = ['xlsx'];
+        
+        const fileName = file.name || '';
+        const ext = fileName.split('.').pop()?.toLowerCase();
+        
+        // Validate file extension
+        if (!ext || !allowedExtensions.includes(ext)) {
+            toast({ 
+                title: 'Invalid file type', 
+                description: 'Only .xlsx files are allowed.', 
+                variant: 'destructive' 
+            });
+            if (event.target) event.target.value = '';
+            return;
+        }
+        
+        // Validate file type (MIME type)
+        if (file.type && !allowedTypes.includes(file.type) && !file.type.includes('sheet')) {
+            toast({ 
+                title: 'Invalid file type', 
+                description: 'Only .xlsx files are allowed.', 
+                variant: 'destructive' 
+            });
+            if (event.target) event.target.value = '';
+            return;
+        }
+        
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+            toast({ 
+                title: 'File too large', 
+                description: 'Maximum file size is 100MB.', 
+                variant: 'destructive' 
+            });
+            if (event.target) event.target.value = '';
+            return;
+        }
 
         setIsUploading(true);
         try {
