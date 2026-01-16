@@ -70,8 +70,8 @@ type FilterMode = "failed" | "all" | "posted";
 const ITEMS_PER_PAGE = 20;
 
 export default function ReversalsPage() {
-  // Reuse existing approvals permission (read) to avoid needing new permission keys
-  useRequirePermission("approvals");
+  // Check for reversals permission
+  useRequirePermission("reversals");
 
   const { toast } = useToast();
   const [rows, setRows] = useState<ReversalRow[]>([]);

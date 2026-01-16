@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './use-auth';
 
-export function useRequirePermission(moduleName: string) {
+export function useRequirePermission(moduleName: string | string[]) {
   const { currentUser, isLoading } = useAuth();
   const router = useRouter();
 
@@ -15,7 +15,10 @@ export function useRequirePermission(moduleName: string) {
       return;
     }
 
-    const allowed = !!currentUser.permissions?.[moduleName]?.read;
+    const moduleNames = Array.isArray(moduleName) ? moduleName : [moduleName];
+    const allowed = moduleNames.some(
+      (name) => !!currentUser.permissions?.[name]?.read
+    );
     if (!allowed) {
       router.replace('/admin/forbidden');
     }
