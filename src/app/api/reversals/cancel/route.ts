@@ -13,6 +13,9 @@ function isFailureStatus(statusCode: number | null | undefined) {
  * This is used when an external disbursement was recorded as failed
  * but actually succeeded on the CBS side.
  *
+ * Also handles "Posted" loans - loans with no disbursement transaction record.
+ * For posted loans, this creates a disbursement record and marks it as successful.
+ *
  * Creates a pending change request for maker-checker approval.
  * Upon approval, the transactionId and statusCode on the DisbursementTransaction will be updated.
  */
@@ -28,10 +31,124 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const disbursementTransactionId = body?.id ? String(body.id) : null;
+  const loanId = body?.loanId ? String(body.loanId) : null;
+  const isPosted = body?.isPosted === true;
   const cbsTransactionId = body?.transactionId
     ? String(body.transactionId).trim()
     : null;
 
+  // Handle "Posted" loans - loans with no disbursement transaction record
+  if (isPosted && loanId) {
+    if (!cbsTransactionId) {
+      await createAuditLog({
+        actorId: user.id,
+        action: "CANCEL_REQUEST_INVALID",
+        entity: "Loan",
+        entityId: loanId,
+        details: { reason: "Missing transactionId", isPosted: true },
+        ipAddress,
+        userAgent,
+      }).catch(() => null);
+      return NextResponse.json(
+        { error: "Missing CBS transaction ID" },
+        { status: 400 }
+      );
+    }
+
+    const loan = await prisma.loan.findUnique({
+      where: { id: loanId },
+      include: { product: { include: { provider: true } } },
+    });
+
+    if (!loan) {
+      await createAuditLog({
+        actorId: user.id,
+        action: "CANCEL_REQUEST_NOT_FOUND",
+        entity: "Loan",
+        entityId: loanId,
+        details: { reason: "Loan not found", isPosted: true },
+        ipAddress,
+        userAgent,
+      }).catch(() => null);
+      return NextResponse.json({ error: "Loan not found" }, { status: 404 });
+    }
+
+    // Check if already cancelled or reversed
+    const alreadyProcessed = await prisma.auditLog.findFirst({
+      where: {
+        action: { in: ["LOAN_CANCELLED", "LOAN_REVERSED"] },
+        entity: "Loan",
+        entityId: loanId,
+      },
+      select: { id: true, action: true },
+    });
+    if (alreadyProcessed) {
+      return NextResponse.json(
+        { ok: true, message: `Already ${alreadyProcessed.action === "LOAN_REVERSED" ? "reversed" : "cancelled"}` },
+        { status: 200 }
+      );
+    }
+
+    // Check for existing pending
+    const existingPending = await prisma.pendingChange.findFirst({
+      where: {
+        status: "PENDING",
+        entityType: { in: ["LoanReversal", "LoanCancel"] },
+        entityId: loanId,
+      },
+      select: { id: true, entityType: true },
+    });
+    if (existingPending) {
+      return NextResponse.json(
+        {
+          ok: true,
+          message: `Already submitted for approval (${existingPending.entityType})`,
+          changeId: existingPending.id,
+        },
+        { status: 200 }
+      );
+    }
+
+    const payload = JSON.stringify({
+      created: {
+        loanId: loan.id,
+        cbsTransactionId,
+        borrowerId: loan.borrowerId,
+        providerId: loan.product?.provider?.id,
+        amount: loan.loanAmount,
+        createdAt: loan.createdAt?.toISOString?.() ?? null,
+        isPosted: true,
+      },
+    });
+
+    const pending = await prisma.pendingChange.create({
+      data: {
+        entityType: "LoanCancel",
+        entityId: loanId,
+        changeType: "CREATE",
+        payload,
+        status: "PENDING",
+        createdById: user.id,
+      },
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      action: "LOAN_CANCEL_APPROVAL_REQUESTED",
+      entity: "Loan",
+      entityId: loanId,
+      details: { changeId: pending.id, loanId, cbsTransactionId, isPosted: true },
+      ipAddress,
+      userAgent,
+    });
+
+    return NextResponse.json(
+      { ok: true, message: "Submitted for approval", changeId: pending.id },
+      { status: 201 }
+    );
+  }
+
+  // Original flow for DisbursementTransaction
   if (!disbursementTransactionId) {
     await createAuditLog({
       actorId: user.id,

@@ -68,6 +68,8 @@ export async function GET(req: NextRequest) {
 
     // Get phone accounts for borrower resolution
     const borrowerIds = loansWithoutDisbursement.map((l) => l.borrowerId);
+    const loanIds = loansWithoutDisbursement.map((l) => l.id);
+    
     const phoneAccounts = borrowerIds.length
       ? await prisma.phoneAccount.findMany({
           where: { phoneNumber: { in: borrowerIds } },
@@ -81,6 +83,75 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Check for reversed/cancelled status for posted loans
+    const reversalLogs = loanIds.length
+      ? await prisma.auditLog.findMany({
+          where: {
+            action: "LOAN_REVERSED",
+            entity: "Loan",
+            entityId: { in: loanIds },
+          },
+          select: { entityId: true, createdAt: true, actorId: true },
+        })
+      : [];
+
+    const cancelLogs = loanIds.length
+      ? await prisma.auditLog.findMany({
+          where: {
+            action: "LOAN_CANCELLED",
+            entity: "Loan",
+            entityId: { in: loanIds },
+          },
+          select: { entityId: true, createdAt: true, actorId: true },
+        })
+      : [];
+
+    const pendingRequests = loanIds.length
+      ? await prisma.pendingChange.findMany({
+          where: {
+            status: "PENDING",
+            entityType: { in: ["LoanReversal", "LoanCancel"] },
+            entityId: { in: loanIds },
+          },
+          select: {
+            id: true,
+            entityId: true,
+            entityType: true,
+            createdAt: true,
+            createdById: true,
+          },
+        })
+      : [];
+
+    const reversedByLoanId = new Map<string, { reversedAt: string; reversedBy: string }>();
+    for (const r of reversalLogs) {
+      if (!r.entityId) continue;
+      reversedByLoanId.set(r.entityId, {
+        reversedAt: r.createdAt.toISOString(),
+        reversedBy: r.actorId,
+      });
+    }
+
+    const cancelledByLoanId = new Map<string, { cancelledAt: string; cancelledBy: string }>();
+    for (const c of cancelLogs) {
+      if (!c.entityId) continue;
+      cancelledByLoanId.set(c.entityId, {
+        cancelledAt: c.createdAt.toISOString(),
+        cancelledBy: c.actorId,
+      });
+    }
+
+    const pendingByLoanId = new Map<string, { changeId: string; requestedAt: string; requestedBy: string; type: string }>();
+    for (const p of pendingRequests) {
+      if (!p.entityId) continue;
+      pendingByLoanId.set(p.entityId, {
+        changeId: p.id,
+        requestedAt: p.createdAt.toISOString(),
+        requestedBy: p.createdById,
+        type: p.entityType,
+      });
+    }
+
     const rows = loansWithoutDisbursement.map((loan) => ({
       id: `loan-${loan.id}`,
       transactionId: null,
@@ -92,9 +163,9 @@ export async function GET(req: NextRequest) {
       createdAt: loan.createdAt.toISOString(),
       borrowerId: loan.borrowerId,
       loanId: loan.id,
-      reversed: null,
-      cancelled: null,
-      pendingApproval: null,
+      reversed: reversedByLoanId.get(loan.id) ?? null,
+      cancelled: cancelledByLoanId.get(loan.id) ?? null,
+      pendingApproval: pendingByLoanId.get(loan.id) ?? null,
       isFailure: false,
       isPosted: true, // Flag to indicate internally posted without external disbursement
       disbursementStatus: "POSTED",

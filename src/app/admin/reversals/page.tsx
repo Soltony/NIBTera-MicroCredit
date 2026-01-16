@@ -120,13 +120,18 @@ export default function ReversalsPage() {
     void fetchRows();
   }, [query, toast]);
 
-  const reverseTx = async (id: string) => {
-    setReversingId(id);
+  const reverseTx = async (row: ReversalRow) => {
+    setReversingId(row.id);
     try {
+      const isPosted = row.isPosted || row.disbursementStatus === "POSTED";
       const res = await fetch("/api/reversals/reverse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify(
+          isPosted
+            ? { loanId: row.loanId, isPosted: true }
+            : { id: row.id }
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Reversal failed");
@@ -170,13 +175,22 @@ export default function ReversalsPage() {
 
     setIsCancelling(true);
     try {
+      const isPosted = cancellingRow.isPosted || cancellingRow.disbursementStatus === "POSTED";
       const res = await fetch("/api/reversals/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: cancellingRow.id,
-          transactionId: cancelTransactionId.trim(),
-        }),
+        body: JSON.stringify(
+          isPosted
+            ? {
+                loanId: cancellingRow.loanId,
+                isPosted: true,
+                transactionId: cancelTransactionId.trim(),
+              }
+            : {
+                id: cancellingRow.id,
+                transactionId: cancelTransactionId.trim(),
+              }
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Cancel failed");
@@ -319,13 +333,15 @@ export default function ReversalsPage() {
                 rows.map((r) => {
                   const internalProviderId =
                     r.originalProviderId || r.providerId;
+                  const isPostedOnly = r.isPosted || r.disbursementStatus === "POSTED";
+                  // For posted loans, allow reverse/cancel if not already processed
+                  const canActOnPosted = isPostedOnly && !r.reversed && !r.cancelled && !r.pendingApproval;
+                  // For failed disbursements, same as before
                   const canReverse =
                     !r.reversed &&
                     !r.cancelled &&
                     !r.pendingApproval &&
-                    r.isFailure &&
-                    !r.isPosted;
-                  const isPostedOnly = r.isPosted || r.disbursementStatus === "POSTED";
+                    (r.isFailure || isPostedOnly);
                   return (
                     <TableRow key={r.id}>
                       <TableCell>
@@ -346,33 +362,29 @@ export default function ReversalsPage() {
                         {r.loanId ?? "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        {isPostedOnly ? (
-                          <span className="text-sm text-muted-foreground">No action needed</span>
-                        ) : (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              disabled={!canReverse || reversingId === r.id}
-                              onClick={() => void reverseTx(r.id)}
-                            >
-                              {reversingId === r.id ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <Loader2 className="h-4 w-4 animate-spin" />{" "}
-                                  Submitting
-                                </span>
-                              ) : (
-                                "Reverse"
-                              )}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              disabled={!canReverse}
-                              onClick={() => openCancelDialog(r)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            disabled={!canReverse || reversingId === r.id}
+                            onClick={() => void reverseTx(r)}
+                          >
+                            {reversingId === r.id ? (
+                              <span className="inline-flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                                Submitting
+                              </span>
+                            ) : (
+                              "Reverse"
+                            )}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            disabled={!canReverse}
+                            onClick={() => openCancelDialog(r)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
