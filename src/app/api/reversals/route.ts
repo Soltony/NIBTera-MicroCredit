@@ -7,6 +7,10 @@ function isFailureStatus(statusCode: number | null | undefined) {
   return statusCode < 200 || statusCode >= 300;
 }
 
+function isSuccessStatus(statusCode: number | null | undefined) {
+  return statusCode != null && statusCode >= 200 && statusCode < 300;
+}
+
 export async function GET(req: NextRequest) {
   const user = await getUserFromSession();
   if (!user || !user.permissions?.["approvals"]?.read) {
@@ -23,20 +27,104 @@ export async function GET(req: NextRequest) {
   // Optional date filters
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  
+  // Filter mode: 'failed' (default), 'all', or 'posted'
+  const filterMode = searchParams.get("filter") || "failed";
+  
   const createdAt: any = {};
   if (from) createdAt.gte = new Date(from);
   if (to) createdAt.lte = new Date(to);
 
+  // For 'posted' filter, we need to find loans without disbursement transactions
+  if (filterMode === "posted") {
+    // Find loans that have NO corresponding DisbursementTransaction
+    const loanDateFilter: any = {};
+    if (from) loanDateFilter.gte = new Date(from);
+    if (to) loanDateFilter.lte = new Date(to);
+
+    const loansWithoutDisbursement = await prisma.loan.findMany({
+      where: {
+        repaymentStatus: { not: "REVERSED" },
+        ...(Object.keys(loanDateFilter).length ? { createdAt: loanDateFilter } : {}),
+        // Exclude loans that have a linked disbursement transaction
+        disbursementTransactions: { none: {} },
+      },
+      include: {
+        product: { include: { provider: true } },
+        borrower: true,
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const totalPosted = await prisma.loan.count({
+      where: {
+        repaymentStatus: { not: "REVERSED" },
+        ...(Object.keys(loanDateFilter).length ? { createdAt: loanDateFilter } : {}),
+        disbursementTransactions: { none: {} },
+      },
+    });
+
+    // Get phone accounts for borrower resolution
+    const borrowerIds = loansWithoutDisbursement.map((l) => l.borrowerId);
+    const phoneAccounts = borrowerIds.length
+      ? await prisma.phoneAccount.findMany({
+          where: { phoneNumber: { in: borrowerIds } },
+          select: { phoneNumber: true, accountNumber: true },
+        })
+      : [];
+    const accountByBorrower = new Map<string, string>();
+    for (const pa of phoneAccounts) {
+      if (!accountByBorrower.has(pa.phoneNumber)) {
+        accountByBorrower.set(pa.phoneNumber, pa.accountNumber);
+      }
+    }
+
+    const rows = loansWithoutDisbursement.map((loan) => ({
+      id: `loan-${loan.id}`,
+      transactionId: null,
+      providerId: loan.product?.provider?.id || null,
+      originalProviderId: loan.product?.provider?.id || null,
+      creditAccount: accountByBorrower.get(loan.borrowerId) || null,
+      amount: loan.loanAmount,
+      statusCode: null,
+      createdAt: loan.createdAt.toISOString(),
+      borrowerId: loan.borrowerId,
+      loanId: loan.id,
+      reversed: null,
+      cancelled: null,
+      pendingApproval: null,
+      isFailure: false,
+      isPosted: true, // Flag to indicate internally posted without external disbursement
+      disbursementStatus: "POSTED",
+    }));
+
+    return NextResponse.json({
+      page,
+      limit,
+      total: totalPosted,
+      totalPages: Math.ceil(totalPosted / limit) || 1,
+      rows,
+    });
+  }
+
+  // Default behavior: show failed disbursements or all
   const where: any = {
     AND: [
       Object.keys(createdAt).length ? { createdAt } : {},
-      {
-        OR: [
-          { statusCode: null },
-          { statusCode: { lt: 200 } },
-          { statusCode: { gte: 300 } },
-        ],
-      },
+      // For 'all' filter, don't filter by status; for 'failed', only show failures
+      ...(filterMode === "all"
+        ? []
+        : [
+            {
+              OR: [
+                { statusCode: null },
+                { statusCode: { lt: 200 } },
+                { statusCode: { gte: 300 } },
+              ],
+            },
+          ]),
     ],
   };
 
@@ -176,11 +264,17 @@ export async function GET(req: NextRequest) {
         statusCode: t.statusCode,
         createdAt: t.createdAt.toISOString(),
         borrowerId,
-        loanId,
+        loanId: t.loanId || loanId,
         reversed,
         cancelled: cancelledById.get(t.id) ?? null,
         pendingApproval: pendingByTxId.get(t.id) ?? null,
         isFailure: isFailureStatus(t.statusCode),
+        isPosted: false,
+        disbursementStatus: isSuccessStatus(t.statusCode) 
+          ? "SUCCESS" 
+          : isFailureStatus(t.statusCode) 
+            ? "FAILED" 
+            : "PENDING",
       };
     })
   );

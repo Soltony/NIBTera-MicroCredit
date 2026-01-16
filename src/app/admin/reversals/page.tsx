@@ -33,13 +33,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ReversalRow = {
   id: string;
   transactionId: string | null;
   providerId: string;
   originalProviderId: string | null;
-  creditAccount: string;
+  creditAccount: string | null;
   amount: number | null;
   statusCode: number | null;
   createdAt: string;
@@ -54,7 +61,11 @@ type ReversalRow = {
     type: string;
   } | null;
   isFailure: boolean;
+  isPosted?: boolean;
+  disbursementStatus?: string;
 };
+
+type FilterMode = "failed" | "all" | "posted";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -69,6 +80,7 @@ export default function ReversalsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [filterMode, setFilterMode] = useState<FilterMode>("failed");
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancellingRow, setCancellingRow] = useState<ReversalRow | null>(null);
@@ -79,10 +91,11 @@ export default function ReversalsPage() {
     const p = new URLSearchParams();
     p.set("page", String(page));
     p.set("limit", String(ITEMS_PER_PAGE));
+    p.set("filter", filterMode);
     if (fromDate) p.set("from", fromDate);
     if (toDate) p.set("to", toDate);
     return p.toString();
-  }, [page, fromDate, toDate]);
+  }, [page, fromDate, toDate, filterMode]);
 
   useEffect(() => {
     const fetchRows = async () => {
@@ -204,6 +217,11 @@ export default function ReversalsPage() {
           : "Reversal";
       return <Badge variant="outline">Pending {type}</Badge>;
     }
+    // Show "Posted" for loans without disbursement transaction
+    if (row.isPosted || row.disbursementStatus === "POSTED")
+      return <Badge className="bg-yellow-600 text-white">Posted</Badge>;
+    if (row.disbursementStatus === "SUCCESS")
+      return <Badge className="bg-green-600 text-white">Success</Badge>;
     if (row.statusCode == null)
       return <Badge className="bg-red-600 text-white">Failed</Badge>;
     if (row.statusCode >= 200 && row.statusCode < 300)
@@ -217,10 +235,27 @@ export default function ReversalsPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Reversals</h2>
           <p className="text-muted-foreground">
-            Failed external disbursements that can be reversed internally.
+            {filterMode === "posted" 
+              ? "Loans posted internally without external disbursement."
+              : filterMode === "all"
+                ? "All disbursement transactions."
+                : "Failed external disbursements that can be reversed internally."}
           </p>
         </div>
         <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Filter</span>
+            <Select value={filterMode} onValueChange={(v) => { setFilterMode(v as FilterMode); setPage(1); }}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="failed">Failed Only</SelectItem>
+                <SelectItem value="posted">Posted Only</SelectItem>
+                <SelectItem value="all">All Transactions</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">From</span>
             <Input
@@ -244,10 +279,19 @@ export default function ReversalsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Failed Disbursements</CardTitle>
+          <CardTitle>
+            {filterMode === "posted" 
+              ? "Posted Loans (No Disbursement Record)" 
+              : filterMode === "all"
+                ? "All Disbursements"
+                : "Failed Disbursements"}
+          </CardTitle>
           <CardDescription>
-            Submit a reversal request for approval to undo internal postings for
-            failed upstream transfers.
+            {filterMode === "posted"
+              ? "These loans were posted internally but have no external disbursement transaction record."
+              : filterMode === "all"
+                ? "View all disbursement transactions regardless of status."
+                : "Submit a reversal request for approval to undo internal postings for failed upstream transfers."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -279,7 +323,9 @@ export default function ReversalsPage() {
                     !r.reversed &&
                     !r.cancelled &&
                     !r.pendingApproval &&
-                    r.isFailure;
+                    r.isFailure &&
+                    !r.isPosted;
+                  const isPostedOnly = r.isPosted || r.disbursementStatus === "POSTED";
                   return (
                     <TableRow key={r.id}>
                       <TableCell>
@@ -290,7 +336,7 @@ export default function ReversalsPage() {
                         {internalProviderId}
                       </TableCell>
                       <TableCell className="font-mono">
-                        {r.creditAccount}
+                        {r.creditAccount || "—"}
                       </TableCell>
                       <TableCell>{r.amount ?? "—"}</TableCell>
                       <TableCell className="font-mono">
@@ -300,29 +346,33 @@ export default function ReversalsPage() {
                         {r.loanId ?? "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            disabled={!canReverse || reversingId === r.id}
-                            onClick={() => void reverseTx(r.id)}
-                          >
-                            {reversingId === r.id ? (
-                              <span className="inline-flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />{" "}
-                                Submitting
-                              </span>
-                            ) : (
-                              "Reverse"
-                            )}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            disabled={!canReverse}
-                            onClick={() => openCancelDialog(r)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
+                        {isPostedOnly ? (
+                          <span className="text-sm text-muted-foreground">No action needed</span>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              disabled={!canReverse || reversingId === r.id}
+                              onClick={() => void reverseTx(r.id)}
+                            >
+                              {reversingId === r.id ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                                  Submitting
+                                </span>
+                              ) : (
+                                "Reverse"
+                              )}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              disabled={!canReverse}
+                              onClick={() => openCancelDialog(r)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -330,7 +380,11 @@ export default function ReversalsPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center">
-                    No failed disbursements found.
+                    {filterMode === "posted" 
+                      ? "No posted loans without disbursement records found."
+                      : filterMode === "all"
+                        ? "No disbursement transactions found."
+                        : "No failed disbursements found."}
                   </TableCell>
                 </TableRow>
               )}
