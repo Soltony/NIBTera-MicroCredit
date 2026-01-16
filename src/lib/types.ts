@@ -246,6 +246,7 @@ export interface User {
     role: UserRole;
     status: UserStatus;
     providerId?: string | null;
+    loanProviderId?: string | null;
     providerName?: string;
     permissions: Permissions;
 }

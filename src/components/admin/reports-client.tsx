@@ -95,6 +95,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     currentUser?.role === "Super Admin" ||
     currentUser?.role === "Reconciliation";
 
+  // Check if user can view all providers (either super admin/recon OR has reports permission with multiple providers)
+  // Users with a loanProviderId are bound to a specific provider and should only see that provider's reports
+  const canViewAllProviders =
+    isSuperAdminOrRecon ||
+    (!!currentUser?.permissions?.["reports"]?.read && providers.length > 1 && !currentUser?.loanProviderId);
+
   type SortDir = "asc" | "desc";
   type TableState = {
     sortBy?: string;
@@ -326,7 +332,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         const summaryProviders =
           currentProviderId === "all" &&
           providers.length > 1 &&
-          isSuperAdminOrRecon
+          canViewAllProviders
             ? providers
             : [providers.find((p) => p.id === currentProviderId)!].filter(
                 Boolean
@@ -415,7 +421,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         setIsLoading(false);
       }
     },
-    [toast, providers, isSuperAdminOrRecon]
+    [toast, providers, canViewAllProviders]
   );
 
   // Effect to set the initial providerId and fetch data ONCE
@@ -423,13 +429,16 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     if (isAuthLoading) return; // Wait for user data to be available
 
     let initialProviderId: string | null = null;
-    if (isSuperAdminOrRecon) {
+    if (canViewAllProviders) {
       initialProviderId = "all";
-    } else if (currentUser?.providerId) {
-      initialProviderId = currentUser.providerId;
+    } else if (currentUser?.loanProviderId) {
+      initialProviderId = currentUser.loanProviderId;
+    } else if (providers.length === 1) {
+      // Single provider available, select it
+      initialProviderId = providers[0].id;
     } else if (providers.length > 0) {
-      // This case might be for other roles that see reports but aren't super admin
-      initialProviderId = "all";
+      // Multiple providers available but user can't view all - select first one
+      initialProviderId = providers[0].id;
     } else {
       initialProviderId = "none"; // No providers available
     }
@@ -442,7 +451,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthLoading, currentUser?.providerId, isSuperAdminOrRecon]);
+  }, [isAuthLoading, currentUser?.loanProviderId, canViewAllProviders, providers]);
 
   // Effect to refetch data when filters change, but not on initial load
   useEffect(() => {
@@ -1001,7 +1010,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
               />
             </PopoverContent>
           </Popover>
-          {isSuperAdminOrRecon && (
+          {canViewAllProviders && (
             <Select onValueChange={setProviderId} value={providerId || ""}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select Provider" />
