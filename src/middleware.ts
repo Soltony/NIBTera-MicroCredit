@@ -288,36 +288,28 @@ export default async function middleware(req: NextRequest) {
         }
       }
 
-      // Special handling: /admin/approvals/[id] detail pages should also be accessible
-      // by users with reversal-approval permission (for viewing reversal details)
-      const isApprovalDetailPage = path.startsWith('/admin/approvals/') && path !== '/admin/approvals';
-      const hasReversalApprovalPerm = userPermissions.has('reversal-approval');
-      
       if (requiredPermission && !userPermissions.has(requiredPermission.toLowerCase())) {
-        // Allow access if it's an approval detail page and user has reversal-approval permission
-        if (!(isApprovalDetailPage && hasReversalApprovalPerm)) {
-          const firstAllowedPage = ORDERED_ADMIN_PAGES.find(pagePath => {
-            const perm = PERMISSION_MAP[pagePath];
-            return perm && userPermissions.has(perm.toLowerCase());
-          });
+        const firstAllowedPage = ORDERED_ADMIN_PAGES.find(pagePath => {
+          const perm = PERMISSION_MAP[pagePath];
+          return perm && userPermissions.has(perm.toLowerCase());
+        });
 
-          if (path.startsWith('/api/')) {
-            return withSecurityHeaders(
-              NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
-              cspHeader,
-              nonce
-            );
-          }
-
-          const redirectUrl = new URL(firstAllowedPage || '/admin', req.nextUrl.origin);
-          redirectUrl.searchParams.set('error', 'Access Denied');
-
+        if (path.startsWith('/api/')) {
           return withSecurityHeaders(
-            NextResponse.redirect(redirectUrl),
+            NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
             cspHeader,
             nonce
           );
         }
+
+        const redirectUrl = new URL(firstAllowedPage || '/admin', req.nextUrl.origin);
+        redirectUrl.searchParams.set('error', 'Access Denied');
+
+        return withSecurityHeaders(
+          NextResponse.redirect(redirectUrl),
+          cspHeader,
+          nonce
+        );
       }
     }
 

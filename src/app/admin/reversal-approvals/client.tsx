@@ -172,7 +172,7 @@ export function ReversalApprovalsClient({
                             size="icon"
                             className="h-8 w-8"
                             onClick={() =>
-                              router.push(`/admin/approvals/${change.id}`)
+                              router.push(`/admin/reversal-approvals/${change.id}`)
                             }
                           >
                             <Eye className="h-4 w-4" />
