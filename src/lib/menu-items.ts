@@ -40,7 +40,7 @@ export const allMenuItems = [
   },
   {
     path: '/admin/reversal-approvals',
-    label: 'Revesal Approval',
+    label: 'Reversal Approval',
     icon: CheckSquare,
     roles: ['Super Admin', 'Loan Manager'],
   },

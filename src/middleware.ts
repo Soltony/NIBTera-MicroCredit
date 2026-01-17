@@ -6,7 +6,11 @@ import type { Permissions } from '@/lib/types';
 function findLongestMatchingMenuItem(path: string) {
   let best: (typeof allMenuItems)[number] | undefined;
   for (const item of allMenuItems) {
-    if (path.startsWith(item.path) && (!best || item.path.length > best.path.length)) {
+    // Ensure we match complete path segments, not partial matches
+    // e.g., /admin/reversals should NOT match /admin/reversal-approvals
+    const isExactMatch = path === item.path;
+    const isSegmentPrefixMatch = path.startsWith(item.path + '/');
+    if ((isExactMatch || isSegmentPrefixMatch) && (!best || item.path.length > best.path.length)) {
       best = item;
     }
   }
@@ -275,7 +279,10 @@ export default async function middleware(req: NextRequest) {
       let longestMatch = '';
 
       for (const [prefix, perm] of Object.entries(PERMISSION_MAP)) {
-        if (path.startsWith(prefix) && prefix.length >= longestMatch.length) {
+        // Ensure we match complete path segments, not partial matches
+        const isExactMatch = path === prefix;
+        const isSegmentPrefixMatch = path.startsWith(prefix + '/');
+        if ((isExactMatch || isSegmentPrefixMatch) && prefix.length >= longestMatch.length) {
           longestMatch = prefix;
           requiredPermission = perm;
         }
