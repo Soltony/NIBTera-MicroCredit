@@ -43,7 +43,7 @@ export function ReversalApprovalsClient({
   pendingChanges: PendingReversalApproval[];
   currentUser: User;
 }) {
-  useRequirePermission("revesal-approval");
+  useRequirePermission("reversal-approval");
   const [changes, setChanges] = useState(initialChanges);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -52,7 +52,7 @@ export function ReversalApprovalsClient({
   const { toast } = useToast();
   const router = useRouter();
   const { canModule } = usePermissions();
-  const canProcessApprovals = canModule("approvals", "update") || canModule("revesal-approval", "update");
+  const canProcessApprovals = canModule("approvals", "update") || canModule("reversal-approval", "update");
 
   const handleProcessChange = async (
     changeId: string,

@@ -1097,7 +1097,7 @@ async function applyChange(
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromSession();
-  if (!user || !user.permissions?.["approvals"]?.update) {
+  if (!user || (!user.permissions?.["approvals"]?.update && !user.permissions?.["reversal-approval"]?.update)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

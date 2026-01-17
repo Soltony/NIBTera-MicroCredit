@@ -13,7 +13,7 @@ function isSuccessStatus(statusCode: number | null | undefined) {
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromSession();
-  if (!user || (!user.permissions?.["reversals"]?.read && !user.permissions?.["approvals"]?.read)) {
+  if (!user || (!user.permissions?.["reversals"]?.read && !user.permissions?.["approvals"]?.read && !user.permissions?.["reversal-approval"]?.read)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
