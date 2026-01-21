@@ -369,29 +369,32 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
     }, [formData.salaryAdvanceMappings]);
 
-    // Filter and paginate mappings
-    const filteredMappings = useMemo(() => {
-        if (!mappingsSearchQuery.trim()) return parsedMappings;
-        const query = mappingsSearchQuery.toLowerCase();
-        return parsedMappings.filter(m => 
-            String(m.accountNumber).toLowerCase().includes(query) ||
-            String(m.salary).includes(query)
-        );
+    // Filter and paginate mappings (preserve original indices so edit/delete work after searching)
+    const filteredMappingEntries = useMemo(() => {
+        const query = mappingsSearchQuery.trim().toLowerCase();
+        return parsedMappings
+            .map((m, originalIndex) => ({ mapping: m, originalIndex }))
+            .filter(({ mapping }) => {
+                if (!query) return true;
+                return (
+                    String(mapping.accountNumber).toLowerCase().includes(query) ||
+                    String(mapping.salary).includes(query)
+                );
+            });
     }, [parsedMappings, mappingsSearchQuery]);
 
-    const paginatedMappings = useMemo(() => {
+    const paginatedMappingEntries = useMemo(() => {
         const start = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE;
-        return filteredMappings.slice(start, start + MAPPINGS_PAGE_SIZE);
-    }, [filteredMappings, mappingsPage]);
+        return filteredMappingEntries.slice(start, start + MAPPINGS_PAGE_SIZE);
+    }, [filteredMappingEntries, mappingsPage]);
 
-    const totalMappingsPages = Math.ceil(filteredMappings.length / MAPPINGS_PAGE_SIZE);
+    const totalMappingsPages = Math.ceil(filteredMappingEntries.length / MAPPINGS_PAGE_SIZE);
 
     // Handle editing a mapping
-    const handleStartEditMapping = (index: number) => {
-        const globalIndex = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index;
-        const mapping = parsedMappings[globalIndex];
+    const handleStartEditMapping = (originalIndex: number) => {
+        const mapping = parsedMappings[originalIndex];
         if (mapping) {
-            setEditingMappingIndex(globalIndex);
+            setEditingMappingIndex(originalIndex);
             setEditingAccountNumber(String(mapping.accountNumber));
             setEditingSalary(String(mapping.salary));
         }
@@ -433,17 +436,20 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     };
 
     // Handle deleting a mapping
-    const handleDeleteMapping = (index: number) => {
-        const globalIndex = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index;
-        const mapping = parsedMappings[globalIndex];
+    const handleDeleteMapping = (originalIndex: number) => {
+        const mapping = parsedMappings[originalIndex];
         if (!mapping) return;
         
-        const newMappings = parsedMappings.filter((_, i) => i !== globalIndex);
+        const newMappings = parsedMappings.filter((_, i) => i !== originalIndex);
         onUpdate({ salaryAdvanceMappings: JSON.stringify(newMappings) });
         toast({ title: 'Mapping removed', description: `Account ${mapping.accountNumber} has been removed from the list.` });
+
+        if (editingMappingIndex === originalIndex) {
+            handleCancelEditMapping();
+        }
         
         // Adjust page if needed
-        if (paginatedMappings.length === 1 && mappingsPage > 1) {
+        if (paginatedMappingEntries.length === 1 && mappingsPage > 1) {
             setMappingsPage(mappingsPage - 1);
         }
     };
@@ -991,20 +997,20 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {paginatedMappings.length === 0 ? (
+                                                {paginatedMappingEntries.length === 0 ? (
                                                     <TableRow>
                                                         <TableCell colSpan={canEditProduct ? 4 : 3} className="text-center text-muted-foreground py-8">
                                                             {mappingsSearchQuery ? 'No matching entries found.' : 'No salary mappings yet.'}
                                                         </TableCell>
                                                     </TableRow>
                                                 ) : (
-                                                    paginatedMappings.map((mapping, index) => {
-                                                        const globalIndex = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index;
-                                                        const isEditing = editingMappingIndex === globalIndex;
+                                                    paginatedMappingEntries.map(({ mapping, originalIndex }, index) => {
+                                                        const rowNumber = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index + 1;
+                                                        const isEditing = editingMappingIndex === originalIndex;
                                                         
                                                         return (
-                                                            <TableRow key={globalIndex}>
-                                                                <TableCell className="text-muted-foreground">{globalIndex + 1}</TableCell>
+                                                            <TableRow key={originalIndex}>
+                                                                <TableCell className="text-muted-foreground">{rowNumber}</TableCell>
                                                                 <TableCell>
                                                                     {isEditing ? (
                                                                         <Input 
@@ -1041,10 +1047,10 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                                                             </div>
                                                                         ) : (
                                                                             <div className="flex items-center justify-end gap-1">
-                                                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEditMapping(index)}>
+                                                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEditMapping(originalIndex)}>
                                                                                     <Pencil className="h-3.5 w-3.5" />
                                                                                 </Button>
-                                                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteMapping(index)}>
+                                                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteMapping(originalIndex)}>
                                                                                     <Trash2 className="h-3.5 w-3.5" />
                                                                                 </Button>
                                                                             </div>
@@ -1063,7 +1069,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     {totalMappingsPages > 1 && (
                                         <div className="flex items-center justify-between pt-2">
                                             <div className="text-sm text-muted-foreground">
-                                                Showing {((mappingsPage - 1) * MAPPINGS_PAGE_SIZE) + 1} - {Math.min(mappingsPage * MAPPINGS_PAGE_SIZE, filteredMappings.length)} of {filteredMappings.length}
+                                                Showing {((mappingsPage - 1) * MAPPINGS_PAGE_SIZE) + 1} - {Math.min(mappingsPage * MAPPINGS_PAGE_SIZE, filteredMappingEntries.length)} of {filteredMappingEntries.length}
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Button 
