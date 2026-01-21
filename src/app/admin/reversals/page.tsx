@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
@@ -80,13 +80,23 @@ export default function ReversalsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("failed");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancellingRow, setCancellingRow] = useState<ReversalRow | null>(null);
   const [cancelTransactionId, setCancelTransactionId] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1); // Reset to first page on search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
@@ -95,9 +105,9 @@ export default function ReversalsPage() {
     p.set("filter", filterMode);
     if (fromDate) p.set("from", fromDate);
     if (toDate) p.set("to", toDate);
-    if (search.trim()) p.set("q", search.trim());
+    if (debouncedSearch) p.set("search", debouncedSearch);
     return p.toString();
-  }, [page, fromDate, toDate, filterMode, search]);
+  }, [page, fromDate, toDate, filterMode, debouncedSearch]);
 
   useEffect(() => {
     const fetchRows = async () => {
@@ -273,18 +283,6 @@ export default function ReversalsPage() {
             </Select>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Search</span>
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Loan ID, account, txn, provider…"
-              className="w-[220px]"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">From</span>
             <Input
               type="date"
@@ -303,6 +301,29 @@ export default function ReversalsPage() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search by account number or phone number..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSearchQuery("")}
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       <Card>

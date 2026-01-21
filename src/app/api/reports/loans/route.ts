@@ -89,8 +89,7 @@ export async function GET(req: NextRequest) {
     const timeframe = searchParams.get('timeframe') || 'overall';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-    const qRaw = searchParams.get('q');
-    const q = qRaw ? qRaw.trim() : '';
+    const search = searchParams.get('search')?.trim();
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
     // Pagination parameters
@@ -128,16 +127,32 @@ export async function GET(req: NextRequest) {
         whereClause.product = { providerId };
     }
 
-    if (q) {
-        whereClause.OR = [
-            { id: { contains: q, mode: 'insensitive' } },
-            { borrowerId: { contains: q, mode: 'insensitive' } },
-            { product: { provider: { name: { contains: q, mode: 'insensitive' } } } },
-        ];
-    }
-
     if (providerId === 'none') {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
+    }
+
+    // Search by account number or phone number
+    // SQL Server doesn't support mode: "insensitive", so we use startsWith or contains without mode
+    if (search) {
+        // Find phone accounts matching the search term (by accountNumber or phoneNumber)
+        const matchingPhoneAccounts = await prisma.phoneAccount.findMany({
+            where: {
+                OR: [
+                    { accountNumber: { contains: search } },
+                    { phoneNumber: { contains: search } },
+                ],
+            },
+            select: { phoneNumber: true },
+            take: 500,
+        });
+        const matchingBorrowerIds = [...new Set(matchingPhoneAccounts.map(pa => pa.phoneNumber))];
+        
+        if (matchingBorrowerIds.length === 0) {
+            // No matching accounts found, return empty result
+            return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
+        }
+        
+        whereClause.borrowerId = { in: matchingBorrowerIds };
     }
 
     try {

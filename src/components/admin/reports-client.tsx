@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Loader2, Calendar as CalendarIcon } from "lucide-react";
+import { Download, Loader2, Calendar as CalendarIcon, Search } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { useToast } from "@/hooks/use-toast";
@@ -72,9 +72,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const [timeframe, setTimeframe] = useState("overall");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [providerId, setProviderId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("providerReport");
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Paginated data states with metadata
   const [loansData, setLoansData] = useState<LoanReportData[]>([]);
@@ -102,6 +105,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const canViewAllProviders =
     isSuperAdminOrRecon ||
     (!!currentUser?.permissions?.["reports"]?.read && providers.length > 1 && !currentUser?.loanProviderId);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   type SortDir = "asc" | "desc";
   type TableState = {
@@ -215,7 +226,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     currentTimeframe: string,
     currentDateRange?: DateRange,
     page: number = 1,
-    pageSize: number = DEFAULT_PAGE_SIZE
+    pageSize: number = DEFAULT_PAGE_SIZE,
+    search?: string
   ) => {
     const params = new URLSearchParams({
       providerId: currentProviderId,
@@ -229,17 +241,17 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     if (currentDateRange?.to) {
       params.set("to", currentDateRange.to.toISOString());
     }
-    if (searchQuery.trim()) {
-      params.set("q", searchQuery.trim());
+    if (search) {
+      params.set("search", search);
     }
     return `${baseUrl}?${params.toString()}`;
-  }, [searchQuery]);
+  }, []);
 
   // Individual fetch functions for each report type
   const fetchLoansData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
     try {
-      const response = await fetch(buildPaginatedUrl("/api/reports/loans", providerId, timeframe, dateRange, page, pageSize));
+      const response = await fetch(buildPaginatedUrl("/api/reports/loans", providerId, timeframe, dateRange, page, pageSize, debouncedSearch));
       if (!response.ok) throw new Error("Failed to fetch loans data");
       const result = await response.json();
       setLoansData(result.data || []);
@@ -247,7 +259,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
 
   const fetchCollectionsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
@@ -294,7 +306,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     async (
       currentProviderId: string,
       currentTimeframe: string,
-      currentDateRange?: DateRange
+      currentDateRange?: DateRange,
+      currentSearch?: string
     ) => {
       setIsLoading(true);
       try {
@@ -320,8 +333,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           if (currentDateRange?.to) {
             params.set("to", currentDateRange.to.toISOString());
           }
-          if (searchQuery.trim()) {
-            params.set("q", searchQuery.trim());
+          if (currentSearch) {
+            params.set("search", currentSearch);
           }
           return `${baseUrl}?${params.toString()}`;
         };
@@ -429,7 +442,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         setIsLoading(false);
       }
     },
-    [toast, providers, canViewAllProviders, searchQuery]
+    [toast, providers, canViewAllProviders]
   );
 
   // Effect to set the initial providerId and fetch data ONCE
@@ -465,12 +478,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   useEffect(() => {
     // This check prevents refetching on the initial render where providerId is still null
     if (providerId !== null) {
-      const t = setTimeout(() => {
-        fetchAllReportData(providerId, timeframe, dateRange);
-      }, 300);
-      return () => clearTimeout(t);
+      fetchAllReportData(providerId, timeframe, dateRange, debouncedSearch);
     }
-  }, [providerId, timeframe, dateRange, searchQuery, fetchAllReportData]);
+  }, [providerId, timeframe, dateRange, debouncedSearch, fetchAllReportData]);
 
   const handleExcelExport = async () => {
     const wb = new ExcelJS.Workbook();
@@ -738,22 +748,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const applySortAndPaginate = (tab: string, data: any[]) => {
     const state = getTableState(tab);
     const { sortBy, sortDir, page, pageSize } = state;
-    const q = searchQuery.trim().toLowerCase();
-    const filtered = q
-      ? data.filter((row) => {
-          try {
-            return Object.values(row).some((v) => {
-              if (v == null) return false;
-              if (typeof v === "object") return false;
-              return String(v).toLowerCase().includes(q);
-            });
-          } catch {
-            return false;
-          }
-        })
-      : data;
-
-    let sorted = [...filtered];
+    let sorted = [...data];
     if (sortBy) {
       sorted.sort((a, b) => compareValues(a?.[sortBy], b?.[sortBy], sortDir));
     }
@@ -979,22 +974,6 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
         <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
         <div className="flex items-center space-x-2">
-          <Input
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              // Reset all table pages to 1 when searching
-              setTableStates((prev) => {
-                const next: typeof prev = { ...prev };
-                for (const k of Object.keys(next)) {
-                  next[k] = { ...next[k], page: 1 };
-                }
-                return next;
-              });
-            }}
-            placeholder="Search loan ID, borrower, provider…"
-            className="w-[240px]"
-          />
           <Select
             onValueChange={(value) => {
               setTimeframe(value);
@@ -1072,6 +1051,29 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             Excel
           </Button>
         </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search by account number or phone number..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSearchQuery("")}
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       <Tabs
