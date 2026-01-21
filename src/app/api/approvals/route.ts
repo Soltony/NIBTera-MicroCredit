@@ -1079,15 +1079,44 @@ async function applyChange(
           },
         });
 
-        if (activeLoanCount > 0) {
-          throw new Error(
-            `Cannot approve edits to this loan product because it has active loans (${activeLoanCount}). ` +
-              "Create a new product/version for new terms to preserve contract integrity."
-          );
-        }
+        // Fields that are safe to update even with active loans.
+        // These don't change the terms of existing loan contracts.
+        const safeFieldsWithActiveLoans = new Set([
+          "salaryAdvanceMappings", // Just controls who can apply for NEW loans
+          "status",                // Enable/disable product for new applications
+          "eligibilityFilter",     // Controls eligibility for NEW loans
+          "eligibilityUploadId",   // Related to eligibility for NEW loans
+          "dataProvisioningEnabled", // Data provisioning settings
+          "dataProvisioningConfigId",
+        ]);
 
         const { loanAmountTiers, eligibilityUpload, ...restOfUpdateData } =
           data.updated;
+        const originalData = data.original || {};
+
+        // Determine which fields actually changed by comparing original vs updated
+        const actuallyChangedFields: string[] = [];
+        for (const key of Object.keys(restOfUpdateData)) {
+          if (key === 'id') continue;
+          const oldVal = JSON.stringify(originalData[key] ?? null);
+          const newVal = JSON.stringify(restOfUpdateData[key] ?? null);
+          if (oldVal !== newVal) {
+            actuallyChangedFields.push(key);
+          }
+        }
+
+        const hasUnsafeChanges = actuallyChangedFields.some(field => !safeFieldsWithActiveLoans.has(field));
+
+        if (activeLoanCount > 0 && hasUnsafeChanges) {
+          const unsafeFields = actuallyChangedFields.filter(f => !safeFieldsWithActiveLoans.has(f));
+          throw new Error(
+            `Cannot approve edits to this loan product because it has active loans (${activeLoanCount}). ` +
+              `The following fields cannot be changed: ${unsafeFields.join(', ')}. ` +
+              "Create a new product/version for new terms to preserve contract integrity. " +
+              "Note: You can still update salary mappings, eligibility filters, and product status."
+          );
+        }
+
         // Keep product disabled even after an approved update per requested policy
         const updateData = { ...restOfUpdateData, status: "Disabled" };
 
