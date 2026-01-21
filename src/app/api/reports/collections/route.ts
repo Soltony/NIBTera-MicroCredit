@@ -60,6 +60,8 @@ export async function GET(req: NextRequest) {
     const timeframe = searchParams.get('timeframe') || 'overall';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const qRaw = searchParams.get('q');
+    const q = qRaw ? qRaw.trim().toLowerCase() : '';
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
     // Pagination parameters
@@ -150,7 +152,7 @@ export async function GET(req: NextRequest) {
             else if (category === 'tax') aggregatedData[key].tax += entry.amount;
         }
         
-        const reportData = Object.entries(aggregatedData).map(([key, value]) => {
+        let reportData = Object.entries(aggregatedData).map(([key, value]) => {
              const [provider, date] = key.split(/-(?=\d{4})/); // Split on hyphen only if followed by 4 digits (a year)
              return {
                 provider,
@@ -159,6 +161,15 @@ export async function GET(req: NextRequest) {
                 total: value.principal + value.interest + value.serviceFee + value.penalty + value.tax,
             }
         });
+
+        if (q) {
+            reportData = reportData.filter((r) => {
+                return (
+                    String(r.provider || '').toLowerCase().includes(q) ||
+                    String(r.date || '').toLowerCase().includes(q)
+                );
+            });
+        }
         
         reportData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

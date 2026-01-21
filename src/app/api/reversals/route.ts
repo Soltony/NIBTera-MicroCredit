@@ -27,6 +27,10 @@ export async function GET(req: NextRequest) {
   // Optional date filters
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+
+  // Optional search
+  const qRaw = searchParams.get("q");
+  const q = qRaw ? qRaw.trim() : "";
   
   // Filter mode: 'failed' (default), 'all', or 'posted'
   const filterMode = searchParams.get("filter") || "failed";
@@ -37,10 +41,36 @@ export async function GET(req: NextRequest) {
 
   // For 'posted' filter, we need to find loans without disbursement transactions
   if (filterMode === "posted") {
+    // If searching by account/phone, pre-resolve borrowerIds via phoneAccount
+    const phoneMatches = q
+      ? await prisma.phoneAccount.findMany({
+          where: {
+            OR: [
+              { accountNumber: { contains: q, mode: "insensitive" } },
+              { phoneNumber: { contains: q, mode: "insensitive" } },
+            ],
+          },
+          select: { phoneNumber: true },
+          take: 500,
+        })
+      : [];
+    const borrowerIdsFromPhone = new Set(phoneMatches.map((p) => p.phoneNumber));
+
     // Find loans that have NO corresponding DisbursementTransaction
     const loanDateFilter: any = {};
     if (from) loanDateFilter.gte = new Date(from);
     if (to) loanDateFilter.lte = new Date(to);
+
+    const postedSearchOr = q
+      ? [
+          { id: { contains: q, mode: "insensitive" } },
+          { borrowerId: { contains: q, mode: "insensitive" } },
+          ...(borrowerIdsFromPhone.size
+            ? [{ borrowerId: { in: Array.from(borrowerIdsFromPhone) } }]
+            : []),
+          { product: { providerId: { contains: q, mode: "insensitive" } } },
+        ]
+      : [];
 
     const loansWithoutDisbursement = await prisma.loan.findMany({
       where: {
@@ -48,6 +78,7 @@ export async function GET(req: NextRequest) {
         ...(Object.keys(loanDateFilter).length ? { createdAt: loanDateFilter } : {}),
         // Exclude loans that have a linked disbursement transaction
         disbursementTransactions: { none: {} },
+        ...(postedSearchOr.length ? { OR: postedSearchOr } : {}),
       },
       include: {
         product: { include: { provider: true } },
@@ -63,6 +94,7 @@ export async function GET(req: NextRequest) {
         repaymentStatus: { not: "REVERSED" },
         ...(Object.keys(loanDateFilter).length ? { createdAt: loanDateFilter } : {}),
         disbursementTransactions: { none: {} },
+        ...(postedSearchOr.length ? { OR: postedSearchOr } : {}),
       },
     });
 
@@ -181,6 +213,20 @@ export async function GET(req: NextRequest) {
   }
 
   // Default behavior: show failed disbursements or all
+  const matchedAccounts = q
+    ? await prisma.phoneAccount.findMany({
+        where: {
+          OR: [
+            { accountNumber: { contains: q, mode: "insensitive" } },
+            { phoneNumber: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: { accountNumber: true },
+        take: 500,
+      })
+    : [];
+  const creditAccountsFromPhone = matchedAccounts.map((m) => m.accountNumber);
+
   const where: any = {
     AND: [
       Object.keys(createdAt).length ? { createdAt } : {},
@@ -196,6 +242,23 @@ export async function GET(req: NextRequest) {
               ],
             },
           ]),
+      ...(q
+        ? [
+            {
+              OR: [
+                { id: { contains: q, mode: "insensitive" } },
+                { transactionId: { contains: q, mode: "insensitive" } },
+                { providerId: { contains: q, mode: "insensitive" } },
+                { originalProviderId: { contains: q, mode: "insensitive" } },
+                { creditAccount: { contains: q, mode: "insensitive" } },
+                ...(creditAccountsFromPhone.length
+                  ? [{ creditAccount: { in: creditAccountsFromPhone } }]
+                  : []),
+                { loanId: { contains: q, mode: "insensitive" } },
+              ],
+            },
+          ]
+        : []),
     ],
   };
 

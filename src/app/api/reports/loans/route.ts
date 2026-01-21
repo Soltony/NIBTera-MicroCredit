@@ -89,6 +89,8 @@ export async function GET(req: NextRequest) {
     const timeframe = searchParams.get('timeframe') || 'overall';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const qRaw = searchParams.get('q');
+    const q = qRaw ? qRaw.trim() : '';
     const dateRange = getDates(timeframe, from ?? undefined, to ?? undefined);
 
     // Pagination parameters
@@ -124,6 +126,14 @@ export async function GET(req: NextRequest) {
     
     if (providerId && providerId !== 'all' && providerId !== 'none') {
         whereClause.product = { providerId };
+    }
+
+    if (q) {
+        whereClause.OR = [
+            { id: { contains: q, mode: 'insensitive' } },
+            { borrowerId: { contains: q, mode: 'insensitive' } },
+            { product: { provider: { name: { contains: q, mode: 'insensitive' } } } },
+        ];
     }
 
     if (providerId === 'none') {

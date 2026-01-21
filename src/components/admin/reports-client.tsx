@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Download, Loader2, Calendar as CalendarIcon } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -71,6 +72,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const [timeframe, setTimeframe] = useState("overall");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [providerId, setProviderId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("providerReport");
 
@@ -227,8 +229,11 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     if (currentDateRange?.to) {
       params.set("to", currentDateRange.to.toISOString());
     }
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim());
+    }
     return `${baseUrl}?${params.toString()}`;
-  }, []);
+  }, [searchQuery]);
 
   // Individual fetch functions for each report type
   const fetchLoansData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
@@ -314,6 +319,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           }
           if (currentDateRange?.to) {
             params.set("to", currentDateRange.to.toISOString());
+          }
+          if (searchQuery.trim()) {
+            params.set("q", searchQuery.trim());
           }
           return `${baseUrl}?${params.toString()}`;
         };
@@ -421,7 +429,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         setIsLoading(false);
       }
     },
-    [toast, providers, canViewAllProviders]
+    [toast, providers, canViewAllProviders, searchQuery]
   );
 
   // Effect to set the initial providerId and fetch data ONCE
@@ -457,9 +465,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   useEffect(() => {
     // This check prevents refetching on the initial render where providerId is still null
     if (providerId !== null) {
-      fetchAllReportData(providerId, timeframe, dateRange);
+      const t = setTimeout(() => {
+        fetchAllReportData(providerId, timeframe, dateRange);
+      }, 300);
+      return () => clearTimeout(t);
     }
-  }, [providerId, timeframe, dateRange, fetchAllReportData]);
+  }, [providerId, timeframe, dateRange, searchQuery, fetchAllReportData]);
 
   const handleExcelExport = async () => {
     const wb = new ExcelJS.Workbook();
@@ -727,7 +738,22 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const applySortAndPaginate = (tab: string, data: any[]) => {
     const state = getTableState(tab);
     const { sortBy, sortDir, page, pageSize } = state;
-    let sorted = [...data];
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? data.filter((row) => {
+          try {
+            return Object.values(row).some((v) => {
+              if (v == null) return false;
+              if (typeof v === "object") return false;
+              return String(v).toLowerCase().includes(q);
+            });
+          } catch {
+            return false;
+          }
+        })
+      : data;
+
+    let sorted = [...filtered];
     if (sortBy) {
       sorted.sort((a, b) => compareValues(a?.[sortBy], b?.[sortBy], sortDir));
     }
@@ -953,6 +979,22 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
         <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
         <div className="flex items-center space-x-2">
+          <Input
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              // Reset all table pages to 1 when searching
+              setTableStates((prev) => {
+                const next: typeof prev = { ...prev };
+                for (const k of Object.keys(next)) {
+                  next[k] = { ...next[k], page: 1 };
+                }
+                return next;
+              });
+            }}
+            placeholder="Search loan ID, borrower, provider…"
+            className="w-[240px]"
+          />
           <Select
             onValueChange={(value) => {
               setTimeframe(value);

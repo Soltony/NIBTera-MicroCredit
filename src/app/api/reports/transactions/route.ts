@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
     let providerId = url.searchParams.get("providerId");
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
+    const qRaw = url.searchParams.get("q");
+    const q = qRaw ? qRaw.trim() : "";
 
     // Pagination parameters
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
@@ -41,6 +43,15 @@ export async function GET(request: NextRequest) {
     const whereAny: any = {
       loanId: { not: null },
       loan: { repaymentStatus: { not: "REVERSED" } },
+      ...(q
+        ? {
+            OR: [
+              { loanId: { contains: q, mode: "insensitive" } },
+              { providerId: { contains: q, mode: "insensitive" } },
+              { loan: { borrowerId: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
     };
     if (providerId && providerId !== "all" && providerId !== "none") {
       whereAny.providerId = providerId;

@@ -80,6 +80,7 @@ export default function ReversalsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("failed");
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -94,8 +95,9 @@ export default function ReversalsPage() {
     p.set("filter", filterMode);
     if (fromDate) p.set("from", fromDate);
     if (toDate) p.set("to", toDate);
+    if (search.trim()) p.set("q", search.trim());
     return p.toString();
-  }, [page, fromDate, toDate, filterMode]);
+  }, [page, fromDate, toDate, filterMode, search]);
 
   useEffect(() => {
     const fetchRows = async () => {
@@ -269,6 +271,18 @@ export default function ReversalsPage() {
                 <SelectItem value="all">All Transactions</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Search</span>
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Loan ID, account, txn, provider…"
+              className="w-[220px]"
+            />
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">From</span>
