@@ -297,7 +297,7 @@ async function applyChange(
           },
           include: {
             payments: { select: { id: true } },
-            pendingPayments: { select: { id: true } },
+            pendingPayments: { select: { id: true, status: true } },
             product: {
               include: { provider: { include: { ledgerAccounts: true } } },
             },
@@ -310,9 +310,15 @@ async function applyChange(
           throw new Error(
             "No matching loan found to reverse for this failed disbursement."
           );
+
+        // Only block reversal if there are actual completed payments
+        // PENDING or FAILED payment attempts should not block reversal
+        const completedPendingPayments = (loan.pendingPayments || []).filter(
+          (pp: { status: string }) => pp.status === 'COMPLETED'
+        );
         if (
           (loan.payments?.length ?? 0) > 0 ||
-          (loan.pendingPayments?.length ?? 0) > 0
+          completedPendingPayments.length > 0
         ) {
           throw new Error(
             "Loan already has payment activity; reversal is blocked."
@@ -564,7 +570,7 @@ async function applyChange(
           where: { id: loanId },
           include: {
             payments: { select: { id: true } },
-            pendingPayments: { select: { id: true } },
+            pendingPayments: { select: { id: true, status: true } },
             product: {
               include: { provider: { include: { ledgerAccounts: true } } },
             },
@@ -574,9 +580,14 @@ async function applyChange(
 
         if (!loan) throw new Error("Loan not found for reversal");
 
+        // Only block reversal if there are actual completed payments
+        // PENDING or FAILED payment attempts should not block reversal
+        const completedPendingPayments = (loan.pendingPayments || []).filter(
+          (pp: { status: string }) => pp.status === 'COMPLETED'
+        );
         if (
           (loan.payments?.length ?? 0) > 0 ||
-          (loan.pendingPayments?.length ?? 0) > 0
+          completedPendingPayments.length > 0
         ) {
           throw new Error(
             "Loan already has payment activity; reversal is blocked."
