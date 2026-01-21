@@ -133,6 +133,8 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const { toast } = useToast();
     
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    // Upload mode: 'replace' replaces all mappings, 'append' merges with existing
+    const [salaryUploadMode, setSalaryUploadMode] = useState<'replace' | 'append'>('append');
 
     const productActions = entityActions('LoanProduct');
     const eligibilityActions = entityActions('EligibilityList');
@@ -295,11 +297,49 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                 });
                 return;
             }
+
+            // Handle append mode - merge with existing mappings
+            let finalMappings = mappings;
+            if (salaryUploadMode === 'append' && formData.salaryAdvanceMappings) {
+                try {
+                    const existingMappings = JSON.parse(formData.salaryAdvanceMappings as string) as Array<{ accountNumber: string; salary: number }>;
+                    // Create a map of existing entries for efficient lookup
+                    const existingMap = new Map(existingMappings.map(m => [String(m.accountNumber), m]));
+                    
+                    // Add or update with new mappings
+                    let addedCount = 0;
+                    let updatedCount = 0;
+                    for (const newMapping of mappings) {
+                        const accountKey = String(newMapping.accountNumber);
+                        if (existingMap.has(accountKey)) {
+                            // Update existing entry
+                            existingMap.set(accountKey, newMapping);
+                            updatedCount++;
+                        } else {
+                            // Add new entry
+                            existingMap.set(accountKey, newMapping);
+                            addedCount++;
+                        }
+                    }
+                    
+                    finalMappings = Array.from(existingMap.values());
+                    
+                    onUpdate({ salaryAdvanceMappings: JSON.stringify(finalMappings) });
+                    toast({ 
+                        title: 'Mappings updated', 
+                        description: `Added ${addedCount} new mapping${addedCount !== 1 ? 's' : ''}, updated ${updatedCount} existing mapping${updatedCount !== 1 ? 's' : ''}. Total: ${finalMappings.length} mappings.` 
+                    });
+                    return;
+                } catch (e) {
+                    console.error('Failed to parse existing mappings for append', e);
+                    // Fall back to replace mode if parsing fails
+                }
+            }
             
-            onUpdate({ salaryAdvanceMappings: JSON.stringify(mappings) });
+            onUpdate({ salaryAdvanceMappings: JSON.stringify(finalMappings) });
             toast({ 
                 title: 'File uploaded', 
-                description: `Successfully parsed ${mappings.length} salary mapping${mappings.length !== 1 ? 's' : ''}.` 
+                description: `Successfully ${salaryUploadMode === 'replace' ? 'replaced with' : 'loaded'} ${finalMappings.length} salary mapping${finalMappings.length !== 1 ? 's' : ''}.` 
             });
         } catch (err: any) {
             console.error('Failed to parse salary mapping file', err);
@@ -674,14 +714,47 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                 <div className="text-sm text-muted-foreground">Every {Math.floor((Number(formData.duration) || 0) / Number(formData.installments)) || 0} days</div>
                               </div>
                             )}
-                            <div className="space-y-2">
+                            <div className="space-y-4">
                                 <Label>Salary Mapping Upload</Label>
-                                <div>
-                                    <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => handleFileSalaryUpload(e.target.files ? e.target.files[0] : undefined)} disabled={!canEditProduct} />
-                                    <div className="text-sm text-muted-foreground">CSV columns: accountNumber,salary</div>
+                                <div className="space-y-3">
+                                    {/* Upload Mode Selector */}
+                                    <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-md">
+                                        <span className="text-sm font-medium">Upload Mode:</span>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input 
+                                                type="radio" 
+                                                name={`uploadMode-${product.id}`}
+                                                checked={salaryUploadMode === 'append'} 
+                                                onChange={() => setSalaryUploadMode('append')}
+                                                disabled={!canEditProduct}
+                                                className="h-4 w-4"
+                                            />
+                                            <span className="text-sm">Add to existing list</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input 
+                                                type="radio" 
+                                                name={`uploadMode-${product.id}`}
+                                                checked={salaryUploadMode === 'replace'} 
+                                                onChange={() => setSalaryUploadMode('replace')}
+                                                disabled={!canEditProduct}
+                                                className="h-4 w-4"
+                                            />
+                                            <span className="text-sm">Replace entire list</span>
+                                        </label>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                        {salaryUploadMode === 'append' 
+                                            ? '• New entries will be added, existing account numbers will be updated with new salary values'
+                                            : '• Warning: This will remove all existing mappings and replace with the new file'}
+                                    </div>
+                                    <div>
+                                        <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => handleFileSalaryUpload(e.target.files ? e.target.files[0] : undefined)} disabled={!canEditProduct} />
+                                        <div className="text-sm text-muted-foreground mt-1">CSV columns: accountNumber,salary</div>
+                                    </div>
                                 </div>
                                 {formData.salaryAdvanceMappings && (
-                                    <div className="text-sm text-muted-foreground">Uploaded mappings: {(JSON.parse(formData.salaryAdvanceMappings as string) || []).length} rows</div>
+                                    <div className="text-sm text-muted-foreground">Current mappings: {(JSON.parse(formData.salaryAdvanceMappings as string) || []).length} rows</div>
                                 )}
                             </div>
                           </>

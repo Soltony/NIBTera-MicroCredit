@@ -97,6 +97,7 @@ async function applyDataProvisioningUpload(change: any, data: any) {
         where: { id: borrowerId },
         update: {},
         create: { id: borrowerId },
+        
       });
 
       const compoundId = { borrowerId, configId, uploadId: newUpload.id };
@@ -531,6 +532,260 @@ async function applyChange(
         });
       }
       break;
+
+    case "LoanReversal":
+      // Handle reversal for "posted" loans that don't have a DisbursementTransaction
+      if (changeType !== "CREATE") {
+        throw new Error("Invalid changeType for LoanReversal");
+      }
+
+      {
+        const actorId = context?.actorId;
+        const ipAddress = context?.ipAddress || "N/A";
+        const userAgent = context?.userAgent || "N/A";
+        const loanId = data?.created?.loanId || entityId;
+
+        if (!loanId) throw new Error("Missing loanId for LoanReversal");
+
+        // Check if already reversed
+        const alreadyReversedLoan = await prisma.auditLog.findFirst({
+          where: {
+            action: "LOAN_REVERSED",
+            entity: "Loan",
+            entityId: loanId,
+          },
+          select: { id: true },
+        });
+        if (alreadyReversedLoan) {
+          return; // Already processed, silently succeed
+        }
+
+        const loan = await prisma.loan.findUnique({
+          where: { id: loanId },
+          include: {
+            payments: { select: { id: true } },
+            pendingPayments: { select: { id: true } },
+            product: {
+              include: { provider: { include: { ledgerAccounts: true } } },
+            },
+            journalEntries: { include: { entries: true } },
+          },
+        });
+
+        if (!loan) throw new Error("Loan not found for reversal");
+
+        if (
+          (loan.payments?.length ?? 0) > 0 ||
+          (loan.pendingPayments?.length ?? 0) > 0
+        ) {
+          throw new Error(
+            "Loan already has payment activity; reversal is blocked."
+          );
+        }
+
+        const disbJournalEntries = (loan.journalEntries || []).filter((j) =>
+          String(j.description || "")
+            .toLowerCase()
+            .includes("loan disbursement")
+        );
+
+        const accrualJournalEntries = (loan.journalEntries || []).filter(
+          (j) => {
+            const d = String(j.description || "").toLowerCase();
+            return (
+              d.includes("daily interest accrual") ||
+              d.includes("daily penalty accrual")
+            );
+          }
+        );
+
+        const provider = loan.product?.provider;
+        if (!provider) throw new Error("Provider not found for loan reversal");
+
+        await prisma.$transaction(async (db) => {
+          // Only create reversal journal entries if there are entries to reverse
+          if (disbJournalEntries.length > 0 || accrualJournalEntries.length > 0) {
+            const reversalJe = await db.journalEntry.create({
+              data: {
+                providerId: provider.id,
+                loanId: loan.id,
+                date: new Date(),
+                description: `Reversal: posted loan ${loan.id}`,
+              },
+            });
+
+            for (const je of disbJournalEntries) {
+              for (const e of je.entries) {
+                const reverseType = e.type === "Debit" ? "Credit" : "Debit";
+                await db.ledgerEntry.create({
+                  data: {
+                    journalEntryId: reversalJe.id,
+                    ledgerAccountId: e.ledgerAccountId,
+                    type: reverseType,
+                    amount: e.amount,
+                  },
+                });
+
+                const delta = e.type === "Debit" ? -e.amount : e.amount;
+                await db.ledgerAccount.update({
+                  where: { id: e.ledgerAccountId },
+                  data: { balance: { increment: delta } },
+                });
+              }
+            }
+
+            for (const je of accrualJournalEntries) {
+              for (const e of je.entries) {
+                const reverseType = e.type === "Debit" ? "Credit" : "Debit";
+                await db.ledgerEntry.create({
+                  data: {
+                    journalEntryId: reversalJe.id,
+                    ledgerAccountId: e.ledgerAccountId,
+                    type: reverseType,
+                    amount: e.amount,
+                  },
+                });
+
+                const delta = e.type === "Debit" ? -e.amount : e.amount;
+                await db.ledgerAccount.update({
+                  where: { id: e.ledgerAccountId },
+                  data: { balance: { increment: delta } },
+                });
+              }
+            }
+          }
+
+          // Restore provider balance
+          await db.loanProvider.update({
+            where: { id: provider.id },
+            data: { initialBalance: { increment: loan.loanAmount } },
+          });
+
+          // Mark loan as reversed
+          await db.loan.update({
+            where: { id: loan.id },
+            data: {
+              repaymentStatus: "REVERSED",
+              repaymentBehavior: "REVERSED",
+              interestAccruedAmount: 0,
+              interestAccruedThroughDate: null,
+              penaltyAccruedAmount: 0,
+              penaltyAccruedThroughDate: null,
+              penaltyAmount: 0,
+            },
+          });
+
+          // Update loan application status if it exists
+          if (loan.loanApplicationId) {
+            await db.loanApplication
+              .update({
+                where: { id: loan.loanApplicationId },
+                data: { status: "REVERSED" },
+              })
+              .catch(() => null);
+          }
+
+          // Delete any disbursement transaction records for this loan (if any exist)
+          await db.disbursementTransaction.deleteMany({
+            where: { loanId: loan.id } as any,
+          });
+        });
+
+        await createAuditLog({
+          actorId: actorId || "N/A",
+          action: "LOAN_REVERSED",
+          entity: "Loan",
+          entityId: loan.id,
+          details: {
+            loanId: loan.id,
+            borrowerId: loan.borrowerId,
+            providerId: provider.id,
+            amount: loan.loanAmount,
+            isPosted: true,
+          },
+          ipAddress,
+          userAgent,
+        });
+      }
+      break;
+
+    case "LoanCancel":
+      // Handle cancel for "posted" loans - marks the loan as having a valid CBS transaction
+      if (changeType !== "CREATE") {
+        throw new Error("Invalid changeType for LoanCancel");
+      }
+
+      {
+        const actorId = context?.actorId;
+        const ipAddress = context?.ipAddress || "N/A";
+        const userAgent = context?.userAgent || "N/A";
+        const loanId = data?.created?.loanId || entityId;
+        const cbsTransactionId = data?.created?.cbsTransactionId;
+
+        if (!loanId) throw new Error("Missing loanId for LoanCancel");
+        if (!cbsTransactionId)
+          throw new Error("Missing cbsTransactionId for LoanCancel");
+
+        // Check if already cancelled or reversed
+        const alreadyProcessedLoan = await prisma.auditLog.findFirst({
+          where: {
+            action: { in: ["LOAN_CANCELLED", "LOAN_REVERSED"] },
+            entity: "Loan",
+            entityId: loanId,
+          },
+          select: { id: true, action: true },
+        });
+        if (alreadyProcessedLoan) {
+          return; // Already processed, silently succeed
+        }
+
+        const loan = await prisma.loan.findUnique({
+          where: { id: loanId },
+          include: {
+            product: { include: { provider: true } },
+          },
+        });
+
+        if (!loan) throw new Error("Loan not found for cancel");
+
+        const provider = loan.product?.provider;
+        if (!provider) throw new Error("Provider not found for loan cancel");
+
+        // Create a disbursement transaction record with success status
+        await prisma.disbursementTransaction.create({
+          data: {
+            loanId: loan.id,
+            transactionId: cbsTransactionId,
+            providerId: provider.id,
+            originalProviderId: provider.id,
+            creditAccount: loan.borrowerId,
+            amount: loan.loanAmount,
+            disbursementStatus: "SUCCESS",
+            statusCode: 200,
+            requestPayload: JSON.stringify({ loanId, cbsTransactionId }),
+            responsePayload: JSON.stringify({ status: "cancelled" }),
+          } as any,
+        });
+
+        await createAuditLog({
+          actorId: actorId || "N/A",
+          action: "LOAN_CANCELLED",
+          entity: "Loan",
+          entityId: loan.id,
+          details: {
+            loanId: loan.id,
+            cbsTransactionId,
+            borrowerId: loan.borrowerId,
+            providerId: provider.id,
+            amount: loan.loanAmount,
+            isPosted: true,
+          },
+          ipAddress,
+          userAgent,
+        });
+      }
+      break;
+
     case "EligibilityList":
       if (changeType === "CREATE") {
         await applyEligibilityList(change, data);
