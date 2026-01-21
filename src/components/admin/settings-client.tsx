@@ -22,7 +22,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon, ChevronRight, ChevronLeft } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Edit, ChevronDown, Settings2, Save, FilePlus2, Upload, FileClock, Pencil, Link as LinkIcon, ChevronRight, ChevronLeft, Search, X } from 'lucide-react';
 import type { LoanProvider, LoanProduct, FeeRule, PenaltyRule, DataProvisioningConfig, LoanAmountTier, TermsAndConditions, DataColumn, DataProvisioningUpload, Tax, LoanCycleConfig } from '@/lib/types';
 import { AddProviderDialog } from '@/components/loan/add-provider-dialog';
 import { AddProductDialog } from '@/components/loan/add-product-dialog';
@@ -135,6 +135,14 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     // Upload mode: 'replace' replaces all mappings, 'append' merges with existing
     const [salaryUploadMode, setSalaryUploadMode] = useState<'replace' | 'append'>('append');
+    // Salary mappings management dialog state
+    const [isMappingsDialogOpen, setIsMappingsDialogOpen] = useState(false);
+    const [mappingsSearchQuery, setMappingsSearchQuery] = useState('');
+    const [editingMappingIndex, setEditingMappingIndex] = useState<number | null>(null);
+    const [editingAccountNumber, setEditingAccountNumber] = useState('');
+    const [editingSalary, setEditingSalary] = useState('');
+    const [mappingsPage, setMappingsPage] = useState(1);
+    const MAPPINGS_PAGE_SIZE = 10;
 
     const productActions = entityActions('LoanProduct');
     const eligibilityActions = entityActions('EligibilityList');
@@ -350,6 +358,126 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
             });
         }
     }
+
+    // Parse salary mappings for display and management
+    const parsedMappings = useMemo(() => {
+        if (!formData.salaryAdvanceMappings) return [];
+        try {
+            return JSON.parse(formData.salaryAdvanceMappings as string) as Array<{ accountNumber: string; salary: number }>;
+        } catch {
+            return [];
+        }
+    }, [formData.salaryAdvanceMappings]);
+
+    // Filter and paginate mappings
+    const filteredMappings = useMemo(() => {
+        if (!mappingsSearchQuery.trim()) return parsedMappings;
+        const query = mappingsSearchQuery.toLowerCase();
+        return parsedMappings.filter(m => 
+            String(m.accountNumber).toLowerCase().includes(query) ||
+            String(m.salary).includes(query)
+        );
+    }, [parsedMappings, mappingsSearchQuery]);
+
+    const paginatedMappings = useMemo(() => {
+        const start = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE;
+        return filteredMappings.slice(start, start + MAPPINGS_PAGE_SIZE);
+    }, [filteredMappings, mappingsPage]);
+
+    const totalMappingsPages = Math.ceil(filteredMappings.length / MAPPINGS_PAGE_SIZE);
+
+    // Handle editing a mapping
+    const handleStartEditMapping = (index: number) => {
+        const globalIndex = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index;
+        const mapping = parsedMappings[globalIndex];
+        if (mapping) {
+            setEditingMappingIndex(globalIndex);
+            setEditingAccountNumber(String(mapping.accountNumber));
+            setEditingSalary(String(mapping.salary));
+        }
+    };
+
+    const handleCancelEditMapping = () => {
+        setEditingMappingIndex(null);
+        setEditingAccountNumber('');
+        setEditingSalary('');
+    };
+
+    const handleSaveEditMapping = () => {
+        if (editingMappingIndex === null) return;
+        if (!editingAccountNumber.trim()) {
+            toast({ title: 'Invalid account number', description: 'Account number cannot be empty.', variant: 'destructive' });
+            return;
+        }
+        
+        const newMappings = [...parsedMappings];
+        const oldAccountNumber = newMappings[editingMappingIndex].accountNumber;
+        
+        // Check if new account number already exists (if changed)
+        if (editingAccountNumber !== oldAccountNumber) {
+            const exists = newMappings.some((m, i) => i !== editingMappingIndex && String(m.accountNumber) === editingAccountNumber);
+            if (exists) {
+                toast({ title: 'Duplicate account', description: 'This account number already exists in the list.', variant: 'destructive' });
+                return;
+            }
+        }
+        
+        newMappings[editingMappingIndex] = {
+            accountNumber: editingAccountNumber.trim(),
+            salary: Number(editingSalary) || 0
+        };
+        
+        onUpdate({ salaryAdvanceMappings: JSON.stringify(newMappings) });
+        toast({ title: 'Mapping updated', description: `Account ${editingAccountNumber} has been updated.` });
+        handleCancelEditMapping();
+    };
+
+    // Handle deleting a mapping
+    const handleDeleteMapping = (index: number) => {
+        const globalIndex = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index;
+        const mapping = parsedMappings[globalIndex];
+        if (!mapping) return;
+        
+        const newMappings = parsedMappings.filter((_, i) => i !== globalIndex);
+        onUpdate({ salaryAdvanceMappings: JSON.stringify(newMappings) });
+        toast({ title: 'Mapping removed', description: `Account ${mapping.accountNumber} has been removed from the list.` });
+        
+        // Adjust page if needed
+        if (paginatedMappings.length === 1 && mappingsPage > 1) {
+            setMappingsPage(mappingsPage - 1);
+        }
+    };
+
+    // Handle adding a new mapping manually
+    const [isAddingMapping, setIsAddingMapping] = useState(false);
+    const [newMappingAccount, setNewMappingAccount] = useState('');
+    const [newMappingSalary, setNewMappingSalary] = useState('');
+
+    const handleAddMapping = () => {
+        if (!newMappingAccount.trim()) {
+            toast({ title: 'Invalid account number', description: 'Account number cannot be empty.', variant: 'destructive' });
+            return;
+        }
+        
+        const exists = parsedMappings.some(m => String(m.accountNumber) === newMappingAccount.trim());
+        if (exists) {
+            toast({ title: 'Duplicate account', description: 'This account number already exists in the list.', variant: 'destructive' });
+            return;
+        }
+        
+        const newMappings = [...parsedMappings, {
+            accountNumber: newMappingAccount.trim(),
+            salary: Number(newMappingSalary) || 0
+        }];
+        
+        onUpdate({ salaryAdvanceMappings: JSON.stringify(newMappings) });
+        toast({ title: 'Mapping added', description: `Account ${newMappingAccount} has been added.` });
+        setNewMappingAccount('');
+        setNewMappingSalary('');
+        setIsAddingMapping(false);
+        // Go to last page to show new entry
+        setMappingsPage(Math.ceil(newMappings.length / MAPPINGS_PAGE_SIZE));
+    };
 
     const handleStatusChange = async (checked: boolean) => {
         if (!canEditProduct) {
@@ -754,9 +882,218 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
                                     </div>
                                 </div>
                                 {formData.salaryAdvanceMappings && (
-                                    <div className="text-sm text-muted-foreground">Current mappings: {(JSON.parse(formData.salaryAdvanceMappings as string) || []).length} rows</div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm text-muted-foreground">Current mappings: {parsedMappings.length} rows</div>
+                                        <Button 
+                                            type="button" 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => {
+                                                setMappingsPage(1);
+                                                setMappingsSearchQuery('');
+                                                setIsMappingsDialogOpen(true);
+                                            }}
+                                        >
+                                            <Settings2 className="h-4 w-4 mr-2" />
+                                            Manage Mappings
+                                        </Button>
+                                    </div>
                                 )}
                             </div>
+
+                            {/* Salary Mappings Management Dialog */}
+                            <UIDialog open={isMappingsDialogOpen} onOpenChange={(open) => {
+                                setIsMappingsDialogOpen(open);
+                                if (!open) {
+                                    handleCancelEditMapping();
+                                    setIsAddingMapping(false);
+                                }
+                            }}>
+                                <UIDialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+                                    <UIDialogHeader>
+                                        <UIDialogTitle>Manage Salary Mappings</UIDialogTitle>
+                                        <UIDialogDescription>
+                                            View, edit, or remove salary mappings. Total: {parsedMappings.length} entries.
+                                        </UIDialogDescription>
+                                    </UIDialogHeader>
+                                    
+                                    {/* Search and Add */}
+                                    <div className="flex items-center gap-2 py-2">
+                                        <div className="relative flex-1">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input 
+                                                placeholder="Search by account number or salary..." 
+                                                value={mappingsSearchQuery}
+                                                onChange={(e) => {
+                                                    setMappingsSearchQuery(e.target.value);
+                                                    setMappingsPage(1);
+                                                }}
+                                                className="pl-9"
+                                            />
+                                            {mappingsSearchQuery && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                                                    onClick={() => setMappingsSearchQuery('')}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {canEditProduct && !isAddingMapping && (
+                                            <Button variant="outline" size="sm" onClick={() => setIsAddingMapping(true)}>
+                                                <PlusCircle className="h-4 w-4 mr-2" />
+                                                Add Entry
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    {/* Add New Entry Form */}
+                                    {isAddingMapping && (
+                                        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+                                            <Input 
+                                                placeholder="Account Number" 
+                                                value={newMappingAccount}
+                                                onChange={(e) => setNewMappingAccount(e.target.value)}
+                                                className="flex-1"
+                                            />
+                                            <Input 
+                                                type="number"
+                                                placeholder="Salary" 
+                                                value={newMappingSalary}
+                                                onChange={(e) => setNewMappingSalary(e.target.value)}
+                                                className="w-32"
+                                            />
+                                            <Button size="sm" onClick={handleAddMapping}>
+                                                <Save className="h-4 w-4 mr-1" />
+                                                Add
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => {
+                                                setIsAddingMapping(false);
+                                                setNewMappingAccount('');
+                                                setNewMappingSalary('');
+                                            }}>
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {/* Mappings Table */}
+                                    <div className="flex-1 overflow-auto border rounded-md">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-16">#</TableHead>
+                                                    <TableHead>Account Number</TableHead>
+                                                    <TableHead className="w-32">Salary</TableHead>
+                                                    {canEditProduct && <TableHead className="w-24 text-right">Actions</TableHead>}
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {paginatedMappings.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={canEditProduct ? 4 : 3} className="text-center text-muted-foreground py-8">
+                                                            {mappingsSearchQuery ? 'No matching entries found.' : 'No salary mappings yet.'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : (
+                                                    paginatedMappings.map((mapping, index) => {
+                                                        const globalIndex = (mappingsPage - 1) * MAPPINGS_PAGE_SIZE + index;
+                                                        const isEditing = editingMappingIndex === globalIndex;
+                                                        
+                                                        return (
+                                                            <TableRow key={globalIndex}>
+                                                                <TableCell className="text-muted-foreground">{globalIndex + 1}</TableCell>
+                                                                <TableCell>
+                                                                    {isEditing ? (
+                                                                        <Input 
+                                                                            value={editingAccountNumber}
+                                                                            onChange={(e) => setEditingAccountNumber(e.target.value)}
+                                                                            className="h-8"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="font-mono">{mapping.accountNumber}</span>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {isEditing ? (
+                                                                        <Input 
+                                                                            type="number"
+                                                                            value={editingSalary}
+                                                                            onChange={(e) => setEditingSalary(e.target.value)}
+                                                                            className="h-8 w-28"
+                                                                        />
+                                                                    ) : (
+                                                                        <span>{mapping.salary.toLocaleString()}</span>
+                                                                    )}
+                                                                </TableCell>
+                                                                {canEditProduct && (
+                                                                    <TableCell className="text-right">
+                                                                        {isEditing ? (
+                                                                            <div className="flex items-center justify-end gap-1">
+                                                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveEditMapping}>
+                                                                                    <Save className="h-3.5 w-3.5 text-green-600" />
+                                                                                </Button>
+                                                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCancelEditMapping}>
+                                                                                    <X className="h-3.5 w-3.5" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex items-center justify-end gap-1">
+                                                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEditMapping(index)}>
+                                                                                    <Pencil className="h-3.5 w-3.5" />
+                                                                                </Button>
+                                                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteMapping(index)}>
+                                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        )}
+                                                                    </TableCell>
+                                                                )}
+                                                            </TableRow>
+                                                        );
+                                                    })
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+
+                                    {/* Pagination */}
+                                    {totalMappingsPages > 1 && (
+                                        <div className="flex items-center justify-between pt-2">
+                                            <div className="text-sm text-muted-foreground">
+                                                Showing {((mappingsPage - 1) * MAPPINGS_PAGE_SIZE) + 1} - {Math.min(mappingsPage * MAPPINGS_PAGE_SIZE, filteredMappings.length)} of {filteredMappings.length}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    disabled={mappingsPage === 1}
+                                                    onClick={() => setMappingsPage(p => Math.max(1, p - 1))}
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                </Button>
+                                                <span className="text-sm">Page {mappingsPage} of {totalMappingsPages}</span>
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    disabled={mappingsPage >= totalMappingsPages}
+                                                    onClick={() => setMappingsPage(p => Math.min(totalMappingsPages, p + 1))}
+                                                >
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <UIDialogFooter>
+                                        <UIDialogClose asChild>
+                                            <Button variant="outline">Close</Button>
+                                        </UIDialogClose>
+                                    </UIDialogFooter>
+                                </UIDialogContent>
+                            </UIDialog>
                           </>
                         )}
                     </div>
