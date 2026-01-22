@@ -840,62 +840,191 @@ function DataProvisioningTab({ providerId, initialConfigs, onConfigChange, allPr
             // Client-side validation: reject unsupported types and oversized files before sending
             const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
             const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!allowedTypes.includes(file.type)) {
+            const allowedExtensions = ['xlsx'];
+            
+            const fileName = file.name || '';
+            const ext = fileName.split('.').pop()?.toLowerCase();
+            
+            // Validate file extension
+            if (!ext || !allowedExtensions.includes(ext)) {
                 throw new Error('Invalid file type. Only .xlsx files are allowed.');
             }
+            
+            // Validate file type (MIME type) - be lenient with MIME type as browsers may vary
+            if (file.type && !allowedTypes.includes(file.type) && !file.type.includes('sheet')) {
+                throw new Error('Invalid file type. Only .xlsx files are allowed.');
+            }
+            
+            // Validate file size
             if (file.size > MAX_FILE_SIZE) {
                 throw new Error('File is too large. Maximum size is 100MB.');
             }
+            
+            // Parse the Excel file to validate headers match config columns
+            const buffer = await file.arrayBuffer();
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            const worksheet = workbook.worksheets[0];
+            
+            if (!worksheet) {
+                throw new Error('The uploaded file does not contain any worksheets.');
+            }
+            
+            // Extract headers from the first row
+            const headerRow = worksheet.getRow(1);
+            const uploadedHeaders: string[] = [];
+            const columnCount = worksheet.columnCount || 0;
+            for (let i = 1; i <= columnCount; i++) {
+                const cell = headerRow.getCell(i);
+                const text = (cell.text ?? cell.value) as any;
+                const header = text?.toString?.().trim() || '';
+                if (header) uploadedHeaders.push(header);
+            }
+            
+            if (uploadedHeaders.length === 0) {
+                throw new Error('The uploaded file has no header row. Please ensure the first row contains column headers.');
+            }
+            
+            // Get expected columns from config
+            const configColumns = config.columns || [];
+            const expectedColumnNames = configColumns.map(c => c.name);
+            
+            if (expectedColumnNames.length === 0) {
+                throw new Error('The data type configuration has no defined columns. Please configure columns first.');
+            }
+            
+            // Find the identifier column in config
+            const idColumn = configColumns.find(c => c.isIdentifier);
+            if (!idColumn) {
+                throw new Error('No identifier column defined in the data type configuration.');
+            }
+            
+            // Check if identifier column exists in uploaded file
+            const normalizeHeader = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const normalizedUploadedHeaders = uploadedHeaders.map(normalizeHeader);
+            const normalizedIdColumnName = normalizeHeader(idColumn.name);
+            
+            if (!normalizedUploadedHeaders.includes(normalizedIdColumnName)) {
+                throw new Error(`The uploaded file is missing the required identifier column "${idColumn.name}". Found columns: ${uploadedHeaders.join(', ')}`);
+            }
+            
+            // Check for missing required columns
+            const missingColumns = expectedColumnNames.filter(expected => {
+                const normalizedExpected = normalizeHeader(expected);
+                return !normalizedUploadedHeaders.includes(normalizedExpected);
+            });
+            
+            if (missingColumns.length > 0) {
+                throw new Error(`The uploaded file is missing required columns: ${missingColumns.join(', ')}. Please ensure your file contains all required columns.`);
+            }
+            
+            // Check row count - must have at least 1 data row
+            let dataRowCount = 0;
+            for (let r = 2; r <= worksheet.rowCount; r++) {
+                const row = worksheet.getRow(r);
+                let hasData = false;
+                for (let c = 1; c <= columnCount; c++) {
+                    const val = row.getCell(c).value;
+                    if (val !== null && val !== undefined && String(val).trim() !== '') {
+                        hasData = true;
+                        break;
+                    }
+                }
+                if (hasData) dataRowCount++;
+            }
+            
+            if (dataRowCount === 0) {
+                throw new Error('The uploaded file contains no data rows. Please ensure there is at least one row of data after the header.');
+            }
+            
+            // Validate identifier column values - ensure no empty identifiers
+            const idColumnIndex = normalizedUploadedHeaders.indexOf(normalizedIdColumnName) + 1;
+            let emptyIdCount = 0;
+            for (let r = 2; r <= worksheet.rowCount; r++) {
+                const row = worksheet.getRow(r);
+                const idValue = row.getCell(idColumnIndex).value;
+                if (idValue === null || idValue === undefined || String(idValue).trim() === '') {
+                    // Check if this is an empty row
+                    let hasOtherData = false;
+                    for (let c = 1; c <= columnCount; c++) {
+                        if (c !== idColumnIndex) {
+                            const val = row.getCell(c).value;
+                            if (val !== null && val !== undefined && String(val).trim() !== '') {
+                                hasOtherData = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (hasOtherData) emptyIdCount++;
+                }
+            }
+            
+            if (emptyIdCount > 0) {
+                throw new Error(`Found ${emptyIdCount} row(s) with data but missing identifier ("${idColumn.name}"). All data rows must have an identifier value.`);
+            }
+
+            // All validations passed, now read file as base64 for submission
             const fileReader = new FileReader();
             fileReader.readAsDataURL(file);
             fileReader.onload = async () => {
-                const fileContentBase64 = (fileReader.result as string).split(',')[1];
-                const payload = {
-                    created: {
+                try {
+                    const fileContentBase64 = (fileReader.result as string).split(',')[1];
+                    const payload = {
+                        created: {
+                            configId: config.id,
+                            fileName: file.name,
+                            fileContent: fileContentBase64
+                        }
+                    };
+
+                    await postPendingChange({
+                        entityType: 'DataProvisioningUpload',
+                        entityId: config.id, // Use configId as entityId for context
+                        changeType: 'CREATE',
+                        payload: JSON.stringify(payload),
+                    }, 'Failed to submit file for approval.');
+                    
+                    toast({
+                        title: 'Submitted for Approval',
+                        description: `File "${file.name}" with ${dataRowCount} rows has been submitted for review.`,
+                    });
+                    // Optimistically add to UI with pending status
+                    const tempUpload: DataProvisioningUpload = {
+                        id: `temp-${Date.now()}`,
                         configId: config.id,
                         fileName: file.name,
-                        fileContent: fileContentBase64
-                    }
-                };
+                        rowCount: dataRowCount,
+                        uploadedAt: new Date().toISOString(),
+                        uploadedBy: 'You',
+                        status: 'PENDING_APPROVAL'
+                    };
 
-                await postPendingChange({
-                    entityType: 'DataProvisioningUpload',
-                    entityId: config.id, // Use configId as entityId for context
-                    changeType: 'CREATE',
-                    payload: JSON.stringify(payload),
-                }, 'Failed to submit file for approval.');
-                
-                toast({
-                    title: 'Submitted for Approval',
-                    description: `File "${file.name}" has been submitted for review.`,
-                });
-                // Optimistically add to UI with pending status
-                const tempUpload: DataProvisioningUpload = {
-                    id: `temp-${Date.now()}`,
-                    configId: config.id,
-                    fileName: file.name,
-                    rowCount: 0, // Unknown until approval
-                    uploadedAt: new Date().toISOString(),
-                    uploadedBy: 'You',
-                    status: 'PENDING_APPROVAL'
-                };
-
-                const newConfigs = produce(configs, draft => {
-                    const cfg = draft.find(c => c.id === config.id);
-                    if (cfg) {
-                        if (!cfg.uploads) cfg.uploads = [];
-                        cfg.uploads.unshift(tempUpload as any);
-                    }
-                });
-                onConfigChange(newConfigs);
+                    const newConfigs = produce(configs, draft => {
+                        const cfg = draft.find(c => c.id === config.id);
+                        if (cfg) {
+                            if (!cfg.uploads) cfg.uploads = [];
+                            cfg.uploads.unshift(tempUpload as any);
+                        }
+                    });
+                    onConfigChange(newConfigs);
+                } catch (submitError: any) {
+                    toast({
+                        title: 'Upload Failed',
+                        description: submitError.message,
+                        variant: 'destructive',
+                    });
+                }
             };
 
         } catch (error: any) {
-             toast({
+            toast({
                 title: 'Upload Failed',
                 description: error.message,
                 variant: 'destructive',
             });
+            setIsUploading(false);
+            if (event.target) event.target.value = '';
+            return;
         } finally {
             setIsUploading(false);
             if (event.target) event.target.value = '';

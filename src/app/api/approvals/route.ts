@@ -67,60 +67,73 @@ async function applyDataProvisioningUpload(change: any, data: any) {
   const camelCaseHeaders = originalHeaders.map(toCamelCase);
   const rows = jsonData.length > 1 ? jsonData.slice(1) : [];
 
-  await prisma.$transaction(async (tx) => {
-    const newUpload = await tx.dataProvisioningUpload.create({
-      data: {
-        configId: configId,
-        fileName: fileName,
-        rowCount: rows.length,
-        uploadedBy: change.createdById, // User who requested the change
-      },
-    });
+  const idColumnConfig = JSON.parse(config.columns as string).find(
+    (c: any) => c.isIdentifier
+  );
+  if (!idColumnConfig)
+    throw new Error("No identifier column found in config");
+  const idColumnCamelCase = toCamelCase(idColumnConfig.name);
 
-    const idColumnConfig = JSON.parse(config.columns as string).find(
-      (c: any) => c.isIdentifier
-    );
-    if (!idColumnConfig)
-      throw new Error("No identifier column found in config");
-    const idColumnCamelCase = toCamelCase(idColumnConfig.name);
-
-    for (const row of rows) {
-      const newRowData: { [key: string]: any } = {};
-      camelCaseHeaders.forEach((header, index) => {
-        newRowData[header] = row[index];
-      });
-
-      const borrowerId = String(newRowData[idColumnCamelCase]);
-      if (!borrowerId) continue;
-
-      await tx.borrower.upsert({
-        where: { id: borrowerId },
-        update: {},
-        create: { id: borrowerId },
-        
-      });
-
-      const compoundId = { borrowerId, configId, uploadId: newUpload.id };
-
-      const existingData = await tx.provisionedData.findUnique({
-        where: { borrowerId_configId_uploadId: compoundId },
-      });
-
-      let mergedData = newRowData;
-      if (existingData?.data) {
-        mergedData = {
-          ...JSON.parse(existingData.data as string),
-          ...newRowData,
-        };
-      }
-
-      await tx.provisionedData.upsert({
-        where: { borrowerId_configId_uploadId: compoundId },
-        update: { data: JSON.stringify(mergedData) },
-        create: { ...compoundId, data: JSON.stringify(mergedData) },
-      });
-    }
+  // First, create the upload record outside of the batched transaction
+  const newUpload = await prisma.dataProvisioningUpload.create({
+    data: {
+      configId: configId,
+      fileName: fileName,
+      rowCount: rows.length,
+      uploadedBy: change.createdById,
+    },
   });
+
+  // Process rows in batches to avoid transaction timeout
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    
+    // Process each batch in a transaction with extended timeout
+    await prisma.$transaction(
+      async (tx) => {
+        for (const row of batch) {
+          const newRowData: { [key: string]: any } = {};
+          camelCaseHeaders.forEach((header, index) => {
+            newRowData[header] = row[index];
+          });
+
+          const borrowerId = String(newRowData[idColumnCamelCase]);
+          if (!borrowerId || borrowerId.trim() === '') continue;
+
+          await tx.borrower.upsert({
+            where: { id: borrowerId },
+            update: {},
+            create: { id: borrowerId },
+          });
+
+          const compoundId = { borrowerId, configId, uploadId: newUpload.id };
+
+          const existingData = await tx.provisionedData.findUnique({
+            where: { borrowerId_configId_uploadId: compoundId },
+          });
+
+          let mergedData = newRowData;
+          if (existingData?.data) {
+            mergedData = {
+              ...JSON.parse(existingData.data as string),
+              ...newRowData,
+            };
+          }
+
+          await tx.provisionedData.upsert({
+            where: { borrowerId_configId_uploadId: compoundId },
+            update: { data: JSON.stringify(mergedData) },
+            create: { ...compoundId, data: JSON.stringify(mergedData) },
+          });
+        }
+      },
+      {
+        maxWait: 60000, // 60 seconds max wait to acquire lock
+        timeout: 120000, // 2 minutes timeout for each batch transaction
+      }
+    );
+  }
 }
 
 async function applyEligibilityList(change: any, data: any) {
@@ -173,56 +186,70 @@ async function applyEligibilityList(change: any, data: any) {
   const filterString = borrowerIds.join(",");
   const filterObject = JSON.stringify({ [idColumnName]: filterString });
 
-  await prisma.$transaction(async (tx) => {
-    const newUpload = await tx.dataProvisioningUpload.create({
-      data: {
-        configId: configId,
-        fileName: fileName,
-        rowCount: rows.length,
-        uploadedBy: change.createdById,
+  // Create upload record first (outside batched transactions)
+  const newUpload = await prisma.dataProvisioningUpload.create({
+    data: {
+      configId: configId,
+      fileName: fileName,
+      rowCount: rows.length,
+      uploadedBy: change.createdById,
+    },
+  });
+
+  // Process rows in batches to avoid transaction timeout
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    
+    await prisma.$transaction(
+      async (tx) => {
+        for (const row of batch) {
+          const rowData: { [key: string]: any } = {};
+          originalHeaders.forEach((header, index) => {
+            rowData[header] = row[index];
+          });
+
+          const borrowerId = String(rowData[idColumnName]);
+          if (!borrowerId || borrowerId.trim() === '') continue;
+
+          await tx.borrower.upsert({
+            where: { id: borrowerId },
+            update: {},
+            create: { id: borrowerId },
+          });
+
+          await tx.provisionedData.upsert({
+            where: {
+              borrowerId_configId_uploadId: {
+                borrowerId,
+                configId,
+                uploadId: newUpload.id,
+              },
+            },
+            update: { data: JSON.stringify(rowData) },
+            create: {
+              borrowerId,
+              configId,
+              uploadId: newUpload.id,
+              data: JSON.stringify(rowData),
+            },
+          });
+        }
       },
-    });
+      {
+        maxWait: 60000, // 60 seconds max wait to acquire lock
+        timeout: 120000, // 2 minutes timeout for each batch transaction
+      }
+    );
+  }
 
-    for (const row of rows) {
-      const rowData: { [key: string]: any } = {};
-      originalHeaders.forEach((header, index) => {
-        rowData[header] = row[index];
-      });
-
-      const borrowerId = String(rowData[idColumnName]);
-      if (!borrowerId) continue;
-
-      await tx.borrower.upsert({
-        where: { id: borrowerId },
-        update: {},
-        create: { id: borrowerId },
-      });
-
-      await tx.provisionedData.upsert({
-        where: {
-          borrowerId_configId_uploadId: {
-            borrowerId,
-            configId,
-            uploadId: newUpload.id,
-          },
-        },
-        update: { data: JSON.stringify(rowData) },
-        create: {
-          borrowerId,
-          configId,
-          uploadId: newUpload.id,
-          data: JSON.stringify(rowData),
-        },
-      });
-    }
-
-    await tx.loanProduct.update({
-      where: { id: productId },
-      data: {
-        eligibilityUploadId: newUpload.id,
-        eligibilityFilter: filterObject,
-      },
-    });
+  // Update product with eligibility info (separate transaction)
+  await prisma.loanProduct.update({
+    where: { id: productId },
+    data: {
+      eligibilityUploadId: newUpload.id,
+      eligibilityFilter: filterObject,
+    },
   });
 }
 
