@@ -39,15 +39,26 @@ const defaultLedgerAccounts = [
   { name: "Penalty Income", type: "Income", category: "Penalty" },
 ];
 
+// Server-side file size limit (10MB)
+const MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024;
+
 async function applyDataProvisioningUpload(change: any, data: any) {
   const { fileContent, fileName, configId } = data.created;
+
+  // Server-side file size validation
+  if (!fileContent) {
+    throw new Error("File upload failed. Please try again.");
+  }
+  const buffer = Buffer.from(fileContent, "base64");
+  if (buffer.length > MAX_UPLOAD_FILE_SIZE) {
+    throw new Error("File upload failed. Please try again.");
+  }
 
   const config = await prisma.dataProvisioningConfig.findUnique({
     where: { id: configId },
   });
   if (!config) throw new Error("Data Provisioning Config not found.");
 
-  const buffer = Buffer.from(fileContent, "base64");
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as any);
   const worksheet = workbook.worksheets[0];
@@ -139,12 +150,20 @@ async function applyDataProvisioningUpload(change: any, data: any) {
 async function applyEligibilityList(change: any, data: any) {
   const { productId, fileContent, configId, fileName } = data.created;
 
+  // Server-side file size validation
+  if (!fileContent) {
+    throw new Error("File upload failed. Please try again.");
+  }
+  const buffer = Buffer.from(fileContent, "base64");
+  if (buffer.length > MAX_UPLOAD_FILE_SIZE) {
+    throw new Error("File upload failed. Please try again.");
+  }
+
   const config = await prisma.dataProvisioningConfig.findUnique({
     where: { id: configId },
   });
   if (!config) throw new Error("Data Provisioning Config not found.");
 
-  const buffer = Buffer.from(fileContent, "base64");
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as any);
   const worksheet = workbook.worksheets[0];

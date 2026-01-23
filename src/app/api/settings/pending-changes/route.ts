@@ -177,17 +177,17 @@ export async function POST(req: NextRequest) {
         const fileName = created?.fileName;
 
         if (!fileContent || !fileName) {
-          return NextResponse.json({ error: 'Missing file content or file name' }, { status: 400 });
+          return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 400 });
         }
 
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
         const buffer = Buffer.from(fileContent, 'base64');
         if (buffer.length > MAX_FILE_SIZE) {
-          return NextResponse.json({ error: 'File too large. Maximum allowed size is 100MB.' }, { status: 400 });
+          return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 400 });
         }
 
         if (!/\.(xlsx|xls)$/i.test(fileName)) {
-          return NextResponse.json({ error: 'Unsupported file type. Only Excel files are allowed.' }, { status: 400 });
+          return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 400 });
         }
 
         // Try to parse the workbook to ensure it's a valid Excel file
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
         await workbook.xlsx.load(buffer);
       } catch (err) {
         console.error('Invalid file payload for pending change:', err);
-        return NextResponse.json({ error: 'Invalid file upload payload' }, { status: 400 });
+        return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 400 });
       }
     }
 

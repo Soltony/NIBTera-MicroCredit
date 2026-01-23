@@ -60,7 +60,7 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     }
     
     // Client-side validation: reject unsupported file types and oversized files
-    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
     const allowedTypes = [
       'text/csv',
       'application/vnd.ms-excel',
@@ -101,10 +101,10 @@ export function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDi
     if (file.size > MAX_FILE_SIZE) {
       toast({ 
         title: 'File too large', 
-        description: 'Maximum file size is 100MB.', 
+        description: 'Maximum file size is 10MB.', 
         variant: 'destructive' 
       });
-      setSalaryFileError('Maximum file size is 100MB.');
+      setSalaryFileError('Maximum file size is 10MB.');
       if (event.target) event.target.value = '';
       setSalaryFile(null);
       return;

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { createAuditLog } from '@/lib/audit-log';
 import { getUserFromSession } from '@/lib/user';
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
 
 export async function POST(req: NextRequest) {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `Invalid file type. Allowed types are: PDF, JPG, PNG.` }, { status: 400 });
         }
         if (file.size > MAX_FILE_SIZE) {
-            return NextResponse.json({ error: `File is too large. Maximum size is 100MB.` }, { status: 400 });
+            return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 400 });
         }
         
         // **Authorization: Check if user can update this application**

@@ -16,7 +16,7 @@ const toCamelCase = (str: string) => {
     return str.replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '').replace(/^./, (match) => match.toLowerCase());
 };
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_FILE_TYPES = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']; // .xlsx
 
 // This is a simplified version and does not handle file storage.
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `Invalid file type. Only .xlsx files are allowed.` }, { status: 400 });
         }
         if (file.size > MAX_FILE_SIZE) {
-            return NextResponse.json({ error: `File is too large. Maximum size is 100MB.` }, { status: 400 });
+            return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 400 });
         }
 
         const config = await prisma.dataProvisioningConfig.findUnique({

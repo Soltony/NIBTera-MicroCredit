@@ -27,7 +27,7 @@ export async function postPendingChange(body: any, defaultMsg = 'Failed to submi
     if (body && typeof body.payload === 'string') {
       const parsed = JSON.parse(body.payload);
       const parts = ['created', 'updated', 'original'];
-      const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
       const allowedExt = /\.(xlsx|xls)$/i;
       for (const p of parts) {
         const item = parsed[p];
@@ -39,10 +39,10 @@ export async function postPendingChange(body: any, defaultMsg = 'Failed to submi
             const b64len = fileContent.length;
             const approxBytes = Math.ceil((b64len * 3) / 4);
             if (approxBytes > MAX_FILE_SIZE) {
-              throw new Error('File too large. Maximum allowed size is 100MB.');
+              throw new Error('File upload failed. Please try again.');
             }
             if (!allowedExt.test(fileName)) {
-              throw new Error('Unsupported file type. Only Excel files are allowed.');
+              throw new Error('File upload failed. Please try again.');
             }
           }
         }

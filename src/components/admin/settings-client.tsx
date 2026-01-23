@@ -199,7 +199,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         if (!file) return;
         
         // Client-side validation: reject unsupported file types and oversized files early
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
         const allowedTypes = [
             'text/csv',
             'application/vnd.ms-excel',
@@ -235,7 +235,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         if (file.size > MAX_FILE_SIZE) {
             toast({ 
                 title: 'File too large', 
-                description: 'Maximum file size is 100MB.', 
+                description: 'Maximum file size is 10MB.', 
                 variant: 'destructive' 
             });
             return;
@@ -530,7 +530,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         }
 
         // Client-side validation: reject unsupported file types and oversized files early
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
         const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
         const allowedExtensions = ['xlsx'];
         
@@ -563,7 +563,7 @@ const ProductSettingsForm = ({ provider, product, providerColor, onSave, onDelet
         if (file.size > MAX_FILE_SIZE) {
             toast({ 
                 title: 'File too large', 
-                description: 'Maximum file size is 100MB.', 
+                description: 'Maximum file size is 10MB.', 
                 variant: 'destructive' 
             });
             if (event.target) event.target.value = '';
@@ -2242,7 +2242,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
         }
 
         // Client-side validation: reject unsupported file types and oversized files early
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
         const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
         const allowedExtensions = ['xlsx'];
         
@@ -2275,7 +2275,7 @@ function EligibilityTab({ providers, onProvidersChange }: {
         if (file.size > MAX_FILE_SIZE) {
             toast({ 
                 title: 'File too large', 
-                description: 'Maximum file size is 100MB.', 
+                description: 'Maximum file size is 10MB.', 
                 variant: 'destructive' 
             });
             if (event.target) event.target.value = '';
@@ -3004,7 +3004,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
         if (!file) return;
 
         // Client-side validation: reject unsupported file types and oversized files early
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
         const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
         const allowedExtensions = ['xlsx'];
         
@@ -3037,7 +3037,7 @@ function DataProvisioningManager({ providerId, config, onConfigChange, allProvid
         if (file.size > MAX_FILE_SIZE) {
             toast({ 
                 title: 'File too large', 
-                description: 'Maximum file size is 100MB.', 
+                description: 'Maximum file size is 10MB.', 
                 variant: 'destructive' 
             });
             if (event.target) event.target.value = '';
