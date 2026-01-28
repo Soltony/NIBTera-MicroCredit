@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -69,15 +69,93 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const { toast } = useToast();
   const { currentUser, isLoading: isAuthLoading } = useAuth();
 
+  type TabKey =
+    | "providerReport"
+    | "disbursementsReport"
+    | "repaymentsReport"
+    | "collectionsReport"
+    | "utilizationReport"
+    | "agingReport"
+    | "borrowerReport";
+
   const [timeframe, setTimeframe] = useState("overall");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [providerId, setProviderId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("providerReport");
-  
+  const [activeTab, setActiveTab] = useState<TabKey>("providerReport");
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  const [loadingByTab, setLoadingByTab] = useState<Record<TabKey, boolean>>({
+    providerReport: true,
+    disbursementsReport: false,
+    repaymentsReport: false,
+    collectionsReport: false,
+    utilizationReport: false,
+    agingReport: false,
+    borrowerReport: false,
+  });
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const setTabLoading = useCallback((tab: TabKey, isLoading: boolean) => {
+    setLoadingByTab((prev) =>
+      prev[tab] === isLoading ? prev : { ...prev, [tab]: isLoading }
+    );
+  }, []);
+
+  const isTabLoading = useCallback(
+    (tab: TabKey) => !!loadingByTab[tab],
+    [loadingByTab]
+  );
+
+  const makeRequestKey = useCallback(
+    (resource: string, extra?: Record<string, any>) => {
+      const from = dateRange?.from ? dateRange.from.toISOString() : null;
+      const to = dateRange?.to ? dateRange.to.toISOString() : null;
+      return JSON.stringify({
+        resource,
+        providerId,
+        timeframe,
+        from,
+        to,
+        search: debouncedSearch || null,
+        ...(extra ?? {}),
+      });
+    },
+    [providerId, timeframe, dateRange?.from, dateRange?.to, debouncedSearch]
+  );
+
+  const filtersKey = useMemo(() => {
+    const from = dateRange?.from ? dateRange.from.toISOString() : null;
+    const to = dateRange?.to ? dateRange.to.toISOString() : null;
+    return JSON.stringify({
+      providerId,
+      timeframe,
+      from,
+      to,
+      search: debouncedSearch || null,
+    });
+  }, [providerId, timeframe, dateRange?.from, dateRange?.to, debouncedSearch]);
+
+  const lastFiltersKeyRef = useRef<string | null>(null);
+
+  const loadedKeysRef = useRef<{
+    loans?: string;
+    collections?: string;
+    disbursements?: string;
+    repayments?: string;
+    providerSummaryByProvider: Record<string, string>;
+  }>({ providerSummaryByProvider: {} });
+
+  const inFlightKeysRef = useRef<{
+    loans?: string;
+    collections?: string;
+    disbursements?: string;
+    repayments?: string;
+    providerSummaryByProvider: Record<string, string>;
+  }>({ providerSummaryByProvider: {} });
 
   // Paginated data states with metadata
   const [loansData, setLoansData] = useState<LoanReportData[]>([]);
@@ -250,188 +328,148 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   // Individual fetch functions for each report type
   const fetchLoansData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
+    const requestKey = makeRequestKey("loans", { page, pageSize });
+    const loadingTab: TabKey = activeTab === "borrowerReport" ? "borrowerReport" : "providerReport";
+    setTabLoading(loadingTab, true);
+    inFlightKeysRef.current.loans = requestKey;
     try {
       const response = await fetch(buildPaginatedUrl("/api/reports/loans", providerId, timeframe, dateRange, page, pageSize, debouncedSearch));
       if (!response.ok) throw new Error("Failed to fetch loans data");
       const result = await response.json();
+      if (inFlightKeysRef.current.loans !== requestKey) return;
       setLoansData(result.data || []);
       setLoansPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+      loadedKeysRef.current.loans = requestKey;
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      if (inFlightKeysRef.current.loans === requestKey) {
+        setTabLoading(loadingTab, false);
+      }
     }
-  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
+  }, [providerId, activeTab, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast, makeRequestKey, setTabLoading]);
 
   const fetchCollectionsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
+    const requestKey = makeRequestKey("collections", { page, pageSize });
+    setTabLoading("collectionsReport", true);
+    inFlightKeysRef.current.collections = requestKey;
     try {
       const response = await fetch(buildPaginatedUrl("/api/reports/collections", providerId, timeframe, dateRange, page, pageSize));
       if (!response.ok) throw new Error("Failed to fetch collections data");
       const result = await response.json();
+      if (inFlightKeysRef.current.collections !== requestKey) return;
       setCollectionsData(result.data || []);
       setCollectionsPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+      loadedKeysRef.current.collections = requestKey;
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      if (inFlightKeysRef.current.collections === requestKey) {
+        setTabLoading("collectionsReport", false);
+      }
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast, makeRequestKey, setTabLoading]);
 
   const fetchDisbursementsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
+    const requestKey = makeRequestKey("disbursements", { page, pageSize });
+    setTabLoading("disbursementsReport", true);
+    inFlightKeysRef.current.disbursements = requestKey;
     try {
       const url = buildPaginatedUrl("/api/reports/transactions", providerId, timeframe, dateRange, page, pageSize) + "&type=disbursement";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch disbursements data");
       const result = await response.json();
+      if (inFlightKeysRef.current.disbursements !== requestKey) return;
       setDisbursementsData(result.data || []);
       setDisbursementsPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+      loadedKeysRef.current.disbursements = requestKey;
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      if (inFlightKeysRef.current.disbursements === requestKey) {
+        setTabLoading("disbursementsReport", false);
+      }
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast, makeRequestKey, setTabLoading]);
 
   const fetchRepaymentsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
+    const requestKey = makeRequestKey("repayments", { page, pageSize });
+    setTabLoading("repaymentsReport", true);
+    inFlightKeysRef.current.repayments = requestKey;
     try {
       const url = buildPaginatedUrl("/api/reports/transactions", providerId, timeframe, dateRange, page, pageSize) + "&type=repayment";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch repayments data");
       const result = await response.json();
+      if (inFlightKeysRef.current.repayments !== requestKey) return;
       setRepaymentsData(result.data || []);
       setRepaymentsPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+      loadedKeysRef.current.repayments = requestKey;
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      if (inFlightKeysRef.current.repayments === requestKey) {
+        setTabLoading("repaymentsReport", false);
+      }
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast, makeRequestKey, setTabLoading]);
 
-  const fetchAllReportData = useCallback(
-    async (
-      currentProviderId: string,
-      currentTimeframe: string,
-      currentDateRange?: DateRange,
-      currentSearch?: string
-    ) => {
-      setIsLoading(true);
+  const fetchProviderSummaries = useCallback(
+    async (loadingTab: TabKey) => {
+      if (!providerId || providerId === "none") return;
+      setTabLoading(loadingTab, true);
+
+      const summaryProviders =
+        providerId === "all" && providers.length > 1 && canViewAllProviders
+          ? providers
+          : [providers.find((p) => p.id === providerId)!].filter(Boolean);
+
       try {
-        const fetchDataForTab = async (url: string) => {
-          const response = await fetch(url);
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Failed to fetch data.`);
+        const providersToFetch = summaryProviders.filter((p) => {
+          const key = makeRequestKey("provider-summary", { provider: p.id });
+          return (
+            loadedKeysRef.current.providerSummaryByProvider[p.id] !== key ||
+            !(providerSummaryData as any)[p.id]
+          );
+        });
+
+        if (providersToFetch.length === 0) return;
+
+        // Clear stale summaries only for providers we are about to refetch
+        setProviderSummaryData((prev) => {
+          const next = { ...prev };
+          for (const p of providersToFetch) {
+            delete (next as any)[p.id];
           }
-          return response.json();
+          return next;
+        });
+
+        const fetchOne = async (p: LoanProvider) => {
+          const key = makeRequestKey("provider-summary", { provider: p.id });
+          inFlightKeysRef.current.providerSummaryByProvider[p.id] = key;
+          const url = buildPaginatedUrl(
+            "/api/reports/provider-summary",
+            p.id,
+            timeframe,
+            dateRange,
+            1,
+            DEFAULT_PAGE_SIZE
+          );
+          const res = await fetch(url);
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({} as any));
+            throw new Error(errorData?.error || "Failed to fetch provider summary");
+          }
+          const data = await res.json();
+          if (inFlightKeysRef.current.providerSummaryByProvider[p.id] !== key) return;
+          loadedKeysRef.current.providerSummaryByProvider[p.id] = key;
+          setProviderSummaryData((prev) => ({ ...prev, [p.id]: data }));
         };
 
-        const buildUrl = (baseUrl: string, page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
-          const params = new URLSearchParams({
-            providerId: currentProviderId,
-            timeframe: currentTimeframe,
-            page: String(page),
-            pageSize: String(pageSize),
-          });
-          if (currentDateRange?.from) {
-            params.set("from", currentDateRange.from.toISOString());
-          }
-          if (currentDateRange?.to) {
-            params.set("to", currentDateRange.to.toISOString());
-          }
-          if (currentSearch) {
-            params.set("search", currentSearch);
-          }
-          return `${baseUrl}?${params.toString()}`;
-        };
-
-        const loansPromise = fetchDataForTab(buildUrl("/api/reports/loans"));
-        const collectionsPromise = fetchDataForTab(
-          buildUrl("/api/reports/collections")
-        );
-        const disbursementsPromise = fetchDataForTab(
-          buildUrl("/api/reports/transactions") + "&type=disbursement"
-        );
-        const repaymentsPromise = fetchDataForTab(
-          buildUrl("/api/reports/transactions") + "&type=repayment"
-        );
-
-        const summaryProviders =
-          currentProviderId === "all" &&
-          providers.length > 1 &&
-          canViewAllProviders
-            ? providers
-            : [providers.find((p) => p.id === currentProviderId)!].filter(
-                Boolean
-              );
-
-        const summaryPromises = summaryProviders.map((p) =>
-          fetchDataForTab(
-            buildUrl(`/api/reports/provider-summary`).replace(
-              `providerId=${currentProviderId}`,
-              `providerId=${p.id}`
-            )
-          )
-            .then((data) => ({ [p.id]: data }))
-            .catch((err) => {
-              console.error(
-                `Failed to fetch summary for provider ${p.id}:`,
-                err.message
-              );
-              return { [p.id]: null }; // Return null on error for this provider
-            })
-        );
-
-        const [
-          loansResult,
-          collectionsResult,
-          disbursementsResult,
-          repaymentsResult,
-          ...summaryResults
-        ] = await Promise.all([
-          loansPromise,
-          collectionsPromise,
-          disbursementsPromise,
-          repaymentsPromise,
-          ...summaryPromises,
-        ]);
-
-        // Handle paginated responses
-        setLoansData(loansResult.data || []);
-        setLoansPagination({ 
-          total: loansResult.total || 0, 
-          page: loansResult.page || 1, 
-          pageSize: loansResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: loansResult.totalPages || 0 
-        });
-
-        setCollectionsData(collectionsResult.data || []);
-        setCollectionsPagination({ 
-          total: collectionsResult.total || 0, 
-          page: collectionsResult.page || 1, 
-          pageSize: collectionsResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: collectionsResult.totalPages || 0 
-        });
-
-        setDisbursementsData(disbursementsResult.data || []);
-        setDisbursementsPagination({ 
-          total: disbursementsResult.total || 0, 
-          page: disbursementsResult.page || 1, 
-          pageSize: disbursementsResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: disbursementsResult.totalPages || 0 
-        });
-
-        setRepaymentsData(repaymentsResult.data || []);
-        setRepaymentsPagination({ 
-          total: repaymentsResult.total || 0, 
-          page: repaymentsResult.page || 1, 
-          pageSize: repaymentsResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: repaymentsResult.totalPages || 0 
-        });
-
-        const newSummaryData = summaryResults.reduce(
-          (acc, current) => ({ ...acc, ...current }),
-          {} as Record<string, any>
-        );
-        // remove null entries returned when a provider summary failed to fetch
-        for (const k of Object.keys(newSummaryData)) {
-          if (newSummaryData[k] === null) delete newSummaryData[k];
-        }
-        setProviderSummaryData(newSummaryData as Record<string, any>);
+        await Promise.all(providersToFetch.map((p) => fetchOne(p)));
       } catch (error: any) {
         toast({
           title: "Error fetching report data",
@@ -439,8 +477,141 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           variant: "destructive",
         });
       } finally {
-        setIsLoading(false);
+        setTabLoading(loadingTab, false);
       }
+    },
+    [
+      providerId,
+      providers,
+      canViewAllProviders,
+      makeRequestKey,
+      buildPaginatedUrl,
+      timeframe,
+      dateRange,
+      toast,
+      setTabLoading,
+      providerSummaryData,
+    ]
+  );
+
+  const fetchAllReportDataForExport = useCallback(
+    async (
+      currentProviderId: string,
+      currentTimeframe: string,
+      currentDateRange?: DateRange,
+      currentSearch?: string
+    ) => {
+      const fetchDataForTab = async (url: string) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({} as any));
+          throw new Error(errorData?.error || `Failed to fetch data.`);
+        }
+        return response.json();
+      };
+
+      const buildUrl = (
+        baseUrl: string,
+        page: number = 1,
+        pageSize: number = DEFAULT_PAGE_SIZE
+      ) => {
+        const params = new URLSearchParams({
+          providerId: currentProviderId,
+          timeframe: currentTimeframe,
+          page: String(page),
+          pageSize: String(pageSize),
+        });
+        if (currentDateRange?.from) {
+          params.set("from", currentDateRange.from.toISOString());
+        }
+        if (currentDateRange?.to) {
+          params.set("to", currentDateRange.to.toISOString());
+        }
+        if (currentSearch) {
+          params.set("search", currentSearch);
+        }
+        return `${baseUrl}?${params.toString()}`;
+      };
+
+      const loansPromise = fetchDataForTab(buildUrl("/api/reports/loans"));
+      const collectionsPromise = fetchDataForTab(buildUrl("/api/reports/collections"));
+      const disbursementsPromise = fetchDataForTab(
+        buildUrl("/api/reports/transactions") + "&type=disbursement"
+      );
+      const repaymentsPromise = fetchDataForTab(
+        buildUrl("/api/reports/transactions") + "&type=repayment"
+      );
+
+      const summaryProviders =
+        currentProviderId === "all" && providers.length > 1 && canViewAllProviders
+          ? providers
+          : [providers.find((p) => p.id === currentProviderId)!].filter(Boolean);
+
+      const summaryPromises = summaryProviders.map((p) =>
+        fetchDataForTab(
+          buildUrl(`/api/reports/provider-summary`).replace(
+            `providerId=${currentProviderId}`,
+            `providerId=${p.id}`
+          )
+        )
+          .then((data) => ({ [p.id]: data }))
+          .catch(() => ({ [p.id]: null }))
+      );
+
+      const [
+        loansResult,
+        collectionsResult,
+        disbursementsResult,
+        repaymentsResult,
+        ...summaryResults
+      ] = await Promise.all([
+        loansPromise,
+        collectionsPromise,
+        disbursementsPromise,
+        repaymentsPromise,
+        ...summaryPromises,
+      ]);
+
+      setLoansData(loansResult.data || []);
+      setLoansPagination({
+        total: loansResult.total || 0,
+        page: loansResult.page || 1,
+        pageSize: loansResult.pageSize || DEFAULT_PAGE_SIZE,
+        totalPages: loansResult.totalPages || 0,
+      });
+
+      setCollectionsData(collectionsResult.data || []);
+      setCollectionsPagination({
+        total: collectionsResult.total || 0,
+        page: collectionsResult.page || 1,
+        pageSize: collectionsResult.pageSize || DEFAULT_PAGE_SIZE,
+        totalPages: collectionsResult.totalPages || 0,
+      });
+
+      setDisbursementsData(disbursementsResult.data || []);
+      setDisbursementsPagination({
+        total: disbursementsResult.total || 0,
+        page: disbursementsResult.page || 1,
+        pageSize: disbursementsResult.pageSize || DEFAULT_PAGE_SIZE,
+        totalPages: disbursementsResult.totalPages || 0,
+      });
+
+      setRepaymentsData(repaymentsResult.data || []);
+      setRepaymentsPagination({
+        total: repaymentsResult.total || 0,
+        page: repaymentsResult.page || 1,
+        pageSize: repaymentsResult.pageSize || DEFAULT_PAGE_SIZE,
+        totalPages: repaymentsResult.totalPages || 0,
+      });
+
+      const newSummaryData = summaryResults.reduce(
+        (acc, current) => ({ ...acc, ...current }),
+        {} as Record<string, any>
+      );
+      for (const k of Object.keys(newSummaryData)) {
+        if (newSummaryData[k] === null) delete newSummaryData[k];
+      }
+      setProviderSummaryData(newSummaryData as Record<string, any>);
     },
     [toast, providers, canViewAllProviders]
   );
@@ -466,23 +637,126 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
     setProviderId(initialProviderId);
 
-    if (initialProviderId && initialProviderId !== "none") {
-      fetchAllReportData(initialProviderId, "overall", undefined);
-    } else {
-      setIsLoading(false);
+    if (!initialProviderId || initialProviderId === "none") {
+      setLoadingByTab((prev) => ({ ...prev, providerReport: false }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthLoading, currentUser?.loanProviderId, canViewAllProviders, providers]);
 
-  // Effect to refetch data when filters change, but not on initial load
+  // Lazy-load: fetch only the active tab's data when filters or active tab change
   useEffect(() => {
-    // This check prevents refetching on the initial render where providerId is still null
-    if (providerId !== null) {
-      fetchAllReportData(providerId, timeframe, dateRange, debouncedSearch);
-    }
-  }, [providerId, timeframe, dateRange, debouncedSearch, fetchAllReportData]);
+    if (!providerId || providerId === "none") return;
+
+    const filterChanged = lastFiltersKeyRef.current !== filtersKey;
+    lastFiltersKeyRef.current = filtersKey;
+
+    const defaultPageSize = DEFAULT_PAGE_SIZE;
+    const ensure = async () => {
+      if (activeTab === "providerReport" || activeTab === "borrowerReport") {
+        const targetPage = filterChanged ? 1 : loansPagination.page || 1;
+        const key = makeRequestKey("loans", {
+          page: targetPage,
+          pageSize: loansPagination.pageSize || defaultPageSize,
+        });
+        if (loadedKeysRef.current.loans !== key) {
+          await fetchLoansData(
+            targetPage,
+            loansPagination.pageSize || defaultPageSize
+          );
+        }
+        return;
+      }
+
+      if (activeTab === "collectionsReport") {
+        const targetPage = filterChanged ? 1 : collectionsPagination.page || 1;
+        const key = makeRequestKey("collections", {
+          page: targetPage,
+          pageSize: collectionsPagination.pageSize || defaultPageSize,
+        });
+        if (loadedKeysRef.current.collections !== key) {
+          await fetchCollectionsData(
+            targetPage,
+            collectionsPagination.pageSize || defaultPageSize
+          );
+        }
+        return;
+      }
+
+      if (activeTab === "disbursementsReport") {
+        const targetPage = filterChanged ? 1 : disbursementsPagination.page || 1;
+        const key = makeRequestKey("disbursements", {
+          page: targetPage,
+          pageSize: disbursementsPagination.pageSize || defaultPageSize,
+        });
+        if (loadedKeysRef.current.disbursements !== key) {
+          await fetchDisbursementsData(
+            targetPage,
+            disbursementsPagination.pageSize || defaultPageSize
+          );
+        }
+        return;
+      }
+
+      if (activeTab === "repaymentsReport") {
+        const targetPage = filterChanged ? 1 : repaymentsPagination.page || 1;
+        const key = makeRequestKey("repayments", {
+          page: targetPage,
+          pageSize: repaymentsPagination.pageSize || defaultPageSize,
+        });
+        if (loadedKeysRef.current.repayments !== key) {
+          await fetchRepaymentsData(
+            targetPage,
+            repaymentsPagination.pageSize || defaultPageSize
+          );
+        }
+        return;
+      }
+
+      if (activeTab === "utilizationReport" || activeTab === "agingReport") {
+        // Provider summaries are keyed per provider, so just trigger fetch; it will update selectively
+        await fetchProviderSummaries(activeTab);
+      }
+    };
+
+    void ensure();
+  }, [
+    providerId,
+    activeTab,
+    timeframe,
+    dateRange,
+    debouncedSearch,
+    filtersKey,
+    makeRequestKey,
+    fetchLoansData,
+    fetchCollectionsData,
+    fetchDisbursementsData,
+    fetchRepaymentsData,
+    fetchProviderSummaries,
+    loansPagination.page,
+    loansPagination.pageSize,
+    collectionsPagination.page,
+    collectionsPagination.pageSize,
+    disbursementsPagination.page,
+    disbursementsPagination.pageSize,
+    repaymentsPagination.page,
+    repaymentsPagination.pageSize,
+  ]);
 
   const handleExcelExport = async () => {
+    if (!providerId || providerId === "none") return;
+    setIsExporting(true);
+    try {
+      // Export should include all sections even if user hasn't visited every tab.
+      await fetchAllReportDataForExport(providerId, timeframe, dateRange, debouncedSearch);
+    } catch (error: any) {
+      toast({
+        title: "Export Failed",
+        description: error.message || "Could not fetch export data.",
+        variant: "destructive",
+      });
+      setIsExporting(false);
+      return;
+    }
+
     const wb = new ExcelJS.Workbook();
     const providerList = (
       providerId === "all"
@@ -715,6 +989,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         description: "No data available to export.",
         variant: "destructive",
       });
+      setIsExporting(false);
       return;
     }
 
@@ -733,6 +1008,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         description: "Could not generate Excel file.",
         variant: "destructive",
       });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -937,7 +1214,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     [loansData, tableStates.borrowerReport]
   );
 
-  if (isLoading || isAuthLoading || providerId === null) {
+  if (isAuthLoading || providerId === null) {
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
@@ -1046,9 +1323,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" onClick={handleExcelExport}>
+          <Button variant="outline" onClick={handleExcelExport} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
-            Excel
+            {isExporting ? "Preparing..." : "Excel"}
           </Button>
         </div>
       </div>
@@ -1078,7 +1355,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={(value) => setActiveTab(value as TabKey)}
         className="space-y-4"
       >
         <TabsList>
@@ -1206,7 +1483,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("providerReport") ? (
                   <TableRow>
                     <TableCell colSpan={10} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -1345,7 +1622,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("disbursementsReport") ? (
                   <TableRow>
                     <TableCell colSpan={13} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -1483,7 +1760,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("repaymentsReport") ? (
                   <TableRow>
                     <TableCell colSpan={18} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -1604,7 +1881,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("collectionsReport") ? (
                   <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -1680,7 +1957,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("utilizationReport") ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -1743,7 +2020,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("agingReport") ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -1928,7 +2205,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isTabLoading("borrowerReport") ? (
                   <TableRow>
                     <TableCell colSpan={10} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />

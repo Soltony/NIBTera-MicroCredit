@@ -66,7 +66,10 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
   }, [activeLoans]);
   
   const totalCreditAmount = useMemo(() => {
-    return loanHistory.reduce((acc, loan) => acc + loan.loanAmount, 0);
+    return loanHistory.reduce((acc, loan) => {
+      if (loan.repaymentStatus === 'REVERSED') return acc;
+      return acc + loan.loanAmount;
+    }, 0);
   }, [loanHistory]);
   
   const totalRepaidAmount = useMemo(() => {

@@ -199,7 +199,7 @@ export interface LoanDetails {
   serviceFee: number;
   disbursedDate: Date;
   dueDate: Date;
-  repaymentStatus: 'Paid' | 'Unpaid';
+    repaymentStatus: 'Paid' | 'Unpaid' | 'REVERSED';
   repaidAmount?: number;
   payments: Payment[];
   penaltyAmount: number;
