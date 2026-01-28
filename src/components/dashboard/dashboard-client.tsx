@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -107,6 +107,31 @@ export function DashboardClient({
 
   const [isMaxLimitVisible, setIsMaxLimitVisible] = useState(true);
   const [isAvailableVisible, setIsAvailableVisible] = useState(true);
+  
+  const [pendingPaymentLoanIds, setPendingPaymentLoanIds] = useState<Set<string>>(new Set());
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load pending payments from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = sessionStorage.getItem('pendingPayments');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Filter out stale pending payments (older than 10 minutes)
+        const now = Date.now();
+        const validIds = Object.keys(parsed).filter(
+          (loanId) => now - parsed[loanId].initiatedAt < 10 * 60 * 1000
+        );
+        setPendingPaymentLoanIds(new Set(validIds));
+        // Clean up stale entries
+        const cleaned = validIds.reduce((acc: Record<string, any>, id) => ({ ...acc, [id]: parsed[id] }), {});
+        sessionStorage.setItem('pendingPayments', JSON.stringify(cleaned));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   const checkAgreement = useCallback(
     async (providerId: string) => {
@@ -465,31 +490,89 @@ export function DashboardClient({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const onCustom = () => {
+    // Start polling when there are pending payments
+    const startPolling = () => {
+      if (pollingIntervalRef.current) return; // Already polling
+      pollingIntervalRef.current = setInterval(() => {
+        router.refresh();
+      }, 5000); // Poll every 5 seconds
+    };
+
+    const stopPolling = () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+
+    // Check if we should be polling
+    if (pendingPaymentLoanIds.size > 0) {
+      startPolling();
+    }
+
+    const onPaymentInitiated = (e: CustomEvent<{ loanId: string; transactionId: string }>) => {
+      setPendingPaymentLoanIds((prev) => new Set(prev).add(e.detail.loanId));
+      startPolling();
+    };
+
+    const onPaymentCompleted = (e: CustomEvent<{ loanId: string }>) => {
+      setPendingPaymentLoanIds((prev) => {
+        const next = new Set(prev);
+        next.delete(e.detail.loanId);
+        return next;
+      });
+      // Clear from sessionStorage
+      try {
+        const stored = sessionStorage.getItem('pendingPayments');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          delete parsed[e.detail.loanId];
+          sessionStorage.setItem('pendingPayments', JSON.stringify(parsed));
+        }
+      } catch (err) {
+        // ignore
+      }
+      // Refresh the page data
+      router.refresh();
+      // Re-check eligibility
+      if (selectedProviderId) {
+        recalculateEligibility(selectedProviderId);
+      }
+    };
+
+    const onPayment = () => {
+      // Clear all pending states and refresh
+      setPendingPaymentLoanIds(new Set());
+      try {
+        sessionStorage.removeItem('pendingPayments');
+      } catch (e) {
+        // ignore
+      }
       router.refresh();
     };
 
-    window.addEventListener("payment:completed", onCustom as EventListener);
+    window.addEventListener("payment:initiated", onPaymentInitiated as EventListener);
+    window.addEventListener("payment:completed", onPaymentCompleted as EventListener);
+    
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel("payments");
-      bc.addEventListener("message", onCustom as EventListener);
+      bc.addEventListener("message", onPayment as EventListener);
     } catch (e) {
       // ignore if BroadcastChannel not supported
     }
 
     return () => {
-      window.removeEventListener(
-        "payment:completed",
-        onCustom as EventListener
-      );
+      stopPolling();
+      window.removeEventListener("payment:initiated", onPaymentInitiated as EventListener);
+      window.removeEventListener("payment:completed", onPaymentCompleted as EventListener);
       try {
         bc?.close();
       } catch (e) {
         // ignore
       }
     };
-  }, [router]);
+  }, [pendingPaymentLoanIds.size, router, selectedProviderId, recalculateEligibility]);
 
   const renderAmount = (amount: number, isVisible: boolean) => {
     if (!isVisible) {
@@ -734,6 +817,7 @@ export function DashboardClient({
                                 eligibilityReason={reason}
                                 availableToBorrow={availableToBorrow}
                                 asOfDate={asOfDate}
+                                isPendingPayment={activeLoansByProduct[product.id] ? pendingPaymentLoanIds.has(activeLoansByProduct[product.id].id) : false}
                               />
                             );
                           })}

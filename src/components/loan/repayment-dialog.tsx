@@ -104,10 +104,27 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
 
             if (!initiateResponse.ok) {
                 const errorData = await initiateResponse.json();
+                // For duplicate payment attempts (409), show a specific toast and close the dialog
+                if (initiateResponse.status === 409) {
+                    toast({
+                        title: 'Payment In Progress',
+                        description: errorData.error || 'A payment is already being processed for this loan.',
+                        variant: 'destructive',
+                    });
+                    onClose();
+                    return;
+                }
                 throw new Error(errorData.error || 'Failed to initiate payment.');
             }
 
             const { paymentToken, transactionId } = await initiateResponse.json();
+
+            // Store the pending payment info in sessionStorage to track across page refreshes
+            if (typeof window !== 'undefined') {
+                const pendingPayments = JSON.parse(sessionStorage.getItem('pendingPayments') || '{}');
+                pendingPayments[loan.id] = { transactionId, amount: numericAmount, initiatedAt: Date.now() };
+                sessionStorage.setItem('pendingPayments', JSON.stringify(pendingPayments));
+            }
 
             // Step 2: Post the payment token to the Super App via JS Channel
             if (typeof window !== 'undefined' && window.myJsChannel?.postMessage) {
@@ -117,6 +134,9 @@ export function RepaymentDialog({ isOpen, onClose, onConfirm, loan, totalBalance
                   title: 'Processing Payment',
                   description: 'Your payment request has been sent to the Super App for completion.',
               });
+
+              // Dispatch event to trigger refresh polling in parent components
+              window.dispatchEvent(new CustomEvent('payment:initiated', { detail: { loanId: loan.id, transactionId } }));
 
               // NOTE: The actual loan update will happen when the callback is received.
               // For a better UX, we optimistically close the dialog.

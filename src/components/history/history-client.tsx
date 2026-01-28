@@ -1,13 +1,13 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { LoanDetails, LoanProvider, Tax } from '@/lib/types';
 import { format } from 'date-fns';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -25,9 +25,10 @@ interface HistoryClientProps {
   initialLoanHistory: LoanDetails[];
   providers: LoanProvider[];
   taxConfigs: Tax[];
+  asOfDate: Date;
 }
 
-export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: HistoryClientProps) {
+export function HistoryClient({ initialLoanHistory, providers, taxConfigs, asOfDate }: HistoryClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -38,6 +39,30 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
   const [isRepayDialogOpen, setIsRepayDialogOpen] = useState(false);
   const [repayingLoanInfo, setRepayingLoanInfo] = useState<{ loan: LoanDetails, balanceDue: number, installmentId?: string } | null>(null);
   const [selectedLoanProviderColor, setSelectedLoanProviderColor] = useState<string>('#fdb913');
+  const [pendingPaymentLoanIds, setPendingPaymentLoanIds] = useState<Set<string>>(new Set());
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load pending payments from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = sessionStorage.getItem('pendingPayments');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Filter out stale pending payments (older than 10 minutes)
+        const now = Date.now();
+        const validIds = Object.keys(parsed).filter(
+          (loanId) => now - parsed[loanId].initiatedAt < 10 * 60 * 1000
+        );
+        setPendingPaymentLoanIds(new Set(validIds));
+        // Clean up stale entries
+        const cleaned = validIds.reduce((acc, id) => ({ ...acc, [id]: parsed[id] }), {});
+        sessionStorage.setItem('pendingPayments', JSON.stringify(cleaned));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     setLoanHistory(initialLoanHistory);
@@ -174,18 +199,67 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const onPayment = () => {
-      // Simply reload server data by refreshing the router
-      try {
-        // dynamic import to avoid circular client/server issues
-        // using window.location.reload as fallback if router isn't available in this component
-        window.location.reload();
-      } catch (e) {
-        // ignore
+
+    // Start polling when there are pending payments
+    const startPolling = () => {
+      if (pollingIntervalRef.current) return; // Already polling
+      pollingIntervalRef.current = setInterval(() => {
+        router.refresh();
+      }, 5000); // Poll every 5 seconds
+    };
+
+    const stopPolling = () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
 
-    window.addEventListener('payment:completed', onPayment as EventListener);
+    // Check if we should be polling
+    if (pendingPaymentLoanIds.size > 0) {
+      startPolling();
+    }
+
+    const onPaymentInitiated = (e: CustomEvent<{ loanId: string; transactionId: string }>) => {
+      setPendingPaymentLoanIds((prev) => new Set(prev).add(e.detail.loanId));
+      startPolling();
+    };
+
+    const onPaymentCompleted = (e: CustomEvent<{ loanId: string }>) => {
+      setPendingPaymentLoanIds((prev) => {
+        const next = new Set(prev);
+        next.delete(e.detail.loanId);
+        return next;
+      });
+      // Clear from sessionStorage
+      try {
+        const stored = sessionStorage.getItem('pendingPayments');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          delete parsed[e.detail.loanId];
+          sessionStorage.setItem('pendingPayments', JSON.stringify(parsed));
+        }
+      } catch (err) {
+        // ignore
+      }
+      // Refresh the page data
+      router.refresh();
+    };
+
+    const onPayment = () => {
+      // Clear all pending states and refresh
+      setPendingPaymentLoanIds(new Set());
+      try {
+        sessionStorage.removeItem('pendingPayments');
+      } catch (e) {
+        // ignore
+      }
+      router.refresh();
+    };
+
+    window.addEventListener('payment:initiated', onPaymentInitiated as EventListener);
+    window.addEventListener('payment:completed', onPaymentCompleted as EventListener);
+    
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel('payments');
@@ -195,16 +269,19 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
     }
 
     return () => {
-      window.removeEventListener('payment:completed', onPayment as EventListener);
+      stopPolling();
+      window.removeEventListener('payment:initiated', onPaymentInitiated as EventListener);
+      window.removeEventListener('payment:completed', onPaymentCompleted as EventListener);
       try { bc?.close(); } catch (e) { }
     };
-  }, []);
+  }, [pendingPaymentLoanIds.size, router]);
 
 
   const renderLoanCard = (loan: LoanDetails) => {
     const balanceDue = (loan.totalRepayableAmount ?? 0) - (loan.repaidAmount || 0);
     const provider = providers.find(p => p.id === loan.product.providerId);
     const color = provider?.colorHex || '#fdb913';
+    const isPending = pendingPaymentLoanIds.has(loan.id);
 
     return (
       <Card 
@@ -218,10 +295,26 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
               <p className="font-semibold text-gray-800">{loan.productName}</p>
               <p className="text-lg font-bold" style={{color: color}}>{formatCurrency(balanceDue > 0 ? balanceDue : loan.loanAmount)} <span className="text-sm font-normal text-muted-foreground">(ETB)</span></p>
               <p className="text-xs text-muted-foreground">{loan.id}</p>
+              {isPending && (
+                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Payment processing...
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => handleViewDetails(loan.id)}>View</Button>
-              {loan.repaymentStatus === 'Unpaid' && <Button size="sm" style={{backgroundColor: color}} className="text-white" onClick={() => handleRepay(loan)}>Repay</Button>}
+              {loan.repaymentStatus === 'Unpaid' && (
+                <Button 
+                  size="sm" 
+                  style={{backgroundColor: isPending ? '#9ca3af' : color}} 
+                  className="text-white" 
+                  onClick={() => handleRepay(loan)}
+                  disabled={isPending}
+                >
+                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Repay'}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -291,6 +384,7 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
                 totalBalanceDue={repayingLoanInfo.balanceDue}
                 providerColor={providers.find(p => p.id === repayingLoanInfo.loan.product.providerId)?.colorHex}
                 taxConfigs={taxConfigs}
+                asOfDate={asOfDate}
             />
         )}
     </div>

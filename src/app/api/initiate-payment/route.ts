@@ -51,6 +51,22 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Loan not found.' }, { status: 404 });
         }
 
+        // --- Step 3b: Check for existing pending payment (duplicate prevention) ---
+        const existingPending = await prisma.pendingPayment.findFirst({
+            where: {
+                loanId,
+                status: 'PENDING',
+            },
+        });
+
+        if (existingPending) {
+            console.warn(`⚠️ Duplicate payment attempt blocked for loan ${loanId}. Existing pending transaction: ${existingPending.transactionId}`);
+            return NextResponse.json(
+                { error: 'A payment is already in progress for this loan. Please wait for it to complete.' },
+                { status: 409 }
+            );
+        }
+
         // --- Step 4: Retrieve Session ---
         const session = await getSession();
 

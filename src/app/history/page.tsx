@@ -162,13 +162,15 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
         getTaxConfigs()
     ]);
     
+    const asOfDate = getAsOfDate();
+    
     return (
         <Suspense fallback={
             <div className="flex flex-col min-h-screen bg-background items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
-            <HistoryClient initialLoanHistory={loanHistory} providers={providers} taxConfigs={taxConfigs} />
+            <HistoryClient initialLoanHistory={loanHistory} providers={providers} taxConfigs={taxConfigs} asOfDate={asOfDate} />
         </Suspense>
     );
 }

@@ -6,7 +6,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { LoanProduct, LoanDetails, FeeRule, Tax, PenaltyRule } from '@/lib/types';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { calculateTotalRepayableDetailed } from '@/lib/loan-calculator';
@@ -81,6 +81,7 @@ interface ProductCardProps {
     eligibilityReason: string;
     availableToBorrow: number;
     asOfDate: Date;
+    isPendingPayment?: boolean;
 }
 
 export function ProductCard({ 
@@ -94,7 +95,8 @@ export function ProductCard({
     isEligible,
     eligibilityReason,
     availableToBorrow,
-    asOfDate
+    asOfDate,
+    isPendingPayment = false
 }: ProductCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -259,7 +261,19 @@ export function ProductCard({
                         </div>
                     </div>
                      <div className="flex justify-end mt-2">
-                        <Button onClick={() => onRepay(activeLoan, balanceDue)} style={{ backgroundColor: providerColor }} className="text-white">Repay</Button>
+                        <Button 
+                            onClick={() => onRepay(activeLoan, balanceDue)} 
+                            style={{ backgroundColor: isPendingPayment ? '#9ca3af' : providerColor }} 
+                            className="text-white"
+                            disabled={isPendingPayment}
+                        >
+                            {isPendingPayment ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    Processing...
+                                </>
+                            ) : 'Repay'}
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
