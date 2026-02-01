@@ -451,16 +451,25 @@ export async function GET(request: NextRequest) {
             // rawResponse and responsePayload are excluded from the query to avoid large string issues
             disbursementRawResponse = null;
 
+            // Always capture the CBS transactionId if available (even for failures)
+            // This ensures the report shows the same reference as the reversals page
+            cbsReference = match.transactionId ?? null;
+
+            // Use the creditAccount from DisbursementTransaction as the authoritative borrower account
+            // This is the actual account that received the disbursement, which is critical for
+            // salary advance loans where borrowers may have multiple accounts
+            if (match.creditAccount) {
+              borrowerAccount = match.creditAccount;
+            }
+
             // Determine status based on statusCode since we don't have rawResponse
             if (disbursementStatusCode === 200) {
               disbursementStatusText = "Success";
               disbursementOutcome = "Success";
-              cbsReference = match.transactionId ?? null;
               cbsCreditAmount = match.amount ?? null;
             } else if (disbursementStatusCode !== null) {
               disbursementStatusText = `Status ${disbursementStatusCode}`;
               disbursementOutcome = "Failure";
-              cbsReference = null;
               cbsCreditAmount = 0;
             }
           }
