@@ -96,6 +96,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const [providerSummaryData, setProviderSummaryData] = useState<
     Record<string, ProviderReportData>
   >({});
+  const [isExporting, setIsExporting] = useState(false);
 
   const isSuperAdminOrRecon =
     currentUser?.role === "Super Admin" ||
@@ -124,6 +125,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   };
 
   const DEFAULT_PAGE_SIZE = 50;
+  const EXPORT_PAGE_SIZE = 200;
 
   function compareValues(a: any, b: any, dir: SortDir) {
     if (a == null && b == null) return 0;
@@ -512,104 +514,195 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   }, [providerId, timeframe, dateRange, debouncedSearch, fetchAllReportData]);
 
   const handleExcelExport = async () => {
-    const wb = new ExcelJS.Workbook();
-    const providerList = (
-      providerId === "all"
-        ? providers
-        : [providers.find((p) => p.id === providerId)!]
-    ).filter(Boolean);
+    if (!providerId || providerId === "none") {
+      toast({
+        description: "No provider selected for export.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const addSanitizedRows = (worksheet: ExcelJS.Worksheet, data: any[]) => {
-      if (data.length > 0) {
-        worksheet.columns = Object.keys(data[0]).map((k) => ({
-          header: k,
-          key: k,
-        }));
-        data.forEach((row) => {
-          const sanitizedRow: { [key: string]: any } = {};
-          for (const key in row) {
-            sanitizedRow[key] = sanitizeCellValue(row[key]);
+    setIsExporting(true);
+
+    try {
+      const wb = new ExcelJS.Workbook();
+      const providerList = (
+        providerId === "all"
+          ? providers
+          : [providers.find((p) => p.id === providerId)!]
+      ).filter(Boolean);
+
+      const addSanitizedRows = (worksheet: ExcelJS.Worksheet, data: any[]) => {
+        if (data.length > 0) {
+          worksheet.columns = Object.keys(data[0]).map((k) => ({
+            header: k,
+            key: k,
+          }));
+          data.forEach((row) => {
+            const sanitizedRow: { [key: string]: any } = {};
+            for (const key in row) {
+              sanitizedRow[key] = sanitizeCellValue(row[key]);
+            }
+            worksheet.addRow(sanitizedRow);
+          });
+        }
+      };
+
+      const fetchAllPages = async (
+        buildUrl: (page: number, pageSize: number) => string
+      ) => {
+        const pageSize = EXPORT_PAGE_SIZE;
+        let page = 1;
+        let totalPages = 1;
+        const all: any[] = [];
+
+        do {
+          const url = buildUrl(page, pageSize);
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(
+              errData.error || `Failed to fetch data for export.`
+            );
           }
-          worksheet.addRow(sanitizedRow);
-        });
+          const result = await resp.json();
+          const data = result.data || [];
+          all.push(...data);
+          totalPages = result.totalPages || 1;
+          page += 1;
+        } while (page <= totalPages);
+
+        return all;
+      };
+
+      const buildBaseUrl = (base: string) => (page: number, pageSize: number) =>
+        buildPaginatedUrl(
+          base,
+          providerId,
+          timeframe,
+          dateRange,
+          page,
+          pageSize,
+          debouncedSearch
+        );
+
+      const [allLoans, allCollections, allDisbursements, allRepayments] =
+        await Promise.all([
+          fetchAllPages(buildBaseUrl("/api/reports/loans")),
+          fetchAllPages(buildBaseUrl("/api/reports/collections")),
+          fetchAllPages((page, pageSize) =>
+            buildBaseUrl("/api/reports/transactions")(page, pageSize) +
+            "&type=disbursement"
+          ),
+          fetchAllPages((page, pageSize) =>
+            buildBaseUrl("/api/reports/transactions")(page, pageSize) +
+            "&type=repayment"
+          ),
+        ]);
+
+      // 1. Provider Loans
+      if (allLoans.length > 0) {
+        const providerLoanData = allLoans.map((d: any) => ({
+          Provider: d.provider,
+          "Loan ID": d.loanId,
+          Borrower: d.borrowerName,
+          "Principal Disbursed": d.principalDisbursed,
+          "Principal Outstanding": d.principalOutstanding,
+          "Interest (Daily Fee) Outstanding": d.interestOutstanding,
+          "Service Fee Outstanding": d.serviceFeeOutstanding,
+          "Penalty Outstanding": d.penaltyOutstanding,
+          "Total Outstanding": d.totalOutstanding,
+          Status: d.status,
+        }));
+        const wsProvider = wb.addWorksheet("Provider Loans");
+        addSanitizedRows(wsProvider, providerLoanData);
       }
-    };
 
-    // 1. Provider Loans
-    if (loansData.length > 0) {
-      const providerLoanData = loansData.map((d) => ({
-        Provider: d.provider,
-        "Loan ID": d.loanId,
-        Borrower: d.borrowerName,
-        "Principal Disbursed": d.principalDisbursed,
-        "Principal Outstanding": d.principalOutstanding,
-        "Interest (Daily Fee) Outstanding": d.interestOutstanding,
-        "Service Fee Outstanding": d.serviceFeeOutstanding,
-        "Penalty Outstanding": d.penaltyOutstanding,
-        "Total Outstanding": d.totalOutstanding,
-        Status: d.status,
-      }));
-      const wsProvider = wb.addWorksheet("Provider Loans");
-      addSanitizedRows(wsProvider, providerLoanData);
-    }
+      // 2. Collections
+      if (allCollections.length > 0) {
+        const collectionsExportData = allCollections.map((d: any) => ({
+          Provider: d.provider,
+          Date: format(new Date(d.date), "yyyy-MM-dd"),
+          "Principal Received": d.principal,
+          "Interest Received": d.interest,
+          "Service Fee Received": d.serviceFee,
+          "Penalty Received": d.penalty,
+          "Tax Received": d.tax,
+          "Total Collected": d.total,
+        }));
+        const ws = wb.addWorksheet("Collections");
+        addSanitizedRows(ws, collectionsExportData);
+      }
 
-    // 2. Collections
-    if (collectionsData.length > 0) {
-      const collectionsExportData = collectionsData.map((d) => ({
-        Provider: d.provider,
-        Date: format(new Date(d.date), "yyyy-MM-dd"),
-        "Principal Received": d.principal,
-        "Interest Received": d.interest,
-        "Service Fee Received": d.serviceFee,
-        "Penalty Received": d.penalty,
-        "Tax Received": d.tax,
-        "Total Collected": d.total,
-      }));
-      const ws = wb.addWorksheet("Collections");
-      addSanitizedRows(ws, collectionsExportData);
-    }
+      // 4. Fund Utilization
+      const utilizationExportData = providerList
+        .map((p) => {
+          const data = providerSummaryData[p.id];
+          if (!data) return null;
+          const availableFund =
+            p.startingCapital - data.portfolioSummary.outstanding;
+          return {
+            Provider: p.name,
+            "Provider Fund": p.startingCapital,
+            "Loans Disbursed": data.portfolioSummary.disbursed,
+            "Outstanding Principal": data.portfolioSummary.outstanding,
+            "Available Fund": availableFund,
+            "Utilization %": data.fundUtilization,
+          };
+        })
+        .filter(Boolean);
+      if (utilizationExportData.length > 0) {
+        const ws = wb.addWorksheet("Fund Utilization");
+        addSanitizedRows(ws, utilizationExportData as any[]);
+      }
 
-    // 4. Fund Utilization
-    const utilizationExportData = providerList
-      .map((p) => {
-        const data = providerSummaryData[p.id];
-        if (!data) return null;
-        // Use startingCapital (original provider fund) for display, and compute available
-        // as startingCapital minus current outstanding principal. `initialBalance`
-        // is a running cash balance that is decremented on disbursement and would
-        // otherwise double-count if we subtracted outstanding again.
-        const availableFund =
-          p.startingCapital - data.portfolioSummary.outstanding;
-        return {
-          Provider: p.name,
-          "Provider Fund": p.startingCapital,
-          "Loans Disbursed": data.portfolioSummary.disbursed,
-          "Outstanding Principal": data.portfolioSummary.outstanding,
-          "Available Fund": availableFund,
-          "Utilization %": data.fundUtilization,
-        };
-      })
-      .filter(Boolean);
-    if (utilizationExportData.length > 0) {
-      const ws = wb.addWorksheet("Fund Utilization");
-      addSanitizedRows(ws, utilizationExportData as any[]);
-    }
+      // 5. Disbursements
+      if (allDisbursements.length > 0) {
+        const disbExport = allDisbursements.map((r: any) => {
+          const loanAmt = r.principalDisbursed || 0;
+          const interestFee = r.interestOutstanding || 0;
+          const serviceFee = r.serviceFeeOutstanding || 0;
+          const netDisbursed =
+            r.netDisbursed != null ? r.netDisbursed : loanAmt;
+          const cbsCredit = r.cbsCreditAmount ?? 0;
+          const diff = netDisbursed - cbsCredit;
+          return {
+            Provider: r.provider,
+            Date: r.transactionDate
+              ? new Date(r.transactionDate).toISOString()
+              : "",
+            "Loan ID": r.loanId,
+            "Customer Name":
+              r.customerName ||
+              r.borrowerName ||
+              r.borrowerAccount ||
+              r.borrowerId ||
+              "",
+            "Debit Account": r.debitAccount,
+            "Credit Account (Customer Account)":
+              r.borrowerAccount || r.creditAccount,
+            "Txn Status":
+              r.disbursementOutcome ||
+              r.disbursementStatusText ||
+              r.transactionStatus,
+            "CBS Reference": r.cbsReference || r.reference,
+            "Loan Amount (MLS)": loanAmt,
+            "Interest Fee (MLS)": interestFee,
+            "Service Fee (MLS)": serviceFee,
+            "Net Disbursed (MLS)": netDisbursed,
+            "CBS Credit Amount": cbsCredit,
+            "Due Date": r.dueDate ? new Date(r.dueDate).toISOString() : "",
+            Difference: diff,
+          };
+        });
+        const ws = wb.addWorksheet("Disbursements");
+        addSanitizedRows(ws, disbExport);
+      }
 
-    // 5. Disbursements
-    if (disbursementsData.length > 0) {
-      const disbExport = disbursementsData.map((r: any) => {
-        const loanAmt = r.principalDisbursed || 0;
-        const interestFee = r.interestOutstanding || 0;
-        const serviceFee = r.serviceFeeOutstanding || 0;
-        // Prefer API-provided netDisbursed (principal) when available.
-        const netDisbursed = r.netDisbursed != null ? r.netDisbursed : loanAmt;
-        const cbsCredit = r.cbsCreditAmount ?? 0;
-        const diff = netDisbursed - cbsCredit;
-        return {
+      // 6. Repayments
+      if (allRepayments.length > 0) {
+        const repExport = allRepayments.map((r: any) => ({
           Provider: r.provider,
-          Date: r.transactionDate
-            ? new Date(r.transactionDate).toISOString()
-            : "",
           "Loan ID": r.loanId,
           "Customer Name":
             r.customerName ||
@@ -617,137 +710,104 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             r.borrowerAccount ||
             r.borrowerId ||
             "",
-          "Debit Account": r.debitAccount,
-          "Credit Account (Customer Account)":
-            r.borrowerAccount || r.creditAccount,
-          "Txn Status":
-            r.disbursementOutcome ||
-            r.disbursementStatusText ||
-            r.transactionStatus,
-          "CBS Reference": r.cbsReference || r.reference,
-          "Loan Amount (MLS)": loanAmt,
-          "Interest Fee (MLS)": interestFee,
-          "Service Fee (MLS)": serviceFee,
-          "Net Disbursed (MLS)": netDisbursed,
-          "CBS Credit Amount": cbsCredit,
+          "Transaction Date": r.transactionDate
+            ? new Date(r.transactionDate).toISOString()
+            : "",
           "Due Date": r.dueDate ? new Date(r.dueDate).toISOString() : "",
-          Difference: diff,
-        };
-      });
-      const ws = wb.addWorksheet("Disbursements");
-      addSanitizedRows(ws, disbExport);
-    }
+          "Debit Account": r.debitAccount,
+          "Credit Account": r.borrowerAccount || r.creditAccount,
+          "Txn Status": r.transactionStatus,
+          Reference: r.reference,
+          "Product Type": r.productType,
+          Borrower: r.borrowerId,
+          "Principal Disbursed": r.principalDisbursed,
+          "Principal Outstanding": r.principalOutstanding,
+          "Interest Outstanding": r.interestOutstanding,
+          "Service Fee Outstanding": r.serviceFeeOutstanding,
+          "Penalty Outstanding": r.penaltyOutstanding,
+          "Total Outstanding": r.totalOutstanding,
+          Status: r.status,
+        }));
+        const ws = wb.addWorksheet("Repayments");
+        addSanitizedRows(ws, repExport);
+      }
 
-    // 6. Repayments
-    if (repaymentsData.length > 0) {
-      const repExport = repaymentsData.map((r: any) => ({
-        Provider: r.provider,
-        "Loan ID": r.loanId,
-        "Customer Name":
-          r.customerName ||
-          r.borrowerName ||
-          r.borrowerAccount ||
-          r.borrowerId ||
-          "",
-        "Transaction Date": r.transactionDate
-          ? new Date(r.transactionDate).toISOString()
-          : "",
-        "Due Date": r.dueDate ? new Date(r.dueDate).toISOString() : "",
-        "Debit Account": r.debitAccount,
-        "Credit Account": r.borrowerAccount || r.creditAccount,
-        "Txn Status": r.transactionStatus,
-        Reference: r.reference,
-        "Product Type": r.productType,
-        Borrower: r.borrowerId,
-        "Principal Disbursed": r.principalDisbursed,
-        "Principal Outstanding": r.principalOutstanding,
-        "Interest Outstanding": r.interestOutstanding,
-        "Service Fee Outstanding": r.serviceFeeOutstanding,
-        "Penalty Outstanding": r.penaltyOutstanding,
-        "Total Outstanding": r.totalOutstanding,
-        Status: r.status,
-      }));
-      const ws = wb.addWorksheet("Repayments");
-      addSanitizedRows(ws, repExport);
-    }
+      // 5. Aging Report
+      const agingExportData = providerList
+        .map((p) => {
+          const data = providerSummaryData[p.id];
+          if (!data) return null;
+          const aging = data.agingReport;
+          return {
+            Provider: p.name,
+            "Pass (0-29 Days)": aging?.buckets?.Pass || 0,
+            "Special Mention (30-89 Days)":
+              aging?.buckets?.["Special Mention"] || 0,
+            "Substandard (90-179 Days)": aging?.buckets?.Substandard || 0,
+            "Doubtful (180-359 Days)": aging?.buckets?.Doubtful || 0,
+            "Loss (360+ Days)": aging?.buckets?.Loss || 0,
+            "Total Overdue": aging?.totalOverdue || 0,
+          };
+        })
+        .filter(Boolean);
+      if (agingExportData.length > 0) {
+        const ws = wb.addWorksheet("Aging Report");
+        addSanitizedRows(ws, agingExportData as any[]);
+      }
 
-    // 5. Aging Report
-    const agingExportData = providerList
-      .map((p) => {
+      // Borrower-level Aging export (flattened across providers)
+      const borrowerAgingExport: any[] = [];
+      providerList.forEach((p) => {
         const data = providerSummaryData[p.id];
-        if (!data) return null;
-        const aging = data.agingReport;
-        return {
-          Provider: p.name,
-          "Pass (0-29 Days)": aging?.buckets?.Pass || 0,
-          "Special Mention (30-89 Days)":
-            aging?.buckets?.["Special Mention"] || 0,
-          "Substandard (90-179 Days)": aging?.buckets?.Substandard || 0,
-          "Doubtful (180-359 Days)": aging?.buckets?.Doubtful || 0,
-          "Loss (360+ Days)": aging?.buckets?.Loss || 0,
-          "Total Overdue": aging?.totalOverdue || 0,
-        };
-      })
-      .filter(Boolean);
-    if (agingExportData.length > 0) {
-      const ws = wb.addWorksheet("Aging Report");
-      addSanitizedRows(ws, agingExportData as any[]);
-    }
-
-    // Borrower-level Aging export (flattened across providers)
-    const borrowerAgingExport: any[] = [];
-    providerList.forEach((p) => {
-      const data = providerSummaryData[p.id];
-      const borrowers = data?.agingReport?.byBorrower || [];
-      borrowers.forEach((b: any) => {
-        borrowerAgingExport.push({
-          Provider: p.name,
-          Borrower: b.borrowerId,
-          "Borrower Account": b.borrowerAccount || "",
-          "Borrower Name": b.borrowerName || "",
-          "Days Overdue": b.daysOverdue ?? "",
-          Category: b.classification || "",
-          "Principal Outstanding": b.principalOutstanding || 0,
-          "Interest Outstanding": b.interestOutstanding || 0,
-          "Service Fee Outstanding": b.serviceFeeOutstanding || 0,
-          "Penalty Outstanding": b.penaltyOutstanding || 0,
-          "Total Outstanding": b.classificationAmount || b.totalOverdue || 0,
+        const borrowers = data?.agingReport?.byBorrower || [];
+        borrowers.forEach((b: any) => {
+          borrowerAgingExport.push({
+            Provider: p.name,
+            Borrower: b.borrowerId,
+            "Borrower Account": b.borrowerAccount || "",
+            "Borrower Name": b.borrowerName || "",
+            "Days Overdue": b.daysOverdue ?? "",
+            Category: b.classification || "",
+            "Principal Outstanding": b.principalOutstanding || 0,
+            "Interest Outstanding": b.interestOutstanding || 0,
+            "Service Fee Outstanding": b.serviceFeeOutstanding || 0,
+            "Penalty Outstanding": b.penaltyOutstanding || 0,
+            "Total Outstanding": b.classificationAmount || b.totalOverdue || 0,
+          });
         });
       });
-    });
-    if (borrowerAgingExport.length > 0) {
-      const wsB = wb.addWorksheet("Borrower Aging");
-      addSanitizedRows(wsB, borrowerAgingExport);
-    }
+      if (borrowerAgingExport.length > 0) {
+        const wsB = wb.addWorksheet("Borrower Aging");
+        addSanitizedRows(wsB, borrowerAgingExport);
+      }
 
-    // 6. Borrower Performance
-    if (loansData.length > 0) {
-      const borrowerPerfData = loansData.map((d) => ({
-        "Borrower ID": d.borrowerId,
-        "Borrower Name": d.borrowerName,
-        "Loan ID": d.loanId,
-        "Principal Disbursed": d.principalDisbursed,
-        "Principal Outstanding": d.principalOutstanding,
-        "Interest Outstanding": d.interestOutstanding,
-        "Service Fee Outstanding": d.serviceFeeOutstanding,
-        "Penalty Outstanding": d.penaltyOutstanding,
-        "Days in Arrears": d.daysInArrears,
-        Status: d.status,
-      }));
-      const wsBorrower = wb.addWorksheet("Borrower Performance");
-      addSanitizedRows(wsBorrower, borrowerPerfData);
-    }
+      // 6. Borrower Performance
+      if (allLoans.length > 0) {
+        const borrowerPerfData = allLoans.map((d: any) => ({
+          "Borrower ID": d.borrowerId,
+          "Borrower Name": d.borrowerName,
+          "Loan ID": d.loanId,
+          "Principal Disbursed": d.principalDisbursed,
+          "Principal Outstanding": d.principalOutstanding,
+          "Interest Outstanding": d.interestOutstanding,
+          "Service Fee Outstanding": d.serviceFeeOutstanding,
+          "Penalty Outstanding": d.penaltyOutstanding,
+          "Days in Arrears": d.daysInArrears,
+          Status: d.status,
+        }));
+        const wsBorrower = wb.addWorksheet("Borrower Performance");
+        addSanitizedRows(wsBorrower, borrowerPerfData);
+      }
 
-    // If workbook has no worksheets (no data), inform the user
-    if (wb.worksheets.length === 0) {
-      toast({
-        description: "No data available to export.",
-        variant: "destructive",
-      });
-      return;
-    }
+      // If workbook has no worksheets (no data), inform the user
+      if (wb.worksheets.length === 0) {
+        toast({
+          description: "No data available to export.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    try {
       const buffer = await wb.xlsx.writeBuffer();
       saveAs(
         new Blob([buffer], { type: "application/octet-stream" }),
@@ -755,13 +815,15 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           new Date().toISOString().split("T")[0]
         }.xlsx`
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to generate Excel file", err);
       toast({
         title: "Export Failed",
-        description: "Could not generate Excel file.",
+        description: err?.message || "Could not generate Excel file.",
         variant: "destructive",
       });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1077,9 +1139,17 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" onClick={handleExcelExport}>
-            <Download className="mr-2 h-4 w-4" />
-            Excel
+          <Button
+            variant="outline"
+            onClick={handleExcelExport}
+            disabled={isExporting || providerId === "none"}
+          >
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            {isExporting ? "Exporting..." : "Excel"}
           </Button>
         </div>
       </div>
