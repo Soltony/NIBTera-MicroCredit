@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
     let providerId = url.searchParams.get("providerId");
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
+    const rawSearch = url.searchParams.get("search");
+    const search = rawSearch?.trim() || "";
 
     // Pagination parameters
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
@@ -61,6 +63,49 @@ export async function GET(request: NextRequest) {
       whereAny.payment = { isNot: null };
     } else if (type === "disbursement") {
       whereAny.payment = { is: null };
+    }
+
+    // Server-side search (best-effort):
+    // - Phone number (loan.borrowerId is the borrower phone number in this system)
+    // - Account number (via PhoneAccount.accountNumber lookup -> mapped to phoneNumber -> loan.borrowerId)
+    // - LoanId / JournalEntry id
+    if (search) {
+      const matchedPhoneNumbers = new Set<string>();
+
+      // Find borrowers by phone/account number.
+      const phoneMatches = await prisma.phoneAccount.findMany({
+        where: {
+          OR: [
+            { phoneNumber: { contains: search } },
+            { accountNumber: { contains: search } },
+          ],
+        },
+        select: { phoneNumber: true },
+        take: 200,
+      });
+      for (const p of phoneMatches) {
+        if (p.phoneNumber) matchedPhoneNumbers.add(p.phoneNumber);
+      }
+
+      const or: any[] = [
+        { id: { contains: search } },
+        { loanId: { contains: search } },
+      ];
+
+      // If they search by last 8 characters, match "endsWith" too.
+      if (search.length <= 12) {
+        or.push({ loanId: { endsWith: search } });
+        or.push({ id: { endsWith: search } });
+      }
+
+      if (matchedPhoneNumbers.size > 0) {
+        or.push({
+          loan: { borrowerId: { in: Array.from(matchedPhoneNumbers) } },
+        });
+      }
+
+      // Merge with existing WHERE.
+      whereAny.OR = or;
     }
 
     // Get total count for pagination
@@ -123,12 +168,14 @@ export async function GET(request: NextRequest) {
       disbursementWhere.createdAt = { gte: subDays(new Date(), 90) };
     }
 
+    // Avoid selecting large text fields to keep memory usage low.
+    // Note: We intentionally omit rawResponse/responsePayload/requestPayload here.
     const disbursementTxs = await prisma.disbursementTransaction.findMany({
       where: disbursementWhere,
       select: {
         id: true,
-        loanId: true,
         transactionId: true,
+        loanId: true,
         providerId: true,
         originalProviderId: true,
         creditAccount: true,
@@ -136,8 +183,7 @@ export async function GET(request: NextRequest) {
         statusCode: true,
         disbursementStatus: true,
         createdAt: true,
-        // Exclude large text fields: rawResponse, responsePayload, requestPayload
-      },
+      } as any,
     });
 
     // Create map by loanId for direct matching (highest priority)
@@ -297,8 +343,7 @@ export async function GET(request: NextRequest) {
             loan && loan.borrowerId
               ? phoneAccountMap.get(loan.borrowerId)
               : null;
-          if (pa)
-            customerName = pa.name || pa.customerName || pa.accountName || null;
+          if (pa) customerName = pa.customerName || null;
           if (!customerName) {
             const pd = loan?.borrower?.provisionedData?.[0]?.data;
             if (pd) {
@@ -325,7 +370,7 @@ export async function GET(request: NextRequest) {
               const foundTxnRef = m[1];
               // Look up PaymentTransaction by txnRef to get the FT number
               const pt = await prisma.paymentTransaction.findFirst({
-                where: { txnRef: foundTxnRef },
+                where: { txnRef: foundTxnRef } as any,
               });
               if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
                 reference = pt.transactionId;
@@ -353,7 +398,7 @@ export async function GET(request: NextRequest) {
 
               if (matchingPending && matchingPending.transactionId) {
                 const pt = await prisma.paymentTransaction.findFirst({
-                  where: { txnRef: matchingPending.transactionId },
+                  where: { txnRef: matchingPending.transactionId } as any,
                 });
                 if (pt && pt.transactionId && /^FT/i.test(pt.transactionId)) {
                   reference = pt.transactionId;

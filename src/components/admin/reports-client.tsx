@@ -264,7 +264,17 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const fetchCollectionsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
     try {
-      const response = await fetch(buildPaginatedUrl("/api/reports/collections", providerId, timeframe, dateRange, page, pageSize));
+      const response = await fetch(
+        buildPaginatedUrl(
+          "/api/reports/collections",
+          providerId,
+          timeframe,
+          dateRange,
+          page,
+          pageSize,
+          debouncedSearch
+        )
+      );
       if (!response.ok) throw new Error("Failed to fetch collections data");
       const result = await response.json();
       setCollectionsData(result.data || []);
@@ -272,12 +282,21 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
 
   const fetchDisbursementsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
     try {
-      const url = buildPaginatedUrl("/api/reports/transactions", providerId, timeframe, dateRange, page, pageSize) + "&type=disbursement";
+      const url =
+        buildPaginatedUrl(
+          "/api/reports/transactions",
+          providerId,
+          timeframe,
+          dateRange,
+          page,
+          pageSize,
+          debouncedSearch
+        ) + "&type=disbursement";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch disbursements data");
       const result = await response.json();
@@ -286,12 +305,21 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
 
   const fetchRepaymentsData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
     if (!providerId || providerId === "none") return;
     try {
-      const url = buildPaginatedUrl("/api/reports/transactions", providerId, timeframe, dateRange, page, pageSize) + "&type=repayment";
+      const url =
+        buildPaginatedUrl(
+          "/api/reports/transactions",
+          providerId,
+          timeframe,
+          dateRange,
+          page,
+          pageSize,
+          debouncedSearch
+        ) + "&type=repayment";
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch repayments data");
       const result = await response.json();
@@ -300,7 +328,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [providerId, timeframe, dateRange, buildPaginatedUrl, toast]);
+  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
 
   const fetchAllReportData = useCallback(
     async (
