@@ -62,6 +62,7 @@ const TIMEFRAMES = [
   { value: "quarterly", label: "Quarterly" },
   { value: "semiAnnually", label: "Semi-Annually" },
   { value: "annually", label: "Annually" },
+  { value: "custom", label: "Custom Range" },
   { value: "overall", label: "Overall" },
 ];
 

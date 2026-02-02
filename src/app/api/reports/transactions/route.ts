@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateTotalRepayable } from "@/lib/loan-calculator";
-import { subDays } from "date-fns";
+import { endOfDay, isValid, startOfDay, subDays } from "date-fns";
 import { getUserFromSession } from "@/lib/user";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -53,8 +53,14 @@ export async function GET(request: NextRequest) {
 
     if (from || to) {
       whereAny.date = {};
-      if (from) whereAny.date.gte = new Date(from);
-      if (to) whereAny.date.lte = new Date(to);
+      if (from) {
+        const d = new Date(from);
+        if (isValid(d)) whereAny.date.gte = startOfDay(d);
+      }
+      if (to) {
+        const d = new Date(to);
+        if (isValid(d)) whereAny.date.lte = endOfDay(d);
+      }
     }
 
     const type = url.searchParams.get("type");
