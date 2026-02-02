@@ -166,13 +166,12 @@ export async function GET(request: NextRequest) {
         { originalProviderId: { in: providerIds } },
       ];
     }
-    if (from || to) {
-      disbursementWhere.createdAt = {};
-      if (from) disbursementWhere.createdAt.gte = new Date(from);
-      if (to) disbursementWhere.createdAt.lte = new Date(to);
-    } else {
-      disbursementWhere.createdAt = { gte: subDays(new Date(), 90) };
-    }
+    // For matching CBS disbursement records we intentionally use a fixed recent window
+    // (last 90 days) instead of the UI date filter. The main date filter is applied
+    // to the journal entry itself; tying the CBS lookup window to the same range can
+    // cause inconsistent statuses (e.g. "POSTED" vs "SUCCESS" for the same loan)
+    // when the posting date and CBS createdAt differ slightly.
+    disbursementWhere.createdAt = { gte: subDays(new Date(), 90) };
 
     // Avoid selecting large text fields to keep memory usage low.
     // Note: We intentionally omit rawResponse/responsePayload/requestPayload here.
