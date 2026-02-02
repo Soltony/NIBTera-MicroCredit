@@ -127,6 +127,7 @@ export async function GET(request: NextRequest) {
       where: disbursementWhere,
       select: {
         id: true,
+        loanId: true,
         transactionId: true,
         providerId: true,
         originalProviderId: true,
@@ -307,7 +308,7 @@ export async function GET(request: NextRequest) {
           }
         } catch (e) {}
 
-        const transactionStatus = je.payment ? "COMPLETED" : "POSTED";
+        let transactionStatus = je.payment ? "COMPLETED" : "POSTED";
         let reference = je.id;
 
         // For repayments: resolve the CBS transaction reference (FT number) from PaymentTransaction
@@ -467,10 +468,12 @@ export async function GET(request: NextRequest) {
               disbursementStatusText = "Success";
               disbursementOutcome = "Success";
               cbsCreditAmount = match.amount ?? null;
+              transactionStatus = "SUCCESS";
             } else if (disbursementStatusCode !== null) {
               disbursementStatusText = `Status ${disbursementStatusCode}`;
               disbursementOutcome = "Failure";
               cbsCreditAmount = 0;
+              transactionStatus = "FAILED";
             }
           }
         }
