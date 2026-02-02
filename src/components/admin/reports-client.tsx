@@ -548,6 +548,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         }
       };
 
+      const formatDateForExport = (value?: string | Date | null) => {
+        if (!value) return "";
+        const date = value instanceof Date ? value : new Date(value);
+        return Number.isNaN(date.getTime())
+          ? ""
+          : format(date, "yyyy-MM-dd");
+      };
+
       const fetchAllPages = async (
         buildUrl: (page: number, pageSize: number) => string
       ) => {
@@ -668,9 +676,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           const diff = netDisbursed - cbsCredit;
           return {
             Provider: r.provider,
-            Date: r.transactionDate
-              ? new Date(r.transactionDate).toISOString()
-              : "",
+            Date: formatDateForExport(r.transactionDate),
             "Loan ID": r.loanId,
             "Customer Name":
               r.customerName ||
@@ -691,7 +697,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             "Service Fee (MLS)": serviceFee,
             "Net Disbursed (MLS)": netDisbursed,
             "CBS Credit Amount": cbsCredit,
-            "Due Date": r.dueDate ? new Date(r.dueDate).toISOString() : "",
+            "Due Date": formatDateForExport(r.dueDate),
             Difference: diff,
           };
         });
@@ -710,10 +716,8 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             r.borrowerAccount ||
             r.borrowerId ||
             "",
-          "Transaction Date": r.transactionDate
-            ? new Date(r.transactionDate).toISOString()
-            : "",
-          "Due Date": r.dueDate ? new Date(r.dueDate).toISOString() : "",
+          "Transaction Date": formatDateForExport(r.transactionDate),
+          "Due Date": formatDateForExport(r.dueDate),
           "Debit Account": r.debitAccount,
           "Credit Account": r.borrowerAccount || r.creditAccount,
           "Txn Status": r.transactionStatus,
