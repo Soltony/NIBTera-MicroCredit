@@ -134,6 +134,7 @@ export async function GET(request: NextRequest) {
         creditAccount: true,
         amount: true,
         statusCode: true,
+        disbursementStatus: true,
         createdAt: true,
         // Exclude large text fields: rawResponse, responsePayload, requestPayload
       },
@@ -449,6 +450,7 @@ export async function GET(request: NextRequest) {
             const match = foundMatch;
             disbursementCreatedAt = match.createdAt ?? null;
             disbursementStatusCode = match.statusCode ?? null;
+            const matchDisbursementStatus = match.disbursementStatus ?? null;
             // rawResponse and responsePayload are excluded from the query to avoid large string issues
             disbursementRawResponse = null;
 
@@ -463,17 +465,25 @@ export async function GET(request: NextRequest) {
               borrowerAccount = match.creditAccount;
             }
 
-            // Determine status based on statusCode since we don't have rawResponse
-            if (disbursementStatusCode === 200) {
+            // Determine status: prefer disbursementStatus field (SUCCESS/FAILED), fallback to statusCode
+            if (matchDisbursementStatus === "SUCCESS" || 
+                (disbursementStatusCode !== null && disbursementStatusCode >= 200 && disbursementStatusCode < 300)) {
               disbursementStatusText = "Success";
               disbursementOutcome = "Success";
               cbsCreditAmount = match.amount ?? null;
               transactionStatus = "SUCCESS";
-            } else if (disbursementStatusCode !== null) {
-              disbursementStatusText = `Status ${disbursementStatusCode}`;
+            } else if (matchDisbursementStatus === "FAILED" || 
+                       (disbursementStatusCode !== null && (disbursementStatusCode < 200 || disbursementStatusCode >= 300))) {
+              disbursementStatusText = disbursementStatusCode !== null 
+                ? `Status ${disbursementStatusCode}` 
+                : "Failed";
               disbursementOutcome = "Failure";
               cbsCreditAmount = 0;
               transactionStatus = "FAILED";
+            } else if (matchDisbursementStatus === "PENDING" || matchDisbursementStatus === "SENT") {
+              disbursementStatusText = matchDisbursementStatus;
+              disbursementOutcome = "Pending";
+              transactionStatus = "PENDING";
             }
           }
         }
