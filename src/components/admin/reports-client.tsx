@@ -966,7 +966,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     [loansData, tableStates.borrowerReport]
   );
 
-  if (isLoading || isAuthLoading || providerId === null) {
+  // Only block the whole page on initial auth/provider resolution.
+  // During data refetches (e.g. typing in search), keep controls mounted to avoid losing focus.
+  if (isAuthLoading || providerId === null) {
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
@@ -1094,6 +1096,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             className="pl-9"
           />
         </div>
+        {isLoading && (
+          <div className="flex items-center text-sm text-muted-foreground gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading…
+          </div>
+        )}
         {searchQuery && (
           <Button
             variant="ghost"
