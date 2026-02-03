@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateTotalRepayable } from "@/lib/loan-calculator";
-import { endOfDay, isValid, startOfDay, subDays } from "date-fns";
+import { addDays, endOfDay, isValid, startOfDay, subDays } from "date-fns";
 import { getUserFromSession } from "@/lib/user";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
         })
       : [];
 
-    // 2) Fallback match: recent provider-based window
+    // 2) Fallback match: provider-based window near the current page's JE dates
     const disbursementWhere: any = {};
     if (providerIds.length > 0) {
       disbursementWhere.OR = [
@@ -192,12 +192,18 @@ export async function GET(request: NextRequest) {
         { originalProviderId: { in: providerIds } },
       ];
     }
-    // For matching CBS disbursement records we intentionally use a fixed recent window
-    // (last 90 days) instead of the UI date filter. The main date filter is applied
-    // to the journal entry itself; tying the CBS lookup window to the same range can
-    // cause inconsistent statuses (e.g. "POSTED" vs "SUCCESS" for the same loan)
-    // when the posting date and CBS createdAt differ slightly.
-    disbursementWhere.createdAt = { gte: subDays(new Date(), 90) };
+    const jeDates = journalEntries.map((j) => j.date).filter(Boolean) as Date[];
+    if (jeDates.length > 0) {
+      const minJe = new Date(Math.min(...jeDates.map((d) => d.getTime())));
+      const maxJe = new Date(Math.max(...jeDates.map((d) => d.getTime())));
+      disbursementWhere.createdAt = {
+        gte: startOfDay(subDays(minJe, 2)),
+        lte: endOfDay(addDays(maxJe, 2)),
+      };
+    } else {
+      // fallback to recent window when no JE dates are available
+      disbursementWhere.createdAt = { gte: subDays(new Date(), 90) };
+    }
 
     const disbursementTxsRecent = providerIds.length
       ? await prisma.disbursementTransaction.findMany({
@@ -225,11 +231,13 @@ export async function GET(request: NextRequest) {
     // Create map by account for fallback matching
     const disbMap = new Map<string, any[]>();
     for (const d of disbursementTxs) {
-      const key = String(
-        (d as any).creditAccountNormalized || d.creditAccount || ""
-      ).trim();
-      if (!disbMap.has(key)) disbMap.set(key, []);
-      disbMap.get(key)!.push(d);
+      const rawKey = String(d.creditAccount || "").trim();
+      const normalizedKey = rawKey.replace(/\D/g, "").replace(/^0+/, "");
+      const keys = Array.from(new Set([rawKey, normalizedKey].filter(Boolean)));
+      for (const key of keys) {
+        if (!disbMap.has(key)) disbMap.set(key, []);
+        disbMap.get(key)!.push(d);
+      }
     }
 
     const rows = await Promise.all(
