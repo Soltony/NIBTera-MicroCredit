@@ -117,12 +117,17 @@ export async function GET(req: NextRequest) {
     const borrowerIds = loansWithoutDisbursement.map((l) => l.borrowerId);
     const loanIds = loansWithoutDisbursement.map((l) => l.id);
     
+    // Fetch phone accounts with deterministic ordering: prefer isActive first, then most recent
+    // This ensures consistent account selection when borrowers have multiple accounts
+    // (matches the logic used in the reports API)
     const phoneAccounts = borrowerIds.length
       ? await prisma.phoneAccount.findMany({
           where: { phoneNumber: { in: borrowerIds } },
-          select: { phoneNumber: true, accountNumber: true },
+          select: { phoneNumber: true, accountNumber: true, isActive: true, createdAt: true },
+          orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
         })
       : [];
+    // Build map preferring the first (best) account per borrower
     const accountByBorrower = new Map<string, string>();
     for (const pa of phoneAccounts) {
       if (!accountByBorrower.has(pa.phoneNumber)) {

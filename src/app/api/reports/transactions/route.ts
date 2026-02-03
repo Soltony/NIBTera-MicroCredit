@@ -146,22 +146,29 @@ export async function GET(request: NextRequest) {
         journalEntries.map((j) => (j.loan as any)?.borrowerId).filter(Boolean)
       )
     );
+    // Fetch phone accounts with deterministic ordering: prefer isActive first, then most recent
+    // This ensures consistent account selection when borrowers have multiple accounts
     const phoneAccounts =
       borrowerIds.length > 0
         ? await prisma.phoneAccount.findMany({
             where: { phoneNumber: { in: borrowerIds } },
+            orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
           })
         : [];
-    const phoneAccountMap = new Map(
-      phoneAccounts.map((p) => [p.phoneNumber, p])
-    );
+    // Build map preferring the first (best) account per borrower
+    const phoneAccountMap = new Map<string, (typeof phoneAccounts)[0]>();
+    for (const p of phoneAccounts) {
+      if (!phoneAccountMap.has(p.phoneNumber)) {
+        phoneAccountMap.set(p.phoneNumber, p);
+      }
+    }
 
     const providerIds = Array.from(
       new Set(journalEntries.map((j) => j.providerId).filter(Boolean))
-    );
+    ) as string[];
     const loanIds = Array.from(
       new Set(journalEntries.map((j) => j.loanId).filter(Boolean))
-    );
+    ) as string[];
 
     const disbursementSelect = {
       id: true,
