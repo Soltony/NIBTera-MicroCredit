@@ -159,6 +159,32 @@ export async function GET(request: NextRequest) {
     const providerIds = Array.from(
       new Set(journalEntries.map((j) => j.providerId).filter(Boolean))
     );
+    const loanIds = Array.from(
+      new Set(journalEntries.map((j) => j.loanId).filter(Boolean))
+    );
+
+    const disbursementSelect = {
+      id: true,
+      transactionId: true,
+      loanId: true,
+      providerId: true,
+      originalProviderId: true,
+      creditAccount: true,
+      amount: true,
+      statusCode: true,
+      disbursementStatus: true,
+      createdAt: true,
+    } as any;
+
+    // 1) Strong match: load disbursement transactions by loanId (no date limit)
+    const disbursementTxsByLoanId = loanIds.length
+      ? await prisma.disbursementTransaction.findMany({
+          where: { loanId: { in: loanIds } },
+          select: disbursementSelect,
+        })
+      : [];
+
+    // 2) Fallback match: recent provider-based window
     const disbursementWhere: any = {};
     if (providerIds.length > 0) {
       disbursementWhere.OR = [
@@ -173,23 +199,19 @@ export async function GET(request: NextRequest) {
     // when the posting date and CBS createdAt differ slightly.
     disbursementWhere.createdAt = { gte: subDays(new Date(), 90) };
 
-    // Avoid selecting large text fields to keep memory usage low.
-    // Note: We intentionally omit rawResponse/responsePayload/requestPayload here.
-    const disbursementTxs = await prisma.disbursementTransaction.findMany({
-      where: disbursementWhere,
-      select: {
-        id: true,
-        transactionId: true,
-        loanId: true,
-        providerId: true,
-        originalProviderId: true,
-        creditAccount: true,
-        amount: true,
-        statusCode: true,
-        disbursementStatus: true,
-        createdAt: true,
-      } as any,
-    });
+    const disbursementTxsRecent = providerIds.length
+      ? await prisma.disbursementTransaction.findMany({
+          where: disbursementWhere,
+          select: disbursementSelect,
+        })
+      : [];
+
+    // Merge and de-duplicate
+    const disbursementTxsMap = new Map<string, any>();
+    for (const d of [...disbursementTxsByLoanId, ...disbursementTxsRecent]) {
+      if (!disbursementTxsMap.has(d.id)) disbursementTxsMap.set(d.id, d);
+    }
+    const disbursementTxs = Array.from(disbursementTxsMap.values());
 
     // Create map by loanId for direct matching (highest priority)
     const disbByLoanId = new Map<string, any>();
