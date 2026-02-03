@@ -223,7 +223,21 @@ export async function GET(request: NextRequest) {
     const disbByLoanId = new Map<string, any>();
     for (const d of disbursementTxs) {
       const loanId = (d as any).loanId;
-      if (loanId && !disbByLoanId.has(loanId)) {
+      if (!loanId) continue;
+      const existing = disbByLoanId.get(loanId);
+      if (!existing) {
+        disbByLoanId.set(loanId, d);
+        continue;
+      }
+      const existingHasAccount = Boolean(existing.creditAccount);
+      const candidateHasAccount = Boolean(d.creditAccount);
+      const existingTime = new Date(existing.createdAt || 0).getTime();
+      const candidateTime = new Date(d.createdAt || 0).getTime();
+
+      // Prefer records with creditAccount; otherwise prefer the most recent
+      if (candidateHasAccount && !existingHasAccount) {
+        disbByLoanId.set(loanId, d);
+      } else if (candidateHasAccount === existingHasAccount && candidateTime > existingTime) {
         disbByLoanId.set(loanId, d);
       }
     }
