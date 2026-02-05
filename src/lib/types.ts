@@ -464,3 +464,95 @@ export interface Tax {
     rate: number;
     appliedTo: string; // JSON array
 }
+
+// --------------------------------------
+// SMS MANAGEMENT TYPES
+// --------------------------------------
+
+export type SmsStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED';
+export type SmsCampaignStatus = 'DRAFT' | 'SCHEDULED' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
+export type SmsScheduleType = 'IMMEDIATE' | 'SCHEDULED';
+
+export interface SmsTemplate {
+    id: string;
+    name: string;
+    content: string;
+    description?: string | null;
+    isActive: boolean;
+    createdById?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface SmsLog {
+    id: string;
+    templateId?: string | null;
+    template?: SmsTemplate | null;
+    campaignId?: string | null;
+    campaign?: SmsCampaign | null;
+    recipientPhone: string;
+    recipientName?: string | null;
+    loanId?: string | null;
+    productId?: string | null;
+    productName?: string | null;
+    messageContent: string;
+    status: SmsStatus;
+    errorMessage?: string | null;
+    sentAt?: Date | null;
+    deliveredAt?: Date | null;
+    retryCount: number;
+    lastRetryAt?: Date | null;
+    parentSmsId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface SmsCampaignTargetCriteria {
+    productIds?: string[];
+    providerIds?: string[];
+    loanAgeFrom?: number;
+    loanAgeTo?: number;
+    overdueFrom?: number;
+    overdueTo?: number;
+    repaymentStatus?: 'Paid' | 'Unpaid';
+    customDateField?: 'disbursedDate' | 'dueDate';
+    customDateFrom?: string;
+    customDateTo?: string;
+}
+
+export interface SmsCampaign {
+    id: string;
+    name: string;
+    templateId?: string | null;
+    template?: SmsTemplate | null;
+    targetCriteria: SmsCampaignTargetCriteria;
+    customMessage?: string | null;
+    status: SmsCampaignStatus;
+    scheduleType: SmsScheduleType;
+    scheduledAt?: Date | null;
+    startedAt?: Date | null;
+    completedAt?: Date | null;
+    totalRecipients: number;
+    sentCount: number;
+    deliveredCount: number;
+    failedCount: number;
+    createdById?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    smsLogs?: SmsLog[];
+}
+
+// Available SMS placeholder tokens
+export const SMS_PLACEHOLDERS = [
+    { token: '{{borrowerName}}', description: 'Borrower\'s full name' },
+    { token: '{{borrowerId}}', description: 'Borrower\'s ID/phone number' },
+    { token: '{{loanAmount}}', description: 'Original loan amount' },
+    { token: '{{outstandingAmount}}', description: 'Current outstanding balance' },
+    { token: '{{dueDate}}', description: 'Loan due date' },
+    { token: '{{productName}}', description: 'Loan product name' },
+    { token: '{{providerName}}', description: 'Loan provider name' },
+    { token: '{{daysOverdue}}', description: 'Number of days past due date' },
+    { token: '{{disbursedDate}}', description: 'Date loan was disbursed' },
+    { token: '{{penaltyAmount}}', description: 'Current penalty amount' },
+] as const;
+

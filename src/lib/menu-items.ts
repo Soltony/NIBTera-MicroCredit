@@ -11,6 +11,7 @@ import {
   BookUser,
   CheckSquare,
   Ban,
+  MessageSquare,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -49,6 +50,12 @@ export const allMenuItems = [
     label: 'NPL',
     icon: BadgeAlert,
     roles: ['Super Admin', 'Loan Manager', 'Auditor'],
+  },
+  {
+    path: '/admin/sms-management',
+    label: 'SMS Management',
+    icon: MessageSquare,
+    roles: ['Super Admin', 'Loan Manager'],
   },
    {
     path: '/admin/access-control',
