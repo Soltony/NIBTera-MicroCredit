@@ -643,3 +643,81 @@ model AccountStatementMetrics {
   @@index([borrowerId])
   @@index([accountNumber])
 }
+
+// --------------------------------------
+// SMS MANAGEMENT
+// --------------------------------------
+
+// SMS Templates for customizable message content
+model SmsTemplate {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  content     String    @db.NVarChar(Max)
+  // Description of available placeholders: {{borrowerName}}, {{loanAmount}}, {{dueDate}}, {{productName}}, {{outstandingAmount}}, {{daysOverdue}}
+  description String?   @db.NVarChar(Max)
+  isActive    Boolean   @default(true)
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  smsLogs     SmsLog[]
+  smsCampaigns SmsCampaign[]
+}
+
+// Individual SMS log records
+model SmsLog {
+  id              String       @id @default(cuid())
+  templateId      String?
+  template        SmsTemplate? @relation(fields: [templateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  campaignId      String?
+  campaign        SmsCampaign? @relation(fields: [campaignId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recipientPhone  String
+  recipientName   String?
+  loanId          String?
+  productId       String?
+  productName     String?
+  messageContent  String       @db.NVarChar(Max)
+  status          String       @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
+  errorMessage    String?      @db.NVarChar(Max)
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  retryCount      Int          @default(0)
+  lastRetryAt     DateTime?
+  parentSmsId     String?      // For tracking resends
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([status])
+  @@index([recipientPhone])
+  @@index([loanId])
+  @@index([productId])
+  @@index([campaignId])
+  @@index([createdAt])
+}
+
+// SMS Campaigns for bulk/scheduled sending
+model SmsCampaign {
+  id                String       @id @default(cuid())
+  name              String
+  templateId        String?
+  template          SmsTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  // Targeting criteria stored as JSON
+  targetCriteria    String       @db.NVarChar(Max) // JSON: { productIds: [], loanAgeFrom: number, loanAgeTo: number, overdueFrom: number, overdueTo: number, customDateField: string, customDateFrom: date, customDateTo: date }
+  customMessage     String?      @db.NVarChar(Max) // Optional override message
+  status            String       @default("DRAFT") // DRAFT, SCHEDULED, PROCESSING, COMPLETED, CANCELLED
+  scheduleType      String       @default("IMMEDIATE") // IMMEDIATE, SCHEDULED
+  scheduledAt       DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  totalRecipients   Int          @default(0)
+  sentCount         Int          @default(0)
+  deliveredCount    Int          @default(0)
+  failedCount       Int          @default(0)
+  createdById       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  smsLogs           SmsLog[]
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([createdAt])
+}
