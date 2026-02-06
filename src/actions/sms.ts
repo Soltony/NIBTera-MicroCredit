@@ -146,12 +146,12 @@ export async function sendSingleSms(data: {
     // Create SMS log entry
     const smsLog = await prisma.smsLog.create({
         data: {
-            templateId: data.templateId,
-            campaignId: data.campaignId,
+            templateId: data.templateId || null,
+            campaignId: data.campaignId || null,
             recipientPhone: data.recipientPhone,
             recipientName: data.recipientName,
-            loanId: data.loanId,
-            productId: data.productId,
+            loanId: data.loanId || null,
+            productId: data.productId || null,
             productName: data.productName,
             messageContent: data.messageContent,
             status: 'PENDING',
@@ -206,12 +206,12 @@ export async function resendFailedSms(smsLogId: string) {
     // Create new SMS log linked to original
     const newSmsLog = await prisma.smsLog.create({
         data: {
-            templateId: originalSms.templateId,
-            campaignId: originalSms.campaignId,
+            templateId: originalSms.templateId || null,
+            campaignId: originalSms.campaignId || null,
             recipientPhone: originalSms.recipientPhone,
             recipientName: originalSms.recipientName,
-            loanId: originalSms.loanId,
-            productId: originalSms.productId,
+            loanId: originalSms.loanId || null,
+            productId: originalSms.productId || null,
             productName: originalSms.productName,
             messageContent: originalSms.messageContent,
             status: 'PENDING',
