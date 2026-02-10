@@ -60,16 +60,79 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
 
+    // Filter / search params
+    const search = searchParams.get('search')?.trim() || '';
+    const actionFilter = searchParams.get('action') || '';
+    const entityFilter = searchParams.get('entity') || '';
+    const dateFrom = searchParams.get('dateFrom') || '';
+    const dateTo = searchParams.get('dateTo') || '';
+    const meta = searchParams.get('meta'); // if "1", return distinct actions & entities
+
+    // Build Prisma where clause
+    const where: any = {};
+    if (actionFilter) {
+        where.action = actionFilter;
+    }
+    if (entityFilter) {
+        where.entity = entityFilter;
+    }
+    if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) {
+            // Include the entire "to" day
+            const toEnd = new Date(dateTo);
+            toEnd.setHours(23, 59, 59, 999);
+            where.createdAt.lte = toEnd;
+        }
+    }
+
+    // Text search – search across actor name/email, action, entity, entityId, ipAddress
+    // We resolve matching actor IDs first, then use OR conditions
+    if (search) {
+        const matchingActors = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { fullName: { contains: search } },
+                    { email: { contains: search } },
+                ],
+            },
+            select: { id: true },
+        });
+        const actorIdMatches = matchingActors.map((a) => a.id);
+
+        where.OR = [
+            { action: { contains: search } },
+            { entity: { contains: search } },
+            { entityId: { contains: search } },
+            { ipAddress: { contains: search } },
+            ...(actorIdMatches.length > 0 ? [{ actorId: { in: actorIdMatches } }] : []),
+        ];
+    }
+
     try {
+        // Optionally return filter metadata (distinct actions & entities)
+        if (meta === '1') {
+            const [distinctActions, distinctEntities] = await prisma.$transaction([
+                prisma.auditLog.findMany({ distinct: ['action'], select: { action: true }, orderBy: { action: 'asc' } }),
+                prisma.auditLog.findMany({ distinct: ['entity'], select: { entity: true }, where: { entity: { not: null } }, orderBy: { entity: 'asc' } }),
+            ]);
+            return NextResponse.json({
+                actions: distinctActions.map((a) => a.action),
+                entities: distinctEntities.map((e) => e.entity).filter(Boolean),
+            });
+        }
+
         const [logs, totalCount] = await prisma.$transaction([
             prisma.auditLog.findMany({
+                where,
                 orderBy: {
                     createdAt: 'desc',
                 },
                 take: limit,
                 skip: skip,
             }),
-            prisma.auditLog.count(),
+            prisma.auditLog.count({ where }),
         ]);
 
         const actorIds = Array.from(new Set(logs.map((l) => l.actorId).filter(Boolean)));

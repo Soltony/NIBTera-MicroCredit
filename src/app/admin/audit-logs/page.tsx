@@ -1,14 +1,15 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRequirePermission } from '@/hooks/use-require-permission';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, ChevronLeft, ChevronRight, FileJson } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, ChevronLeft, ChevronRight, FileJson, Search, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
@@ -38,8 +39,61 @@ export default function AuditLogsPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
+
+    // Filter / search state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [actionFilter, setActionFilter] = useState('');
+    const [entityFilter, setEntityFilter] = useState('');
+    const [filterDateFrom, setFilterDateFrom] = useState('');
+    const [filterDateTo, setFilterDateTo] = useState('');
+    const [distinctActions, setDistinctActions] = useState<string[]>([]);
+    const [distinctEntities, setDistinctEntities] = useState<string[]>([]);
+
     const router = useRouter();
     const { toast } = useToast();
+
+    // Fetch distinct actions & entities for filter dropdowns
+    useEffect(() => {
+        const fetchMeta = async () => {
+            try {
+                const res = await fetch('/api/audit-logs?meta=1');
+                if (res.ok) {
+                    const data = await res.json();
+                    setDistinctActions(data.actions || []);
+                    setDistinctEntities(data.entities || []);
+                }
+            } catch { /* ignore */ }
+        };
+        fetchMeta();
+    }, []);
+
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    // Reset to page 1 when any filter changes
+    const handleFilterChange = useCallback((setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+        setter(value);
+        setPage(1);
+    }, []);
+
+    const clearFilters = () => {
+        setSearchQuery('');
+        setDebouncedSearch('');
+        setActionFilter('');
+        setEntityFilter('');
+        setFilterDateFrom('');
+        setFilterDateTo('');
+        setPage(1);
+    };
+
+    const hasActiveFilters = debouncedSearch || actionFilter || entityFilter || filterDateFrom || filterDateTo;
 
     const exportLogs = async (exportFormat: 'csv' | 'json') => {
         if (!fromDate || !toDate) {
@@ -56,7 +110,17 @@ export default function AuditLogsPage() {
         const fetchLogs = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch(`/api/audit-logs?page=${page}&limit=${ITEMS_PER_PAGE}`);
+                const params = new URLSearchParams({
+                    page: String(page),
+                    limit: String(ITEMS_PER_PAGE),
+                });
+                if (debouncedSearch) params.set('search', debouncedSearch);
+                if (actionFilter) params.set('action', actionFilter);
+                if (entityFilter) params.set('entity', entityFilter);
+                if (filterDateFrom) params.set('dateFrom', filterDateFrom);
+                if (filterDateTo) params.set('dateTo', filterDateTo);
+
+                const response = await fetch(`/api/audit-logs?${params.toString()}`);
                 if (!response.ok) {
                     throw new Error('Failed to fetch audit logs.');
                 }
@@ -75,7 +139,7 @@ export default function AuditLogsPage() {
         };
 
         fetchLogs();
-    }, [page, toast]);
+    }, [page, debouncedSearch, actionFilter, entityFilter, filterDateFrom, filterDateTo, toast]);
 
     // change request payload fetching moved to the dedicated detail page
     
@@ -123,6 +187,84 @@ export default function AuditLogsPage() {
                         </Button>
                     </div>
                 </div>
+
+                {/* ── Filter & Search Bar ── */}
+                <Card>
+                    <CardContent className="pt-6">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+                            {/* Search */}
+                            <div className="flex-1 min-w-[200px]">
+                                <label className="text-xs text-muted-foreground mb-1 block">Search</label>
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search by actor, action, entity, IP..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Action filter */}
+                            <div className="w-full md:w-[200px]">
+                                <label className="text-xs text-muted-foreground mb-1 block">Action</label>
+                                <Select value={actionFilter} onValueChange={(v) => handleFilterChange(setActionFilter, v)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All actions" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {distinctActions.map((a) => (
+                                            <SelectItem key={a} value={a}>{a}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Entity filter */}
+                            <div className="w-full md:w-[200px]">
+                                <label className="text-xs text-muted-foreground mb-1 block">Entity</label>
+                                <Select value={entityFilter} onValueChange={(v) => handleFilterChange(setEntityFilter, v)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All entities" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {distinctEntities.map((e) => (
+                                            <SelectItem key={e} value={e}>{e}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Date range filter */}
+                            <div className="w-full md:w-[160px]">
+                                <label className="text-xs text-muted-foreground mb-1 block">From</label>
+                                <Input
+                                    type="date"
+                                    value={filterDateFrom}
+                                    onChange={(e) => handleFilterChange(setFilterDateFrom, e.target.value)}
+                                />
+                            </div>
+                            <div className="w-full md:w-[160px]">
+                                <label className="text-xs text-muted-foreground mb-1 block">To</label>
+                                <Input
+                                    type="date"
+                                    value={filterDateTo}
+                                    onChange={(e) => handleFilterChange(setFilterDateTo, e.target.value)}
+                                />
+                            </div>
+
+                            {/* Clear filters */}
+                            {hasActiveFilters && (
+                                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 gap-1">
+                                    <X className="h-4 w-4" />
+                                    Clear
+                                </Button>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader>
                         <CardTitle>Activity History</CardTitle>
