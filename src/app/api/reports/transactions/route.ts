@@ -6,6 +6,44 @@ import { getUserFromSession } from "@/lib/user";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
+// SQL Server has a limit of 2100 parameters, so we use 2000 to be safe
+const MAX_IN_CLAUSE_SIZE = 2000;
+
+// Helper function to batch array operations that exceed SQL Server parameter limits
+async function batchCount<T>(
+  items: T[],
+  batchSize: number,
+  countFn: (batch: T[]) => Promise<number>
+): Promise<number> {
+  if (items.length === 0) return 0;
+  if (items.length <= batchSize) {
+    return await countFn(items);
+  }
+  
+  let total = 0;
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    total += await countFn(batch);
+  }
+  return total;
+}
+
+// Helper function to build loanId filter that handles SQL Server's parameter limit
+function buildLoanIdFilter(loanIds: string[]): any {
+  if (loanIds.length === 0) {
+    return { loanId: { in: [] } };
+  }
+  if (loanIds.length <= MAX_IN_CLAUSE_SIZE) {
+    return { loanId: { in: loanIds } };
+  }
+  // For large arrays, use OR with multiple IN clauses
+  const conditions: any[] = [];
+  for (let i = 0; i < loanIds.length; i += MAX_IN_CLAUSE_SIZE) {
+    const batch = loanIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
+    conditions.push({ loanId: { in: batch } });
+  }
+  return { OR: conditions };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -154,7 +192,7 @@ export async function GET(request: NextRequest) {
       if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
         // For disbursement filter + search: must satisfy both conditions
         whereAny.AND = [
-          { loanId: { in: disbursementLoanIds } },
+          buildLoanIdFilter(disbursementLoanIds),
           { OR: or },
           { payment: { isNot: null } },
         ];
@@ -164,8 +202,15 @@ export async function GET(request: NextRequest) {
       }
     } else if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
       // Disbursement filter without search - use simple loanId filter
-      whereAny.loanId = { in: disbursementLoanIds };
-      whereAny.payment = { isNot: null };
+      const loanIdFilter = buildLoanIdFilter(disbursementLoanIds);
+      // If the filter uses OR (large array), wrap it in AND to avoid conflicts
+      if (loanIdFilter.OR) {
+        whereAny.AND = [loanIdFilter, { payment: { isNot: null } }];
+      } else {
+        // Small array - can use direct assignment
+        whereAny.loanId = loanIdFilter.loanId;
+        whereAny.payment = { isNot: null };
+      }
     }
 
     // For disbursement type filters, calculate total and apply pagination on loanIds
@@ -174,27 +219,33 @@ export async function GET(request: NextRequest) {
 
     if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
       // For disbursement filters: estimate count from loanIds (may be reduced by search)
-      // Do a simpler count query with just the loanId filter
-      totalCount = await prisma.journalEntry.count({
-        where: {
-          loanId: { in: disbursementLoanIds },
-          payment: { isNot: null },
-          ...(search 
-            ? {
-                OR: [
-                  { id: { contains: search } },
-                  { loanId: { contains: search } },
-                  ...(search.length <= 12 
-                    ? [
-                        { loanId: { endsWith: search } },
-                        { id: { endsWith: search } },
-                      ]
-                    : []),
-                ],
-              }
-            : {}),
-        },
-      });
+      // Batch the count query to avoid SQL Server's 2100 parameter limit
+      totalCount = await batchCount(
+        disbursementLoanIds,
+        MAX_IN_CLAUSE_SIZE,
+        async (batch) => {
+          return await prisma.journalEntry.count({
+            where: {
+              loanId: { in: batch },
+              payment: { isNot: null },
+              ...(search 
+                ? {
+                    OR: [
+                      { id: { contains: search } },
+                      { loanId: { contains: search } },
+                      ...(search.length <= 12 
+                        ? [
+                            { loanId: { endsWith: search } },
+                            { id: { endsWith: search } },
+                          ]
+                        : []),
+                    ],
+                  }
+                : {}),
+            },
+          });
+        }
+      );
       totalPages = Math.ceil(totalCount / pageSize);
     } else {
       // Regular non-disbursement filters
