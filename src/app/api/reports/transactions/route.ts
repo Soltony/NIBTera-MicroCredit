@@ -169,22 +169,46 @@ export async function GET(request: NextRequest) {
 
       // Step 2: Verify these loans also have repayments (journal entries with payments)
       // This ensures we only include loans that have both posted disbursements AND repayments
-      const loansWithRepayments = await prisma.journalEntry.findMany({
-        where: {
-          loanId: { in: postedLoanIds },
-          payment: { isNot: null }, // Must have a payment (repayment)
-          loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
-        },
-        select: { loanId: true },
-      });
-
-      // Get unique loanIds that have both posted disbursements AND repayments
+      // Batch the query to avoid SQL Server's 2100 parameter limit
       const repaymentLoanIdsSet = new Set<string>();
-      for (const je of loansWithRepayments) {
-        if (je.loanId) {
-          repaymentLoanIdsSet.add(je.loanId);
+      
+      if (postedLoanIds.length > MAX_IN_CLAUSE_SIZE) {
+        // Batch the query for large arrays
+        for (let i = 0; i < postedLoanIds.length; i += MAX_IN_CLAUSE_SIZE) {
+          const batch = postedLoanIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
+          const batchRepayments = await prisma.journalEntry.findMany({
+            where: {
+              loanId: { in: batch },
+              payment: { isNot: null }, // Must have a payment (repayment)
+              loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
+            },
+            select: { loanId: true },
+          });
+          
+          for (const je of batchRepayments) {
+            if (je.loanId) {
+              repaymentLoanIdsSet.add(je.loanId);
+            }
+          }
+        }
+      } else {
+        // Single query for small arrays
+        const loansWithRepayments = await prisma.journalEntry.findMany({
+          where: {
+            loanId: { in: postedLoanIds },
+            payment: { isNot: null }, // Must have a payment (repayment)
+            loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
+          },
+          select: { loanId: true },
+        });
+        
+        for (const je of loansWithRepayments) {
+          if (je.loanId) {
+            repaymentLoanIdsSet.add(je.loanId);
+          }
         }
       }
+      
       disbursementLoanIds = Array.from(repaymentLoanIdsSet);
 
       if (disbursementLoanIds.length === 0) {
