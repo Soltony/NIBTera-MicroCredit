@@ -65,11 +65,16 @@ export async function GET(request: NextRequest) {
 
     const type = url.searchParams.get("type");
 
+    // Track if we're filtering by disbursement type
+    let isDisbursementTypeFilter = false;
+    let disbursementOrFilter: any = null;
+
     if (type === "repayment") {
       whereAny.payment = { isNot: null };
     } else if (type === "disbursement") {
       whereAny.payment = { is: null };
     } else if (type === "failed-disbursement-with-repayment") {
+      isDisbursementTypeFilter = true;
       // Find loans with failed external disbursements that have subsequent repayments
       const failedDisbursements = await prisma.disbursementTransaction.findMany({
         where: {
@@ -88,21 +93,22 @@ export async function GET(request: NextRequest) {
       }
 
       // Batch loanIds to avoid SQL parameter limit (SQL Server has ~2100 parameter limit)
-      // Process in chunks to stay well under the limit
-      const BATCH_SIZE = 500;
+      // Use smaller batch size to account for search parameters
+      const BATCH_SIZE = 200;
       const batches = [];
       for (let i = 0; i < failedLoanIds.length; i += BATCH_SIZE) {
         batches.push(failedLoanIds.slice(i, i + BATCH_SIZE));
       }
 
       // Build OR clause with batched IDs
-      whereAny.OR = batches.map((batch) => ({
+      disbursementOrFilter = batches.map((batch) => ({
         AND: [
           { loanId: { in: batch } },
           { payment: { isNot: null } },
         ],
       }));
     } else if (type === "posted-disbursement-with-repayment") {
+      isDisbursementTypeFilter = true;
       // Find loans with successful/posted external disbursements that have subsequent repayments
       const successfulDisbursements = await prisma.disbursementTransaction.findMany({
         where: {
@@ -121,15 +127,15 @@ export async function GET(request: NextRequest) {
       }
 
       // Batch loanIds to avoid SQL parameter limit (SQL Server has ~2100 parameter limit)
-      // Process in chunks to stay well under the limit
-      const BATCH_SIZE = 500;
+      // Use smaller batch size to account for search parameters
+      const BATCH_SIZE = 200;
       const batches = [];
       for (let i = 0; i < successfulLoanIds.length; i += BATCH_SIZE) {
         batches.push(successfulLoanIds.slice(i, i + BATCH_SIZE));
       }
 
       // Build OR clause with batched IDs
-      whereAny.OR = batches.map((batch) => ({
+      disbursementOrFilter = batches.map((batch) => ({
         AND: [
           { loanId: { in: batch } },
           { payment: { isNot: null } },
@@ -177,7 +183,21 @@ export async function GET(request: NextRequest) {
       }
 
       // Merge with existing WHERE.
-      whereAny.OR = or;
+      if (isDisbursementTypeFilter && disbursementOrFilter) {
+        // Both disbursement filter and search filter exist - need to AND them together
+        whereAny.AND = [
+          { OR: disbursementOrFilter },
+          { OR: or },
+        ];
+      } else {
+        // No disbursement filter, just use search
+        whereAny.OR = or;
+      }
+    }
+
+    // If we have a disbursement filter but no search, apply it now
+    if (isDisbursementTypeFilter && disbursementOrFilter && !search) {
+      whereAny.OR = disbursementOrFilter;
     }
 
     // Get total count for pagination
