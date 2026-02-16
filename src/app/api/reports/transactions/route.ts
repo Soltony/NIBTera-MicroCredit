@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     // Track if we're filtering by disbursement type
     let isDisbursementTypeFilter = false;
-    let disbursementOrFilter: any = null;
+    let disbursementLoanIds: string[] = [];
 
     if (type === "repayment") {
       whereAny.payment = { isNot: null };
@@ -81,32 +81,16 @@ export async function GET(request: NextRequest) {
           disbursementStatus: "FAILED",
           ...(providerId && providerId !== "all" ? { providerId } : {}),
         },
-        select: { loanId: true, createdAt: true },
+        select: { loanId: true },
       });
 
-      const failedLoanIds = failedDisbursements
+      disbursementLoanIds = failedDisbursements
         .filter((d) => d.loanId)
         .map((d) => d.loanId as string);
 
-      if (failedLoanIds.length === 0) {
+      if (disbursementLoanIds.length === 0) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
-
-      // Batch loanIds to avoid SQL parameter limit (SQL Server has ~2100 parameter limit)
-      // Use smaller batch size to account for search parameters
-      const BATCH_SIZE = 200;
-      const batches = [];
-      for (let i = 0; i < failedLoanIds.length; i += BATCH_SIZE) {
-        batches.push(failedLoanIds.slice(i, i + BATCH_SIZE));
-      }
-
-      // Build OR clause with batched IDs
-      disbursementOrFilter = batches.map((batch) => ({
-        AND: [
-          { loanId: { in: batch } },
-          { payment: { isNot: null } },
-        ],
-      }));
     } else if (type === "posted-disbursement-with-repayment") {
       isDisbursementTypeFilter = true;
       // Find loans with successful/posted external disbursements that have subsequent repayments
@@ -115,32 +99,16 @@ export async function GET(request: NextRequest) {
           disbursementStatus: "SUCCESS",
           ...(providerId && providerId !== "all" ? { providerId } : {}),
         },
-        select: { loanId: true, createdAt: true },
+        select: { loanId: true },
       });
 
-      const successfulLoanIds = successfulDisbursements
+      disbursementLoanIds = successfulDisbursements
         .filter((d) => d.loanId)
         .map((d) => d.loanId as string);
 
-      if (successfulLoanIds.length === 0) {
+      if (disbursementLoanIds.length === 0) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
-
-      // Batch loanIds to avoid SQL parameter limit (SQL Server has ~2100 parameter limit)
-      // Use smaller batch size to account for search parameters
-      const BATCH_SIZE = 200;
-      const batches = [];
-      for (let i = 0; i < successfulLoanIds.length; i += BATCH_SIZE) {
-        batches.push(successfulLoanIds.slice(i, i + BATCH_SIZE));
-      }
-
-      // Build OR clause with batched IDs
-      disbursementOrFilter = batches.map((batch) => ({
-        AND: [
-          { loanId: { in: batch } },
-          { payment: { isNot: null } },
-        ],
-      }));
     }
 
     // Server-side search (best-effort):
@@ -183,26 +151,56 @@ export async function GET(request: NextRequest) {
       }
 
       // Merge with existing WHERE.
-      if (isDisbursementTypeFilter && disbursementOrFilter) {
-        // Both disbursement filter and search filter exist - need to AND them together
+      if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
+        // For disbursement filter + search: must satisfy both conditions
         whereAny.AND = [
-          { OR: disbursementOrFilter },
+          { loanId: { in: disbursementLoanIds } },
           { OR: or },
+          { payment: { isNot: null } },
         ];
       } else {
         // No disbursement filter, just use search
         whereAny.OR = or;
       }
+    } else if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
+      // Disbursement filter without search - use simple loanId filter
+      whereAny.loanId = { in: disbursementLoanIds };
+      whereAny.payment = { isNot: null };
     }
 
-    // If we have a disbursement filter but no search, apply it now
-    if (isDisbursementTypeFilter && disbursementOrFilter && !search) {
-      whereAny.OR = disbursementOrFilter;
-    }
+    // For disbursement type filters, calculate total and apply pagination on loanIds
+    let totalCount: number;
+    let totalPages: number;
 
-    // Get total count for pagination
-    const totalCount = await prisma.journalEntry.count({ where: whereAny });
-    const totalPages = Math.ceil(totalCount / pageSize);
+    if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
+      // For disbursement filters: estimate count from loanIds (may be reduced by search)
+      // Do a simpler count query with just the loanId filter
+      totalCount = await prisma.journalEntry.count({
+        where: {
+          loanId: { in: disbursementLoanIds },
+          payment: { isNot: null },
+          ...(search 
+            ? {
+                OR: [
+                  { id: { contains: search } },
+                  { loanId: { contains: search } },
+                  ...(search.length <= 12 
+                    ? [
+                        { loanId: { endsWith: search } },
+                        { id: { endsWith: search } },
+                      ]
+                    : []),
+                ],
+              }
+            : {}),
+        },
+      });
+      totalPages = Math.ceil(totalCount / pageSize);
+    } else {
+      // Regular non-disbursement filters
+      totalCount = await prisma.journalEntry.count({ where: whereAny });
+      totalPages = Math.ceil(totalCount / pageSize);
+    }
 
     const journalEntries = await prisma.journalEntry.findMany({
       where: whereAny,
