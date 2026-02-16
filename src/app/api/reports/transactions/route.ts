@@ -131,42 +131,54 @@ export async function GET(request: NextRequest) {
       }
     } else if (type === "posted-disbursement-with-repayment") {
       isDisbursementTypeFilter = true;
-      // Find loans with posted external disbursements that have subsequent repayments
-      // Best practice: Query disbursements first, then verify they have repayments
-      const postedDisbursements = await prisma.disbursementTransaction.findMany({
+      // Find loans with posted disbursements (disbursement JournalEntries without Payment)
+      // that have subsequent repayments (JournalEntries with Payment)
+      // 
+      // "Posted" loans are loans that have disbursement JournalEntries but may or may not
+      // have DisbursementTransaction records. We need to find loans that:
+      // 1. Have disbursement JournalEntries (payment is null) - these are "posted"
+      // 2. Also have repayment JournalEntries (payment is not null) - these have repayments
+      
+      // Step 1: Find loans that have disbursement journal entries (posted disbursements)
+      const postedDisbursementLoans = await prisma.journalEntry.findMany({
         where: {
-          disbursementStatus: "POSTED",
-          loanId: { not: null }, // Ensure loanId exists
-          ...(providerId && providerId !== "all" && providerId !== "none" ? { providerId } : {}),
+          loanId: { not: null },
+          payment: { is: null }, // Disbursement entries (no payment linked)
+          loan: {
+            repaymentStatus: { not: "REVERSED" }, // Exclude reversed loans
+            ...(providerId && providerId !== "all" && providerId !== "none" 
+              ? { product: { providerId } } 
+              : {}),
+          },
         },
         select: { loanId: true },
       });
 
       // Get unique loanIds using Set
-      const candidateLoanIdsSet = new Set<string>();
-      for (const d of postedDisbursements) {
-        if (d.loanId) {
-          candidateLoanIdsSet.add(d.loanId);
+      const postedLoanIdsSet = new Set<string>();
+      for (const je of postedDisbursementLoans) {
+        if (je.loanId) {
+          postedLoanIdsSet.add(je.loanId);
         }
       }
-      const candidateLoanIds = Array.from(candidateLoanIdsSet);
+      const postedLoanIds = Array.from(postedLoanIdsSet);
 
-      if (candidateLoanIds.length === 0) {
+      if (postedLoanIds.length === 0) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
 
-      // Verify these loans actually have repayments (journal entries with payments)
+      // Step 2: Verify these loans also have repayments (journal entries with payments)
       // This ensures we only include loans that have both posted disbursements AND repayments
       const loansWithRepayments = await prisma.journalEntry.findMany({
         where: {
-          loanId: { in: candidateLoanIds },
+          loanId: { in: postedLoanIds },
           payment: { isNot: null }, // Must have a payment (repayment)
           loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
         },
         select: { loanId: true },
       });
 
-      // Get unique loanIds that have repayments
+      // Get unique loanIds that have both posted disbursements AND repayments
       const repaymentLoanIdsSet = new Set<string>();
       for (const je of loansWithRepayments) {
         if (je.loanId) {
@@ -463,12 +475,10 @@ export async function GET(request: NextRequest) {
     } as any;
 
     // 1) Strong match: load disbursement transactions by loanId (no date limit)
-    // For posted-disbursement-with-repayment filter, prioritize POSTED status
+    // Note: For posted-disbursement-with-repayment filter, loans may not have
+    // DisbursementTransaction records (they're internally posted), so we load all
+    // disbursement transactions for matching purposes but the filter is based on JournalEntries
     const disbursementWhereByLoanId: any = { loanId: { in: loanIds } };
-    if (isDisbursementTypeFilter && type === "posted-disbursement-with-repayment") {
-      // Only load posted disbursements for this filter type
-      disbursementWhereByLoanId.disbursementStatus = "POSTED";
-    }
     
     const disbursementTxsByLoanId = loanIds.length
       ? await prisma.disbursementTransaction.findMany({
@@ -514,7 +524,8 @@ export async function GET(request: NextRequest) {
     const disbursementTxs = Array.from(disbursementTxsMap.values());
 
     // Create map by loanId for direct matching (highest priority)
-    // Best practice: Prefer POSTED status, then records with creditAccount, then most recent
+    // Best practice: Prefer SUCCESS status, then records with creditAccount, then most recent
+    // Note: For posted loans, there may be no DisbursementTransaction record, which is fine
     const disbByLoanId = new Map<string, any>();
     for (const d of disbursementTxs) {
       const loanId = (d as any).loanId;
@@ -525,15 +536,15 @@ export async function GET(request: NextRequest) {
         continue;
       }
       
-      // Priority 1: Prefer POSTED status over other statuses
-      const existingIsPosted = existing.disbursementStatus === "POSTED";
-      const candidateIsPosted = d.disbursementStatus === "POSTED";
-      if (candidateIsPosted && !existingIsPosted) {
+      // Priority 1: Prefer SUCCESS status over other statuses (for external disbursements)
+      const existingIsSuccess = existing.disbursementStatus === "SUCCESS";
+      const candidateIsSuccess = d.disbursementStatus === "SUCCESS";
+      if (candidateIsSuccess && !existingIsSuccess) {
         disbByLoanId.set(loanId, d);
         continue;
       }
-      if (!candidateIsPosted && existingIsPosted) {
-        continue; // Keep existing POSTED record
+      if (!candidateIsSuccess && existingIsSuccess) {
+        continue; // Keep existing SUCCESS record
       }
       
       // Priority 2: Prefer records with creditAccount
