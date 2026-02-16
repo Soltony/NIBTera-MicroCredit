@@ -87,11 +87,21 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
 
-      // Find repayments for loans with failed disbursements
-      whereAny.AND = [
-        { loanId: { in: failedLoanIds } },
-        { payment: { isNot: null } },
-      ];
+      // Batch loanIds to avoid SQL parameter limit (SQL Server has ~2100 parameter limit)
+      // Process in chunks to stay well under the limit
+      const BATCH_SIZE = 500;
+      const batches = [];
+      for (let i = 0; i < failedLoanIds.length; i += BATCH_SIZE) {
+        batches.push(failedLoanIds.slice(i, i + BATCH_SIZE));
+      }
+
+      // Build OR clause with batched IDs
+      whereAny.OR = batches.map((batch) => ({
+        AND: [
+          { loanId: { in: batch } },
+          { payment: { isNot: null } },
+        ],
+      }));
     } else if (type === "posted-disbursement-with-repayment") {
       // Find loans with successful/posted external disbursements that have subsequent repayments
       const successfulDisbursements = await prisma.disbursementTransaction.findMany({
@@ -110,11 +120,21 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
 
-      // Find repayments for loans with successful disbursements
-      whereAny.AND = [
-        { loanId: { in: successfulLoanIds } },
-        { payment: { isNot: null } },
-      ];
+      // Batch loanIds to avoid SQL parameter limit (SQL Server has ~2100 parameter limit)
+      // Process in chunks to stay well under the limit
+      const BATCH_SIZE = 500;
+      const batches = [];
+      for (let i = 0; i < successfulLoanIds.length; i += BATCH_SIZE) {
+        batches.push(successfulLoanIds.slice(i, i + BATCH_SIZE));
+      }
+
+      // Build OR clause with batched IDs
+      whereAny.OR = batches.map((batch) => ({
+        AND: [
+          { loanId: { in: batch } },
+          { payment: { isNot: null } },
+        ],
+      }));
     }
 
     // Server-side search (best-effort):
