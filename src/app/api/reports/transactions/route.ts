@@ -69,6 +69,29 @@ export async function GET(request: NextRequest) {
       whereAny.payment = { isNot: null };
     } else if (type === "disbursement") {
       whereAny.payment = { is: null };
+    } else if (type === "failed-disbursement-with-repayment") {
+      // Find loans with failed external disbursements that have subsequent repayments
+      const failedDisbursements = await prisma.disbursementTransaction.findMany({
+        where: {
+          disbursementStatus: "FAILED",
+          ...(providerId && providerId !== "all" ? { providerId } : {}),
+        },
+        select: { loanId: true, createdAt: true },
+      });
+
+      const failedLoanIds = failedDisbursements
+        .filter((d) => d.loanId)
+        .map((d) => d.loanId as string);
+
+      if (failedLoanIds.length === 0) {
+        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
+      }
+
+      // Find repayments for loans with failed disbursements
+      whereAny.AND = [
+        { loanId: { in: failedLoanIds } },
+        { payment: { isNot: null } },
+      ];
     }
 
     // Server-side search (best-effort):

@@ -93,6 +93,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   const [repaymentsData, setRepaymentsData] = useState<any[]>([]);
   const [repaymentsPagination, setRepaymentsPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
   
+  const [failedDisbursementRepaymentData, setFailedDisbursementRepaymentData] = useState<any[]>([]);
+  const [failedDisbursementRepaymentPagination, setFailedDisbursementRepaymentPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
+  
   const [providerSummaryData, setProviderSummaryData] = useState<
     Record<string, ProviderReportData>
   >({});
@@ -196,6 +199,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     borrowerAging: {
       sortBy: "borrowerId",
       sortDir: "asc",
+      page: 1,
+      pageSize: DEFAULT_PAGE_SIZE,
+    },
+    failedDisbursementRepaymentReport: {
+      sortBy: "transactionDate",
+      sortDir: "desc",
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE,
     },
@@ -333,6 +342,29 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     }
   }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
 
+  const fetchFailedDisbursementRepaymentData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    if (!providerId || providerId === "none") return;
+    try {
+      const url =
+        buildPaginatedUrl(
+          "/api/reports/transactions",
+          providerId,
+          timeframe,
+          dateRange,
+          page,
+          pageSize,
+          debouncedSearch
+        ) + "&type=failed-disbursement-with-repayment";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch data");
+      const result = await response.json();
+      setFailedDisbursementRepaymentData(result.data || []);
+      setFailedDisbursementRepaymentPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
+
   const fetchAllReportData = useCallback(
     async (
       currentProviderId: string,
@@ -380,6 +412,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         const repaymentsPromise = fetchDataForTab(
           buildUrl("/api/reports/transactions") + "&type=repayment"
         );
+        const failedDisbursementRepaymentPromise = fetchDataForTab(
+          buildUrl("/api/reports/transactions") + "&type=failed-disbursement-with-repayment"
+        );
 
         const summaryProviders =
           currentProviderId === "all" &&
@@ -412,12 +447,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           collectionsResult,
           disbursementsResult,
           repaymentsResult,
+          failedDisbursementRepaymentResult,
           ...summaryResults
         ] = await Promise.all([
           loansPromise,
           collectionsPromise,
           disbursementsPromise,
           repaymentsPromise,
+          failedDisbursementRepaymentPromise,
           ...summaryPromises,
         ]);
 
@@ -452,6 +489,14 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           page: repaymentsResult.page || 1, 
           pageSize: repaymentsResult.pageSize || DEFAULT_PAGE_SIZE, 
           totalPages: repaymentsResult.totalPages || 0 
+        });
+
+        setFailedDisbursementRepaymentData(failedDisbursementRepaymentResult.data || []);
+        setFailedDisbursementRepaymentPagination({ 
+          total: failedDisbursementRepaymentResult.total || 0, 
+          page: failedDisbursementRepaymentResult.page || 1, 
+          pageSize: failedDisbursementRepaymentResult.pageSize || DEFAULT_PAGE_SIZE, 
+          totalPages: failedDisbursementRepaymentResult.totalPages || 0 
         });
 
         const newSummaryData = summaryResults.reduce(
@@ -983,6 +1028,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     }),
     [collectionsData, collectionsPagination]
   );
+  const failedDisbursementRepaymentTable = useMemo(
+    () => ({
+      items: failedDisbursementRepaymentData,
+      ...failedDisbursementRepaymentPagination,
+    }),
+    [failedDisbursementRepaymentData, failedDisbursementRepaymentPagination]
+  );
 
   const utilizationTable = useMemo(() => {
     const rows = providers
@@ -1196,6 +1248,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           <TabsTrigger value="providerReport">Provider Loans</TabsTrigger>
           <TabsTrigger value="disbursementsReport">Disbursements</TabsTrigger>
           <TabsTrigger value="repaymentsReport">Repayments</TabsTrigger>
+          <TabsTrigger value="failedDisbursementRepaymentReport">Failed Disbursements with Repayments</TabsTrigger>
           <TabsTrigger value="collectionsReport">Collections</TabsTrigger>
 
           <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
@@ -1683,6 +1736,128 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
               }}
               onPageChange={(page) => fetchRepaymentsData(page, repaymentTable.pageSize)}
               onPageSizeChange={(pageSize) => fetchRepaymentsData(1, pageSize)}
+            />
+          </TabsContent>
+          <TabsContent value="failedDisbursementRepaymentReport">
+            <Table>
+              <TableHeader className="sticky top-0 bg-card z-10">
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => toggleSort("failedDisbursementRepaymentReport", "transactionDate")}
+                      className="flex items-center"
+                    >
+                      Repayment Date{renderSortIcon("failedDisbursementRepaymentReport", "transactionDate")}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => toggleSort("failedDisbursementRepaymentReport", "loanId")}
+                      className="flex items-center"
+                    >
+                      Loan ID{renderSortIcon("failedDisbursementRepaymentReport", "loanId")}
+                    </button>
+                  </TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Account Number</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">
+                    <button
+                      onClick={() => toggleSort("failedDisbursementRepaymentReport", "principalDisbursed")}
+                      className="flex items-center ml-auto"
+                    >
+                      Principal Paid{renderSortIcon("failedDisbursementRepaymentReport", "principalDisbursed")}
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-right">Interest Paid</TableHead>
+                  <TableHead className="text-right">Service Fee Paid</TableHead>
+                  <TableHead className="text-right">Penalty Paid</TableHead>
+                  <TableHead className="text-right">Total Paid</TableHead>
+                  <TableHead>Loan Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="h-24 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : failedDisbursementRepaymentTable.items.length > 0 ? (
+                  failedDisbursementRepaymentTable.items.map((row: any) => (
+                    <TableRow key={row.reference || row.loanId}>
+                      <TableCell>{row.provider}</TableCell>
+                      <TableCell>
+                        {row.transactionDate
+                          ? format(
+                              new Date(row.transactionDate),
+                              "yyyy-MM-dd"
+                            )
+                          : ""}
+                      </TableCell>
+                      <TableCell>{row.loanId?.slice(-8)}</TableCell>
+                      <TableCell>
+                        {row.customerName ||
+                          row.borrowerName ||
+                          row.borrowerAccount ||
+                          row.borrowerId ||
+                          ""}
+                      </TableCell>
+                      <TableCell className="font-mono">
+                        {row.borrowerAccount || row.creditAccount}
+                      </TableCell>
+                      <TableCell>{row.productType}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(row.principalPaid)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(row.interestPaid)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(row.serviceFeePaid)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(row.penaltyPaid)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold">
+                        {formatCurrency(row.totalPaid)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            row.status === "Overdue" ||
+                            row.status === "Defaulted"
+                              ? "destructive"
+                              : row.status === "Paid"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {row.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={11} className="h-24 text-center">
+                      No borrowers found with failed disbursements that made repayments.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            <PaginationControls
+              tab="failedDisbursementRepaymentReport"
+              meta={{
+                total: failedDisbursementRepaymentTable.total,
+                totalPages: failedDisbursementRepaymentTable.totalPages,
+                page: failedDisbursementRepaymentTable.page,
+                pageSize: failedDisbursementRepaymentTable.pageSize,
+              }}
+              onPageChange={(page) => fetchFailedDisbursementRepaymentData(page, failedDisbursementRepaymentTable.pageSize)}
+              onPageSizeChange={(pageSize) => fetchFailedDisbursementRepaymentData(1, pageSize)}
             />
           </TabsContent>
           <TabsContent value="collectionsReport">
