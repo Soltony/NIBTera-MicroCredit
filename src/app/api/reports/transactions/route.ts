@@ -131,18 +131,49 @@ export async function GET(request: NextRequest) {
       }
     } else if (type === "posted-disbursement-with-repayment") {
       isDisbursementTypeFilter = true;
-      // Find loans with successful/posted external disbursements that have subsequent repayments
-      const successfulDisbursements = await prisma.disbursementTransaction.findMany({
+      // Find loans with posted external disbursements that have subsequent repayments
+      // Best practice: Query disbursements first, then verify they have repayments
+      const postedDisbursements = await prisma.disbursementTransaction.findMany({
         where: {
-          disbursementStatus: "SUCCESS",
-          ...(providerId && providerId !== "all" ? { providerId } : {}),
+          disbursementStatus: "POSTED",
+          loanId: { not: null }, // Ensure loanId exists
+          ...(providerId && providerId !== "all" && providerId !== "none" ? { providerId } : {}),
         },
         select: { loanId: true },
       });
 
-      disbursementLoanIds = successfulDisbursements
-        .filter((d) => d.loanId)
-        .map((d) => d.loanId as string);
+      // Get unique loanIds using Set
+      const candidateLoanIdsSet = new Set<string>();
+      for (const d of postedDisbursements) {
+        if (d.loanId) {
+          candidateLoanIdsSet.add(d.loanId);
+        }
+      }
+      const candidateLoanIds = Array.from(candidateLoanIdsSet);
+
+      if (candidateLoanIds.length === 0) {
+        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
+      }
+
+      // Verify these loans actually have repayments (journal entries with payments)
+      // This ensures we only include loans that have both posted disbursements AND repayments
+      const loansWithRepayments = await prisma.journalEntry.findMany({
+        where: {
+          loanId: { in: candidateLoanIds },
+          payment: { isNot: null }, // Must have a payment (repayment)
+          loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
+        },
+        select: { loanId: true },
+      });
+
+      // Get unique loanIds that have repayments
+      const repaymentLoanIdsSet = new Set<string>();
+      for (const je of loansWithRepayments) {
+        if (je.loanId) {
+          repaymentLoanIdsSet.add(je.loanId);
+        }
+      }
+      disbursementLoanIds = Array.from(repaymentLoanIdsSet);
 
       if (disbursementLoanIds.length === 0) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
@@ -432,10 +463,18 @@ export async function GET(request: NextRequest) {
     } as any;
 
     // 1) Strong match: load disbursement transactions by loanId (no date limit)
+    // For posted-disbursement-with-repayment filter, prioritize POSTED status
+    const disbursementWhereByLoanId: any = { loanId: { in: loanIds } };
+    if (isDisbursementTypeFilter && type === "posted-disbursement-with-repayment") {
+      // Only load posted disbursements for this filter type
+      disbursementWhereByLoanId.disbursementStatus = "POSTED";
+    }
+    
     const disbursementTxsByLoanId = loanIds.length
       ? await prisma.disbursementTransaction.findMany({
-          where: { loanId: { in: loanIds } },
+          where: disbursementWhereByLoanId,
           select: disbursementSelect,
+          orderBy: { createdAt: "desc" }, // Prefer most recent disbursement per loan
         })
       : [];
 
@@ -475,6 +514,7 @@ export async function GET(request: NextRequest) {
     const disbursementTxs = Array.from(disbursementTxsMap.values());
 
     // Create map by loanId for direct matching (highest priority)
+    // Best practice: Prefer POSTED status, then records with creditAccount, then most recent
     const disbByLoanId = new Map<string, any>();
     for (const d of disbursementTxs) {
       const loanId = (d as any).loanId;
@@ -484,15 +524,33 @@ export async function GET(request: NextRequest) {
         disbByLoanId.set(loanId, d);
         continue;
       }
+      
+      // Priority 1: Prefer POSTED status over other statuses
+      const existingIsPosted = existing.disbursementStatus === "POSTED";
+      const candidateIsPosted = d.disbursementStatus === "POSTED";
+      if (candidateIsPosted && !existingIsPosted) {
+        disbByLoanId.set(loanId, d);
+        continue;
+      }
+      if (!candidateIsPosted && existingIsPosted) {
+        continue; // Keep existing POSTED record
+      }
+      
+      // Priority 2: Prefer records with creditAccount
       const existingHasAccount = Boolean(existing.creditAccount);
       const candidateHasAccount = Boolean(d.creditAccount);
-      const existingTime = new Date(existing.createdAt || 0).getTime();
-      const candidateTime = new Date(d.createdAt || 0).getTime();
-
-      // Prefer records with creditAccount; otherwise prefer the most recent
       if (candidateHasAccount && !existingHasAccount) {
         disbByLoanId.set(loanId, d);
-      } else if (candidateHasAccount === existingHasAccount && candidateTime > existingTime) {
+        continue;
+      }
+      if (!candidateHasAccount && existingHasAccount) {
+        continue; // Keep existing record with account
+      }
+      
+      // Priority 3: Prefer the most recent
+      const existingTime = new Date(existing.createdAt || 0).getTime();
+      const candidateTime = new Date(d.createdAt || 0).getTime();
+      if (candidateTime > existingTime) {
         disbByLoanId.set(loanId, d);
       }
     }
