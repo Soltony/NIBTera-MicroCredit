@@ -152,14 +152,24 @@ export async function GET(request: NextRequest) {
 
       // Merge with existing WHERE.
       if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
-        // For disbursement filter + search: must satisfy both conditions
+        // For disbursement filter + search: restrict to simple ID/loanId matching only
+        // Avoid phoneAccount lookup to prevent parameter explosion
+        const simpleSearchOr: any[] = [
+          { id: { contains: search } },
+          { loanId: { contains: search } },
+        ];
+        if (search.length <= 12) {
+          simpleSearchOr.push({ loanId: { endsWith: search } });
+          simpleSearchOr.push({ id: { endsWith: search } });
+        }
+        
         whereAny.AND = [
           { loanId: { in: disbursementLoanIds } },
-          { OR: or },
+          { OR: simpleSearchOr },
           { payment: { isNot: null } },
         ];
       } else {
-        // No disbursement filter, just use search
+        // No disbursement filter, use full search including phoneAccount
         whereAny.OR = or;
       }
     } else if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
@@ -173,26 +183,12 @@ export async function GET(request: NextRequest) {
     let totalPages: number;
 
     if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
-      // For disbursement filters: estimate count from loanIds (may be reduced by search)
-      // Do a simpler count query with just the loanId filter
+      // For disbursement filters: use ONLY the loanId filter for counting
+      // Bypass any complex search conditions to avoid parameter limit
       totalCount = await prisma.journalEntry.count({
         where: {
           loanId: { in: disbursementLoanIds },
           payment: { isNot: null },
-          ...(search 
-            ? {
-                OR: [
-                  { id: { contains: search } },
-                  { loanId: { contains: search } },
-                  ...(search.length <= 12 
-                    ? [
-                        { loanId: { endsWith: search } },
-                        { id: { endsWith: search } },
-                      ]
-                    : []),
-                ],
-              }
-            : {}),
         },
       });
       totalPages = Math.ceil(totalCount / pageSize);
