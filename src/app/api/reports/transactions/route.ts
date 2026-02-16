@@ -253,28 +253,141 @@ export async function GET(request: NextRequest) {
       totalPages = Math.ceil(totalCount / pageSize);
     }
 
-    const journalEntries = await prisma.journalEntry.findMany({
-      where: whereAny,
-      include: {
-        loan: {
+    // For large disbursementLoanIds arrays, we need to batch the findMany query
+    let journalEntries: any[];
+    if (isDisbursementTypeFilter && disbursementLoanIds.length > MAX_IN_CLAUSE_SIZE) {
+      // Batch the findMany query for large arrays
+      const allEntries: any[] = [];
+      
+      // Extract search OR conditions if they exist
+      let searchOrConditions: any[] | undefined;
+      if (search) {
+        searchOrConditions = [
+          { id: { contains: search } },
+          { loanId: { contains: search } },
+        ];
+        if (search.length <= 12) {
+          searchOrConditions.push({ loanId: { endsWith: search } });
+          searchOrConditions.push({ id: { endsWith: search } });
+        }
+      }
+      
+      // Build base where clause without the loanId filter
+      const baseWhere: any = JSON.parse(JSON.stringify(whereAny)); // Deep clone
+      
+      // Check if payment filter exists (it should for disbursement type filters)
+      const hasPaymentFilter = baseWhere.payment || 
+        (baseWhere.AND && baseWhere.AND.some((c: any) => c.payment));
+      
+      // Remove loanId filter from baseWhere
+      if (baseWhere.AND) {
+        baseWhere.AND = baseWhere.AND.filter((cond: any) => {
+          if (cond.loanId) return false;
+          if (cond.OR && Array.isArray(cond.OR)) {
+            const hasLoanId = cond.OR.some((orCond: any) => orCond.loanId);
+            return !hasLoanId;
+          }
+          return true;
+        });
+        // If AND becomes empty, remove it
+        if (baseWhere.AND.length === 0) {
+          delete baseWhere.AND;
+        }
+      }
+      if (baseWhere.loanId) {
+        delete baseWhere.loanId;
+      }
+      if (baseWhere.OR && Array.isArray(baseWhere.OR)) {
+        // Remove loanId conditions from OR
+        baseWhere.OR = baseWhere.OR.filter((cond: any) => !cond.loanId);
+        if (baseWhere.OR.length === 0) {
+          delete baseWhere.OR;
+        }
+      }
+      
+      // Process each batch
+      for (let i = 0; i < disbursementLoanIds.length; i += MAX_IN_CLAUSE_SIZE) {
+        const batch = disbursementLoanIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
+        const batchWhere: any = JSON.parse(JSON.stringify(baseWhere)); // Deep clone
+        
+        // Build AND conditions for this batch
+        const batchAndConditions: any[] = [
+          { loanId: { in: batch } },
+        ];
+        
+        // Add search conditions if they exist
+        if (searchOrConditions) {
+          batchAndConditions.push({ OR: searchOrConditions });
+        }
+        
+        // Add payment filter if it doesn't already exist
+        if (!hasPaymentFilter) {
+          batchAndConditions.push({ payment: { isNot: null } });
+        }
+        
+        // Merge with existing AND conditions
+        if (batchWhere.AND && batchWhere.AND.length > 0) {
+          batchWhere.AND = [...batchWhere.AND, ...batchAndConditions];
+        } else {
+          batchWhere.AND = batchAndConditions;
+        }
+        
+        const batchEntries = await prisma.journalEntry.findMany({
+          where: batchWhere,
           include: {
-            product: {
-              include: { provider: { include: { ledgerAccounts: true } } },
-            },
-            borrower: {
+            loan: {
               include: {
-                provisionedData: { orderBy: { createdAt: "desc" }, take: 1 },
+                product: {
+                  include: { provider: { include: { ledgerAccounts: true } } },
+                },
+                borrower: {
+                  include: {
+                    provisionedData: { orderBy: { createdAt: "desc" }, take: 1 },
+                  },
+                },
+              },
+            },
+            entries: { include: { ledgerAccount: true } },
+            payment: true,
+          },
+          orderBy: { date: "desc" },
+        });
+        allEntries.push(...batchEntries);
+      }
+      
+      // Sort all entries by date descending and apply pagination
+      allEntries.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA;
+      });
+      
+      journalEntries = allEntries.slice(skip, skip + pageSize);
+    } else {
+      // Normal query for small arrays or non-disbursement filters
+      journalEntries = await prisma.journalEntry.findMany({
+        where: whereAny,
+        include: {
+          loan: {
+            include: {
+              product: {
+                include: { provider: { include: { ledgerAccounts: true } } },
+              },
+              borrower: {
+                include: {
+                  provisionedData: { orderBy: { createdAt: "desc" }, take: 1 },
+                },
               },
             },
           },
+          entries: { include: { ledgerAccount: true } },
+          payment: true,
         },
-        entries: { include: { ledgerAccount: true } },
-        payment: true,
-      },
-      orderBy: { date: "desc" },
-      skip,
-      take: pageSize,
-    });
+        orderBy: { date: "desc" },
+        skip,
+        take: pageSize,
+      });
+    }
 
     const borrowerIds = Array.from(
       new Set(
