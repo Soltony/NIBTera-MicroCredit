@@ -130,90 +130,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
     } else if (type === "posted-disbursement-with-repayment") {
-      isDisbursementTypeFilter = true;
-      // Find loans with posted disbursements (disbursement JournalEntries without Payment)
-      // that have subsequent repayments (JournalEntries with Payment)
-      // 
-      // "Posted" loans are loans that have disbursement JournalEntries but may or may not
-      // have DisbursementTransaction records. We need to find loans that:
-      // 1. Have disbursement JournalEntries (payment is null) - these are "posted"
-      // 2. Also have repayment JournalEntries (payment is not null) - these have repayments
-      
-      // Step 1: Find loans that have disbursement journal entries (posted disbursements)
-      const postedDisbursementLoans = await prisma.journalEntry.findMany({
-        where: {
-          loanId: { not: null },
-          payment: { is: null }, // Disbursement entries (no payment linked)
-          loan: {
-            repaymentStatus: { not: "REVERSED" }, // Exclude reversed loans
-            ...(providerId && providerId !== "all" && providerId !== "none" 
-              ? { product: { providerId } } 
-              : {}),
-          },
-        },
-        select: { loanId: true },
-      });
-
-      // Get unique loanIds using Set
-      const postedLoanIdsSet = new Set<string>();
-      for (const je of postedDisbursementLoans) {
-        if (je.loanId) {
-          postedLoanIdsSet.add(je.loanId);
-        }
-      }
-      const postedLoanIds = Array.from(postedLoanIdsSet);
-
-      if (postedLoanIds.length === 0) {
-        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
-      }
-
-      // Step 2: Verify these loans also have repayments (journal entries with payments)
-      // This ensures we only include loans that have both posted disbursements AND repayments
-      // Batch the query to avoid SQL Server's 2100 parameter limit
-      const repaymentLoanIdsSet = new Set<string>();
-      
-      if (postedLoanIds.length > MAX_IN_CLAUSE_SIZE) {
-        // Batch the query for large arrays
-        for (let i = 0; i < postedLoanIds.length; i += MAX_IN_CLAUSE_SIZE) {
-          const batch = postedLoanIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
-          const batchRepayments = await prisma.journalEntry.findMany({
-            where: {
-              loanId: { in: batch },
-              payment: { isNot: null }, // Must have a payment (repayment)
-              loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
-            },
-            select: { loanId: true },
-          });
-          
-          for (const je of batchRepayments) {
-            if (je.loanId) {
-              repaymentLoanIdsSet.add(je.loanId);
-            }
-          }
-        }
-      } else {
-        // Single query for small arrays
-        const loansWithRepayments = await prisma.journalEntry.findMany({
-          where: {
-            loanId: { in: postedLoanIds },
-            payment: { isNot: null }, // Must have a payment (repayment)
-            loan: { repaymentStatus: { not: "REVERSED" } }, // Exclude reversed loans
-          },
-          select: { loanId: true },
-        });
-        
-        for (const je of loansWithRepayments) {
-          if (je.loanId) {
-            repaymentLoanIdsSet.add(je.loanId);
-          }
-        }
-      }
-      
-      disbursementLoanIds = Array.from(repaymentLoanIdsSet);
-
-      if (disbursementLoanIds.length === 0) {
-        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
-      }
+      // IMPORTANT: In this codebase, "POSTED" (as seen on the Reversals page) means
+      // an internally-posted loan with NO DisbursementTransaction record:
+      //   Loan.disbursementTransactions: none
+      //
+      // This report filter should therefore return ONLY repayment JournalEntries
+      // whose parent loan is "posted-only" (no external disbursement transaction).
+      //
+      // This avoids building massive `loanId IN (...)` lists (SQL Server 2100 param limit)
+      // and matches the business meaning used by the reversals workflow.
+      whereAny.payment = { isNot: null };
+      whereAny.loan = {
+        ...(whereAny.loan || {}),
+        disbursementTransactions: { none: {} },
+        // Ensure the loan actually has a posted disbursement JE (ledger posted)
+        journalEntries: { some: { payment: { is: null } } },
+      };
     }
 
     // Server-side search (best-effort):
