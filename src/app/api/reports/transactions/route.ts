@@ -6,6 +6,44 @@ import { getUserFromSession } from "@/lib/user";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
+// SQL Server has a limit of 2100 parameters, so we use 2000 to be safe
+const MAX_IN_CLAUSE_SIZE = 2000;
+
+// Helper function to batch array operations that exceed SQL Server parameter limits
+async function batchCount<T>(
+  items: T[],
+  batchSize: number,
+  countFn: (batch: T[]) => Promise<number>
+): Promise<number> {
+  if (items.length === 0) return 0;
+  if (items.length <= batchSize) {
+    return await countFn(items);
+  }
+  
+  let total = 0;
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    total += await countFn(batch);
+  }
+  return total;
+}
+
+// Helper function to build loanId filter that handles SQL Server's parameter limit
+function buildLoanIdFilter(loanIds: string[]): any {
+  if (loanIds.length === 0) {
+    return { loanId: { in: [] } };
+  }
+  if (loanIds.length <= MAX_IN_CLAUSE_SIZE) {
+    return { loanId: { in: loanIds } };
+  }
+  // For large arrays, use OR with multiple IN clauses
+  const conditions: any[] = [];
+  for (let i = 0; i < loanIds.length; i += MAX_IN_CLAUSE_SIZE) {
+    const batch = loanIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
+    conditions.push({ loanId: { in: batch } });
+  }
+  return { OR: conditions };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -92,23 +130,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
       }
     } else if (type === "posted-disbursement-with-repayment") {
-      isDisbursementTypeFilter = true;
-      // Find loans with successful/posted external disbursements that have subsequent repayments
-      const successfulDisbursements = await prisma.disbursementTransaction.findMany({
-        where: {
-          disbursementStatus: "SUCCESS",
-          ...(providerId && providerId !== "all" ? { providerId } : {}),
-        },
-        select: { loanId: true },
-      });
-
-      disbursementLoanIds = successfulDisbursements
-        .filter((d) => d.loanId)
-        .map((d) => d.loanId as string);
-
-      if (disbursementLoanIds.length === 0) {
-        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, totalPages: 0 });
-      }
+      // IMPORTANT: In this codebase, "POSTED" (as seen on the Reversals page) means
+      // an internally-posted loan with NO DisbursementTransaction record:
+      //   Loan.disbursementTransactions: none
+      //
+      // This report filter should therefore return ONLY repayment JournalEntries
+      // whose parent loan is "posted-only" (no external disbursement transaction).
+      //
+      // This avoids building massive `loanId IN (...)` lists (SQL Server 2100 param limit)
+      // and matches the business meaning used by the reversals workflow.
+      whereAny.payment = { isNot: null };
+      whereAny.loan = {
+        ...(whereAny.loan || {}),
+        disbursementTransactions: { none: {} },
+        // Ensure the loan actually has a posted disbursement JE (ledger posted)
+        journalEntries: { some: { payment: { is: null } } },
+      };
     }
 
     // Server-side search (best-effort):
@@ -164,8 +201,8 @@ export async function GET(request: NextRequest) {
         }
         
         whereAny.AND = [
-          { loanId: { in: disbursementLoanIds } },
-          { OR: simpleSearchOr },
+          buildLoanIdFilter(disbursementLoanIds),
+          { OR: or },
           { payment: { isNot: null } },
         ];
       } else {
@@ -174,8 +211,15 @@ export async function GET(request: NextRequest) {
       }
     } else if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
       // Disbursement filter without search - use simple loanId filter
-      whereAny.loanId = { in: disbursementLoanIds };
-      whereAny.payment = { isNot: null };
+      const loanIdFilter = buildLoanIdFilter(disbursementLoanIds);
+      // If the filter uses OR (large array), wrap it in AND to avoid conflicts
+      if (loanIdFilter.OR) {
+        whereAny.AND = [loanIdFilter, { payment: { isNot: null } }];
+      } else {
+        // Small array - can use direct assignment
+        whereAny.loanId = loanIdFilter.loanId;
+        whereAny.payment = { isNot: null };
+      }
     }
 
     // For disbursement type filters, calculate total and apply pagination on loanIds
@@ -183,14 +227,34 @@ export async function GET(request: NextRequest) {
     let totalPages: number;
 
     if (isDisbursementTypeFilter && disbursementLoanIds.length > 0) {
-      // For disbursement filters: use ONLY the loanId filter for counting
-      // Bypass any complex search conditions to avoid parameter limit
-      totalCount = await prisma.journalEntry.count({
-        where: {
-          loanId: { in: disbursementLoanIds },
-          payment: { isNot: null },
-        },
-      });
+      // For disbursement filters: estimate count from loanIds (may be reduced by search)
+      // Batch the count query to avoid SQL Server's 2100 parameter limit
+      totalCount = await batchCount(
+        disbursementLoanIds,
+        MAX_IN_CLAUSE_SIZE,
+        async (batch) => {
+          return await prisma.journalEntry.count({
+            where: {
+              loanId: { in: batch },
+              payment: { isNot: null },
+              ...(search 
+                ? {
+                    OR: [
+                      { id: { contains: search } },
+                      { loanId: { contains: search } },
+                      ...(search.length <= 12 
+                        ? [
+                            { loanId: { endsWith: search } },
+                            { id: { endsWith: search } },
+                          ]
+                        : []),
+                    ],
+                  }
+                : {}),
+            },
+          });
+        }
+      );
       totalPages = Math.ceil(totalCount / pageSize);
     } else {
       // Regular non-disbursement filters
@@ -198,28 +262,141 @@ export async function GET(request: NextRequest) {
       totalPages = Math.ceil(totalCount / pageSize);
     }
 
-    const journalEntries = await prisma.journalEntry.findMany({
-      where: whereAny,
-      include: {
-        loan: {
+    // For large disbursementLoanIds arrays, we need to batch the findMany query
+    let journalEntries: any[];
+    if (isDisbursementTypeFilter && disbursementLoanIds.length > MAX_IN_CLAUSE_SIZE) {
+      // Batch the findMany query for large arrays
+      const allEntries: any[] = [];
+      
+      // Extract search OR conditions if they exist
+      let searchOrConditions: any[] | undefined;
+      if (search) {
+        searchOrConditions = [
+          { id: { contains: search } },
+          { loanId: { contains: search } },
+        ];
+        if (search.length <= 12) {
+          searchOrConditions.push({ loanId: { endsWith: search } });
+          searchOrConditions.push({ id: { endsWith: search } });
+        }
+      }
+      
+      // Build base where clause without the loanId filter
+      const baseWhere: any = JSON.parse(JSON.stringify(whereAny)); // Deep clone
+      
+      // Check if payment filter exists (it should for disbursement type filters)
+      const hasPaymentFilter = baseWhere.payment || 
+        (baseWhere.AND && baseWhere.AND.some((c: any) => c.payment));
+      
+      // Remove loanId filter from baseWhere
+      if (baseWhere.AND) {
+        baseWhere.AND = baseWhere.AND.filter((cond: any) => {
+          if (cond.loanId) return false;
+          if (cond.OR && Array.isArray(cond.OR)) {
+            const hasLoanId = cond.OR.some((orCond: any) => orCond.loanId);
+            return !hasLoanId;
+          }
+          return true;
+        });
+        // If AND becomes empty, remove it
+        if (baseWhere.AND.length === 0) {
+          delete baseWhere.AND;
+        }
+      }
+      if (baseWhere.loanId) {
+        delete baseWhere.loanId;
+      }
+      if (baseWhere.OR && Array.isArray(baseWhere.OR)) {
+        // Remove loanId conditions from OR
+        baseWhere.OR = baseWhere.OR.filter((cond: any) => !cond.loanId);
+        if (baseWhere.OR.length === 0) {
+          delete baseWhere.OR;
+        }
+      }
+      
+      // Process each batch
+      for (let i = 0; i < disbursementLoanIds.length; i += MAX_IN_CLAUSE_SIZE) {
+        const batch = disbursementLoanIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
+        const batchWhere: any = JSON.parse(JSON.stringify(baseWhere)); // Deep clone
+        
+        // Build AND conditions for this batch
+        const batchAndConditions: any[] = [
+          { loanId: { in: batch } },
+        ];
+        
+        // Add search conditions if they exist
+        if (searchOrConditions) {
+          batchAndConditions.push({ OR: searchOrConditions });
+        }
+        
+        // Add payment filter if it doesn't already exist
+        if (!hasPaymentFilter) {
+          batchAndConditions.push({ payment: { isNot: null } });
+        }
+        
+        // Merge with existing AND conditions
+        if (batchWhere.AND && batchWhere.AND.length > 0) {
+          batchWhere.AND = [...batchWhere.AND, ...batchAndConditions];
+        } else {
+          batchWhere.AND = batchAndConditions;
+        }
+        
+        const batchEntries = await prisma.journalEntry.findMany({
+          where: batchWhere,
           include: {
-            product: {
-              include: { provider: { include: { ledgerAccounts: true } } },
-            },
-            borrower: {
+            loan: {
               include: {
-                provisionedData: { orderBy: { createdAt: "desc" }, take: 1 },
+                product: {
+                  include: { provider: { include: { ledgerAccounts: true } } },
+                },
+                borrower: {
+                  include: {
+                    provisionedData: { orderBy: { createdAt: "desc" }, take: 1 },
+                  },
+                },
+              },
+            },
+            entries: { include: { ledgerAccount: true } },
+            payment: true,
+          },
+          orderBy: { date: "desc" },
+        });
+        allEntries.push(...batchEntries);
+      }
+      
+      // Sort all entries by date descending and apply pagination
+      allEntries.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA;
+      });
+      
+      journalEntries = allEntries.slice(skip, skip + pageSize);
+    } else {
+      // Normal query for small arrays or non-disbursement filters
+      journalEntries = await prisma.journalEntry.findMany({
+        where: whereAny,
+        include: {
+          loan: {
+            include: {
+              product: {
+                include: { provider: { include: { ledgerAccounts: true } } },
+              },
+              borrower: {
+                include: {
+                  provisionedData: { orderBy: { createdAt: "desc" }, take: 1 },
+                },
               },
             },
           },
+          entries: { include: { ledgerAccount: true } },
+          payment: true,
         },
-        entries: { include: { ledgerAccount: true } },
-        payment: true,
-      },
-      orderBy: { date: "desc" },
-      skip,
-      take: pageSize,
-    });
+        orderBy: { date: "desc" },
+        skip,
+        take: pageSize,
+      });
+    }
 
     const borrowerIds = Array.from(
       new Set(
@@ -264,10 +441,16 @@ export async function GET(request: NextRequest) {
     } as any;
 
     // 1) Strong match: load disbursement transactions by loanId (no date limit)
+    // Note: For posted-disbursement-with-repayment filter, loans may not have
+    // DisbursementTransaction records (they're internally posted), so we load all
+    // disbursement transactions for matching purposes but the filter is based on JournalEntries
+    const disbursementWhereByLoanId: any = { loanId: { in: loanIds } };
+    
     const disbursementTxsByLoanId = loanIds.length
       ? await prisma.disbursementTransaction.findMany({
-          where: { loanId: { in: loanIds } },
+          where: disbursementWhereByLoanId,
           select: disbursementSelect,
+          orderBy: { createdAt: "desc" }, // Prefer most recent disbursement per loan
         })
       : [];
 
@@ -307,6 +490,8 @@ export async function GET(request: NextRequest) {
     const disbursementTxs = Array.from(disbursementTxsMap.values());
 
     // Create map by loanId for direct matching (highest priority)
+    // Best practice: Prefer SUCCESS status, then records with creditAccount, then most recent
+    // Note: For posted loans, there may be no DisbursementTransaction record, which is fine
     const disbByLoanId = new Map<string, any>();
     for (const d of disbursementTxs) {
       const loanId = (d as any).loanId;
@@ -316,15 +501,33 @@ export async function GET(request: NextRequest) {
         disbByLoanId.set(loanId, d);
         continue;
       }
+      
+      // Priority 1: Prefer SUCCESS status over other statuses (for external disbursements)
+      const existingIsSuccess = existing.disbursementStatus === "SUCCESS";
+      const candidateIsSuccess = d.disbursementStatus === "SUCCESS";
+      if (candidateIsSuccess && !existingIsSuccess) {
+        disbByLoanId.set(loanId, d);
+        continue;
+      }
+      if (!candidateIsSuccess && existingIsSuccess) {
+        continue; // Keep existing SUCCESS record
+      }
+      
+      // Priority 2: Prefer records with creditAccount
       const existingHasAccount = Boolean(existing.creditAccount);
       const candidateHasAccount = Boolean(d.creditAccount);
-      const existingTime = new Date(existing.createdAt || 0).getTime();
-      const candidateTime = new Date(d.createdAt || 0).getTime();
-
-      // Prefer records with creditAccount; otherwise prefer the most recent
       if (candidateHasAccount && !existingHasAccount) {
         disbByLoanId.set(loanId, d);
-      } else if (candidateHasAccount === existingHasAccount && candidateTime > existingTime) {
+        continue;
+      }
+      if (!candidateHasAccount && existingHasAccount) {
+        continue; // Keep existing record with account
+      }
+      
+      // Priority 3: Prefer the most recent
+      const existingTime = new Date(existing.createdAt || 0).getTime();
+      const candidateTime = new Date(d.createdAt || 0).getTime();
+      if (candidateTime > existingTime) {
         disbByLoanId.set(loanId, d);
       }
     }
