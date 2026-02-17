@@ -615,8 +615,9 @@ async function applyChange(
         const loan = await prisma.loan.findUnique({
           where: { id: loanId },
           include: {
-            payments: { select: { id: true } },
-            pendingPayments: { select: { id: true, status: true } },
+            payments: { select: { id: true, amount: true, date: true, installmentId: true, journalEntryId: true } },
+            pendingPayments: { select: { id: true, status: true, amount: true } },
+            installments: { select: { id: true, installmentNumber: true, amount: true, paidAmount: true, status: true } },
             product: {
               include: { provider: { include: { ledgerAccounts: true } } },
             },
@@ -626,19 +627,23 @@ async function applyChange(
 
         if (!loan) throw new Error("Loan not found for reversal");
 
-        // Only block reversal if there are actual completed payments
-        // PENDING or FAILED payment attempts should not block reversal
+        // Collect repayment activity info for the reversal details
         const completedPendingPayments = (loan.pendingPayments || []).filter(
           (pp: { status: string }) => pp.status === 'COMPLETED'
         );
-        if (
+        const hasPaymentActivity =
           (loan.payments?.length ?? 0) > 0 ||
-          completedPendingPayments.length > 0
-        ) {
-          throw new Error(
-            "Loan already has payment activity; reversal is blocked."
-          );
-        }
+          completedPendingPayments.length > 0;
+
+        // Capture payment details before reversal for audit trail
+        const reversedPayments = (loan.payments || []).map((p: any) => ({
+          id: p.id,
+          amount: p.amount,
+          date: p.date?.toISOString?.() ?? p.date,
+          installmentId: p.installmentId,
+          journalEntryId: p.journalEntryId,
+        }));
+        const totalRepaidAmount = reversedPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
         const disbJournalEntries = (loan.journalEntries || []).filter((j) =>
           String(j.description || "")
@@ -712,6 +717,64 @@ async function applyChange(
             }
           }
 
+          // If there are payments, reverse their journal entries too
+          if (hasPaymentActivity) {
+            // Find and reverse all payment-related journal entries
+            const paymentJournalEntries = (loan.journalEntries || []).filter(
+              (j) => {
+                const d = String(j.description || "").toLowerCase();
+                return d.includes("repayment") || d.includes("payment");
+              }
+            );
+
+            if (paymentJournalEntries.length > 0) {
+              const paymentReversalJe = await db.journalEntry.create({
+                data: {
+                  providerId: provider.id,
+                  loanId: loan.id,
+                  date: new Date(),
+                  description: `Reversal of payments: loan ${loan.id}`,
+                },
+              });
+
+              for (const je of paymentJournalEntries) {
+                for (const e of je.entries) {
+                  const reverseType = e.type === "Debit" ? "Credit" : "Debit";
+                  await db.ledgerEntry.create({
+                    data: {
+                      journalEntryId: paymentReversalJe.id,
+                      ledgerAccountId: e.ledgerAccountId,
+                      type: reverseType,
+                      amount: e.amount,
+                    },
+                  });
+
+                  const delta = e.type === "Debit" ? -e.amount : e.amount;
+                  await db.ledgerAccount.update({
+                    where: { id: e.ledgerAccountId },
+                    data: { balance: { increment: delta } },
+                  });
+                }
+              }
+            }
+
+            // Delete all payment records for this loan
+            await db.payment.deleteMany({
+              where: { loanId: loan.id },
+            });
+
+            // Delete completed pending payments
+            await db.pendingPayment.deleteMany({
+              where: { loanId: loan.id },
+            });
+
+            // Reset installment paid amounts
+            await db.loanInstallment.updateMany({
+              where: { loanId: loan.id },
+              data: { paidAmount: 0, paidAt: null, status: "PENDING", isActive: false },
+            });
+          }
+
           // Restore provider balance
           await db.loanProvider.update({
             where: { id: provider.id },
@@ -759,6 +822,16 @@ async function applyChange(
             providerId: provider.id,
             amount: loan.loanAmount,
             isPosted: true,
+            hasPaymentActivity,
+            totalRepaidAmount,
+            reversedPayments,
+            reversedInstallments: (loan.installments || []).map((i: any) => ({
+              id: i.id,
+              installmentNumber: i.installmentNumber,
+              amount: i.amount,
+              paidAmount: i.paidAmount,
+              status: i.status,
+            })),
           },
           ipAddress,
           userAgent,

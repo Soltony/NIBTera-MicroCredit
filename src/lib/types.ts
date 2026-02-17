@@ -205,6 +205,8 @@ export interface LoanDetails {
   penaltyAmount: number;
   totalRepayableAmount?: number;
     installments?: LoanInstallment[];
+  // Disbursement status: SUCCESS, FAILED, POSTED (no external tx), PENDING
+  disbursementStatus?: 'SUCCESS' | 'FAILED' | 'POSTED' | 'PENDING';
   // For calculation purposes, not stored in DB
   product: LoanProduct;
   provider?: LoanProvider;

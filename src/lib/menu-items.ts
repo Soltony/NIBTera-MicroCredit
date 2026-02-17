@@ -12,6 +12,7 @@ import {
   CheckSquare,
   Ban,
   MessageSquare,
+  Eye,
 } from 'lucide-react';
 
 export const allMenuItems = [
@@ -44,6 +45,12 @@ export const allMenuItems = [
     label: 'Reversal Approval',
     icon: CheckSquare,
     roles: ['Super Admin', 'Loan Manager'],
+  },
+  {
+    path: '/admin/reversal-details',
+    label: 'Reversal Details',
+    icon: Eye,
+    roles: ['Super Admin', 'Loan Manager', 'Auditor'],
   },
   {
     path: '/admin/npl',

@@ -202,6 +202,7 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
     const balanceDue = (loan.totalRepayableAmount ?? 0) - (loan.repaidAmount || 0);
     const provider = providers.find(p => p.id === loan.product.providerId);
     const color = provider?.colorHex || '#fdb913';
+    const isFailedOrPosted = loan.disbursementStatus === 'FAILED' || loan.disbursementStatus === 'POSTED';
 
     return (
       <Card 
@@ -215,10 +216,15 @@ export function HistoryClient({ initialLoanHistory, providers, taxConfigs }: His
               <p className="font-semibold text-gray-800">{loan.productName}</p>
               <p className="text-lg font-bold" style={{color: color}}>{formatCurrency(balanceDue > 0 ? balanceDue : loan.loanAmount)} <span className="text-sm font-normal text-muted-foreground">(ETB)</span></p>
               <p className="text-xs text-muted-foreground">{loan.id}</p>
+              {isFailedOrPosted && (
+                <p className="text-xs text-red-500 mt-1">
+                  {loan.disbursementStatus === 'FAILED' ? 'Disbursement failed' : 'Pending disbursement'}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => handleViewDetails(loan.id)}>View</Button>
-              {loan.repaymentStatus === 'Unpaid' && <Button size="sm" style={{backgroundColor: color}} className="text-white" onClick={() => handleRepay(loan)}>Repay</Button>}
+              {loan.repaymentStatus === 'Unpaid' && !isFailedOrPosted && <Button size="sm" style={{backgroundColor: color}} className="text-white" onClick={() => handleRepay(loan)}>Repay</Button>}
             </div>
           </div>
         </CardContent>

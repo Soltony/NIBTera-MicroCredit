@@ -21,9 +21,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Search, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -74,6 +75,7 @@ export default function ReversalsPage() {
   useRequirePermission("reversals");
 
   const { toast } = useToast();
+  const router = useRouter();
   const [rows, setRows] = useState<ReversalRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -398,6 +400,17 @@ export default function ReversalsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          {r.reversed && r.loanId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => router.push(`/admin/reversal-details?loanId=${r.loanId}`)}
+                              title="View reversal details"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Details
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             disabled={!canReverse || reversingId === r.id}

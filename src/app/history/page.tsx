@@ -62,6 +62,11 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                     },
                     installments: {
                         orderBy: { installmentNumber: 'asc' }
+                    },
+                    disbursementTransactions: {
+                        orderBy: { createdAt: 'desc' },
+                        take: 1,
+                        select: { disbursementStatus: true, statusCode: true }
                     }
                 },
                 orderBy: {
@@ -81,6 +86,21 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
 
             const { total: totalRepayable } = calculateTotalRepayable(loan as any, parsedProduct, taxConfigs, getAsOfDate());
 
+            // Determine disbursement status
+            const latestDisbTx = (loan as any).disbursementTransactions?.[0];
+            let disbursementStatus: 'SUCCESS' | 'FAILED' | 'POSTED' | 'PENDING' = 'POSTED';
+            if (latestDisbTx) {
+                const ds = latestDisbTx.disbursementStatus;
+                const sc = latestDisbTx.statusCode;
+                if (ds === 'SUCCESS' || (sc != null && sc >= 200 && sc < 300)) {
+                    disbursementStatus = 'SUCCESS';
+                } else if (ds === 'FAILED' || sc == null || sc < 200 || sc >= 300) {
+                    disbursementStatus = 'FAILED';
+                } else {
+                    disbursementStatus = 'PENDING';
+                }
+            }
+
             return {
                 id: loan.id,
                 providerId: loan.product.providerId,
@@ -90,6 +110,7 @@ async function getLoanHistory(borrowerId: string): Promise<LoanDetails[]> {
                 serviceFee: loan.serviceFee,
                 disbursedDate: loan.disbursedDate,
                 dueDate: loan.dueDate,
+                disbursementStatus,
                 repaymentStatus: loan.repaymentStatus as 'Paid' | 'Unpaid',
                 repaidAmount: loan.repaidAmount || 0,
                 penaltyAmount: loan.penaltyAmount,
