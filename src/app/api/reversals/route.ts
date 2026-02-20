@@ -77,7 +77,6 @@ export async function GET(req: NextRequest) {
 
     // Build the where clause for posted loans
     const postedWhereClause: any = {
-      repaymentStatus: { not: "REVERSED" },
       ...(Object.keys(loanDateFilter).length ? { createdAt: loanDateFilter } : {}),
       // Exclude loans that have a linked disbursement transaction
       disbursementTransactions: { none: {} },
@@ -418,11 +417,94 @@ export async function GET(req: NextRequest) {
     })
   );
 
+  // Also include reversed disbursement loans whose DisbursementTransaction
+  // records were deleted during reversal.  These loans would otherwise vanish
+  // from the list entirely.
+  const reversedDisbursementLogs = await prisma.auditLog.findMany({
+    where: {
+      action: "DISBURSEMENT_REVERSED",
+      entity: "DisbursementTransaction",
+      ...(Object.keys(createdAt).length ? { createdAt } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  // Collect loanIds from audit log details and exclude those already in rows
+  const existingLoanIds = new Set(rows.map((r) => r.loanId).filter(Boolean));
+  const existingTxIds = new Set(rows.map((r) => r.id));
+  const reversedLoanRows: typeof rows = [];
+
+  for (const log of reversedDisbursementLogs) {
+    let details: any = {};
+    try {
+      details = log.details ? JSON.parse(log.details) : {};
+    } catch {
+      continue;
+    }
+    const loanId = details.loanId;
+    const txId = details.disbursementTransactionId;
+
+    // Skip if already present in rows
+    if ((loanId && existingLoanIds.has(loanId)) || (txId && existingTxIds.has(txId))) continue;
+
+    // Optionally apply search filter
+    if (search) {
+      const creditAcc = details.creditAccount || "";
+      if (!creditAcc.includes(search)) continue;
+    }
+
+    // Fetch the reversed loan for metadata
+    let loan: any = null;
+    if (loanId) {
+      loan = await prisma.loan.findUnique({
+        where: { id: loanId },
+        select: {
+          id: true,
+          borrowerId: true,
+          loanAmount: true,
+          createdAt: true,
+          product: { select: { provider: { select: { id: true } } } },
+        },
+      });
+    }
+
+    reversedLoanRows.push({
+      id: txId || `reversed-${loanId || log.id}`,
+      transactionId: null,
+      providerId: details.providerId || loan?.product?.provider?.id || "",
+      originalProviderId: details.providerId || loan?.product?.provider?.id || null,
+      creditAccount: details.creditAccount || null,
+      amount: loan?.loanAmount ?? null,
+      statusCode: details.statusCode ?? null,
+      createdAt: loan?.createdAt?.toISOString?.() || log.createdAt.toISOString(),
+      borrowerId: loan?.borrowerId || null,
+      loanId: loanId || null,
+      reversed: {
+        reversedAt: log.createdAt.toISOString(),
+        reversedBy: log.actorId,
+      },
+      cancelled: null,
+      pendingApproval: null,
+      isFailure: true,
+      isPosted: false,
+      disbursementStatus: "REVERSED",
+    });
+
+    if (loanId) existingLoanIds.add(loanId);
+  }
+
+  // Merge reversed rows and re-sort by date descending
+  const allRows = [...rows, ...reversedLoanRows].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const totalWithReversed = total + reversedLoanRows.length;
+
   return NextResponse.json({
     page,
     limit,
-    total,
-    totalPages: Math.ceil(total / limit) || 1,
-    rows,
+    total: totalWithReversed,
+    totalPages: Math.ceil(totalWithReversed / limit) || 1,
+    rows: allRows,
   });
 }
