@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useRequirePermission } from "@/hooks/use-require-permission";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import {
   Table,
@@ -18,99 +16,110 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 import { format } from "date-fns";
+import {
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  Users,
+  Banknote,
+  FileText,
+  Shield,
+} from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
-const formatCurrency = (amount: number | null | undefined) => {
-  if (amount === null || amount === undefined) return "0.00";
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
-
-interface ReversalDetailsData {
-  loan: {
+type ReversalDetails = {
+  reversalId: string;
+  reversalAction: string;
+  reversalDate: string;
+  loanId: string | null;
+  borrowerId: string | null;
+  loanAmount: number | null;
+  providerName: string | null;
+  providerId: string | null;
+  productName: string | null;
+  disbursedDate: string | null;
+  dueDate: string | null;
+  serviceFee: number | null;
+  disbursementTransactionId: string | null;
+  reversalJournalEntryId: string | null;
+  creditAccount: string | null;
+  statusCode: number | null;
+  isPosted: boolean;
+  hasRepaymentActivity: boolean;
+  totalRepaid: number;
+  reversedPaymentCount: number;
+  reversedPayments: Array<{
+    paymentId: string;
+    amount: number;
+    date: string;
+    installmentId: string | null;
+    outstandingBalanceBeforePayment: number | null;
+  }>;
+  requestedBy: {
     id: string;
-    borrowerId: string;
-    borrowerPhone: string;
-    accountNumber: string | null;
-    loanAmount: number;
-    serviceFee: number;
-    penaltyAmount: number;
-    disbursedDate: string;
-    dueDate: string;
-    repaymentStatus: string;
-    repaidAmount: number;
-    providerName: string;
-    productName: string;
-  };
-  reversal: {
-    reversedAt: string;
-    reversedBy: string;
-    reversedByEmail: string | null;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
   } | null;
-  approval: {
-    requestedAt: string;
-    requestedBy: string;
-    requestedByEmail: string | null;
-    approvedAt: string | null;
-    approvedBy: string | null;
-    approvedByEmail: string | null;
-    rejectionReason: string | null;
+  requestedAt: string | null;
+  approvedBy: {
+    id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
   } | null;
-  paymentActivity: {
-    hasPaymentActivity: boolean;
-    totalRepaidAmount: number;
-    reversedPayments: Array<{
-      id: string;
-      amount: number;
-      date: string;
-      installmentId: string | null;
-      journalEntryId: string | null;
-    }>;
-    reversedInstallments: Array<{
-      id: string;
-      installmentNumber: number;
-      amount: number;
-      paidAmount: number;
-      status: string;
-    }>;
-  };
-}
+  approvedAt: string | null;
+  reversedBy: {
+    id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+  } | null;
+  currentLoanStatus: string | null;
+  currentRepaymentBehavior: string | null;
+};
 
 export default function ReversalDetailsPage() {
   useRequirePermission("reversals");
 
+  const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const loanId = searchParams?.get("loanId") ?? null;
-  const { toast } = useToast();
+  const entityId = searchParams?.get("id") ?? null;
 
-  const [data, setData] = useState<ReversalDetailsData | null>(null);
+  const [data, setData] = useState<ReversalDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loanId) {
+    if (!entityId) {
+      setError("No entity ID provided");
       setIsLoading(false);
       return;
     }
 
     const fetchDetails = async () => {
       setIsLoading(true);
+      setError(null);
       try {
-        const res = await fetch(`/api/reversals/details?loanId=${encodeURIComponent(loanId)}`);
+        const res = await fetch(
+          `/api/reversals/${encodeURIComponent(entityId)}/details`
+        );
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error || "Failed to fetch reversal details");
+          const msg = await res.json().catch(() => ({}));
+          throw new Error(msg?.error || "Failed to fetch reversal details");
         }
         const result = await res.json();
         setData(result);
       } catch (e: any) {
+        setError(String(e?.message ?? e));
         toast({
           title: "Error",
           description: String(e?.message ?? e),
@@ -122,18 +131,25 @@ export default function ReversalDetailsPage() {
     };
 
     void fetchDetails();
-  }, [loanId, toast]);
+  }, [entityId, toast]);
 
-  if (!loanId) {
-    return (
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <p className="text-muted-foreground">No loan ID provided.</p>
-        <Button variant="outline" onClick={() => router.push("/admin/reversals")}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Reversals
-        </Button>
-      </div>
-    );
-  }
+  const formatDate = (d: string | null) => {
+    if (!d) return "—";
+    try {
+      return format(new Date(d), "yyyy-MM-dd HH:mm:ss");
+    } catch {
+      return d;
+    }
+  };
+
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount == null) return "—";
+    return new Intl.NumberFormat("en-ET", {
+      style: "currency",
+      currency: "ETB",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
 
   if (isLoading) {
     return (
@@ -143,18 +159,35 @@ export default function ReversalDetailsPage() {
     );
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
-        <p className="text-red-500">Could not load reversal details.</p>
-        <Button variant="outline" onClick={() => router.push("/admin/reversals")}>
+        <Button
+          variant="ghost"
+          className="mb-4"
+          onClick={() => router.push("/admin/reversals")}
+        >
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Reversals
         </Button>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-yellow-500" />
+            <h3 className="text-lg font-semibold mb-2">
+              Reversal Details Not Found
+            </h3>
+            <p className="text-muted-foreground">
+              {error || "No reversal record found for this entity."}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const { loan, reversal, approval, paymentActivity } = data;
+  const reversalType =
+    data.reversalAction === "LOAN_REVERSED"
+      ? "Loan Reversal"
+      : "Disbursement Reversal";
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
@@ -162,352 +195,274 @@ export default function ReversalDetailsPage() {
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
-          size="icon"
+          size="sm"
           onClick={() => router.push("/admin/reversals")}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Reversal Details</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Reversal Details
+          </h2>
           <p className="text-muted-foreground">
-            Detailed view of the reversed loan and associated repayment activity.
+            Detailed breakdown of this reversed transaction
           </p>
         </div>
       </div>
 
-      {/* Reversal Status Banner */}
-      {reversal ? (
-        <div className="rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 flex items-start gap-3">
-          <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+      {/* Status Banner */}
+      <Card
+        className={
+          data.hasRepaymentActivity
+            ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20"
+            : "border-green-500 bg-green-50 dark:bg-green-950/20"
+        }
+      >
+        <CardContent className="p-4 flex items-center gap-4">
+          {data.hasRepaymentActivity ? (
+            <AlertTriangle className="h-6 w-6 text-yellow-600 flex-shrink-0" />
+          ) : (
+            <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0" />
+          )}
           <div>
-            <h4 className="text-sm font-semibold text-red-800 dark:text-red-200">
-              Loan Reversed
-            </h4>
-            <p className="text-sm text-red-700 dark:text-red-300">
-              This loan was reversed on{" "}
-              <strong>{format(new Date(reversal.reversedAt), "PPpp")}</strong>
-              {paymentActivity.hasPaymentActivity && (
-                <span>
-                  {" "}— <strong>{formatCurrency(paymentActivity.totalRepaidAmount)} ETB</strong> in repayment activity was also reversed.
-                </span>
-              )}
+            <p className="font-semibold text-sm">
+              {reversalType} — {data.hasRepaymentActivity
+                ? "Reversed with Repayment Activity"
+                : "Reversed (No Repayment Activity)"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {data.hasRepaymentActivity
+                ? `This loan had ${data.reversedPaymentCount} payment(s) totalling ${formatCurrency(data.totalRepaid)} that were reversed along with the loan.`
+                : "This loan had no repayment activity at the time of reversal."}
             </p>
           </div>
-        </div>
-      ) : (
-        <div className="rounded-md bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
-              No Reversal Record Found
-            </h4>
-            <p className="text-sm text-yellow-700 dark:text-yellow-300">
-              This loan has not been reversed yet, or the reversal log was not found.
-            </p>
-          </div>
-        </div>
-      )}
+          <Badge variant="outline" className="ml-auto">
+            {data.currentLoanStatus || "REVERSED"}
+          </Badge>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Loan Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Loan Information</CardTitle>
-            <CardDescription>Original loan details</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Loan Information
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="space-y-3">
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Loan ID</dt>
-                <dd className="text-sm font-mono">{loan.id}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Borrower</dt>
-                <dd className="text-sm font-mono">{loan.borrowerPhone}</dd>
-              </div>
-              {loan.accountNumber && (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <dt className="text-muted-foreground">Loan ID</dt>
+              <dd className="font-mono text-xs break-all">{data.loanId || "—"}</dd>
+
+              <dt className="text-muted-foreground">Borrower ID</dt>
+              <dd className="font-mono text-xs break-all">{data.borrowerId || "—"}</dd>
+
+              <dt className="text-muted-foreground">Provider</dt>
+              <dd>{data.providerName || data.providerId || "—"}</dd>
+
+              <dt className="text-muted-foreground">Product</dt>
+              <dd>{data.productName || "—"}</dd>
+
+              <dt className="text-muted-foreground">Loan Amount</dt>
+              <dd className="font-semibold">{formatCurrency(data.loanAmount)}</dd>
+
+              <dt className="text-muted-foreground">Service Fee</dt>
+              <dd>{formatCurrency(data.serviceFee)}</dd>
+
+              <dt className="text-muted-foreground">Disbursed Date</dt>
+              <dd>{formatDate(data.disbursedDate)}</dd>
+
+              <dt className="text-muted-foreground">Due Date</dt>
+              <dd>{formatDate(data.dueDate)}</dd>
+
+              <dt className="text-muted-foreground">Credit Account</dt>
+              <dd className="font-mono">{data.creditAccount || "—"}</dd>
+
+              {data.disbursementTransactionId && (
                 <>
-                  <Separator />
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-muted-foreground">Account Number</dt>
-                    <dd className="text-sm font-mono">{loan.accountNumber}</dd>
-                  </div>
+                  <dt className="text-muted-foreground">Disbursement Txn ID</dt>
+                  <dd className="font-mono text-xs break-all">
+                    {data.disbursementTransactionId}
+                  </dd>
                 </>
               )}
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Provider</dt>
-                <dd className="text-sm">{loan.providerName}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Product</dt>
-                <dd className="text-sm">{loan.productName}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Loan Amount</dt>
-                <dd className="text-sm font-semibold">{formatCurrency(loan.loanAmount)} ETB</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Service Fee</dt>
-                <dd className="text-sm">{formatCurrency(loan.serviceFee)} ETB</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Disbursed Date</dt>
-                <dd className="text-sm">{format(new Date(loan.disbursedDate), "PPP")}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Due Date</dt>
-                <dd className="text-sm">{format(new Date(loan.dueDate), "PPP")}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <dt className="text-sm text-muted-foreground">Status</dt>
-                <dd>
-                  <Badge
-                    className={
-                      loan.repaymentStatus === "REVERSED"
-                        ? "bg-red-600 text-white"
-                        : loan.repaymentStatus === "Paid"
-                        ? "bg-green-600 text-white"
-                        : "bg-yellow-600 text-white"
-                    }
-                  >
-                    {loan.repaymentStatus}
-                  </Badge>
-                </dd>
-              </div>
+
+              <dt className="text-muted-foreground">Type</dt>
+              <dd>
+                <Badge variant={data.isPosted ? "secondary" : "destructive"}>
+                  {data.isPosted ? "Posted Loan" : "Failed Disbursement"}
+                </Badge>
+              </dd>
             </dl>
           </CardContent>
         </Card>
 
-        {/* Reversal & Approval Timeline */}
+        {/* Reversal Actors */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Reversal Timeline</CardTitle>
-            <CardDescription>Who reversed and approved this transaction</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="h-4 w-4" /> Reversal Authorization
+            </CardTitle>
+            <CardDescription>
+              Maker-checker trail for this reversal
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Requested */}
-              {approval && (
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                      <span className="text-blue-600 dark:text-blue-400 text-xs font-bold">1</span>
-                    </div>
-                    <div className="w-px h-full bg-border mt-1" />
-                  </div>
-                  <div className="pb-6">
-                    <p className="text-sm font-semibold">Reversal Requested</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(approval.requestedAt), "PPpp")}
-                    </p>
-                    <p className="text-sm mt-1">
-                      By: <span className="font-medium">{approval.requestedBy}</span>
-                      {approval.requestedByEmail && (
-                        <span className="text-muted-foreground"> ({approval.requestedByEmail})</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Approved */}
-              {approval?.approvedAt && (
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="w-px h-full bg-border mt-1" />
-                  </div>
-                  <div className="pb-6">
-                    <p className="text-sm font-semibold">Approved</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(approval.approvedAt), "PPpp")}
-                    </p>
-                    <p className="text-sm mt-1">
-                      By: <span className="font-medium">{approval.approvedBy}</span>
-                      {approval.approvedByEmail && (
-                        <span className="text-muted-foreground"> ({approval.approvedByEmail})</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Reversed */}
-              {reversal && (
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
-                      <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Reversal Executed</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(reversal.reversedAt), "PPpp")}
-                    </p>
-                    <p className="text-sm mt-1">
-                      By: <span className="font-medium">{reversal.reversedBy}</span>
-                      {reversal.reversedByEmail && (
-                        <span className="text-muted-foreground"> ({reversal.reversedByEmail})</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {!approval && !reversal && (
-                <p className="text-sm text-muted-foreground">
-                  No reversal timeline information available.
+          <CardContent className="space-y-4">
+            {/* Requested By (Maker) */}
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-blue-500" />
+                <span className="font-medium text-sm">Requested By (Maker)</span>
+              </div>
+              {data.requestedBy ? (
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm pl-6">
+                  <dt className="text-muted-foreground">Name</dt>
+                  <dd>{data.requestedBy.fullName}</dd>
+                  <dt className="text-muted-foreground">Email</dt>
+                  <dd className="text-xs">{data.requestedBy.email}</dd>
+                  <dt className="text-muted-foreground">Phone</dt>
+                  <dd>{data.requestedBy.phoneNumber}</dd>
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd>{formatDate(data.requestedAt)}</dd>
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground pl-6">
+                  Information not available
                 </p>
               )}
             </div>
+
+            {/* Approved By (Checker) */}
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="font-medium text-sm">
+                  Approved By (Checker)
+                </span>
+              </div>
+              {data.approvedBy ? (
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm pl-6">
+                  <dt className="text-muted-foreground">Name</dt>
+                  <dd>{data.approvedBy.fullName}</dd>
+                  <dt className="text-muted-foreground">Email</dt>
+                  <dd className="text-xs">{data.approvedBy.email}</dd>
+                  <dt className="text-muted-foreground">Phone</dt>
+                  <dd>{data.approvedBy.phoneNumber}</dd>
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd>{formatDate(data.approvedAt)}</dd>
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground pl-6">
+                  Information not available
+                </p>
+              )}
+            </div>
+
+            {/* Reversal metadata */}
+            <Separator />
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Reversal Log ID</dt>
+              <dd className="font-mono text-xs break-all">{data.reversalId}</dd>
+              <dt className="text-muted-foreground">Reversal Date</dt>
+              <dd>{formatDate(data.reversalDate)}</dd>
+              {data.reversalJournalEntryId && (
+                <>
+                  <dt className="text-muted-foreground">Journal Entry ID</dt>
+                  <dd className="font-mono text-xs break-all">
+                    {data.reversalJournalEntryId}
+                  </dd>
+                </>
+              )}
+            </dl>
           </CardContent>
         </Card>
       </div>
 
-      {/* Payment Activity Section */}
+      {/* Reversed Repayment Activity */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            Reversed Repayment Activity
-            {paymentActivity.hasPaymentActivity ? (
-              <Badge className="bg-amber-600 text-white">
-                {paymentActivity.reversedPayments.length} payment{paymentActivity.reversedPayments.length !== 1 ? "s" : ""} reversed
-              </Badge>
-            ) : (
-              <Badge variant="outline">No repayment activity</Badge>
-            )}
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Banknote className="h-4 w-4" /> Reversed Repayment Activity
           </CardTitle>
           <CardDescription>
-            {paymentActivity.hasPaymentActivity
-              ? `A total of ${formatCurrency(paymentActivity.totalRepaidAmount)} ETB in repayments was reversed along with this loan.`
-              : "This loan had no repayment activity at the time of reversal."}
+            {data.hasRepaymentActivity
+              ? `${data.reversedPaymentCount} payment(s) were reversed as part of this transaction, totalling ${formatCurrency(data.totalRepaid)}.`
+              : "No repayment activity was present when this reversal was performed."}
           </CardDescription>
         </CardHeader>
-        {paymentActivity.hasPaymentActivity && (
-          <CardContent className="space-y-6">
-            {/* Summary */}
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-md border p-4 text-center">
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {formatCurrency(paymentActivity.totalRepaidAmount)}
-                </p>
-                <p className="text-xs text-muted-foreground">Total Repaid (ETB)</p>
+        <CardContent>
+          {data.hasRepaymentActivity && data.reversedPayments.length > 0 ? (
+            <>
+              {/* Summary row */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold">
+                    {data.reversedPaymentCount}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Payments Reversed
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold text-red-600">
+                    {formatCurrency(data.totalRepaid)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Total Repaid (Reversed)
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(data.loanAmount)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Original Loan Amount
+                  </p>
+                </div>
               </div>
-              <div className="rounded-md border p-4 text-center">
-                <p className="text-2xl font-bold">
-                  {paymentActivity.reversedPayments.length}
-                </p>
-                <p className="text-xs text-muted-foreground">Payments Reversed</p>
-              </div>
-              <div className="rounded-md border p-4 text-center">
-                <p className="text-2xl font-bold">
-                  {paymentActivity.reversedInstallments.filter((i) => (i.paidAmount || 0) > 0).length}
-                </p>
-                <p className="text-xs text-muted-foreground">Installments Affected</p>
-              </div>
+
+              {/* Payments table */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Payment ID</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Balance Before</TableHead>
+                    <TableHead>Installment</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.reversedPayments.map((p, idx) => (
+                    <TableRow key={p.paymentId || idx}>
+                      <TableCell>{idx + 1}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {p.paymentId || "—"}
+                      </TableCell>
+                      <TableCell>{formatDate(p.date)}</TableCell>
+                      <TableCell className="font-semibold">
+                        {formatCurrency(p.amount)}
+                      </TableCell>
+                      <TableCell>
+                        {formatCurrency(p.outstandingBalanceBeforePayment)}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {p.installmentId || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Banknote className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>No repayment activity recorded for this reversal.</p>
             </div>
-
-            {/* Payment Records Table */}
-            {paymentActivity.reversedPayments.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Payment Records</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Payment ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Installment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paymentActivity.reversedPayments.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell className="font-mono text-xs">
-                          {payment.id}
-                        </TableCell>
-                        <TableCell>
-                          {payment.date
-                            ? format(new Date(payment.date), "PPpp")
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          {formatCurrency(payment.amount)} ETB
-                        </TableCell>
-                        <TableCell>
-                          {payment.installmentId ? (
-                            <span className="font-mono text-xs">{payment.installmentId}</span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {/* Installment Records Table */}
-            {paymentActivity.reversedInstallments.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Installment Status (at time of reversal)</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Installment Amount</TableHead>
-                      <TableHead>Paid Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paymentActivity.reversedInstallments.map((inst) => (
-                      <TableRow key={inst.id}>
-                        <TableCell>{inst.installmentNumber}</TableCell>
-                        <TableCell>{formatCurrency(inst.amount)} ETB</TableCell>
-                        <TableCell
-                          className={
-                            (inst.paidAmount || 0) > 0
-                              ? "font-semibold text-red-600 dark:text-red-400"
-                              : ""
-                          }
-                        >
-                          {formatCurrency(inst.paidAmount)} ETB
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              inst.status === "PAID"
-                                ? "border-green-500 text-green-600"
-                                : inst.status === "LATE"
-                                ? "border-red-500 text-red-600"
-                                : ""
-                            }
-                          >
-                            {inst.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        )}
+          )}
+        </CardContent>
       </Card>
     </div>
   );

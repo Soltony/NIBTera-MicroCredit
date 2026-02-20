@@ -400,38 +400,43 @@ export default function ReversalsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {r.reversed && r.loanId && (
+                          {r.reversed ? (
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              onClick={() => router.push(`/admin/reversal-details?loanId=${r.loanId}`)}
-                              title="View reversal details"
+                              onClick={() => {
+                                const detailId = r.loanId || r.id;
+                                router.push(`/admin/reversal-details?id=${encodeURIComponent(detailId)}`);
+                              }}
                             >
                               <Eye className="h-4 w-4 mr-1" />
-                              Details
+                              View Details
                             </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="outline"
+                                disabled={!canReverse || reversingId === r.id}
+                                onClick={() => void reverseTx(r)}
+                              >
+                                {reversingId === r.id ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                                    Submitting
+                                  </span>
+                                ) : (
+                                  "Reverse"
+                                )}
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                disabled={!canReverse}
+                                onClick={() => openCancelDialog(r)}
+                              >
+                                Cancel
+                              </Button>
+                            </>
                           )}
-                          <Button
-                            variant="outline"
-                            disabled={!canReverse || reversingId === r.id}
-                            onClick={() => void reverseTx(r)}
-                          >
-                            {reversingId === r.id ? (
-                              <span className="inline-flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />{" "}
-                                Submitting
-                              </span>
-                            ) : (
-                              "Reverse"
-                            )}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            disabled={!canReverse}
-                            onClick={() => openCancelDialog(r)}
-                          >
-                            Cancel
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
