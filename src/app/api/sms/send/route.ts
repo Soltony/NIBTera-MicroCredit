@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/user';
 import { hasPermission } from '@/lib/permissions';
-import { sendSmsToLoan, sendSingleSms, replacePlaceholders } from '@/actions/sms';
-import prisma from '@/lib/prisma';
+import { sendSmsToLoan, sendSingleSms, resolveMessagePlaceholders } from '@/actions/sms';
 
 export async function POST(request: NextRequest) {
     try {
@@ -23,12 +22,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(result);
         }
 
-        // Send directly to phone number
+        // Send directly to phone number (Quick Send)
         if (data.recipientPhone && data.messageContent) {
+            const resolvedContent = await resolveMessagePlaceholders(
+                data.messageContent,
+                data.recipientPhone
+            );
             const result = await sendSingleSms({
                 recipientPhone: data.recipientPhone,
                 recipientName: data.recipientName,
-                messageContent: data.messageContent,
+                messageContent: resolvedContent,
                 templateId: data.templateId,
             });
             return NextResponse.json(result);

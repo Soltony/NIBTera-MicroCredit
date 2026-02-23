@@ -109,6 +109,64 @@ interface LoanContext {
     penaltyAmount: number;
 }
 
+/** Check if message contains any {{placeholder}} tokens */
+function hasPlaceholders(text: string): boolean {
+    return /\{\{[a-zA-Z]+\}\}/.test(text);
+}
+
+/** Get loan context for placeholder replacement when sending to a phone (borrower). */
+export async function getLoanContextForPhone(phone: string): Promise<LoanContext | null> {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return null;
+
+    // Try common formats: 09xxxxxxxx (Ethiopia) and raw 9 digits
+    const candidateIds = [
+        '0' + digits.slice(-9),
+        digits.slice(-9),
+    ];
+    const uniqueIds = [...new Set(candidateIds)];
+
+    const loan = await prisma.loan.findFirst({
+        where: { borrowerId: { in: uniqueIds } },
+        include: {
+            borrower: true,
+            product: { include: { provider: true } },
+            payments: true,
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    if (!loan) return null;
+
+    const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0);
+    const outstandingAmount = loan.loanAmount + loan.serviceFee + loan.penaltyAmount - totalPaid;
+
+    return {
+        borrowerId: loan.borrowerId,
+        borrowerName: undefined,
+        loanAmount: loan.loanAmount,
+        outstandingAmount: Math.max(0, outstandingAmount),
+        dueDate: loan.dueDate,
+        disbursedDate: loan.disbursedDate,
+        productName: loan.product.name,
+        providerName: loan.product.provider.name,
+        penaltyAmount: loan.penaltyAmount,
+    };
+}
+
+/** Resolve message placeholders using loan context when recipient is a known borrower. */
+export async function resolveMessagePlaceholders(
+    messageContent: string,
+    recipientPhone: string
+): Promise<string> {
+    if (!hasPlaceholders(messageContent)) return messageContent;
+
+    const context = await getLoanContextForPhone(recipientPhone);
+    if (!context) return messageContent;
+
+    return replacePlaceholders(messageContent, context);
+}
+
 export async function replacePlaceholders(template: string, context: LoanContext): Promise<string> {
     const today = new Date();
     const daysOverdue = differenceInDays(today, context.dueDate);
