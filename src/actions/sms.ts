@@ -109,9 +109,14 @@ interface LoanContext {
     penaltyAmount: number;
 }
 
-/** Check if message contains any {{placeholder}} tokens */
-function hasPlaceholders(text: string): boolean {
-    return /\{\{[a-zA-Z]+\}\}/.test(text);
+/** Check if message contains any placeholder tokens: {{x}} or ((x)) */
+export function hasPlaceholders(text: string): boolean {
+    return /\{\{[a-zA-Z]+\}\}/.test(text) || /\(\([a-zA-Z]+\)\)/.test(text);
+}
+
+/** Normalize placeholder syntax: ((x)) -> {{x}} for consistent replacement */
+function normalizePlaceholderSyntax(text: string): string {
+    return text.replace(/\(\(([a-zA-Z]+)\)\)/g, '{{$1}}');
 }
 
 /** Get loan context for placeholder replacement when sending to a phone (borrower). */
@@ -119,11 +124,22 @@ export async function getLoanContextForPhone(phone: string): Promise<LoanContext
     const digits = phone.replace(/\D/g, '');
     if (!digits) return null;
 
-    // Try common formats: 09xxxxxxxx (Ethiopia) and raw 9 digits
-    const candidateIds = [
-        '0' + digits.slice(-9),
-        digits.slice(-9),
+    const last9 = digits.slice(-9);
+    // Build all common formats: 912345678, 0912345678, 251912345678, +251912345678, 2510912345678, raw input
+    const candidateIds: string[] = [
+        last9,
+        '0' + last9,
+        '251' + last9,
+        '+251' + last9,
+        '2510' + last9,
     ];
+    // If input has 10+ digits, also try the full normalized digits (e.g. 251912345678 as stored)
+    if (digits.length >= 10) {
+        candidateIds.push(digits);
+        if (digits.startsWith('251') && digits.length === 12) {
+            candidateIds.push('0' + digits.slice(3)); // 251912345678 -> 0912345678
+        }
+    }
     const uniqueIds = [...new Set(candidateIds)];
 
     const loan = await prisma.loan.findFirst({
@@ -170,8 +186,9 @@ export async function resolveMessagePlaceholders(
 export async function replacePlaceholders(template: string, context: LoanContext): Promise<string> {
     const today = new Date();
     const daysOverdue = differenceInDays(today, context.dueDate);
+    const normalized = normalizePlaceholderSyntax(template);
 
-    return template
+    return normalized
         .replace(/\{\{borrowerName\}\}/g, context.borrowerName || context.borrowerId)
         .replace(/\{\{borrowerId\}\}/g, context.borrowerId)
         .replace(/\{\{loanAmount\}\}/g, context.loanAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))

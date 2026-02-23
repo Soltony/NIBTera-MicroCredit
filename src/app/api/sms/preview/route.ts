@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/user';
 import { hasPermission } from '@/lib/permissions';
-import { replacePlaceholders } from '@/actions/sms';
+import { replacePlaceholders, getLoanContextForPhone, hasPlaceholders } from '@/actions/sms';
 import prisma from '@/lib/prisma';
 
 // Preview how a message will look with placeholders replaced
@@ -12,10 +12,24 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { templateContent, loanId } = await request.json();
+        const { templateContent, loanId, recipientPhone } = await request.json();
 
         if (!templateContent) {
             return NextResponse.json({ error: 'Template content is required' }, { status: 400 });
+        }
+
+        // If recipientPhone is provided (Quick Send preview), try to resolve with real loan data
+        if (recipientPhone && hasPlaceholders(templateContent)) {
+            const context = await getLoanContextForPhone(recipientPhone);
+            if (context) {
+                const preview = await replacePlaceholders(templateContent, context);
+                return NextResponse.json({ preview, resolved: true });
+            }
+            return NextResponse.json({
+                preview: templateContent,
+                resolved: false,
+                message: 'No loan found for this phone number. Placeholders will be sent as-is.',
+            });
         }
 
         // If a loanId is provided, use real data for preview

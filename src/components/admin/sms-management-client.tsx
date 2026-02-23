@@ -155,6 +155,8 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
     const [showQuickSendDialog, setShowQuickSendDialog] = useState(false);
     const [quickSendForm, setQuickSendForm] = useState({ phone: '', message: '', templateId: '' });
     const [sendingQuickSms, setSendingQuickSms] = useState(false);
+    const [quickSendPreview, setQuickSendPreview] = useState<{ preview: string; resolved: boolean; message?: string } | null>(null);
+    const [quickSendPreviewLoading, setQuickSendPreviewLoading] = useState(false);
 
     // Load data
     const loadStats = useCallback(async () => {
@@ -394,6 +396,30 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
         }
     };
 
+    // Quick Send preview (check if placeholders will be resolved)
+    const handleQuickSendPreview = async () => {
+        if (!quickSendForm.phone.trim() || !quickSendForm.message.trim()) return;
+        setQuickSendPreviewLoading(true);
+        setQuickSendPreview(null);
+        try {
+            const res = await fetch('/api/sms/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    templateContent: quickSendForm.message,
+                    recipientPhone: quickSendForm.phone.trim(),
+                }),
+            });
+            if (!res.ok) throw new Error('Preview failed');
+            const data = await res.json();
+            setQuickSendPreview(data);
+        } catch (e) {
+            toast({ title: 'Preview failed', variant: 'destructive' });
+        } finally {
+            setQuickSendPreviewLoading(false);
+        }
+    };
+
     // Quick Send handler
     const handleQuickSend = async () => {
         if (!quickSendForm.phone.trim() || !quickSendForm.message.trim()) {
@@ -409,7 +435,7 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
                 body: JSON.stringify({
                     recipientPhone: quickSendForm.phone,
                     messageContent: quickSendForm.message,
-                    templateId: quickSendForm.templateId === 'none' ? undefined : quickSendForm.templateId,
+                    templateId: !quickSendForm.templateId ? undefined : quickSendForm.templateId,
                 }),
             });
 
@@ -423,6 +449,7 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
                 toast({ title: 'Success', description: 'SMS sent successfully' });
                 setShowQuickSendDialog(false);
                 setQuickSendForm({ phone: '', message: '', templateId: '' });
+                setQuickSendPreview(null);
                 loadLogs(1);
                 loadStats();
             } else {
@@ -1318,7 +1345,7 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
                                 <Label>Use Template</Label>
                                 <Select
                                     value={campaignForm.templateId || 'none'}
-                                    onValueChange={(value) => setCampaignForm({ ...campaignForm, templateId: value === 'none' ? undefined : value })}
+                                    onValueChange={(value) => setCampaignForm({ ...campaignForm, templateId: value === 'none' ? '' : value })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a template (optional)" />
@@ -1438,7 +1465,10 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
             </Dialog>
 
             {/* Quick Send Dialog */}
-            <Dialog open={showQuickSendDialog} onOpenChange={setShowQuickSendDialog}>
+            <Dialog open={showQuickSendDialog} onOpenChange={(open) => {
+                setShowQuickSendDialog(open);
+                if (!open) setQuickSendPreview(null);
+            }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Quick Send SMS</DialogTitle>
@@ -1451,9 +1481,12 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
                             <Label htmlFor="quick-phone">Phone Number *</Label>
                             <Input
                                 id="quick-phone"
-                                placeholder="e.g., 0912345678"
+                                placeholder="e.g., 0912345678 or 251912345678"
                                 value={quickSendForm.phone}
-                                onChange={(e) => setQuickSendForm({ ...quickSendForm, phone: e.target.value })}
+                                onChange={(e) => {
+                                    setQuickSendForm({ ...quickSendForm, phone: e.target.value });
+                                    setQuickSendPreview(null);
+                                }}
                             />
                         </div>
                         <div className="space-y-2">
@@ -1464,8 +1497,8 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
                                     const template = templates.find(t => t.id === value);
                                     setQuickSendForm({
                                         ...quickSendForm,
-                                        templateId: value === 'none' ? undefined : value,
-                                        message: template?.content || quickSendForm.message,
+                                        templateId: value === 'none' ? '' : value,
+                                        message: template?.content ?? quickSendForm.message,
                                     });
                                 }}
                             >
@@ -1487,12 +1520,42 @@ export function SmsManagementClient({ providers }: SmsManagementClientProps) {
                                 placeholder="Enter your message..."
                                 className="min-h-[100px]"
                                 value={quickSendForm.message}
-                                onChange={(e) => setQuickSendForm({ ...quickSendForm, message: e.target.value })}
+                                onChange={(e) => {
+                                    setQuickSendForm({ ...quickSendForm, message: e.target.value });
+                                    setQuickSendPreview(null);
+                                }}
                             />
                             <p className="text-sm text-muted-foreground">
                                 Characters: {quickSendForm.message.length} / 160
                             </p>
                         </div>
+                        {(/\{\{[a-zA-Z]+\}\}/.test(quickSendForm.message) || /\(\([a-zA-Z]+\)\)/.test(quickSendForm.message)) && (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleQuickSendPreview}
+                                    disabled={quickSendPreviewLoading || !quickSendForm.phone.trim()}
+                                >
+                                    {quickSendPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                                    <span className="ml-1">Preview with real data</span>
+                                </Button>
+                                {quickSendPreview && (
+                                    <div className={cn(
+                                        "rounded-md border p-3 text-sm",
+                                        quickSendPreview.resolved ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950" : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"
+                                    )}>
+                                        {quickSendPreview.resolved ? (
+                                            <p className="font-medium text-green-800 dark:text-green-200">Preview (placeholders resolved):</p>
+                                        ) : (
+                                            <p className="font-medium text-amber-800 dark:text-amber-200">{quickSendPreview.message ?? 'No loan found for this phone.'}</p>
+                                        )}
+                                        <p className="mt-1 whitespace-pre-wrap break-words">{quickSendPreview.preview}</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
