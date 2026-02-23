@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
         }
 
         // If recipientPhone is provided (Quick Send preview), try to resolve with real loan data
-        if (recipientPhone && hasPlaceholders(templateContent)) {
+        if (recipientPhone && (await hasPlaceholders(templateContent))) {
             const context = await getLoanContextForPhone(recipientPhone);
             if (context) {
                 const preview = await replacePlaceholders(templateContent, context);

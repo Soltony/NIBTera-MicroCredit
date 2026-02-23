@@ -110,7 +110,7 @@ interface LoanContext {
 }
 
 /** Check if message contains any placeholder tokens: {{x}} or ((x)) */
-export function hasPlaceholders(text: string): boolean {
+export async function hasPlaceholders(text: string): Promise<boolean> {
     return /\{\{[a-zA-Z]+\}\}/.test(text) || /\(\([a-zA-Z]+\)\)/.test(text);
 }
 
@@ -175,7 +175,7 @@ export async function resolveMessagePlaceholders(
     messageContent: string,
     recipientPhone: string
 ): Promise<string> {
-    if (!hasPlaceholders(messageContent)) return messageContent;
+    if (!(await hasPlaceholders(messageContent))) return messageContent;
 
     const context = await getLoanContextForPhone(recipientPhone);
     if (!context) return messageContent;
