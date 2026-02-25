@@ -7,6 +7,8 @@ import { getUserFromSession } from '@/lib/user';
 import type { SmsCampaignTargetCriteria, SmsStatus, SmsCampaignStatus } from '@/lib/types';
 import { format, differenceInDays } from 'date-fns';
 
+const CAMPAIGN_SMS_DELAY_MS = 200;
+
 // --------------------------------------
 // SMS TEMPLATE ACTIONS
 // --------------------------------------
@@ -406,9 +408,23 @@ export async function getMatchingLoansForCriteria(criteria: SmsCampaignTargetCri
     const today = new Date();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {
-        repaymentStatus: criteria.repaymentStatus || undefined,
-    };
+    const where: any = {};
+
+    // Repayment status filtering
+    // - Default (no criteria): include all non-reversed loans
+    // - "Paid": only fully paid loans
+    // - "Unpaid": any loan that is not Paid or Reversed (i.e. has some outstanding amount or is active)
+    if (criteria.repaymentStatus === 'Paid') {
+        where.repaymentStatus = 'Paid';
+    } else if (criteria.repaymentStatus === 'Unpaid') {
+        where.repaymentStatus = {
+            notIn: ['Paid', 'REVERSED'],
+        };
+    } else {
+        where.repaymentStatus = {
+            not: 'REVERSED',
+        };
+    }
 
     // Filter by product
     if (criteria.productIds && criteria.productIds.length > 0) {
@@ -423,12 +439,33 @@ export async function getMatchingLoansForCriteria(criteria: SmsCampaignTargetCri
     // Fetch loans
     const loans = await prisma.loan.findMany({
         where,
-        include: {
-            borrower: true,
-            product: {
-                include: { provider: true },
+        // Select only the fields we need to avoid pulling large blobs (e.g. icons)
+        // and to reduce chances of Prisma engine string-conversion issues.
+        select: {
+            id: true,
+            borrowerId: true,
+            productId: true,
+            loanAmount: true,
+            serviceFee: true,
+            penaltyAmount: true,
+            disbursedDate: true,
+            dueDate: true,
+            repaymentStatus: true,
+            payments: {
+                select: {
+                    amount: true,
+                },
             },
-            payments: true,
+            product: {
+                select: {
+                    name: true,
+                    provider: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            },
         },
     });
 
@@ -560,6 +597,10 @@ export async function processCampaign(campaignId: string) {
             where: { id: campaignId },
             data: { sentCount, failedCount },
         });
+
+        if (CAMPAIGN_SMS_DELAY_MS > 0) {
+            await new Promise((resolve) => setTimeout(resolve, CAMPAIGN_SMS_DELAY_MS));
+        }
     }
 
     // Mark campaign as completed
