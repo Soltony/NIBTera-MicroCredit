@@ -198,6 +198,8 @@ model Loan {
   loanAmount                 Float
   serviceFee                 Float
   penaltyAmount              Float
+  taxDeducted                Float                     @default(0) // Inclusive tax deducted from principal at disbursement
+  netDisbursedAmount         Float?                    // Net amount actually disbursed (loanAmount - taxDeducted)
   disbursedDate              DateTime
   dueDate                    DateTime
   repaymentStatus            String // Paid, Unpaid
@@ -473,11 +475,12 @@ model BorrowerAgreement {
 // --------------------------------------
 
 model Tax {
-  id        String  @id @default(cuid())
-  name      String?
-  rate      Float   @default(0)
-  appliedTo String // JSON string: e.g., ["serviceFee", "interest", "penalty"]
-  status    String  @default("ACTIVE") // ACTIVE, PENDING_APPROVAL
+  id          String  @id @default(cuid())
+  name        String?
+  rate        Float   @default(0)
+  appliedTo   String // JSON string: e.g., ["serviceFee", "interest", "penalty"]
+  isInclusive Boolean @default(false) // If true, tax is deducted from principal before disbursement
+  status      String  @default("ACTIVE") // ACTIVE, PENDING_APPROVAL
 }
 
 // --------------------------------------

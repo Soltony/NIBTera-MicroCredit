@@ -24,7 +24,10 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { calculateTotalRepayable } from "@/lib/loan-calculator";
+import {
+  calculateTotalRepayable,
+  calculateInclusiveTax,
+} from "@/lib/loan-calculator";
 import {
   Collapsible,
   CollapsibleContent,
@@ -40,7 +43,7 @@ interface LoanOfferAndCalculatorProps {
     details: Omit<
       LoanDetails,
       "id" | "providerName" | "productName" | "payments"
-    >
+    >,
   ) => void;
   providerColor?: string;
   isSubmitting?: boolean;
@@ -179,14 +182,19 @@ export function LoanOfferAndCalculator({
         tempLoan,
         product,
         taxConfigs,
-        dueDate
+        dueDate,
       );
+
+      // Calculate inclusive tax (deducted from principal before disbursement)
+      const inclusiveTax = calculateInclusiveTax(numericLoanAmount, taxConfigs);
 
       setCalculationResult({
         ...result,
         disbursedDate,
         dueDate,
         penaltyAmount: 0,
+        inclusiveTaxAmount: inclusiveTax.taxAmount,
+        netDisbursedAmount: inclusiveTax.netDisbursedAmount,
       });
     };
 
@@ -203,8 +211,8 @@ export function LoanOfferAndCalculator({
     ) {
       setAmountError(
         `Please enter an amount between ${formatCurrency(
-          minLoan
-        )} and ${formatCurrency(maxLoan)}.`
+          minLoan,
+        )} and ${formatCurrency(maxLoan)}.`,
       );
       return false;
     }
@@ -218,8 +226,8 @@ export function LoanOfferAndCalculator({
       setLoanAmount("");
       setAmountError(
         `Please enter an amount between ${formatCurrency(
-          minLoan
-        )} and ${formatCurrency(maxLoan)}.`
+          minLoan,
+        )} and ${formatCurrency(maxLoan)}.`,
       );
     } else {
       setLoanAmount(value);
@@ -305,7 +313,7 @@ export function LoanOfferAndCalculator({
               onChange={handleAmountChange}
               className={cn(
                 "w-full text-xl font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                amountError ? "border-destructive ring-destructive ring-2" : ""
+                amountError ? "border-destructive ring-destructive ring-2" : "",
               )}
               min={minLoan}
               max={maxLoan}
@@ -369,7 +377,7 @@ export function LoanOfferAndCalculator({
                           "font-medium w-full flex justify-between items-center",
                           product.penaltyRules &&
                             product.penaltyRules.length > 0 &&
-                            "text-destructive"
+                            "text-destructive",
                         )}
                       >
                         <span className="flex items-center">
@@ -377,7 +385,7 @@ export function LoanOfferAndCalculator({
                           <ChevronDown
                             className={cn(
                               "h-4 w-4 ml-1 transition-transform",
-                              isPenaltyDetailsOpen && "rotate-180"
+                              isPenaltyDetailsOpen && "rotate-180",
                             )}
                           />
                         </span>
@@ -393,6 +401,45 @@ export function LoanOfferAndCalculator({
                   </CollapsibleContent>
                 </Collapsible>
               </div>
+
+              {/* Inclusive Tax Breakdown - show when tax is deducted from principal */}
+              {calculationResult.inclusiveTaxAmount > 0 && (
+                <div className="space-y-2 text-sm bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-4 rounded-lg">
+                  <div className="font-medium text-amber-800 dark:text-amber-300 mb-2">
+                    Tax Deduction at Disbursement
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-muted-foreground">
+                      Gross Loan Amount
+                    </div>
+                    <div className="text-right font-medium">
+                      {formatCurrency(calculationResult.principal)}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-amber-700 dark:text-amber-400">
+                    <div>
+                      Tax Deducted (
+                      {taxConfigs
+                        .filter((t) => t.isInclusive && t.rate > 0)
+                        .map((t) => `${t.rate}%`)
+                        .join(" + ")}
+                      )
+                    </div>
+                    <div className="text-right font-medium">
+                      − {formatCurrency(calculationResult.inclusiveTaxAmount)}
+                    </div>
+                  </div>
+                  <div className="border-t border-amber-200 dark:border-amber-700 pt-2 flex justify-between items-center">
+                    <div className="font-semibold">Net Amount Disbursed</div>
+                    <div
+                      className="text-right font-bold"
+                      style={{ color: providerColor }}
+                    >
+                      {formatCurrency(calculationResult.netDisbursedAmount)}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-between items-center p-4 rounded-lg border">
                 <div>

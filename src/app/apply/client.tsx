@@ -52,7 +52,7 @@ export function ApplyClient({
       if (!borrowerId) return;
       try {
         const res = await fetch(
-          `/api/phone-accounts?phoneNumber=${encodeURIComponent(borrowerId)}`
+          `/api/phone-accounts?phoneNumber=${encodeURIComponent(borrowerId)}`,
         );
         if (!res.ok) {
           setShowAccountModal(true);
@@ -101,10 +101,10 @@ export function ApplyClient({
       isEligible: true,
       suggestedLoanAmountMin: min
         ? parseFloat(min)
-        : selectedProduct?.minLoan ?? 0,
+        : (selectedProduct?.minLoan ?? 0),
       suggestedLoanAmountMax: max
         ? parseFloat(max)
-        : selectedProduct?.maxLoan ?? 0,
+        : (selectedProduct?.maxLoan ?? 0),
       reason: "You are eligible for a loan.",
     };
   }, [searchParams, selectedProduct]);
@@ -113,7 +113,7 @@ export function ApplyClient({
     details: Omit<
       LoanDetails,
       "id" | "providerName" | "productName" | "payments"
-    >
+    >,
   ) => {
     if (!selectedProduct || !borrowerId) {
       toast({
@@ -170,13 +170,18 @@ export function ApplyClient({
 
       try {
         if (selectedAccount && selectedAccount.accountNumber) {
+          // Disburse the net amount (after inclusive tax deduction) if available, otherwise full amount
+          const disbursementAmount =
+            savedLoan.netDisbursedAmount != null && savedLoan.taxDeducted > 0
+              ? savedLoan.netDisbursedAmount
+              : savedLoan.loanAmount;
           const disRes = await fetch("/api/external/disbursement", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               creditAccount: selectedAccount.accountNumber,
               providerId: provider.id,
-              amount: savedLoan.loanAmount,
+              amount: disbursementAmount,
               loanId: savedLoan.id,
             }),
           });
@@ -347,7 +352,7 @@ export function ApplyClient({
                                 accountNumber: acc.accountNumber,
                                 providerId: provider?.id,
                               }),
-                            }
+                            },
                           );
                           const data = await res.json();
                           if (!res.ok) {
