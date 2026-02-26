@@ -42,7 +42,7 @@ async function handlePersonalLoan(
           },
         },
       }),
-      tx.tax.findMany(),
+      tx.tax.findMany({ where: { status: "Active" } }),
     ]);
 
     if (!product) {
@@ -255,6 +255,10 @@ async function handlePersonalLoan(
 
     return {
       ...createdLoan,
+      // Explicitly include computed tax fields to ensure they appear in the
+      // JSON response even if the Prisma client hasn't been regenerated yet.
+      taxDeducted: inclusiveTaxAmount,
+      netDisbursedAmount: netDisbursedAmount,
       disbursementTransactionId: disbursementTransaction?.id,
     };
   });

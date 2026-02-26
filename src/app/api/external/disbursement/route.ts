@@ -30,7 +30,7 @@ async function findOrCreateDisbursementTransaction(
     statusCode?: number | null;
     transactionId?: string | null;
     disbursementStatus: string;
-  }
+  },
 ) {
   // If loanId is provided, try to find existing PENDING record and update it
   if (loanId) {
@@ -88,20 +88,50 @@ export async function POST(req: Request) {
     if (!enabled) {
       return NextResponse.json(
         { error: "Disbursements are currently disabled." },
-        { status: 503 }
+        { status: 503 },
       );
     }
 
     const body: Body = await req.json();
-    const { creditAccount, providerId, amount, loanId } = body;
+    const { creditAccount, providerId, amount: clientAmount, loanId } = body;
     // For testing: force the provider id to PRO0001 unless overridden by env
     const forcedProviderId = process.env.FORCE_PROVIDER_ID ?? "PRO0001";
     const sendProviderId = forcedProviderId;
-    if (!creditAccount || !providerId || !amount)
+    if (!creditAccount || !providerId || !clientAmount)
       return NextResponse.json(
         { error: "creditAccount, providerId and amount are required" },
-        { status: 400 }
+        { status: 400 },
       );
+
+    // Server-side safeguard: if a loanId is provided, use the loan's
+    // netDisbursedAmount (inclusive-tax-adjusted) from the database instead
+    // of trusting the client-supplied amount.
+    let amount: string | number = clientAmount;
+    if (loanId) {
+      try {
+        const loan = await prisma.loan.findUnique({
+          where: { id: loanId },
+          select: {
+            loanAmount: true,
+            taxDeducted: true,
+            netDisbursedAmount: true,
+          },
+        } as any);
+        if (loan) {
+          const loanData = loan as any;
+          if (loanData.netDisbursedAmount != null && loanData.taxDeducted > 0) {
+            amount = loanData.netDisbursedAmount;
+          } else {
+            amount = loanData.loanAmount;
+          }
+        }
+      } catch (e) {
+        console.error(
+          "[external][disbursement] failed to lookup loan for net amount, using client amount",
+          e,
+        );
+      }
+    }
 
     const apiUrl = process.env.EXTERNAL_DISBURSEMENT_URL;
     const user = process.env.EXTERNAL_API_USERNAME;
@@ -138,7 +168,7 @@ export async function POST(req: Request) {
             url: "EXTERNAL_DISBURSEMENT_URL",
             body: { creditAccount, providerId: sendProviderId, amount },
           },
-        }
+        },
       ).catch(() => null);
 
       try {
@@ -164,7 +194,7 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error(
           "[external][disbursement] failed to save disbursement transaction (missing url)",
-          e
+          e,
         );
       }
       return NextResponse.json({ error: errMsg }, { status: 500 });
@@ -191,7 +221,7 @@ export async function POST(req: Request) {
             ...(auth ? { Authorization: auth } : {}),
           },
           body: { creditAccount, providerId: sendProviderId, amount },
-        }
+        },
       ).catch(() => null);
 
       res = await fetch(apiUrl, {
@@ -238,7 +268,7 @@ export async function POST(req: Request) {
             },
             body: { creditAccount, providerId: sendProviderId, amount },
           },
-        }
+        },
       ).catch(() => null);
 
       try {
@@ -267,13 +297,13 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error(
           "[external][disbursement] failed to save disbursement transaction (fetch error)",
-          e
+          e,
         );
       }
 
       return NextResponse.json(
         { error: "Upstream fetch failed", details },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
@@ -316,7 +346,7 @@ export async function POST(req: Request) {
           })(),
           body: payload,
           durationMs: auditMeta?.durationMs,
-        }
+        },
       );
     } catch {
       // ignore audit failures
@@ -350,7 +380,7 @@ export async function POST(req: Request) {
       } else if (typeof txt === "string") {
         const m =
           txt.match(
-            /transactionId['"]?\s*[:=]\s*['"]?([A-Za-z0-9_-]+)['"]?/i
+            /transactionId['"]?\s*[:=]\s*['"]?([A-Za-z0-9_-]+)['"]?/i,
           ) || txt.match(/'transactionId'\s*:\s*'([^']+)'/i);
         if (m) upstreamTransactionId = m[1];
       }
@@ -382,15 +412,15 @@ export async function POST(req: Request) {
           typeof payload === "string"
             ? payload
             : payload
-            ? JSON.stringify(payload)
-            : undefined,
+              ? JSON.stringify(payload)
+              : undefined,
         rawResponse: txt ?? undefined,
         statusCode: typeof res.status === "number" ? res.status : undefined,
         disbursementStatus,
       }).catch((e) => {
         console.error(
           "[external][disbursement] failed to save disbursement transaction",
-          e
+          e,
         );
       });
     } catch (e) {
@@ -422,8 +452,8 @@ export async function POST(req: Request) {
             (payload.message || payload.Message)
               ? payload.message || payload.Message
               : typeof payload === "string"
-              ? payload
-              : txt ?? "Unknown error";
+                ? payload
+                : (txt ?? "Unknown error");
           message = `Your loan request of ETB ${amt} could not be disbursed to your account ${creditAccount}. Please try again later or contact NIBtera Loan support for assistance.`;
         }
         const smsRes = await sendSms(phoneNumber, message);
@@ -437,19 +467,19 @@ export async function POST(req: Request) {
     if (!res.ok) {
       return NextResponse.json(
         { error: "Upstream error", status: res.status, body: payload },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
     return NextResponse.json(
       payload ?? { status: "OK", status_code: res.status },
-      { status: res.status }
+      { status: res.status },
     );
   } catch (err: any) {
     console.error("[external][disbursement] error", err);
     return NextResponse.json(
       { error: String(err?.message ?? err) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
