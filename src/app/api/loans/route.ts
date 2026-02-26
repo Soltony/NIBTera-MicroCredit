@@ -3,7 +3,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { calculateTotalRepayable } from "@/lib/loan-calculator";
+import {
+  calculateTotalRepayable,
+  calculateInclusiveTax,
+} from "@/lib/loan-calculator";
 import { addDays } from "date-fns";
 import { loanCreationSchema } from "@/lib/schemas";
 import { checkLoanEligibility } from "@/actions/eligibility";
@@ -16,7 +19,7 @@ import {
 import { areDisbursementsEnabled } from "@/lib/disbursement-control";
 
 async function handlePersonalLoan(
-  data: z.infer<typeof loanCreationSchema> & { creditAccount?: string }
+  data: z.infer<typeof loanCreationSchema> & { creditAccount?: string },
 ) {
   return await prisma.$transaction(async (tx) => {
     const loanApplication = await tx.loanApplication.create({
@@ -48,7 +51,7 @@ async function handlePersonalLoan(
 
     if (product.provider.initialBalance < data.loanAmount) {
       throw new Error(
-        `Insufficient provider funds. Available: ${product.provider.initialBalance}, Requested: ${data.loanAmount}`
+        `Insufficient provider funds. Available: ${product.provider.initialBalance}, Requested: ${data.loanAmount}`,
       );
     }
 
@@ -73,23 +76,27 @@ async function handlePersonalLoan(
         tempLoanForCalc as any,
         product as any,
         (taxConfigs ?? []) as any,
-        new Date(data.disbursedDate)
+        new Date(data.disbursedDate),
       );
 
+    // Calculate inclusive tax (deducted from principal before disbursement)
+    const { taxAmount: inclusiveTaxAmount, netDisbursedAmount } =
+      calculateInclusiveTax(data.loanAmount, (taxConfigs ?? []) as any);
+
     const principalReceivableAccount = provider.ledgerAccounts.find(
-      (acc: any) => acc.category === "Principal" && acc.type === "Receivable"
+      (acc: any) => acc.category === "Principal" && acc.type === "Receivable",
     );
     const serviceFeeReceivableAccount = provider.ledgerAccounts.find(
-      (acc: any) => acc.category === "ServiceFee" && acc.type === "Receivable"
+      (acc: any) => acc.category === "ServiceFee" && acc.type === "Receivable",
     );
     const taxReceivableAccount = provider.ledgerAccounts.find(
-      (acc: any) => acc.category === "Tax" && acc.type === "Receivable"
+      (acc: any) => acc.category === "Tax" && acc.type === "Receivable",
     );
     if (!principalReceivableAccount)
       throw new Error("Principal Receivable ledger account not found.");
     if (calculatedServiceFee > 0 && !serviceFeeReceivableAccount)
       throw new Error("Service Fee Receivable ledger account not found.");
-    if (calculatedTax > 0 && !taxReceivableAccount)
+    if ((calculatedTax > 0 || inclusiveTaxAmount > 0) && !taxReceivableAccount)
       throw new Error("Tax Receivable ledger account not found.");
 
     const createdLoan = await tx.loan.create({
@@ -102,6 +109,8 @@ async function handlePersonalLoan(
         dueDate: data.dueDate,
         serviceFee: calculatedServiceFee,
         penaltyAmount: 0,
+        taxDeducted: inclusiveTaxAmount,
+        netDisbursedAmount: netDisbursedAmount,
         repaymentStatus: "Unpaid",
         repaidAmount: 0,
       },
@@ -145,20 +154,21 @@ async function handlePersonalLoan(
     }
 
     // Tax is applied to configured income components and accrued into Tax Receivable.
-    if (calculatedTax > 0.000001 && taxReceivableAccount) {
+    const totalTaxForLedger = calculatedTax + inclusiveTaxAmount;
+    if (totalTaxForLedger > 0.000001 && taxReceivableAccount) {
       await tx.ledgerEntry.createMany({
         data: [
           {
             journalEntryId: journalEntry.id,
             ledgerAccountId: taxReceivableAccount.id,
             type: "Debit",
-            amount: calculatedTax,
+            amount: totalTaxForLedger,
           },
         ],
       });
       await tx.ledgerAccount.update({
         where: { id: taxReceivableAccount.id },
-        data: { balance: { increment: calculatedTax } },
+        data: { balance: { increment: totalTaxForLedger } },
       });
     }
 
@@ -185,7 +195,7 @@ async function handlePersonalLoan(
               (new Date(data.dueDate).getTime() -
                 new Date(data.disbursedDate).getTime()) /
                 (1000 * 60 * 60 * 24) /
-                installmentsCount
+                installmentsCount,
             )) ||
           0;
 
@@ -197,7 +207,7 @@ async function handlePersonalLoan(
           const amount = isLast
             ? remaining
             : round2(
-                Math.floor((totalPrincipal / installmentsCount) * 100) / 100
+                Math.floor((totalPrincipal / installmentsCount) * 100) / 100,
               );
           const due = addDays(new Date(data.disbursedDate), interval * i);
           await tx.loanInstallment.create({
@@ -230,12 +240,13 @@ async function handlePersonalLoan(
           providerId: forcedProviderId,
           originalProviderId: provider.id,
           creditAccount: creditAccount,
-          amount: data.loanAmount,
+          amount: inclusiveTaxAmount > 0 ? netDisbursedAmount : data.loanAmount,
           disbursementStatus: "PENDING",
           requestPayload: JSON.stringify({
             creditAccount,
             providerId: forcedProviderId,
-            amount: data.loanAmount,
+            amount:
+              inclusiveTaxAmount > 0 ? netDisbursedAmount : data.loanAmount,
             loanId: createdLoan.id,
           }),
         } as any, // Type assertion until Prisma client is regenerated
@@ -266,7 +277,7 @@ export async function POST(req: NextRequest) {
     if (!enabled) {
       return NextResponse.json(
         { error: "Disbursements are currently disabled." },
-        { status: 503 }
+        { status: 503 },
       );
     }
 
@@ -299,7 +310,7 @@ export async function POST(req: NextRequest) {
     const { isEligible, maxLoanAmount, reason } = await checkLoanEligibility(
       data.borrowerId,
       product.providerId,
-      product.id
+      product.id,
     );
 
     if (!isEligible) {
@@ -308,7 +319,7 @@ export async function POST(req: NextRequest) {
 
     if (data.loanAmount > maxLoanAmount) {
       throw new Error(
-        `Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`
+        `Requested amount of ${data.loanAmount} exceeds the maximum allowed limit of ${maxLoanAmount}.`,
       );
     }
 
@@ -320,6 +331,8 @@ export async function POST(req: NextRequest) {
       productId: newLoan.productId,
       amount: newLoan.loanAmount,
       serviceFee: newLoan.serviceFee,
+      taxDeducted: newLoan.taxDeducted,
+      netDisbursedAmount: newLoan.netDisbursedAmount,
     };
     await createAuditLog({
       actorId: "system",
@@ -334,7 +347,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof MiniAppAuthError) {
       return NextResponse.json(
         { error: error.message },
-        { status: error.status }
+        { status: error.status },
       );
     }
     const errorMessage =
@@ -356,7 +369,7 @@ export async function POST(req: NextRequest) {
     console.error("Error in POST /api/loans:", error);
     return NextResponse.json(
       { error: (error as Error).message || "Internal Server Error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
