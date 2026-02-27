@@ -10,8 +10,43 @@ import type {
   SmsCampaignStatus,
 } from "@/lib/types";
 import { format, differenceInDays } from "date-fns";
+import { calculateInterestWithPayments, normalizePayments } from "@/lib/interest-accrual";
 
 const CAMPAIGN_SMS_DELAY_MS = 500;
+
+// Helper function to calculate interest on the fly
+function calculateLoanInterest(loan: any): number {
+  // If daily fee is not enabled, no interest
+  if (!loan.product?.dailyFeeEnabled) {
+    return 0;
+  }
+
+  const dailyFeeRule = typeof loan.product.dailyFee === 'string' 
+    ? JSON.parse(loan.product.dailyFee) 
+    : loan.product.dailyFee;
+
+  if (!dailyFeeRule || !dailyFeeRule.value || Number(dailyFeeRule.value) <= 0) {
+    return 0;
+  }
+
+  try {
+    return calculateInterestWithPayments({
+      principal: loan.loanAmount,
+      loanStartDate: loan.disbursedDate,
+      interestEndDate: new Date(),
+      dailyFeeRule: {
+        type: dailyFeeRule.type,
+        value: Number(dailyFeeRule.value),
+        calculationBase: dailyFeeRule.calculationBase,
+      },
+      serviceFee: loan.serviceFee,
+      payments: normalizePayments(loan.payments),
+    });
+  } catch (error) {
+    console.error('Error calculating interest:', error);
+    return 0;
+  }
+}
 
 // --------------------------------------
 // SMS TEMPLATE ACTIONS
@@ -163,11 +198,12 @@ export async function getLoanContextForPhone(
   if (!loan) return null;
 
   const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0);
+  const interestAmount = calculateLoanInterest(loan);
   const outstandingAmount =
     loan.loanAmount +
     loan.serviceFee +
     loan.penaltyAmount +
-    loan.interestAccruedAmount -
+    interestAmount -
     totalPaid;
 
   return {
@@ -515,18 +551,20 @@ export async function getMatchingLoansForCriteria(
       loanAmount: true,
       serviceFee: true,
       penaltyAmount: true,
-      interestAccruedAmount: true,
       disbursedDate: true,
       dueDate: true,
       repaymentStatus: true,
       payments: {
         select: {
           amount: true,
+          date: true,
         },
       },
       product: {
         select: {
           name: true,
+          dailyFeeEnabled: true,
+          dailyFee: true,
           provider: {
             select: {
               name: true,
@@ -658,11 +696,12 @@ export async function processCampaign(campaignId: string) {
     }
 
     const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0);
+    const interestAmount = calculateLoanInterest(loan);
     const outstandingAmount =
       loan.loanAmount +
       loan.serviceFee +
       loan.penaltyAmount +
-      loan.interestAccruedAmount -
+      interestAmount -
       totalPaid;
 
     const context: LoanContext = {
@@ -910,11 +949,12 @@ export async function sendSmsToLoan(data: {
   if (!messageTemplate) throw new Error("Message content required");
 
   const totalPaid = loan.payments.reduce((sum, p) => sum + p.amount, 0);
+  const interestAmount = calculateLoanInterest(loan);
   const outstandingAmount =
     loan.loanAmount +
     loan.serviceFee +
     loan.penaltyAmount +
-    loan.interestAccruedAmount -
+    interestAmount -
     totalPaid;
 
   const context: LoanContext = {
