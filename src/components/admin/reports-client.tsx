@@ -1172,9 +1172,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
         <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             onValueChange={(value) => {
               setTimeframe(value);
@@ -1296,19 +1296,21 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         onValueChange={setActiveTab}
         className="space-y-4"
       >
-        <TabsList>
-          <TabsTrigger value="providerReport">Provider Loans</TabsTrigger>
-          <TabsTrigger value="disbursementsReport">Disbursements</TabsTrigger>
-          <TabsTrigger value="repaymentsReport">Repayments</TabsTrigger>
-          <TabsTrigger value="failedDisbursementRepaymentReport">Failed Disbursements with Repayments</TabsTrigger>
-          <TabsTrigger value="postedDisbursementRepaymentReport">Posted Disbursements with Repayments</TabsTrigger>
-          <TabsTrigger value="collectionsReport">Collections</TabsTrigger>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="w-max">
+            <TabsTrigger value="providerReport">Provider Loans</TabsTrigger>
+            <TabsTrigger value="disbursementsReport">Disbursements</TabsTrigger>
+            <TabsTrigger value="repaymentsReport">Repayments</TabsTrigger>
+            <TabsTrigger value="failedDisbursementRepaymentReport">Failed Disbursements with Repayments</TabsTrigger>
+            <TabsTrigger value="postedDisbursementRepaymentReport">Posted Disbursements with Repayments</TabsTrigger>
+            <TabsTrigger value="collectionsReport">Collections</TabsTrigger>
 
-          <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
-          <TabsTrigger value="agingReport">Aging</TabsTrigger>
-          <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
-        </TabsList>
-        <div className="overflow-auto rounded-md border h-[60vh]">
+            <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
+            <TabsTrigger value="agingReport">Aging</TabsTrigger>
+            <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
+          </TabsList>
+        </div>
+        <div className="overflow-y-auto overflow-x-hidden rounded-md border h-[60vh]">
           <TabsContent value="providerReport" className="space-y-4 m-0">
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">

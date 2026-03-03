@@ -418,12 +418,10 @@ export function LoanOfferAndCalculator({
                   </div>
                   <div className="flex justify-between items-center text-amber-700 dark:text-amber-400">
                     <div>
-                      Tax Deducted (
                       {taxConfigs
                         .filter((t) => t.isInclusive && t.rate > 0)
-                        .map((t) => `${t.rate}%`)
+                        .map((t) => t.name || `Tax (${t.rate}%)`)
                         .join(" + ")}
-                      )
                     </div>
                     <div className="text-right font-medium">
                       − {formatCurrency(calculationResult.inclusiveTaxAmount)}
