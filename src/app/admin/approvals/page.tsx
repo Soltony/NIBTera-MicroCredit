@@ -196,14 +196,15 @@ async function getPendingChanges(
 export default async function ApprovalsPage({
   searchParams,
 }: {
-  searchParams: { page?: string };
+  searchParams: { page?: string } | Promise<{ page?: string }>;
 }) {
   const user = await getUserFromSession();
   if (!user) {
     return <div>Not authenticated</div>;
   }
   
-  const page = Math.max(1, parseInt(searchParams.page || "1", 10));
+  const resolvedSearchParams = await searchParams;
+  const page = Math.max(1, parseInt(resolvedSearchParams?.page || "1", 10));
   const paginatedData = await getPendingChanges(page);
 
   return <ApprovalsClient paginatedData={paginatedData} currentUser={user} />;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRequirePermission } from '@/hooks/use-require-permission';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,6 +47,11 @@ export function ApprovalsClient({
   useRequirePermission('approvals');
   const [changes, setChanges] = useState(initialData.data);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Sync state when server-side data changes (e.g. pagination)
+  useEffect(() => {
+    setChanges(initialData.data);
+  }, [initialData]);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [changeToReject, setChangeToReject] = useState<PendingChangeWithDetails | null>(null);
