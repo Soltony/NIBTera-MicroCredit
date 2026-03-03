@@ -342,6 +342,8 @@ async function applyChange(
           },
         } as const;
 
+        const internalProviderId = tx.originalProviderId || tx.providerId;
+
         // Prefer direct loanId from the disbursement transaction if available
         let loan = tx.loanId
           ? await prisma.loan.findUnique({
@@ -361,8 +363,6 @@ async function applyChange(
             throw new Error(
               "Cannot resolve borrower (no phone-account mapping for creditAccount)."
             );
-
-          const internalProviderId = tx.originalProviderId || tx.providerId;
           const windowStart = new Date(tx.createdAt.getTime() - 60 * 60 * 1000);
           const windowEnd = new Date(tx.createdAt.getTime() + 60 * 60 * 1000);
 
