@@ -32,19 +32,28 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import type { PendingReversalApproval } from "./page";
+import type { PendingReversalApproval, PaginatedReversalApprovals } from "./page";
 import type { User } from "@/lib/types";
 import { usePermissions } from "@/hooks/use-permissions";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export function ReversalApprovalsClient({
-  pendingChanges: initialChanges,
+  paginatedData: initialData,
   currentUser,
 }: {
-  pendingChanges: PendingReversalApproval[];
+  paginatedData: PaginatedReversalApprovals;
   currentUser: User;
 }) {
   useRequirePermission("reversal-approval");
-  const [changes, setChanges] = useState(initialChanges);
+  const [changes, setChanges] = useState(initialData.data);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [changeToReject, setChangeToReject] =
@@ -106,6 +115,91 @@ export function ReversalApprovalsClient({
       setChangeToReject(null);
       setRejectionReason("");
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    router.push(`?page=${page}`);
+  };
+
+  const renderPaginationItems = () => {
+    const items = [];
+    const maxVisible = 5;
+    const { page, totalPages } = initialData;
+
+    // Always show first page
+    if (page > 1) {
+      items.push(
+        <PaginationItem key="prev">
+          <PaginationPrevious
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              handlePageChange(page - 1);
+            }}
+          />
+        </PaginationItem>
+      );
+    }
+
+    // Calculate page range
+    let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage < maxVisible - 1) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    // Show ellipsis before
+    if (startPage > 1) {
+      items.push(
+        <PaginationItem key="ellipsis-start">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+
+    // Show page numbers
+    for (let i = startPage; i <= endPage; i++) {
+      items.push(
+        <PaginationItem key={i}>
+          <PaginationLink
+            href="#"
+            isActive={i === page}
+            onClick={(e) => {
+              e.preventDefault();
+              handlePageChange(i);
+            }}
+          >
+            {i}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+
+    // Show ellipsis after
+    if (endPage < totalPages) {
+      items.push(
+        <PaginationItem key="ellipsis-end">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+
+    // Always show next button
+    if (page < totalPages) {
+      items.push(
+        <PaginationItem key="next">
+          <PaginationNext
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              handlePageChange(page + 1);
+            }}
+          />
+        </PaginationItem>
+      );
+    }
+
+    return items;
   };
 
   return (
@@ -224,6 +318,13 @@ export function ReversalApprovalsClient({
                 )}
               </TableBody>
             </Table>
+            {initialData.totalPages > 1 && (
+              <div className="mt-6 flex justify-center">
+                <Pagination>
+                  <PaginationContent>{renderPaginationItems()}</PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -18,9 +18,19 @@ import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { allMenuItems } from '@/lib/menu-items';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 
 const PERMISSION_MODULES = allMenuItems.map(item => item.label.toLowerCase().replace(/\s+/g, '-')).concat(['products']);
+const ITEMS_PER_PAGE = 10;
 
 
 function UsersTab() {
@@ -32,6 +42,7 @@ function UsersTab() {
     const { currentUser } = useAuth();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const { toast } = useToast();
 
     const canCreate = !!currentUser?.permissions?.['access-control']?.create;
@@ -163,6 +174,84 @@ function UsersTab() {
         return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
     }
 
+    const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedUsers = users.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+    const renderPaginationItems = () => {
+      const items = [];
+      const maxVisible = 5;
+
+      if (currentPage > 1) {
+        items.push(
+          <PaginationItem key="prev">
+            <PaginationPrevious
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage(currentPage - 1);
+              }}
+            />
+          </PaginationItem>
+        );
+      }
+
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+      let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+      if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+      }
+
+      if (startPage > 1) {
+        items.push(
+          <PaginationItem key="ellipsis-start">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        items.push(
+          <PaginationItem key={i}>
+            <PaginationLink
+              href="#"
+              isActive={i === currentPage}
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage(i);
+              }}
+            >
+              {i}
+            </PaginationLink>
+          </PaginationItem>
+        );
+      }
+
+      if (endPage < totalPages) {
+        items.push(
+          <PaginationItem key="ellipsis-end">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+
+      if (currentPage < totalPages) {
+        items.push(
+          <PaginationItem key="next">
+            <PaginationNext
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage(currentPage + 1);
+              }}
+            />
+          </PaginationItem>
+        );
+      }
+
+      return items;
+    };
+
     return (
         <>
             <div className="flex items-center justify-between space-y-2 mb-4">
@@ -191,7 +280,7 @@ function UsersTab() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map((user) => (
+                            {paginatedUsers.map((user) => (
                                 <TableRow key={user.id}>
                                     <TableCell className="font-medium">{user.fullName}</TableCell>
                                     <TableCell>{user.email}</TableCell>
@@ -227,6 +316,13 @@ function UsersTab() {
                             ))}
                         </TableBody>
                     </Table>
+                    {totalPages > 1 && (
+                      <div className="mt-6 flex justify-center">
+                        <Pagination>
+                          <PaginationContent>{renderPaginationItems()}</PaginationContent>
+                        </Pagination>
+                      </div>
+                    )}
                 </CardContent>
             </Card>
             <AddUserDialog
@@ -250,6 +346,7 @@ function RolesTab() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
     const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const { toast } = useToast();
 
     const canCreate = !!currentUser?.permissions?.['access-control']?.create;
@@ -379,6 +476,84 @@ function RolesTab() {
         return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
     }
 
+    const totalPages = Math.ceil(roles.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedRoles = roles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+    const renderPaginationItems = () => {
+      const items = [];
+      const maxVisible = 5;
+
+      if (currentPage > 1) {
+        items.push(
+          <PaginationItem key="prev">
+            <PaginationPrevious
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage(currentPage - 1);
+              }}
+            />
+          </PaginationItem>
+        );
+      }
+
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+      let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+      if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+      }
+
+      if (startPage > 1) {
+        items.push(
+          <PaginationItem key="ellipsis-start">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        items.push(
+          <PaginationItem key={i}>
+            <PaginationLink
+              href="#"
+              isActive={i === currentPage}
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage(i);
+              }}
+            >
+              {i}
+            </PaginationLink>
+          </PaginationItem>
+        );
+      }
+
+      if (endPage < totalPages) {
+        items.push(
+          <PaginationItem key="ellipsis-end">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+
+      if (currentPage < totalPages) {
+        items.push(
+          <PaginationItem key="next">
+            <PaginationNext
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setCurrentPage(currentPage + 1);
+              }}
+            />
+          </PaginationItem>
+        );
+      }
+
+      return items;
+    };
+
     return (
         <>
             <div className="flex items-center justify-between space-y-2 mb-4">
@@ -406,7 +581,7 @@ function RolesTab() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {roles.map((role) => (
+                            {paginatedRoles.map((role) => (
                                 <TableRow key={role.id}>
                                     <TableCell className="font-medium">{role.name}</TableCell>
                                     {PERMISSION_MODULES.map(module => (
@@ -438,6 +613,13 @@ function RolesTab() {
                             ))}
                         </TableBody>
                     </Table>
+                    {totalPages > 1 && (
+                      <div className="mt-6 flex justify-center">
+                        <Pagination>
+                          <PaginationContent>{renderPaginationItems()}</PaginationContent>
+                        </Pagination>
+                      </div>
+                    )}
                 </CardContent>
             </Card>
             <AddRoleDialog

@@ -5,39 +5,64 @@ import { ApprovalsClient } from "./client";
 import prisma from "@/lib/prisma";
 import type { PendingChange, User } from "@prisma/client";
 
+const ITEMS_PER_PAGE = 10;
+
 export type PendingChangeWithDetails = PendingChange & {
   createdBy: User;
   entityName: string;
   providerName?: string;
 };
 
-async function getPendingChanges(): Promise<PendingChangeWithDetails[]> {
-  const changes = await prisma.pendingChange.findMany({
-    where: {
-      status: "PENDING",
-      // Exclude reversal-related entity types - they are handled on the reversal approvals page
-      entityType: { notIn: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
-    },
-    include: {
-      // Only select non-sensitive fields for the creating user to avoid returning password hashes
-      createdBy: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          phoneNumber: true,
-          roleId: true,
-          loanProviderId: true,
-          status: true,
-          passwordChangeRequired: true,
-          createdAt: true,
+export type PaginatedPendingChanges = {
+  data: PendingChangeWithDetails[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+async function getPendingChanges(
+  page: number = 1
+): Promise<PaginatedPendingChanges> {
+  const skip = (page - 1) * ITEMS_PER_PAGE;
+
+  const [total, changes] = await Promise.all([
+    prisma.pendingChange.count({
+      where: {
+        status: "PENDING",
+        // Exclude reversal-related entity types - they are handled on the reversal approvals page
+        entityType: { notIn: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
+      },
+    }),
+    prisma.pendingChange.findMany({
+      where: {
+        status: "PENDING",
+        // Exclude reversal-related entity types - they are handled on the reversal approvals page
+        entityType: { notIn: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
+      },
+      include: {
+        // Only select non-sensitive fields for the creating user to avoid returning password hashes
+        createdBy: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+            roleId: true,
+            loanProviderId: true,
+            status: true,
+            passwordChangeRequired: true,
+            createdAt: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: ITEMS_PER_PAGE,
+    }),
+  ]);
 
   const providerIds = changes
     .map((c) => {
@@ -157,15 +182,29 @@ async function getPendingChanges(): Promise<PendingChangeWithDetails[]> {
     } as PendingChangeWithDetails;
   });
 
-  return detailedChanges;
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+
+  return {
+    data: detailedChanges,
+    total,
+    page,
+    pageSize: ITEMS_PER_PAGE,
+    totalPages,
+  };
 }
 
-export default async function ApprovalsPage() {
+export default async function ApprovalsPage({
+  searchParams,
+}: {
+  searchParams: { page?: string };
+}) {
   const user = await getUserFromSession();
   if (!user) {
     return <div>Not authenticated</div>;
   }
-  const pendingChanges = await getPendingChanges();
+  
+  const page = Math.max(1, parseInt(searchParams.page || "1", 10));
+  const paginatedData = await getPendingChanges(page);
 
-  return <ApprovalsClient pendingChanges={pendingChanges} currentUser={user} />;
+  return <ApprovalsClient paginatedData={paginatedData} currentUser={user} />;
 }

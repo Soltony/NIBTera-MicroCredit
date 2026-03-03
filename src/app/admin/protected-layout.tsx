@@ -10,6 +10,7 @@ import {
   Bell,
   FileText,
   ShieldCheck,
+  KeyRound,
   LogOut,
   User,
   FileCog,
@@ -142,6 +143,10 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
     router.push('/admin/login');
   };
 
+  const handleChangePassword = () => {
+    router.push('/admin/change-password');
+  };
+
   if (pathname === '/admin/login') {
     return <>{children}</>;
   }
@@ -218,6 +223,10 @@ export function ProtectedLayout({ children, providers }: ProtectedLayoutProps) {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{currentUser?.fullName}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleChangePassword} className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground">
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    <span>Change Password</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout} className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>

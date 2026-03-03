@@ -23,7 +23,22 @@ import type { PendingChangeWithDetails } from './page';
 import type { User } from '@/lib/types';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
-export default function ReversalApprovalDetailClient({ change, currentUser }: { change: PendingChangeWithDetails; currentUser: User }) {
+type RepaymentInfo = {
+  hasRepayments: boolean;
+  paymentCount: number;
+  totalRepaid: number;
+  installmentCount: number;
+  paidInstallments: number;
+  payments: Array<{
+    id: string;
+    amount: number;
+    date: string;
+    installmentNumber: number | null;
+    outstandingBalanceBeforePayment: number | null;
+  }>;
+};
+
+export default function ReversalApprovalDetailClient({ change, currentUser, repaymentInfo }: { change: PendingChangeWithDetails; currentUser: User; repaymentInfo?: RepaymentInfo }) {
   useRequirePermission("reversal-approval");
   
   const { toast } = useToast();
@@ -223,6 +238,70 @@ export default function ReversalApprovalDetailClient({ change, currentUser }: { 
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Repayment Activity Warning */}
+            {repaymentInfo && repaymentInfo.hasRepayments && !isCancel && (
+              <div className="rounded-md bg-red-50 dark:bg-red-950 p-4 border border-red-200 dark:border-red-800 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-red-600 text-white hover:bg-red-600">Repayments Found</Badge>
+                  <h4 className="text-sm font-semibold text-red-800 dark:text-red-200">
+                    This loan has {repaymentInfo.paymentCount} payment{repaymentInfo.paymentCount !== 1 ? 's' : ''} totalling{' '}
+                    {Number(repaymentInfo.totalRepaid).toLocaleString('en-ET', { style: 'currency', currency: 'ETB' })}
+                  </h4>
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Approving this reversal will <strong>also reverse all repayments</strong>, delete payment records,
+                  reset all installments, and restore the full loan amount to the provider balance.
+                </p>
+                {repaymentInfo.installmentCount > 0 && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    {repaymentInfo.paidInstallments} of {repaymentInfo.installmentCount} installment{repaymentInfo.installmentCount !== 1 ? 's' : ''} have been paid or partially paid.
+                  </p>
+                )}
+
+                {repaymentInfo.payments.length > 0 && (
+                  <div className="border border-red-200 dark:border-red-800 rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-red-100/50 dark:bg-red-900/30">
+                          <TableHead className="text-red-800 dark:text-red-200">#</TableHead>
+                          <TableHead className="text-red-800 dark:text-red-200">Date</TableHead>
+                          <TableHead className="text-red-800 dark:text-red-200">Amount</TableHead>
+                          <TableHead className="text-red-800 dark:text-red-200">Balance Before</TableHead>
+                          <TableHead className="text-red-800 dark:text-red-200">Installment</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {repaymentInfo.payments.slice(0, 10).map((p, idx) => (
+                          <TableRow key={p.id}>
+                            <TableCell>{idx + 1}</TableCell>
+                            <TableCell>{(() => { try { return format(new Date(p.date), 'yyyy-MM-dd HH:mm'); } catch { return p.date; } })()}</TableCell>
+                            <TableCell className="font-semibold">{Number(p.amount).toLocaleString('en-ET', { style: 'currency', currency: 'ETB' })}</TableCell>
+                            <TableCell>{p.outstandingBalanceBeforePayment != null ? Number(p.outstandingBalanceBeforePayment).toLocaleString('en-ET', { style: 'currency', currency: 'ETB' }) : '—'}</TableCell>
+                            <TableCell>{p.installmentNumber != null ? `#${p.installmentNumber}` : '—'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {repaymentInfo.payments.length > 10 && (
+                      <div className="text-xs text-center py-2 text-red-600 dark:text-red-400">
+                        Showing 10 of {repaymentInfo.payments.length} payments
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No repayments info for reversals */}
+            {repaymentInfo && !repaymentInfo.hasRepayments && !isCancel && (
+              <div className="rounded-md bg-green-50 dark:bg-green-950 p-4 border border-green-200 dark:border-green-800">
+                <h4 className="text-sm font-medium text-green-800 dark:text-green-200">No Repayment Activity</h4>
+                <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                  This loan has no recorded repayments. The reversal will only undo the loan disbursement and any accrued interest/penalties.
+                </p>
               </div>
             )}
 

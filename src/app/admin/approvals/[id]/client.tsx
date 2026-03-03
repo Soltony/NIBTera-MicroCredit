@@ -478,26 +478,102 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
   const [salaryPreviewTitle, setSalaryPreviewTitle] = useState<string>('Salary Mappings');
   const [salaryPageSize] = useState<number>(20);
   const [salaryCurrentPage, setSalaryCurrentPage] = useState<number>(1);
+  const [salaryPreviewBeforeMap, setSalaryPreviewBeforeMap] = useState<Map<string, string | number> | null>(null);
+  const [salaryFilter, setSalaryFilter] = useState<'all' | 'new' | 'updated' | 'unchanged'>('all');
 
-  const openSalaryPreview = (raw: any, title: string) => {
+  const salaryPreviewCounts = useMemo(() => {
+    if (!salaryPreviewRows || !salaryPreviewBeforeMap) return null;
+    let newCount = 0, updatedCount = 0, unchangedCount = 0;
+    for (const row of salaryPreviewRows) {
+      const inBefore = salaryPreviewBeforeMap.has(row.accountNumber);
+      if (!inBefore) { newCount++; }
+      else if (String(salaryPreviewBeforeMap.get(row.accountNumber)) !== String(row.salary)) { updatedCount++; }
+      else { unchangedCount++; }
+    }
+    return { newCount, updatedCount, unchangedCount };
+  }, [salaryPreviewRows, salaryPreviewBeforeMap]);
+
+  const salaryPreviewFilteredRows = useMemo(() => {
+    if (!salaryPreviewRows) return null;
+    if (!salaryPreviewBeforeMap || salaryFilter === 'all') return salaryPreviewRows;
+    return salaryPreviewRows.filter(row => {
+      const inBefore = salaryPreviewBeforeMap.has(row.accountNumber);
+      const salaryChanged = inBefore && String(salaryPreviewBeforeMap.get(row.accountNumber)) !== String(row.salary);
+      if (salaryFilter === 'new') return !inBefore;
+      if (salaryFilter === 'updated') return inBefore && salaryChanged;
+      if (salaryFilter === 'unchanged') return inBefore && !salaryChanged;
+      return true;
+    });
+  }, [salaryPreviewRows, salaryPreviewBeforeMap, salaryFilter]);
+
+  const getSalaryRowStatus = (row: { accountNumber: string; salary: number | string }): 'new' | 'updated' | 'unchanged' => {
+    if (!salaryPreviewBeforeMap) return 'unchanged';
+    if (!salaryPreviewBeforeMap.has(row.accountNumber)) return 'new';
+    if (String(salaryPreviewBeforeMap.get(row.accountNumber)) !== String(row.salary)) return 'updated';
+    return 'unchanged';
+  };
+
+  const openSalaryPreview = (raw: any, title: string, beforeRaw?: any) => {
     const rows = normalizeSalaryAdvanceMappings(raw);
     if (!rows) {
       toast({ title: 'No preview available', description: 'Salary mappings were not found or could not be parsed.', variant: 'destructive' });
       return;
     }
+    // Build a lookup map from the "before" data for comparison
+    let beforeMap: Map<string, string | number> | null = null;
+    if (beforeRaw !== undefined) {
+      const beforeRows = normalizeSalaryAdvanceMappings(beforeRaw);
+      if (beforeRows) {
+        beforeMap = new Map(beforeRows.map(r => [r.accountNumber, r.salary]));
+      }
+    }
+    setSalaryPreviewBeforeMap(beforeMap);
+    setSalaryFilter('all');
     setSalaryPreviewRows(rows);
     setSalaryPreviewTitle(title);
     setSalaryCurrentPage(1);
     setSalaryPreviewOpen(true);
   };
 
-  const renderSalaryMappingsCompact = (raw: any, title: string) => {
+  const renderSalaryMappingsCompact = (raw: any, title: string, beforeRaw?: any) => {
     const rows = normalizeSalaryAdvanceMappings(raw);
     if (!rows) return renderValue(raw);
+
+    // Compute summary if we have before data for comparison
+    const summaryParts: { label: string; variant: 'new' | 'updated' }[] = [];
+    if (beforeRaw !== undefined) {
+      const beforeRows = normalizeSalaryAdvanceMappings(beforeRaw);
+      if (beforeRows) {
+        const beforeMap = new Map(beforeRows.map(r => [r.accountNumber, r.salary]));
+        let newCount = 0;
+        let updatedCount = 0;
+        for (const row of rows) {
+          if (!beforeMap.has(row.accountNumber)) {
+            newCount++;
+          } else if (String(beforeMap.get(row.accountNumber)) !== String(row.salary)) {
+            updatedCount++;
+          }
+        }
+        if (newCount > 0) summaryParts.push({ label: `${newCount} new`, variant: 'new' });
+        if (updatedCount > 0) summaryParts.push({ label: `${updatedCount} updated`, variant: 'updated' });
+      }
+    }
+
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="text-sm text-muted-foreground">{rows.length} mapping{rows.length === 1 ? '' : 's'}</div>
-        <Button variant="link" className="p-0 h-auto" onClick={() => openSalaryPreview(raw, title)}>Preview</Button>
+        {summaryParts.map((part, i) => (
+          <Badge
+            key={i}
+            className={part.variant === 'new'
+              ? 'bg-green-100 text-green-800 hover:bg-green-100 border-green-200'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200'
+            }
+          >
+            {part.label}
+          </Badge>
+        ))}
+        <Button variant="link" className="p-0 h-auto" onClick={() => openSalaryPreview(raw, title, beforeRaw)}>Preview</Button>
       </div>
     );
   };
@@ -1218,7 +1294,7 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
                                     : change.entityType === 'TermsAndConditions' && c.field === 'content'
                                       ? <span className="text-sm text-muted-foreground">See the Terms &amp; Conditions section below.</span>
                                       : c.field === 'salaryAdvanceMappings'
-                                        ? renderSalaryMappingsCompact(c.after, 'Salary Mappings (After)')
+                                        ? renderSalaryMappingsCompact(c.after, 'Salary Mappings (After)', c.before)
                                         : c.field === 'columns'
                                           ? (Array.isArray(c.after) ? `${c.after.length} column${c.after.length === 1 ? '' : 's'}` : (c.after === undefined ? '—' : renderValue(c.after)))
                                           : renderValue(c.after)}
@@ -1317,28 +1393,81 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
               <DialogHeader>
                 <DialogTitle>{salaryPreviewTitle}</DialogTitle>
                 <DialogDescription>
-                  {salaryPreviewRows
-                    ? `Displaying ${Math.min(salaryPreviewRows.slice((salaryCurrentPage - 1) * salaryPageSize, salaryCurrentPage * salaryPageSize).length, salaryPreviewRows.length)} of ${salaryPreviewRows.length} mappings.`
+                  {salaryPreviewFilteredRows
+                    ? `Showing ${salaryPreviewFilteredRows.length} of ${salaryPreviewRows?.length ?? 0} mappings.`
                     : 'Displaying salary mappings.'}
+                  {salaryPreviewCounts && (
+                    <span className="ml-1">
+                      ({salaryPreviewCounts.newCount} new, {salaryPreviewCounts.updatedCount} updated, {salaryPreviewCounts.unchangedCount} unchanged)
+                    </span>
+                  )}
                 </DialogDescription>
               </DialogHeader>
+
+              {/* Filter buttons — only shown when we have comparison data */}
+              {salaryPreviewCounts && (
+                <div className="flex items-center gap-2 flex-wrap px-1">
+                  <Button variant={salaryFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => { setSalaryFilter('all'); setSalaryCurrentPage(1); }}>
+                    All ({salaryPreviewRows?.length ?? 0})
+                  </Button>
+                  <Button variant={salaryFilter === 'new' ? 'default' : 'outline'} size="sm"
+                    className={salaryFilter === 'new' ? 'bg-green-600 hover:bg-green-700' : ''}
+                    onClick={() => { setSalaryFilter('new'); setSalaryCurrentPage(1); }}>
+                    New ({salaryPreviewCounts.newCount})
+                  </Button>
+                  <Button variant={salaryFilter === 'updated' ? 'default' : 'outline'} size="sm"
+                    className={salaryFilter === 'updated' ? 'bg-amber-600 hover:bg-amber-700' : ''}
+                    onClick={() => { setSalaryFilter('updated'); setSalaryCurrentPage(1); }}>
+                    Updated ({salaryPreviewCounts.updatedCount})
+                  </Button>
+                  <Button variant={salaryFilter === 'unchanged' ? 'default' : 'outline'} size="sm"
+                    onClick={() => { setSalaryFilter('unchanged'); setSalaryCurrentPage(1); }}>
+                    Unchanged ({salaryPreviewCounts.unchangedCount})
+                  </Button>
+                </div>
+              )}
+
               <div className="flex-grow overflow-auto border rounded-md">
-                {salaryPreviewRows && salaryPreviewRows.length > 0 ? (
+                {salaryPreviewFilteredRows && salaryPreviewFilteredRows.length > 0 ? (
                   <div className="p-4">
                     <Table>
                       <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
                           <TableHead>Account Number</TableHead>
                           <TableHead>Salary</TableHead>
+                          {salaryPreviewBeforeMap && <TableHead>Previous Salary</TableHead>}
+                          {salaryPreviewBeforeMap && <TableHead>Status</TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {salaryPreviewRows.slice((salaryCurrentPage - 1) * salaryPageSize, salaryCurrentPage * salaryPageSize).map((row, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="font-medium">{row.accountNumber}</TableCell>
-                            <TableCell>{String(row.salary ?? '')}</TableCell>
-                          </TableRow>
-                        ))}
+                        {salaryPreviewFilteredRows.slice((salaryCurrentPage - 1) * salaryPageSize, salaryCurrentPage * salaryPageSize).map((row, idx) => {
+                          const status = getSalaryRowStatus(row);
+                          const rowBg = status === 'new'
+                            ? 'bg-green-50'
+                            : status === 'updated'
+                              ? 'bg-amber-50'
+                              : '';
+                          return (
+                            <TableRow key={idx} className={rowBg}>
+                              <TableCell className="font-medium">{row.accountNumber}</TableCell>
+                              <TableCell>{String(row.salary ?? '')}</TableCell>
+                              {salaryPreviewBeforeMap && (
+                                <TableCell className="text-muted-foreground">
+                                  {salaryPreviewBeforeMap.has(row.accountNumber)
+                                    ? String(salaryPreviewBeforeMap.get(row.accountNumber) ?? '')
+                                    : '—'}
+                                </TableCell>
+                              )}
+                              {salaryPreviewBeforeMap && (
+                                <TableCell>
+                                  {status === 'new' && <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100">New</Badge>}
+                                  {status === 'updated' && <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100">Updated</Badge>}
+                                  {status === 'unchanged' && <span className="text-xs text-muted-foreground">Unchanged</span>}
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -1346,13 +1475,13 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
                   <div className="p-4 text-sm text-muted-foreground">No mappings to preview.</div>
                 )}
               </div>
-              {salaryPreviewRows && salaryPreviewRows.length > 0 && (
+              {salaryPreviewFilteredRows && salaryPreviewFilteredRows.length > 0 && (
                 <div className="px-4 py-3 border-t">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">Page {salaryCurrentPage} of {Math.max(1, Math.ceil(salaryPreviewRows.length / salaryPageSize))}</div>
+                    <div className="text-sm text-muted-foreground">Page {salaryCurrentPage} of {Math.max(1, Math.ceil(salaryPreviewFilteredRows.length / salaryPageSize))}</div>
                     <div className="flex items-center space-x-2">
                       <Button variant="outline" size="sm" onClick={() => setSalaryCurrentPage(p => Math.max(1, p - 1))} disabled={salaryCurrentPage === 1}>Previous</Button>
-                      <Button variant="outline" size="sm" onClick={() => setSalaryCurrentPage(p => Math.min(Math.ceil(salaryPreviewRows.length / salaryPageSize), p + 1))} disabled={salaryCurrentPage >= Math.ceil(salaryPreviewRows.length / salaryPageSize)}>Next</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSalaryCurrentPage(p => Math.min(Math.ceil(salaryPreviewFilteredRows.length / salaryPageSize), p + 1))} disabled={salaryCurrentPage >= Math.ceil(salaryPreviewFilteredRows.length / salaryPageSize)}>Next</Button>
                     </div>
                   </div>
                 </div>

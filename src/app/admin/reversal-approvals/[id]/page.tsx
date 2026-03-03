@@ -187,6 +187,79 @@ export default async function ReversalApprovalDetailPage({ params }: { params: a
     // ignore
   }
 
+  // ---- Fetch repayment data for the loan being reversed ----
+  let repaymentInfo: {
+    hasRepayments: boolean;
+    paymentCount: number;
+    totalRepaid: number;
+    installmentCount: number;
+    paidInstallments: number;
+    payments: Array<{
+      id: string;
+      amount: number;
+      date: string;
+      installmentNumber: number | null;
+      outstandingBalanceBeforePayment: number | null;
+    }>;
+  } = { hasRepayments: false, paymentCount: 0, totalRepaid: 0, installmentCount: 0, paidInstallments: 0, payments: [] };
+
+  try {
+    const parsed = JSON.parse(payload);
+    const target = parsed.created || parsed.updated || parsed.original;
+    let targetLoanId = target?.loanId || null;
+
+    // For DisbursementReversal/Cancel, the entityId is the disbursement tx — resolve to loan
+    if (!targetLoanId && (change.entityType === 'DisbursementReversal' || change.entityType === 'DisbursementCancel')) {
+      const dtxId = target?.disbursementTransactionId || change.entityId;
+      if (dtxId) {
+        const dtx = await prisma.disbursementTransaction.findUnique({ where: { id: dtxId }, select: { loanId: true } });
+        targetLoanId = dtx?.loanId ?? null;
+      }
+    }
+
+    if (targetLoanId) {
+      const loan = await prisma.loan.findUnique({
+        where: { id: targetLoanId },
+        select: {
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              date: true,
+              outstandingBalanceBeforePayment: true,
+              installment: { select: { installmentNumber: true } },
+            },
+            orderBy: { date: 'desc' },
+          },
+          installments: {
+            select: { id: true, paidAmount: true, status: true },
+          },
+        },
+      });
+
+      if (loan) {
+        const payments = loan.payments || [];
+        const installments = loan.installments || [];
+        repaymentInfo = {
+          hasRepayments: payments.length > 0,
+          paymentCount: payments.length,
+          totalRepaid: payments.reduce((s, p) => s + (p.amount || 0), 0),
+          installmentCount: installments.length,
+          paidInstallments: installments.filter(i => i.status === 'PAID' || (i.paidAmount ?? 0) > 0).length,
+          payments: payments.map(p => ({
+            id: p.id,
+            amount: p.amount,
+            date: p.date.toISOString(),
+            installmentNumber: p.installment?.installmentNumber ?? null,
+            outstandingBalanceBeforePayment: p.outstandingBalanceBeforePayment ?? null,
+          })),
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch repayment info for reversal approval', e);
+  }
+
   const detailed: PendingChangeWithDetails = {
     ...change,
     payload,
@@ -198,5 +271,5 @@ export default async function ReversalApprovalDetailPage({ params }: { params: a
   (detailed as any).createdAt = detailed.createdAt ? new Date(detailed.createdAt).toISOString() : null;
   (detailed as any).updatedAt = detailed.updatedAt ? new Date(detailed.updatedAt).toISOString() : null;
 
-  return <ReversalApprovalDetailClient change={detailed} currentUser={user} />;
+  return <ReversalApprovalDetailClient change={detailed} currentUser={user} repaymentInfo={repaymentInfo} />;
 }

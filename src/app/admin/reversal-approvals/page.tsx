@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import type { PendingChange, User } from "@prisma/client";
 import { ReversalApprovalsClient } from "./client";
 
+const ITEMS_PER_PAGE = 10;
+
 export type PendingReversalApproval = PendingChange & {
   createdBy: Pick<
     User,
@@ -22,31 +24,51 @@ export type PendingReversalApproval = PendingChange & {
   providerName?: string;
 };
 
-async function getPendingReversalApprovals(): Promise<
-  PendingReversalApproval[]
-> {
-  const changes = await prisma.pendingChange.findMany({
-    where: {
-      status: "PENDING",
-      entityType: { in: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
-    },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          phoneNumber: true,
-          roleId: true,
-          loanProviderId: true,
-          status: true,
-          passwordChangeRequired: true,
-          createdAt: true,
+export type PaginatedReversalApprovals = {
+  data: PendingReversalApproval[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+async function getPendingReversalApprovals(
+  page: number = 1
+): Promise<PaginatedReversalApprovals> {
+  const skip = (page - 1) * ITEMS_PER_PAGE;
+
+  const [total, changes] = await Promise.all([
+    prisma.pendingChange.count({
+      where: {
+        status: "PENDING",
+        entityType: { in: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
+      },
+    }),
+    prisma.pendingChange.findMany({
+      where: {
+        status: "PENDING",
+        entityType: { in: ["DisbursementReversal", "DisbursementCancel", "LoanReversal", "LoanCancel"] },
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+            roleId: true,
+            loanProviderId: true,
+            status: true,
+            passwordChangeRequired: true,
+            createdAt: true,
+          },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: ITEMS_PER_PAGE,
+    }),
+  ]);
 
   const providerIds = changes
     .map((c) => {
@@ -152,18 +174,31 @@ async function getPendingReversalApprovals(): Promise<
     } as PendingReversalApproval;
   });
 
-  return detailed;
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+
+  return {
+    data: detailed,
+    total,
+    page,
+    pageSize: ITEMS_PER_PAGE,
+    totalPages,
+  };
 }
 
-export default async function ReversalApprovalsPage() {
+export default async function ReversalApprovalsPage({
+  searchParams,
+}: {
+  searchParams: { page?: string };
+}) {
   const user = await getUserFromSession();
   if (!user) return <div>Not authenticated</div>;
 
-  const pendingChanges = await getPendingReversalApprovals();
+  const page = Math.max(1, parseInt(searchParams.page || "1", 10));
+  const paginatedData = await getPendingReversalApprovals(page);
 
   return (
     <ReversalApprovalsClient
-      pendingChanges={pendingChanges}
+      paginatedData={paginatedData}
       currentUser={user}
     />
   );

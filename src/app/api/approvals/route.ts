@@ -320,50 +320,63 @@ async function applyChange(
           return;
         }
 
-        const phoneMap = await prisma.phoneAccount.findFirst({
-          where: { accountNumber: String(tx.creditAccount) },
-          select: { phoneNumber: true },
-        });
-        const borrowerId = phoneMap?.phoneNumber;
-        if (!borrowerId)
-          throw new Error(
-            "Cannot resolve borrower (no phone-account mapping for creditAccount)."
-          );
-
-        const internalProviderId = tx.originalProviderId || tx.providerId;
-        const windowStart = new Date(tx.createdAt.getTime() - 60 * 60 * 1000);
-        const windowEnd = new Date(tx.createdAt.getTime() + 60 * 60 * 1000);
-
-        const loan = await prisma.loan.findFirst({
-          where: {
-            borrowerId,
-            ...(tx.amount != null ? { loanAmount: Number(tx.amount) } : {}),
-            createdAt: { gte: windowStart, lte: windowEnd },
-            product: { providerId: internalProviderId },
-          },
-          include: {
-            payments: {
-              select: {
-                id: true,
-                amount: true,
-                date: true,
-                installmentId: true,
-                outstandingBalanceBeforePayment: true,
-                journalEntryId: true,
-                journalEntry: { include: { entries: true } },
-              },
-            },
-            pendingPayments: { select: { id: true, status: true } },
-            product: {
-              include: { provider: { include: { ledgerAccounts: true } } },
-            },
-            journalEntries: { include: { entries: true } },
-            installments: {
-              select: { id: true, installmentNumber: true, amount: true, paidAmount: true, status: true, penaltyAmount: true },
+        const loanInclude = {
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              date: true,
+              installmentId: true,
+              outstandingBalanceBeforePayment: true,
+              journalEntryId: true,
+              journalEntry: { include: { entries: true } },
             },
           },
-          orderBy: { createdAt: "desc" },
-        });
+          pendingPayments: { select: { id: true, status: true } },
+          product: {
+            include: { provider: { include: { ledgerAccounts: true } } },
+          },
+          journalEntries: { include: { entries: true } },
+          installments: {
+            select: { id: true, installmentNumber: true, amount: true, paidAmount: true, status: true, penaltyAmount: true },
+          },
+        } as const;
+
+        // Prefer direct loanId from the disbursement transaction if available
+        let loan = tx.loanId
+          ? await prisma.loan.findUnique({
+              where: { id: tx.loanId },
+              include: loanInclude,
+            })
+          : null;
+
+        // Fallback: heuristic match by borrower, amount, time window, and provider
+        if (!loan) {
+          const phoneMap = await prisma.phoneAccount.findFirst({
+            where: { accountNumber: String(tx.creditAccount) },
+            select: { phoneNumber: true },
+          });
+          const borrowerId = phoneMap?.phoneNumber;
+          if (!borrowerId)
+            throw new Error(
+              "Cannot resolve borrower (no phone-account mapping for creditAccount)."
+            );
+
+          const internalProviderId = tx.originalProviderId || tx.providerId;
+          const windowStart = new Date(tx.createdAt.getTime() - 60 * 60 * 1000);
+          const windowEnd = new Date(tx.createdAt.getTime() + 60 * 60 * 1000);
+
+          loan = await prisma.loan.findFirst({
+            where: {
+              borrowerId,
+              ...(tx.amount != null ? { loanAmount: Number(tx.amount) } : {}),
+              createdAt: { gte: windowStart, lte: windowEnd },
+              product: { providerId: internalProviderId },
+            },
+            include: loanInclude,
+            orderBy: { createdAt: "desc" },
+          });
+        }
 
         if (!loan)
           throw new Error(
