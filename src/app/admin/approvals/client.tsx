@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRequirePermission } from '@/hooks/use-require-permission';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,14 +45,11 @@ export function ApprovalsClient({
   currentUser: User;
 }) {
   useRequirePermission('approvals');
-  const [changes, setChanges] = useState(initialData.data);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
-
-  // Sync state when server-side data changes (e.g. pagination)
-  useEffect(() => {
-    setChanges(initialData.data);
-  }, [initialData]);
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const changes = initialData.data.filter(c => !removedIds.has(c.id));
   const [rejectionReason, setRejectionReason] = useState('');
   const [changeToReject, setChangeToReject] = useState<PendingChangeWithDetails | null>(null);
   const { toast } = useToast();
@@ -79,7 +76,7 @@ export function ApprovalsClient({
         throw new Error(errorData.error || `Failed to ${approved ? 'approve' : 'reject'} change.`);
       }
 
-      setChanges(prev => prev.filter(c => c.id !== changeId));
+      setRemovedIds(prev => new Set([...prev, changeId]));
       toast({
         title: 'Success',
         description: `Change has been successfully ${approved ? 'approved' : 'rejected'}.`,

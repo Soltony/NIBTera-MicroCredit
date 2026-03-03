@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRequirePermission } from "@/hooks/use-require-permission";
 import { useRouter } from "next/navigation";
 import {
@@ -53,13 +53,10 @@ export function ReversalApprovalsClient({
   currentUser: User;
 }) {
   useRequirePermission("reversal-approval");
-  const [changes, setChanges] = useState(initialData.data);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Sync state when server-side data changes (e.g. pagination)
-  useEffect(() => {
-    setChanges(initialData.data);
-  }, [initialData]);
+  const changes = initialData.data.filter((c) => !removedIds.has(c.id));
   const [rejectionReason, setRejectionReason] = useState("");
   const [changeToReject, setChangeToReject] =
     useState<PendingReversalApproval | null>(null);
@@ -98,7 +95,7 @@ export function ReversalApprovalsClient({
         );
       }
 
-      setChanges((prev) => prev.filter((c) => c.id !== changeId));
+      setRemovedIds((prev) => new Set([...prev, changeId]));
       toast({
         title: "Success",
         description: `Reversal request has been ${
