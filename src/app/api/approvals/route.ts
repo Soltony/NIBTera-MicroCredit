@@ -273,6 +273,75 @@ async function applyEligibilityList(change: any, data: any) {
 }
 
 // Main function to apply an approved change
+async function resolveDisbursementTransaction(
+  data: any,
+  entityId?: string | null
+) {
+  const created = data?.created || {};
+  const disbursementTransactionId =
+    created?.disbursementTransactionId || entityId || null;
+  const transactionId = created?.transactionId || null;
+  const creditAccount =
+    created?.creditAccount != null ? String(created.creditAccount) : null;
+  const originalProviderId = created?.originalProviderId || null;
+  const providerId = created?.providerId || null;
+  const amount =
+    created?.amount != null && !Number.isNaN(Number(created.amount))
+      ? Number(created.amount)
+      : null;
+
+  if (disbursementTransactionId) {
+    const byId = await prisma.disbursementTransaction.findUnique({
+      where: { id: String(disbursementTransactionId) },
+    });
+    if (byId) return byId;
+  }
+
+  if (transactionId) {
+    const byTransactionId = await prisma.disbursementTransaction.findFirst({
+      where: { transactionId: String(transactionId) },
+      orderBy: { createdAt: "desc" },
+    });
+    if (byTransactionId) return byTransactionId;
+  }
+
+  if (creditAccount) {
+    const providerIds = [originalProviderId, providerId].filter(
+      (v): v is string => Boolean(v)
+    );
+
+    const byHeuristics = await prisma.disbursementTransaction.findFirst({
+      where: {
+        creditAccount,
+        ...(amount != null ? { amount } : {}),
+        ...(providerIds.length > 0
+          ? {
+              OR: providerIds.flatMap((pid) => [
+                { providerId: pid },
+                { originalProviderId: pid },
+              ]),
+            }
+          : {}),
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (byHeuristics) return byHeuristics;
+  }
+
+  const details = {
+    disbursementTransactionId,
+    transactionId,
+    creditAccount,
+    originalProviderId,
+    providerId,
+    amount,
+    entityId,
+  };
+  throw new Error(
+    `DisbursementTransaction not found for approval payload: ${JSON.stringify(details)}`
+  );
+}
+
 async function applyChange(
   change: any,
   context?: { actorId?: string; ipAddress?: string; userAgent?: string }
@@ -290,15 +359,7 @@ async function applyChange(
         const actorId = context?.actorId;
         const ipAddress = context?.ipAddress || "N/A";
         const userAgent = context?.userAgent || "N/A";
-        const disbursementTransactionId =
-          data?.created?.disbursementTransactionId || entityId;
-        if (!disbursementTransactionId)
-          throw new Error("Missing disbursementTransactionId");
-
-        const tx = await prisma.disbursementTransaction.findUnique({
-          where: { id: String(disbursementTransactionId) },
-        });
-        if (!tx) throw new Error("DisbursementTransaction not found");
+        const tx = await resolveDisbursementTransaction(data, entityId);
 
         const statusCode = tx.statusCode;
         const isFailure =
@@ -602,14 +663,9 @@ async function applyChange(
           data?.created?.disbursementTransactionId || entityId;
         const cbsTransactionId = data?.created?.cbsTransactionId;
 
-        if (!disbursementTransactionId)
-          throw new Error("Missing disbursementTransactionId");
         if (!cbsTransactionId) throw new Error("Missing cbsTransactionId");
 
-        const tx = await prisma.disbursementTransaction.findUnique({
-          where: { id: String(disbursementTransactionId) },
-        });
-        if (!tx) throw new Error("DisbursementTransaction not found");
+        const tx = await resolveDisbursementTransaction(data, entityId);
 
         // Check if already cancelled
         const alreadyCancelled = await prisma.auditLog.findFirst({
