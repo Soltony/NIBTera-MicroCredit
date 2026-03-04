@@ -473,30 +473,38 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
     return rows.length ? rows : null;
   };
 
+  type SalaryPreviewRow = { accountNumber: string; salary: number | string; removed?: boolean };
+
   const [salaryPreviewOpen, setSalaryPreviewOpen] = useState(false);
-  const [salaryPreviewRows, setSalaryPreviewRows] = useState<Array<{ accountNumber: string; salary: number | string }> | null>(null);
+  const [salaryPreviewRows, setSalaryPreviewRows] = useState<Array<SalaryPreviewRow> | null>(null);
   const [salaryPreviewTitle, setSalaryPreviewTitle] = useState<string>('Salary Mappings');
   const [salaryPageSize] = useState<number>(20);
   const [salaryCurrentPage, setSalaryCurrentPage] = useState<number>(1);
   const [salaryPreviewBeforeMap, setSalaryPreviewBeforeMap] = useState<Map<string, string | number> | null>(null);
-  const [salaryFilter, setSalaryFilter] = useState<'all' | 'new' | 'updated' | 'unchanged'>('all');
+  const [salaryFilter, setSalaryFilter] = useState<'all' | 'new' | 'updated' | 'unchanged' | 'removed'>('all');
 
   const salaryPreviewCounts = useMemo(() => {
     if (!salaryPreviewRows || !salaryPreviewBeforeMap) return null;
-    let newCount = 0, updatedCount = 0, unchangedCount = 0;
+    let newCount = 0, updatedCount = 0, unchangedCount = 0, removedCount = 0;
     for (const row of salaryPreviewRows) {
+      if (row.removed) {
+        removedCount++;
+        continue;
+      }
       const inBefore = salaryPreviewBeforeMap.has(row.accountNumber);
       if (!inBefore) { newCount++; }
       else if (String(salaryPreviewBeforeMap.get(row.accountNumber)) !== String(row.salary)) { updatedCount++; }
       else { unchangedCount++; }
     }
-    return { newCount, updatedCount, unchangedCount };
+    return { newCount, updatedCount, unchangedCount, removedCount };
   }, [salaryPreviewRows, salaryPreviewBeforeMap]);
 
   const salaryPreviewFilteredRows = useMemo(() => {
     if (!salaryPreviewRows) return null;
     if (!salaryPreviewBeforeMap || salaryFilter === 'all') return salaryPreviewRows;
     return salaryPreviewRows.filter(row => {
+      if (salaryFilter === 'removed') return !!row.removed;
+      if (row.removed) return false;
       const inBefore = salaryPreviewBeforeMap.has(row.accountNumber);
       const salaryChanged = inBefore && String(salaryPreviewBeforeMap.get(row.accountNumber)) !== String(row.salary);
       if (salaryFilter === 'new') return !inBefore;
@@ -506,8 +514,9 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
     });
   }, [salaryPreviewRows, salaryPreviewBeforeMap, salaryFilter]);
 
-  const getSalaryRowStatus = (row: { accountNumber: string; salary: number | string }): 'new' | 'updated' | 'unchanged' => {
+  const getSalaryRowStatus = (row: SalaryPreviewRow): 'new' | 'updated' | 'unchanged' | 'removed' => {
     if (!salaryPreviewBeforeMap) return 'unchanged';
+    if (row.removed) return 'removed';
     if (!salaryPreviewBeforeMap.has(row.accountNumber)) return 'new';
     if (String(salaryPreviewBeforeMap.get(row.accountNumber)) !== String(row.salary)) return 'updated';
     return 'unchanged';
@@ -527,9 +536,21 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
         beforeMap = new Map(beforeRows.map(r => [r.accountNumber, r.salary]));
       }
     }
+    let previewRows: SalaryPreviewRow[] = rows;
+    if (beforeMap) {
+      const afterAccounts = new Set(rows.map(r => r.accountNumber));
+      const removedRows: SalaryPreviewRow[] = [];
+      for (const [accountNumber] of beforeMap.entries()) {
+        if (!afterAccounts.has(accountNumber)) {
+          removedRows.push({ accountNumber, salary: '', removed: true });
+        }
+      }
+      previewRows = [...rows, ...removedRows];
+    }
+
     setSalaryPreviewBeforeMap(beforeMap);
     setSalaryFilter('all');
-    setSalaryPreviewRows(rows);
+    setSalaryPreviewRows(previewRows);
     setSalaryPreviewTitle(title);
     setSalaryCurrentPage(1);
     setSalaryPreviewOpen(true);
@@ -540,13 +561,15 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
     if (!rows) return renderValue(raw);
 
     // Compute summary if we have before data for comparison
-    const summaryParts: { label: string; variant: 'new' | 'updated' }[] = [];
+    const summaryParts: { label: string; variant: 'new' | 'updated' | 'removed' }[] = [];
     if (beforeRaw !== undefined) {
       const beforeRows = normalizeSalaryAdvanceMappings(beforeRaw);
       if (beforeRows) {
         const beforeMap = new Map(beforeRows.map(r => [r.accountNumber, r.salary]));
+        const afterAccounts = new Set(rows.map(r => r.accountNumber));
         let newCount = 0;
         let updatedCount = 0;
+        let removedCount = 0;
         for (const row of rows) {
           if (!beforeMap.has(row.accountNumber)) {
             newCount++;
@@ -554,8 +577,14 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
             updatedCount++;
           }
         }
+        for (const accountNumber of beforeMap.keys()) {
+          if (!afterAccounts.has(accountNumber)) {
+            removedCount++;
+          }
+        }
         if (newCount > 0) summaryParts.push({ label: `${newCount} new`, variant: 'new' });
         if (updatedCount > 0) summaryParts.push({ label: `${updatedCount} updated`, variant: 'updated' });
+        if (removedCount > 0) summaryParts.push({ label: `${removedCount} removed`, variant: 'removed' });
       }
     }
 
@@ -567,7 +596,9 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
             key={i}
             className={part.variant === 'new'
               ? 'bg-green-100 text-green-800 hover:bg-green-100 border-green-200'
-              : 'bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200'
+              : part.variant === 'updated'
+                ? 'bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200'
+                : 'bg-red-100 text-red-800 hover:bg-red-100 border-red-200'
             }
           >
             {part.label}
@@ -1398,7 +1429,7 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
                     : 'Displaying salary mappings.'}
                   {salaryPreviewCounts && (
                     <span className="ml-1">
-                      ({salaryPreviewCounts.newCount} new, {salaryPreviewCounts.updatedCount} updated, {salaryPreviewCounts.unchangedCount} unchanged)
+                      ({salaryPreviewCounts.newCount} new, {salaryPreviewCounts.updatedCount} updated, {salaryPreviewCounts.removedCount} removed, {salaryPreviewCounts.unchangedCount} unchanged)
                     </span>
                   )}
                 </DialogDescription>
@@ -1419,6 +1450,11 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
                     className={salaryFilter === 'updated' ? 'bg-amber-600 hover:bg-amber-700' : ''}
                     onClick={() => { setSalaryFilter('updated'); setSalaryCurrentPage(1); }}>
                     Updated ({salaryPreviewCounts.updatedCount})
+                  </Button>
+                  <Button variant={salaryFilter === 'removed' ? 'default' : 'outline'} size="sm"
+                    className={salaryFilter === 'removed' ? 'bg-red-600 hover:bg-red-700' : ''}
+                    onClick={() => { setSalaryFilter('removed'); setSalaryCurrentPage(1); }}>
+                    Removed ({salaryPreviewCounts.removedCount})
                   </Button>
                   <Button variant={salaryFilter === 'unchanged' ? 'default' : 'outline'} size="sm"
                     onClick={() => { setSalaryFilter('unchanged'); setSalaryCurrentPage(1); }}>
@@ -1446,11 +1482,13 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
                             ? 'bg-green-50'
                             : status === 'updated'
                               ? 'bg-amber-50'
+                              : status === 'removed'
+                                ? 'bg-red-50'
                               : '';
                           return (
                             <TableRow key={idx} className={rowBg}>
                               <TableCell className="font-medium">{row.accountNumber}</TableCell>
-                              <TableCell>{String(row.salary ?? '')}</TableCell>
+                              <TableCell>{status === 'removed' ? '—' : String(row.salary ?? '')}</TableCell>
                               {salaryPreviewBeforeMap && (
                                 <TableCell className="text-muted-foreground">
                                   {salaryPreviewBeforeMap.has(row.accountNumber)
@@ -1462,6 +1500,7 @@ export default function ApprovalsDetailClient({ change, currentUser }: { change:
                                 <TableCell>
                                   {status === 'new' && <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100">New</Badge>}
                                   {status === 'updated' && <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100">Updated</Badge>}
+                                  {status === 'removed' && <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-100">Removed</Badge>}
                                   {status === 'unchanged' && <span className="text-xs text-muted-foreground">Unchanged</span>}
                                 </TableCell>
                               )}
