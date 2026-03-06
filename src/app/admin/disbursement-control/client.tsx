@@ -8,14 +8,20 @@ import { useToast } from '@/hooks/use-toast';
 
 export function DisbursementControlClient({
   initialEnabled,
+  canUpdate,
 }: {
   initialEnabled: boolean;
+  canUpdate: boolean;
 }) {
   const { toast } = useToast();
   const [enabled, setEnabled] = React.useState(initialEnabled);
   const [saving, setSaving] = React.useState(false);
 
   const onToggle = async (next: boolean) => {
+    if (!canUpdate) {
+      return;
+    }
+
     setEnabled(next);
     setSaving(true);
 
@@ -71,12 +77,17 @@ export function DisbursementControlClient({
               <div className="text-sm text-muted-foreground">
                 {enabled ? 'Enabled' : 'Disabled'}{saving ? ' (saving...)' : ''}
               </div>
+              {!canUpdate ? (
+                <div className="text-sm text-muted-foreground">
+                  You have read-only access to this control.
+                </div>
+              ) : null}
             </div>
             <Switch
               id="disbursements-enabled"
               checked={enabled}
               onCheckedChange={onToggle}
-              disabled={saving}
+              disabled={saving || !canUpdate}
             />
           </div>
         </CardContent>

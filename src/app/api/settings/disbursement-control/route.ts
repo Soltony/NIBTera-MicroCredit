@@ -7,7 +7,7 @@ import { getDisbursementControl } from '@/lib/disbursement-control';
 
 export async function GET() {
   const user = await getUserFromSession();
-  if (!user || !user.permissions?.['settings']?.read) {
+  if (!user || !user.permissions?.['disbursement-control']?.read) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
@@ -21,11 +21,8 @@ const updateSchema = z.object({
 
 export async function PUT(req: NextRequest) {
   const user = await getUserFromSession();
-  if (!user || !user.permissions?.['settings']?.update) {
+  if (!user || !user.permissions?.['disbursement-control']?.update) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
-  }
-  if (user.role !== 'Super Admin') {
-    return NextResponse.json({ error: 'Only Super Admins can change disbursement controls.' }, { status: 403 });
   }
 
   const ipAddress = req.headers.get('x-forwarded-for') || 'N/A';

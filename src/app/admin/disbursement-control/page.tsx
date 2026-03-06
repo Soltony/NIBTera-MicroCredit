@@ -4,16 +4,17 @@ import { DisbursementControlClient } from './client';
 import { getDisbursementControl } from '@/lib/disbursement-control';
 
 export default async function DisbursementControlPage() {
-  await requireServerPermission('settings');
+  await requireServerPermission('disbursement-control');
 
   const user = await getUserFromSession();
   if (!user) return <div>Not authenticated</div>;
 
-  if (user.role !== 'Super Admin') {
-    return <div>Forbidden</div>;
-  }
-
   const control = await getDisbursementControl();
 
-  return <DisbursementControlClient initialEnabled={control.enabled} />;
+  return (
+    <DisbursementControlClient
+      initialEnabled={control.enabled}
+      canUpdate={!!user.permissions?.['disbursement-control']?.update}
+    />
+  );
 }
