@@ -83,7 +83,13 @@ export async function GET(
     // Get the PendingChange record that was used for maker-checker approval
     // The reversal was requested via a PendingChange, search for the matching one
     const loanId = details.loanId;
+    const disbursementTransactionId = details.disbursementTransactionId;
     const entityTypes = ["DisbursementReversal", "LoanReversal"];
+    const candidateEntityIds = new Set(
+      [entityId, loanId, disbursementTransactionId].filter(
+        (value): value is string => typeof value === "string" && value.length > 0
+      )
+    );
 
     let pendingChange: any = null;
 
@@ -111,10 +117,20 @@ export async function GET(
         const target = payload.created || payload.updated || payload.original;
         if (!target) continue;
 
+        const matchesLoanId =
+          typeof loanId === "string" &&
+          loanId.length > 0 &&
+          target.loanId === loanId;
+        const matchesPendingEntityId =
+          typeof pc.entityId === "string" && candidateEntityIds.has(pc.entityId);
+        const matchesPayloadDisbursementId =
+          typeof target.disbursementTransactionId === "string" &&
+          candidateEntityIds.has(target.disbursementTransactionId);
+
         if (
-          target.loanId === loanId ||
-          pc.entityId === entityId ||
-          target.disbursementTransactionId === entityId
+          matchesLoanId ||
+          matchesPendingEntityId ||
+          matchesPayloadDisbursementId
         ) {
           pendingChange = pc;
           break;
