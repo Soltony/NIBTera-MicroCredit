@@ -98,6 +98,9 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   
   const [postedDisbursementRepaymentData, setPostedDisbursementRepaymentData] = useState<any[]>([]);
   const [postedDisbursementRepaymentPagination, setPostedDisbursementRepaymentPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
+
+  const [nationalBankData, setNationalBankData] = useState<any[]>([]);
+  const [nationalBankPagination, setNationalBankPagination] = useState({ total: 0, page: 1, pageSize: 50, totalPages: 0 });
   
   const [providerSummaryData, setProviderSummaryData] = useState<
     Record<string, ProviderReportData>
@@ -213,6 +216,12 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     },
     postedDisbursementRepaymentReport: {
       sortBy: "transactionDate",
+      sortDir: "desc",
+      page: 1,
+      pageSize: DEFAULT_PAGE_SIZE,
+    },
+    nationalBankReport: {
+      sortBy: "loanAccountRefNo",
       sortDir: "desc",
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE,
@@ -397,24 +406,32 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     }
   }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
 
-  const fetchAllReportData = useCallback(
+  const fetchNationalBankData = useCallback(async (page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
+    if (!providerId || providerId === "none") return;
+    try {
+      const response = await fetch(buildPaginatedUrl("/api/reports/national-bank", providerId, timeframe, dateRange, page, pageSize, debouncedSearch));
+      if (!response.ok) throw new Error("Failed to fetch national bank report data");
+      const result = await response.json();
+      setNationalBankData(result.data || []);
+      setNationalBankPagination({ total: result.total || 0, page: result.page || 1, pageSize: result.pageSize || pageSize, totalPages: result.totalPages || 0 });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }, [providerId, timeframe, dateRange, debouncedSearch, buildPaginatedUrl, toast]);
+
+  // Generic fetch function for the active tab
+  const fetchActiveTabData = useCallback(
     async (
+      tab: string,
       currentProviderId: string,
       currentTimeframe: string,
       currentDateRange?: DateRange,
       currentSearch?: string
     ) => {
+      if (!currentProviderId || currentProviderId === "none") return;
+      
       setIsLoading(true);
       try {
-        const fetchDataForTab = async (url: string) => {
-          const response = await fetch(url);
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Failed to fetch data.`);
-          }
-          return response.json();
-        };
-
         const buildUrl = (baseUrl: string, page: number = 1, pageSize: number = DEFAULT_PAGE_SIZE) => {
           const params = new URLSearchParams({
             providerId: currentProviderId,
@@ -434,125 +451,144 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           return `${baseUrl}?${params.toString()}`;
         };
 
-        const loansPromise = fetchDataForTab(buildUrl("/api/reports/loans"));
-        const collectionsPromise = fetchDataForTab(
-          buildUrl("/api/reports/collections")
-        );
-        const disbursementsPromise = fetchDataForTab(
-          buildUrl("/api/reports/transactions") + "&type=disbursement"
-        );
-        const repaymentsPromise = fetchDataForTab(
-          buildUrl("/api/reports/transactions") + "&type=repayment"
-        );
-        const failedDisbursementRepaymentPromise = fetchDataForTab(
-          buildUrl("/api/reports/transactions") + "&type=failed-disbursement-with-repayment"
-        );
-        const postedDisbursementRepaymentPromise = fetchDataForTab(
-          buildUrl("/api/reports/transactions") + "&type=posted-disbursement-with-repayment"
-        );
+        const fetchData = async (url: string) => {
+          const response = await fetch(url);
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Failed to fetch data.`);
+          }
+          return response.json();
+        };
 
-        const summaryProviders =
-          currentProviderId === "all" &&
-          providers.length > 1 &&
-          canViewAllProviders
-            ? providers
-            : [providers.find((p) => p.id === currentProviderId)!].filter(
-                Boolean
-              );
+        switch (tab) {
+          case "providerReport":
+            const loansResult = await fetchData(buildUrl("/api/reports/loans"));
+            setLoansData(loansResult.data || []);
+            setLoansPagination({ 
+              total: loansResult.total || 0, 
+              page: loansResult.page || 1, 
+              pageSize: loansResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: loansResult.totalPages || 0 
+            });
+            break;
 
-        const summaryPromises = summaryProviders.map((p) =>
-          fetchDataForTab(
-            buildUrl(`/api/reports/provider-summary`).replace(
-              `providerId=${currentProviderId}`,
-              `providerId=${p.id}`
-            )
-          )
-            .then((data) => ({ [p.id]: data }))
-            .catch((err) => {
-              console.error(
-                `Failed to fetch summary for provider ${p.id}:`,
-                err.message
-              );
-              return { [p.id]: null }; // Return null on error for this provider
-            })
-        );
+          case "disbursementsReport":
+            const disbursementsResult = await fetchData(buildUrl("/api/reports/transactions") + "&type=disbursement");
+            setDisbursementsData(disbursementsResult.data || []);
+            setDisbursementsPagination({ 
+              total: disbursementsResult.total || 0, 
+              page: disbursementsResult.page || 1, 
+              pageSize: disbursementsResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: disbursementsResult.totalPages || 0 
+            });
+            break;
 
-        const [
-          loansResult,
-          collectionsResult,
-          disbursementsResult,
-          repaymentsResult,
-          failedDisbursementRepaymentResult,
-          postedDisbursementRepaymentResult,
-          ...summaryResults
-        ] = await Promise.all([
-          loansPromise,
-          collectionsPromise,
-          disbursementsPromise,
-          repaymentsPromise,
-          failedDisbursementRepaymentPromise,
-          postedDisbursementRepaymentPromise,
-          ...summaryPromises,
-        ]);
+          case "repaymentsReport":
+            const repaymentsResult = await fetchData(buildUrl("/api/reports/transactions") + "&type=repayment");
+            setRepaymentsData(repaymentsResult.data || []);
+            setRepaymentsPagination({ 
+              total: repaymentsResult.total || 0, 
+              page: repaymentsResult.page || 1, 
+              pageSize: repaymentsResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: repaymentsResult.totalPages || 0 
+            });
+            break;
 
-        // Handle paginated responses
-        setLoansData(loansResult.data || []);
-        setLoansPagination({ 
-          total: loansResult.total || 0, 
-          page: loansResult.page || 1, 
-          pageSize: loansResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: loansResult.totalPages || 0 
-        });
+          case "collectionsReport":
+            const collectionsResult = await fetchData(buildUrl("/api/reports/collections"));
+            setCollectionsData(collectionsResult.data || []);
+            setCollectionsPagination({ 
+              total: collectionsResult.total || 0, 
+              page: collectionsResult.page || 1, 
+              pageSize: collectionsResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: collectionsResult.totalPages || 0 
+            });
+            break;
 
-        setCollectionsData(collectionsResult.data || []);
-        setCollectionsPagination({ 
-          total: collectionsResult.total || 0, 
-          page: collectionsResult.page || 1, 
-          pageSize: collectionsResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: collectionsResult.totalPages || 0 
-        });
+          case "borrowerReport":
+            const borrowerResult = await fetchData(buildUrl("/api/reports/loans"));
+            setLoansData(borrowerResult.data || []);
+            setLoansPagination({ 
+              total: borrowerResult.total || 0, 
+              page: borrowerResult.page || 1, 
+              pageSize: borrowerResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: borrowerResult.totalPages || 0 
+            });
+            break;
 
-        setDisbursementsData(disbursementsResult.data || []);
-        setDisbursementsPagination({ 
-          total: disbursementsResult.total || 0, 
-          page: disbursementsResult.page || 1, 
-          pageSize: disbursementsResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: disbursementsResult.totalPages || 0 
-        });
+          case "failedDisbursementRepaymentReport":
+            const failedResult = await fetchData(buildUrl("/api/reports/transactions") + "&type=failed-disbursement-with-repayment");
+            setFailedDisbursementRepaymentData(failedResult.data || []);
+            setFailedDisbursementRepaymentPagination({ 
+              total: failedResult.total || 0, 
+              page: failedResult.page || 1, 
+              pageSize: failedResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: failedResult.totalPages || 0 
+            });
+            break;
 
-        setRepaymentsData(repaymentsResult.data || []);
-        setRepaymentsPagination({ 
-          total: repaymentsResult.total || 0, 
-          page: repaymentsResult.page || 1, 
-          pageSize: repaymentsResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: repaymentsResult.totalPages || 0 
-        });
+          case "postedDisbursementRepaymentReport":
+            const postedResult = await fetchData(buildUrl("/api/reports/transactions") + "&type=posted-disbursement-with-repayment");
+            setPostedDisbursementRepaymentData(postedResult.data || []);
+            setPostedDisbursementRepaymentPagination({ 
+              total: postedResult.total || 0, 
+              page: postedResult.page || 1, 
+              pageSize: postedResult.pageSize || DEFAULT_PAGE_SIZE, 
+              totalPages: postedResult.totalPages || 0 
+            });
+            break;
 
-        setFailedDisbursementRepaymentData(failedDisbursementRepaymentResult.data || []);
-        setFailedDisbursementRepaymentPagination({ 
-          total: failedDisbursementRepaymentResult.total || 0, 
-          page: failedDisbursementRepaymentResult.page || 1, 
-          pageSize: failedDisbursementRepaymentResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: failedDisbursementRepaymentResult.totalPages || 0 
-        });
+          case "nationalBankReport":
+            const nbResult = await fetchData(buildUrl("/api/reports/national-bank"));
+            setNationalBankData(nbResult.data || []);
+            setNationalBankPagination({
+              total: nbResult.total || 0,
+              page: nbResult.page || 1,
+              pageSize: nbResult.pageSize || DEFAULT_PAGE_SIZE,
+              totalPages: nbResult.totalPages || 0
+            });
+            break;
 
-        setPostedDisbursementRepaymentData(postedDisbursementRepaymentResult.data || []);
-        setPostedDisbursementRepaymentPagination({ 
-          total: postedDisbursementRepaymentResult.total || 0, 
-          page: postedDisbursementRepaymentResult.page || 1, 
-          pageSize: postedDisbursementRepaymentResult.pageSize || DEFAULT_PAGE_SIZE, 
-          totalPages: postedDisbursementRepaymentResult.totalPages || 0 
-        });
+          case "utilizationReport":
+          case "agingReport":
+          case "borrowerAging":
+            // These tabs all depend on providerSummaryData
+            const summaryProviders =
+              currentProviderId === "all" &&
+              providers.length > 1 &&
+              canViewAllProviders
+                ? providers
+                : [providers.find((p) => p.id === currentProviderId)!].filter(
+                    Boolean
+                  );
 
-        const newSummaryData = summaryResults.reduce(
-          (acc, current) => ({ ...acc, ...current }),
-          {} as Record<string, any>
-        );
-        // remove null entries returned when a provider summary failed to fetch
-        for (const k of Object.keys(newSummaryData)) {
-          if (newSummaryData[k] === null) delete newSummaryData[k];
+            const summaryPromises = summaryProviders.map((p) =>
+              fetchData(
+                buildUrl(`/api/reports/provider-summary`).replace(
+                  `providerId=${currentProviderId}`,
+                  `providerId=${p.id}`
+                )
+              )
+                .then((data) => ({ [p.id]: data }))
+                .catch((err) => {
+                  console.error(
+                    `Failed to fetch summary for provider ${p.id}:`,
+                    err.message
+                  );
+                  return { [p.id]: null };
+                })
+            );
+            const summaryResults = await Promise.all(summaryPromises);
+            const newSummaryData = summaryResults.reduce(
+              (acc, current) => ({ ...acc, ...current }),
+              {} as Record<string, any>
+            );
+            for (const k of Object.keys(newSummaryData)) {
+              if (newSummaryData[k] === null) delete newSummaryData[k];
+            }
+            setProviderSummaryData(newSummaryData as Record<string, any>);
+            break;
         }
-        setProviderSummaryData(newSummaryData as Record<string, any>);
       } catch (error: any) {
         toast({
           title: "Error fetching report data",
@@ -588,7 +624,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
     setProviderId(initialProviderId);
 
     if (initialProviderId && initialProviderId !== "none") {
-      fetchAllReportData(initialProviderId, "overall", undefined);
+      fetchActiveTabData(activeTab, initialProviderId, "overall", undefined);
     } else {
       setIsLoading(false);
     }
@@ -599,9 +635,10 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
   useEffect(() => {
     // This check prevents refetching on the initial render where providerId is still null
     if (providerId !== null) {
-      fetchAllReportData(providerId, timeframe, dateRange, debouncedSearch);
+      fetchActiveTabData(activeTab, providerId, timeframe, dateRange, debouncedSearch);
     }
-  }, [providerId, timeframe, dateRange, debouncedSearch, fetchAllReportData]);
+  }, [activeTab, providerId, timeframe, dateRange, debouncedSearch, fetchActiveTabData]);
+
 
   const handleExcelExport = async () => {
     if (!providerId || providerId === "none") {
@@ -684,19 +721,39 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           debouncedSearch
         );
 
-      const [allLoans, allCollections, allDisbursements, allRepayments] =
-        await Promise.all([
-          fetchAllPages(buildBaseUrl("/api/reports/loans")),
-          fetchAllPages(buildBaseUrl("/api/reports/collections")),
-          fetchAllPages((page, pageSize) =>
+      const [
+        allLoans,
+        allCollections,
+        allDisbursements,
+        allRepayments,
+        allFailedRepayments,
+        allPostedRepayments,
+        allNationalBank,
+      ] = await Promise.all([
+        fetchAllPages(buildBaseUrl("/api/reports/loans")),
+        fetchAllPages(buildBaseUrl("/api/reports/collections")),
+        fetchAllPages(
+          (page, pageSize) =>
             buildBaseUrl("/api/reports/transactions")(page, pageSize) +
             "&type=disbursement"
-          ),
-          fetchAllPages((page, pageSize) =>
+        ),
+        fetchAllPages(
+          (page, pageSize) =>
             buildBaseUrl("/api/reports/transactions")(page, pageSize) +
             "&type=repayment"
-          ),
-        ]);
+        ),
+        fetchAllPages(
+          (page, pageSize) =>
+            buildBaseUrl("/api/reports/transactions")(page, pageSize) +
+            "&type=failed-disbursement-with-repayment"
+        ),
+        fetchAllPages(
+          (page, pageSize) =>
+            buildBaseUrl("/api/reports/transactions")(page, pageSize) +
+            "&type=posted-disbursement-with-repayment"
+        ),
+        fetchAllPages(buildBaseUrl("/api/reports/national-bank")),
+      ]);
 
       // 1. Provider Loans
       if (allLoans.length > 0) {
@@ -725,7 +782,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           "Interest Received": d.interest,
           "Service Fee Received": d.serviceFee,
           "Penalty Received": d.penalty,
-          "Tax Received": d.tax,
+          "Tax Paid": d.tax,
           "Total Collected": d.total,
         }));
         const ws = wb.addWorksheet("Collections");
@@ -815,15 +872,65 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
           "Product Type": r.productType,
           Borrower: r.borrowerId,
           "Principal Disbursed": r.principalDisbursed,
-          "Principal Outstanding": r.principalOutstanding,
-          "Interest Outstanding": r.interestOutstanding,
-          "Service Fee Outstanding": r.serviceFeeOutstanding,
-          "Penalty Outstanding": r.penaltyOutstanding,
-          "Total Outstanding": r.totalOutstanding,
+          "Principal Paid": r.principalPaid,
+          "Interest Paid": r.interestPaid,
+          "Service Fee Paid": r.serviceFeePaid,
+          "Penalty Paid": r.penaltyPaid,
+          "Total Paid": r.totalPaid,
           Status: r.status,
         }));
         const ws = wb.addWorksheet("Repayments");
         addSanitizedRows(ws, repExport);
+      }
+
+      // 7. Failed Disbursements with Repayments
+      if (allFailedRepayments.length > 0) {
+        const failedRepExport = allFailedRepayments.map((r: any) => ({
+          Provider: r.provider,
+          "Repayment Date": formatDateForExport(r.transactionDate),
+          "Loan ID": r.loanId,
+          Customer:
+            r.customerName ||
+            r.borrowerName ||
+            r.borrowerAccount ||
+            r.borrowerId ||
+            "",
+          "Account Number": r.borrowerAccount || r.creditAccount,
+          Product: r.productType,
+          "Principal Paid": r.principalPaid,
+          "Interest Paid": r.interestPaid,
+          "Service Fee Paid": r.serviceFeePaid,
+          "Penalty Paid": r.penaltyPaid,
+          "Total Paid": r.totalPaid,
+          "Loan Status": r.status,
+        }));
+        const ws = wb.addWorksheet("Failed Disb with Repayments");
+        addSanitizedRows(ws, failedRepExport);
+      }
+
+      // 8. Posted Disbursements with Repayments
+      if (allPostedRepayments.length > 0) {
+        const postedRepExport = allPostedRepayments.map((r: any) => ({
+          Provider: r.provider,
+          "Repayment Date": formatDateForExport(r.transactionDate),
+          "Loan ID": r.loanId,
+          Customer:
+            r.customerName ||
+            r.borrowerName ||
+            r.borrowerAccount ||
+            r.borrowerId ||
+            "",
+          "Account Number": r.borrowerAccount || r.creditAccount,
+          Product: r.productType,
+          "Principal Paid": r.principalPaid,
+          "Interest Paid": r.interestPaid,
+          "Service Fee Paid": r.serviceFeePaid,
+          "Penalty Paid": r.penaltyPaid,
+          "Total Paid": r.totalPaid,
+          "Loan Status": r.status,
+        }));
+        const ws = wb.addWorksheet("Posted Disb with Repayments");
+        addSanitizedRows(ws, postedRepExport);
       }
 
       // 5. Aging Report
@@ -891,6 +998,49 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
         }));
         const wsBorrower = wb.addWorksheet("Borrower Performance");
         addSanitizedRows(wsBorrower, borrowerPerfData);
+      }
+
+      // National Bank Reporting
+      if (allNationalBank.length > 0) {
+        const nbData = allNationalBank.map((d: any) => ({
+          "First Name": d.firstName,
+          "Middle Name": d.middleName,
+          "Last Name": d.lastName,
+          "Gender": d.gender,
+          "Personal Income Level": d.personalIncomeLevel,
+          "National ID/Fayda No": d.nationalId,
+          "TIN": d.tin,
+          "Other ID No": d.otherIdNo,
+          "Region": d.region,
+          "Zone": d.zone,
+          "Sub-city": d.subCity,
+          "Woreda": d.woreda,
+          "Kebele": d.kebele,
+          "House No": d.houseNo,
+          "Tel. No": d.phoneNo,
+          "Personal Loan": d.personalLoan || "",
+          "Working Capital Loan": d.workingCapitalLoan || "",
+          "Buy Now Pay Later": d.buyNowPayLater || "",
+          "Revolving Credit": d.revolvingCredit || "",
+          "MSME Loans": d.msmeLoans || "",
+          "Other": d.otherLoanType || "",
+          "Application Amount": d.applicationAmount,
+          "Purpose of Loan": d.purposeOfLoan,
+          "Loan Account Ref No": d.loanAccountRefNo,
+          "Approved/Disbursed Amount": d.approvedAmount,
+          "Disbursement Date": d.disbursementDate,
+          "Repayment Frequency": d.repaymentFrequency,
+          "Duration (Days)": d.durationDays,
+          "Outstanding Balance": d.outstandingBalance,
+          "Settlement Date": d.settlementDate,
+          "Loan Status/Classification": d.loanClassification,
+          "Loan Cycle": d.loanCycle,
+          "Interest Rate": d.interestRate,
+          "Service Charge": d.serviceCharge,
+          "Credit Score": d.creditScore,
+        }));
+        const wsNB = wb.addWorksheet("National Bank Report");
+        addSanitizedRows(wsNB, nbData);
       }
 
       // If workbook has no worksheets (no data), inform the user
@@ -1086,6 +1236,13 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
       ...postedDisbursementRepaymentPagination,
     }),
     [postedDisbursementRepaymentData, postedDisbursementRepaymentPagination]
+  );
+  const nationalBankTable = useMemo(
+    () => ({
+      items: nationalBankData,
+      ...nationalBankPagination,
+    }),
+    [nationalBankData, nationalBankPagination]
   );
 
   const utilizationTable = useMemo(() => {
@@ -1308,6 +1465,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
             <TabsTrigger value="utilizationReport">Fund Utilization</TabsTrigger>
             <TabsTrigger value="agingReport">Aging</TabsTrigger>
             <TabsTrigger value="borrowerReport">Borrower Performance</TabsTrigger>
+            <TabsTrigger value="nationalBankReport">National Bank Reporting</TabsTrigger>
           </TabsList>
         </div>
         <div className="overflow-y-auto overflow-x-hidden rounded-md border h-[60vh]">
@@ -2060,7 +2218,7 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                     Service Fee Received
                   </TableHead>
                   <TableHead className="text-right">Penalty Received</TableHead>
-                  <TableHead className="text-right">Tax Received</TableHead>
+                  <TableHead className="text-right">Tax Paid</TableHead>
                   <TableHead className="text-right font-bold">
                     Total Collected
                   </TableHead>
@@ -2457,6 +2615,127 @@ export function ReportsClient({ providers }: { providers: LoanProvider[] }) {
                 page: borrowerTable.page,
                 pageSize: borrowerTable.pageSize,
               }}
+            />
+          </TabsContent>
+          <TabsContent value="nationalBankReport">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-card z-10">
+                  <TableRow>
+                    <TableHead><button onClick={() => toggleSort("nationalBankReport", "firstName")} className="flex items-center whitespace-nowrap">First Name{renderSortIcon("nationalBankReport", "firstName")}</button></TableHead>
+                    <TableHead><button onClick={() => toggleSort("nationalBankReport", "middleName")} className="flex items-center whitespace-nowrap">Middle Name{renderSortIcon("nationalBankReport", "middleName")}</button></TableHead>
+                    <TableHead><button onClick={() => toggleSort("nationalBankReport", "lastName")} className="flex items-center whitespace-nowrap">Last Name{renderSortIcon("nationalBankReport", "lastName")}</button></TableHead>
+                    <TableHead>Gender</TableHead>
+                    <TableHead>Income Level</TableHead>
+                    <TableHead>National ID/Fayda No</TableHead>
+                    <TableHead>TIN</TableHead>
+                    <TableHead>Other ID No</TableHead>
+                    <TableHead>Region</TableHead>
+                    <TableHead>Zone</TableHead>
+                    <TableHead>Sub-city</TableHead>
+                    <TableHead>Woreda</TableHead>
+                    <TableHead>Kebele</TableHead>
+                    <TableHead>House No</TableHead>
+                    <TableHead>Tel. No</TableHead>
+                    <TableHead className="text-right">Personal Loan</TableHead>
+                    <TableHead className="text-right">Working Capital</TableHead>
+                    <TableHead className="text-right">BNPL</TableHead>
+                    <TableHead className="text-right">Revolving Credit</TableHead>
+                    <TableHead className="text-right">MSME Loans</TableHead>
+                    <TableHead className="text-right">Other</TableHead>
+                    <TableHead className="text-right"><button onClick={() => toggleSort("nationalBankReport", "applicationAmount")} className="flex items-center whitespace-nowrap">Application Amount{renderSortIcon("nationalBankReport", "applicationAmount")}</button></TableHead>
+                    <TableHead>Purpose of Loan</TableHead>
+                    <TableHead><button onClick={() => toggleSort("nationalBankReport", "loanAccountRefNo")} className="flex items-center whitespace-nowrap">Loan Account Ref No{renderSortIcon("nationalBankReport", "loanAccountRefNo")}</button></TableHead>
+                    <TableHead className="text-right"><button onClick={() => toggleSort("nationalBankReport", "approvedAmount")} className="flex items-center whitespace-nowrap">Approved/Disbursed Amt{renderSortIcon("nationalBankReport", "approvedAmount")}</button></TableHead>
+                    <TableHead><button onClick={() => toggleSort("nationalBankReport", "disbursementDate")} className="flex items-center whitespace-nowrap">Disbursement Date{renderSortIcon("nationalBankReport", "disbursementDate")}</button></TableHead>
+                    <TableHead>Repayment Frequency</TableHead>
+                    <TableHead className="text-right">Duration (Days)</TableHead>
+                    <TableHead className="text-right"><button onClick={() => toggleSort("nationalBankReport", "outstandingBalance")} className="flex items-center whitespace-nowrap">Outstanding Balance{renderSortIcon("nationalBankReport", "outstandingBalance")}</button></TableHead>
+                    <TableHead>Settlement Date</TableHead>
+                    <TableHead><button onClick={() => toggleSort("nationalBankReport", "loanClassification")} className="flex items-center whitespace-nowrap">Loan Status{renderSortIcon("nationalBankReport", "loanClassification")}</button></TableHead>
+                    <TableHead>Loan Cycle</TableHead>
+                    <TableHead>Interest Rate</TableHead>
+                    <TableHead>Service Charge</TableHead>
+                    <TableHead>Credit Score</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={35} className="h-24 text-center">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ) : nationalBankTable.items.length > 0 ? (
+                    nationalBankTable.items.map((row: any, idx: number) => (
+                      <TableRow key={row.loanAccountRefNo || idx}>
+                        <TableCell>{row.firstName}</TableCell>
+                        <TableCell>{row.middleName}</TableCell>
+                        <TableCell>{row.lastName}</TableCell>
+                        <TableCell>{row.gender}</TableCell>
+                        <TableCell>{row.personalIncomeLevel}</TableCell>
+                        <TableCell>{row.nationalId}</TableCell>
+                        <TableCell>{row.tin}</TableCell>
+                        <TableCell>{row.otherIdNo}</TableCell>
+                        <TableCell>{row.region}</TableCell>
+                        <TableCell>{row.zone}</TableCell>
+                        <TableCell>{row.subCity}</TableCell>
+                        <TableCell>{row.woreda}</TableCell>
+                        <TableCell>{row.kebele}</TableCell>
+                        <TableCell>{row.houseNo}</TableCell>
+                        <TableCell>{row.phoneNo}</TableCell>
+                        <TableCell className="text-right font-mono">{row.personalLoan ? formatCurrency(row.personalLoan) : ""}</TableCell>
+                        <TableCell className="text-right font-mono">{row.workingCapitalLoan ? formatCurrency(row.workingCapitalLoan) : ""}</TableCell>
+                        <TableCell className="text-right font-mono">{row.buyNowPayLater ? formatCurrency(row.buyNowPayLater) : ""}</TableCell>
+                        <TableCell className="text-right font-mono">{row.revolvingCredit ? formatCurrency(row.revolvingCredit) : ""}</TableCell>
+                        <TableCell className="text-right font-mono">{row.msmeLoans ? formatCurrency(row.msmeLoans) : ""}</TableCell>
+                        <TableCell className="text-right font-mono">{row.otherLoanType ? formatCurrency(row.otherLoanType) : ""}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(row.applicationAmount)}</TableCell>
+                        <TableCell>{row.purposeOfLoan}</TableCell>
+                        <TableCell className="font-mono text-xs">{row.loanAccountRefNo?.slice(-8)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(row.approvedAmount)}</TableCell>
+                        <TableCell>{row.disbursementDate}</TableCell>
+                        <TableCell>{row.repaymentFrequency}</TableCell>
+                        <TableCell className="text-right font-mono">{row.durationDays}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(row.outstandingBalance)}</TableCell>
+                        <TableCell>{row.settlementDate}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            row.loanClassification === "Loss" || row.loanClassification === "Doubtful"
+                              ? "destructive"
+                              : row.loanClassification === "Closed"
+                              ? "default"
+                              : "secondary"
+                          } className={cn(row.loanClassification === "Closed" && "bg-green-600 text-white")}>
+                            {row.loanClassification}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{row.loanCycle}</TableCell>
+                        <TableCell>{row.interestRate}</TableCell>
+                        <TableCell>{row.serviceCharge}</TableCell>
+                        <TableCell>{row.creditScore}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={35} className="h-24 text-center">
+                        No results found for the selected filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <PaginationControls
+              tab="nationalBankReport"
+              meta={{
+                total: nationalBankTable.total,
+                totalPages: nationalBankTable.totalPages,
+                page: nationalBankTable.page,
+                pageSize: nationalBankTable.pageSize,
+              }}
+              onPageChange={(page) => fetchNationalBankData(page, nationalBankTable.pageSize)}
+              onPageSizeChange={(pageSize) => fetchNationalBankData(1, pageSize)}
             />
           </TabsContent>
         </div>
